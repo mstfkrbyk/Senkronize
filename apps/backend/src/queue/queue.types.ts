@@ -31,3 +31,8 @@ export interface NotificationJobData {
   template: string;
   payload: Record<string, unknown>;
 }
+
+/** pricing-engine job payload */
+export interface PricingRunRulesJobData {
+  organizationId: string;
+}

@@ -16,6 +16,7 @@ import { NotificationModule } from './notification/notification.module';
 import { OrderModule } from './order/order.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { PricingModule } from './pricing/pricing.module';
 import { QueueModule } from './queue/queue.module';
 import { StockModule } from './stock/stock.module';
 import { SubscriptionModule } from './subscription/subscription.module';
@@ -42,6 +43,7 @@ import { UsersModule } from './users/users.module';
     OrganizationModule,
     OrderModule,
     ListingModule,
+    PricingModule,
     StockModule,
     UsersModule,
     HealthModule,

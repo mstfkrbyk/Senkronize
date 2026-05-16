@@ -12,6 +12,7 @@ import {
   PlanTier,
   SubStatus,
   UserRole,
+  type Subscription,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
@@ -177,9 +178,48 @@ export class AuthService {
   }
 
   async getCurrentOrganization(user: AuthenticatedUser) {
-    return this.prisma.organization.findFirstOrThrow({
+    const org = await this.prisma.organization.findFirstOrThrow({
       where: { id: user.currentOrgId, deletedAt: null },
+      include: { subscription: true },
     });
+    const { subscription, ...rest } = org;
+    const plan = this.resolveUiPlanTier(subscription);
+    return {
+      id: rest.id,
+      slug: rest.slug,
+      name: rest.name,
+      type: rest.type,
+      logoUrl: rest.logoUrl,
+      createdAt: rest.createdAt,
+      onboardingCompleted: rest.onboardingCompleted,
+      plan,
+    };
+  }
+
+  private resolveUiPlanTier(subscription: Subscription | null): PlanTier {
+    const now = new Date();
+    if (!subscription) {
+      return PlanTier.BASLANGIC;
+    }
+    if (
+      subscription.status === SubStatus.EXPIRED ||
+      subscription.status === SubStatus.PAUSED
+    ) {
+      return PlanTier.BASLANGIC;
+    }
+    if (
+      subscription.status === SubStatus.CANCELLED &&
+      now > subscription.currentPeriodEnd
+    ) {
+      return PlanTier.BASLANGIC;
+    }
+    if (subscription.status === SubStatus.TRIAL) {
+      if (subscription.trialEndsAt && now > subscription.trialEndsAt) {
+        return PlanTier.BASLANGIC;
+      }
+      return PlanTier.BASLANGIC;
+    }
+    return subscription.plan;
   }
 
   private async generateUniqueOrgSlug(email: string): Promise<string> {

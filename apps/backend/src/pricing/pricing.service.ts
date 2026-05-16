@@ -1,0 +1,397 @@
+import { InjectQueue } from '@nestjs/bull';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Marketplace, Prisma, type PricingRule } from '@prisma/client';
+import type { Queue } from 'bull';
+
+import { EventService } from '../event/event.service';
+import { WS_EVENTS } from '../event/event.types';
+import { PrismaService } from '../prisma/prisma.service';
+import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
+import { QUEUE_MARKETPLACE_PUSH, QUEUE_PRICING } from '../queue/queue.constants';
+import type {
+  MarketplacePushJobData,
+  PricingRunRulesJobData,
+} from '../queue/queue.types';
+
+import { BuyBoxService } from './buybox.service';
+import type {
+  CreatePricingRuleDto,
+  ManualPriceUpdateDto,
+  PriceHistoryQueryDto,
+  UpdatePricingRuleDto,
+} from './pricing.dto';
+import { PricingEngine } from './pricing.engine';
+
+export interface BuyBoxSummaryResponse {
+  totalListings: number;
+  winningBuyBox: number;
+  winRate: number;
+  activeRules: number;
+  platforms: Array<{ platform: string; winRate: number; listings: number }>;
+  snapshots: Array<{
+    barcode: string;
+    platform: Marketplace;
+    buyBoxPrice: string;
+    ourPrice: string;
+    isWinner: boolean;
+    competitorCount: number;
+    capturedAt: string;
+  }>;
+}
+
+export interface PriceHistoryItemResponse {
+  id: string;
+  barcode: string;
+  platform: Marketplace;
+  oldPrice: string;
+  newPrice: string;
+  reason: string | null;
+  appliedAt: string;
+  pricingRuleId: string | null;
+}
+
+@Injectable()
+export class PricingService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly engine: PricingEngine,
+    private readonly buybox: BuyBoxService,
+    private readonly eventService: EventService,
+    @InjectQueue(QUEUE_PRICING)
+    private readonly pricingQueue: Queue<PricingRunRulesJobData>,
+    @InjectQueue(QUEUE_MARKETPLACE_PUSH)
+    private readonly pushQueue: Queue<MarketplacePushJobData>,
+  ) {}
+
+  async createRule(
+    organizationId: string,
+    dto: CreatePricingRuleDto,
+  ): Promise<PricingRule> {
+    const applyToAll = dto.applyToAll ?? false;
+    const barcodes = dto.barcodes ?? [];
+    if (!applyToAll && barcodes.length === 0) {
+      throw new BadRequestException(
+        'applyToAll false ise en az bir barkod gerekir',
+      );
+    }
+
+    return this.prisma.pricingRule.create({
+      data: {
+        organizationId,
+        name: dto.name,
+        platform: dto.platform,
+        strategy: dto.strategy,
+        minMarginPct: new Prisma.Decimal(dto.minMarginPct ?? 10),
+        maxDiscountPct: new Prisma.Decimal(dto.maxDiscountPct ?? 20),
+        targetPosition: dto.targetPosition ?? 1,
+        applyToAll,
+        barcodes: applyToAll ? [] : barcodes,
+      },
+    });
+  }
+
+  async findRules(organizationId: string): Promise<PricingRule[]> {
+    return this.prisma.pricingRule.findMany({
+      where: { organizationId, deletedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async updateRule(
+    organizationId: string,
+    id: string,
+    dto: UpdatePricingRuleDto,
+  ): Promise<PricingRule> {
+    const existing = await this.prisma.pricingRule.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException('Fiyat kuralı bulunamadı');
+    }
+
+    const nextApplyToAll = dto.applyToAll ?? existing.applyToAll;
+    const nextBarcodes =
+      dto.applyToAll === true
+        ? []
+        : (dto.barcodes ?? existing.barcodes);
+
+    if (!nextApplyToAll && nextBarcodes.length === 0) {
+      throw new BadRequestException(
+        'applyToAll false ise en az bir barkod gerekir',
+      );
+    }
+
+    return this.prisma.pricingRule.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.platform !== undefined && { platform: dto.platform }),
+        ...(dto.strategy !== undefined && { strategy: dto.strategy }),
+        ...(dto.minMarginPct !== undefined && {
+          minMarginPct: new Prisma.Decimal(dto.minMarginPct),
+        }),
+        ...(dto.maxDiscountPct !== undefined && {
+          maxDiscountPct: new Prisma.Decimal(dto.maxDiscountPct),
+        }),
+        ...(dto.targetPosition !== undefined && {
+          targetPosition: dto.targetPosition,
+        }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        applyToAll: nextApplyToAll,
+        barcodes: nextBarcodes,
+      },
+    });
+  }
+
+  async deleteRule(organizationId: string, id: string): Promise<void> {
+    const existing = await this.prisma.pricingRule.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException('Fiyat kuralı bulunamadı');
+    }
+    await this.prisma.pricingRule.update({
+      where: { id },
+      data: { deletedAt: new Date(), isActive: false },
+    });
+  }
+
+  async getBuyBoxSummary(organizationId: string): Promise<BuyBoxSummaryResponse> {
+    const [totalListings, activeRules, latestSnapshots, since7d] =
+      await Promise.all([
+        this.prisma.listing.count({
+          where: { organizationId, deletedAt: null },
+        }),
+        this.prisma.pricingRule.count({
+          where: { organizationId, deletedAt: null, isActive: true },
+        }),
+        this.buybox.getLatestSnapshots(organizationId),
+        Promise.all([
+          this.prisma.buyBoxSnapshot.count({
+            where: {
+              organizationId,
+              capturedAt: {
+                gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+              },
+            },
+          }),
+          this.prisma.buyBoxSnapshot.count({
+            where: {
+              organizationId,
+              isWinner: true,
+              capturedAt: {
+                gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+              },
+            },
+          }),
+        ]),
+      ]);
+
+    const [snapTotal7d, snapWins7d] = since7d;
+    const winRate =
+      snapTotal7d > 0 ? Math.round((snapWins7d / snapTotal7d) * 100) : 0;
+
+    const winningBuyBox = latestSnapshots.filter((s) => s.isWinner).length;
+
+    const platformRows = await this.prisma.listing.groupBy({
+      by: ['platform'],
+      where: { organizationId, deletedAt: null },
+      _count: { _all: true },
+    });
+
+    const platforms: BuyBoxSummaryResponse['platforms'] = [];
+    for (const row of platformRows) {
+      const wr = await this.buybox.getWinRate(organizationId, row.platform, 7);
+      platforms.push({
+        platform: row.platform,
+        winRate: wr,
+        listings: row._count._all,
+      });
+    }
+
+    return {
+      totalListings,
+      winningBuyBox,
+      winRate,
+      activeRules,
+      platforms,
+      snapshots: latestSnapshots.map((s) => ({
+        barcode: s.barcode,
+        platform: s.platform,
+        buyBoxPrice: s.buyBoxPrice.toString(),
+        ourPrice: s.ourPrice.toString(),
+        isWinner: s.isWinner,
+        competitorCount: s.competitorCount,
+        capturedAt: s.capturedAt.toISOString(),
+      })),
+    };
+  }
+
+  async getSnapshotsForBarcode(
+    organizationId: string,
+    barcode: string,
+    platform?: Marketplace,
+  ): Promise<
+    Array<{
+      buyBoxPrice: string;
+      ourPrice: string;
+      isWinner: boolean;
+      competitorCount: number;
+      capturedAt: string;
+      platform: Marketplace;
+    }>
+  > {
+    const rows = await this.prisma.buyBoxSnapshot.findMany({
+      where: {
+        organizationId,
+        barcode,
+        ...(platform !== undefined ? { platform } : {}),
+        capturedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        },
+      },
+      orderBy: { capturedAt: 'desc' },
+      take: 100,
+    });
+    return rows.map((s) => ({
+      platform: s.platform,
+      buyBoxPrice: s.buyBoxPrice.toString(),
+      ourPrice: s.ourPrice.toString(),
+      isWinner: s.isWinner,
+      competitorCount: s.competitorCount,
+      capturedAt: s.capturedAt.toISOString(),
+    }));
+  }
+
+  async runRulesForOrg(organizationId: string): Promise<{ jobId: string }> {
+    const job = await this.pricingQueue.add(
+      'run-rules',
+      { organizationId },
+      {
+        ...STANDARD_QUEUE_JOB_OPTIONS,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
+      },
+    );
+    return { jobId: String(job.id) };
+  }
+
+  async manualUpdate(
+    organizationId: string,
+    dto: ManualPriceUpdateDto,
+  ): Promise<void> {
+    const listing = await this.prisma.listing.findFirst({
+      where: {
+        organizationId,
+        barcode: dto.barcode,
+        platform: dto.platform,
+        deletedAt: null,
+      },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing bulunamadı');
+    }
+
+    await this.prisma.priceHistory.create({
+      data: {
+        organizationId,
+        barcode: dto.barcode,
+        platform: dto.platform,
+        oldPrice: listing.salePrice,
+        newPrice: new Prisma.Decimal(dto.salePrice),
+        reason: 'manual',
+      },
+    });
+
+    await this.pushQueue.add(
+      'push-price',
+      {
+        organizationId,
+        platform: dto.platform,
+        type: 'price',
+        resourceIds: [dto.barcode],
+        payload: { salePrice: dto.salePrice, listPrice: dto.listPrice },
+      },
+      STANDARD_QUEUE_JOB_OPTIONS,
+    );
+
+    await this.prisma.listing.update({
+      where: { id: listing.id },
+      data: {
+        salePrice: new Prisma.Decimal(dto.salePrice),
+        listPrice: new Prisma.Decimal(dto.listPrice),
+      },
+    });
+
+    this.eventService.emit(organizationId, WS_EVENTS.PRICE_UPDATED, {
+      barcode: dto.barcode,
+    });
+  }
+
+  async findPriceHistory(
+    organizationId: string,
+    query: PriceHistoryQueryDto,
+  ): Promise<{ items: PriceHistoryItemResponse[]; total: number }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where: Prisma.PriceHistoryWhereInput = {
+      organizationId,
+      ...(query.barcode !== undefined && { barcode: query.barcode }),
+      ...(query.platform !== undefined && { platform: query.platform }),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.priceHistory.findMany({
+        where,
+        orderBy: { appliedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.priceHistory.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((r) => ({
+        id: r.id,
+        barcode: r.barcode,
+        platform: r.platform,
+        oldPrice: r.oldPrice.toString(),
+        newPrice: r.newPrice.toString(),
+        reason: r.reason,
+        appliedAt: r.appliedAt.toISOString(),
+        pricingRuleId: r.pricingRuleId,
+      })),
+      total,
+    };
+  }
+
+  async findPriceHistoryByBarcode(
+    organizationId: string,
+    barcode: string,
+    platform?: Marketplace,
+  ): Promise<PriceHistoryItemResponse[]> {
+    const rows = await this.prisma.priceHistory.findMany({
+      where: {
+        organizationId,
+        barcode,
+        ...(platform !== undefined ? { platform } : {}),
+      },
+      orderBy: { appliedAt: 'desc' },
+      take: 50,
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      barcode: r.barcode,
+      platform: r.platform,
+      oldPrice: r.oldPrice.toString(),
+      newPrice: r.newPrice.toString(),
+      reason: r.reason,
+      appliedAt: r.appliedAt.toISOString(),
+      pricingRuleId: r.pricingRuleId,
+    }));
+  }
+}

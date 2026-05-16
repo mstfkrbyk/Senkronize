@@ -8,11 +8,14 @@ export interface AuthUserSnapshot {
   role: string;
 }
 
+import type { OrgPlanTier } from '@/types/auth';
+
 export interface CurrentOrgSnapshot {
   id: string;
   name: string;
   slug: string;
   onboardingCompleted: boolean;
+  plan: OrgPlanTier;
 }
 
 interface AuthState {
@@ -62,6 +65,8 @@ export const useAuthStore = create<AuthState>()(
                   onboardingCompleted: Boolean(
                     (co as CurrentOrgSnapshot).onboardingCompleted,
                   ),
+                  plan:
+                    (co as Partial<CurrentOrgSnapshot>).plan ?? 'BASLANGIC',
                 }
               : null,
         };

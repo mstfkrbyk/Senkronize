@@ -51,6 +51,13 @@ enum Marketplace {
   CICEKSEPETI
 }
 
+enum PricingStrategy {
+  MATCH_BUYBOX
+  BEAT_BUYBOX
+  FIXED_MARGIN
+  DYNAMIC
+}
+
 enum ErpType {
   BIZIMHESAP
   PARASUT
@@ -128,6 +135,9 @@ model Organization {
   clientOf                 PartnerRelationship[] @relation("ClientOrg")
   paytrSubscription        PaytrSubscription?
   payments                 Payment[]
+  pricingRules             PricingRule[]
+  priceHistories           PriceHistory[]
+  buyBoxSnapshots          BuyBoxSnapshot[]
 }
 
 model User {
@@ -437,4 +447,62 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+// Fiyatlandırma kuralları (Pro+)
+model PricingRule {
+  id               String           @id @default(cuid())
+  organizationId   String
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name             String
+  platform         Marketplace
+  strategy         PricingStrategy
+  minMarginPct     Decimal          @db.Decimal(5, 2) @default(10)
+  maxDiscountPct   Decimal          @db.Decimal(5, 2) @default(20)
+  targetPosition   Int              @default(1)
+  isActive         Boolean          @default(true)
+  applyToAll       Boolean          @default(false)
+  barcodes         String[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  deletedAt        DateTime?
+  priceHistories   PriceHistory[]
+
+  @@index([organizationId])
+  @@index([organizationId, platform])
+}
+
+// Fiyat değişim geçmişi
+model PriceHistory {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  barcode        String
+  platform       Marketplace
+  pricingRuleId  String?
+  pricingRule    PricingRule?  @relation(fields: [pricingRuleId], references: [id], onDelete: SetNull)
+  oldPrice       Decimal       @db.Decimal(10, 2)
+  newPrice       Decimal       @db.Decimal(10, 2)
+  reason         String?
+  appliedAt      DateTime      @default(now())
+
+  @@index([organizationId, barcode])
+  @@index([organizationId, platform])
+}
+
+// BuyBox anlık veri (rakip fiyat takibi)
+model BuyBoxSnapshot {
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  barcode          String
+  platform         Marketplace
+  buyBoxPrice      Decimal      @db.Decimal(10, 2)
+  ourPrice         Decimal      @db.Decimal(10, 2)
+  isWinner         Boolean      @default(false)
+  competitorCount  Int          @default(0)
+  capturedAt       DateTime     @default(now())
+
+  @@index([organizationId, barcode, platform])
+  @@index([organizationId, platform, capturedAt])
 }
