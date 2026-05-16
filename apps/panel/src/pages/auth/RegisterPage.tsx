@@ -88,6 +88,7 @@ export function RegisterPage(): ReactElement {
         name: me.organization.name,
         slug: me.organization.slug,
         onboardingCompleted: me.organization.onboardingCompleted,
+        plan: me.organization.plan,
       });
     },
     onSuccess: () => {

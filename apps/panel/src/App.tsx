@@ -49,6 +49,7 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/settings/subscription" element={<SettingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

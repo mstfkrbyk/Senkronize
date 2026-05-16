@@ -39,6 +39,7 @@ export function useCreateRule() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing', 'rules'] });
       void qc.invalidateQueries({ queryKey: ['pricing', 'buybox'] });
+      toast.success('Kural oluşturuldu');
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));

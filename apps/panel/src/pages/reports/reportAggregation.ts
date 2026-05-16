@@ -1,15 +1,6 @@
-import { endOfMonth, parseISO, startOfMonth, startOfWeek } from 'date-fns';
+import { format, parseISO, startOfMonth, startOfWeek } from 'date-fns';
 
 import type { SalesReportData } from '@/types/report';
-
-function emptyRow(period: string): SalesReportData {
-  return {
-    period,
-    totalOrders: 0,
-    totalRevenue: 0,
-    byPlatform: {},
-  };
-}
 
 function mergePlatforms(
   a: Record<string, number>,
@@ -55,8 +46,7 @@ export function aggregateSalesByGroup(
       const wk = startOfWeek(d, { weekStartsOn: 1 });
       key = wk.toISOString().split('T')[0];
     } else {
-      const m = startOfMonth(d);
-      key = endOfMonth(m).toISOString().slice(0, 7);
+      key = format(startOfMonth(d), 'yyyy-MM');
     }
     const existing = bucket.get(key);
     if (!existing) {
@@ -83,12 +73,18 @@ export function filterSalesByPlatform(
   if (!platform) {
     return rows;
   }
-  return rows.map((row) => ({
-    ...row,
-    totalOrders: row.byPlatform[platform] ?? 0,
-    totalRevenue: row.totalRevenue * ((row.byPlatform[platform] ?? 0) / Math.max(1, sumPlatforms(row.byPlatform))),
-    byPlatform: { [platform]: row.byPlatform[platform] ?? 0 },
-  }));
+  return rows.map((row) => {
+    const count = row.byPlatform[platform] ?? 0;
+    const denom =
+      Object.values(row.byPlatform).reduce((s, n) => s + n, 0) || 1;
+    const ratio = count / denom;
+    return {
+      ...row,
+      totalOrders: count,
+      totalRevenue: Math.round(row.totalRevenue * ratio),
+      byPlatform: { [platform]: count },
+    };
+  });
 }
 
 function sumPlatforms(by: Record<string, number>): number {

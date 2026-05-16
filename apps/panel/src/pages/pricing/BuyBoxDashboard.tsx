@@ -77,11 +77,16 @@ export function BuyBoxDashboard({ summaryQuery }: Props): ReactElement {
     );
   }
 
-  const chartData = data.platforms.map((p) => ({
-    name: platformLabel(p.platform),
-    winRate: Math.round(p.winRate * 100) / 100,
-    listings: p.listings,
-  }));
+  const winPct = data.winRate <= 1 && data.winRate >= 0 ? data.winRate * 100 : data.winRate;
+
+  const chartData = data.platforms.map((p) => {
+    const w = p.winRate <= 1 && p.winRate >= 0 ? p.winRate * 100 : p.winRate;
+    return {
+      name: platformLabel(p.platform),
+      winRate: Math.round(w * 100) / 100,
+      listings: p.listings,
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -94,7 +99,7 @@ export function BuyBoxDashboard({ summaryQuery }: Props): ReactElement {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-semibold text-sky-600">
-              %{data.winRate.toFixed(1)}
+              %{winPct.toFixed(1)}
             </p>
           </CardContent>
         </Card>
@@ -144,11 +149,12 @@ export function BuyBoxDashboard({ summaryQuery }: Props): ReactElement {
                   tickFormatter={(v) => `${v}%`}
                 />
                 <Tooltip
-                  formatter={(value: number | string, name: string) => {
+                  formatter={(value, name) => {
+                    const v = value == null ? 0 : Number(value);
                     if (name === 'winRate') {
-                      return [`%${Number(value).toFixed(1)}`, 'Kazanma oranı'];
+                      return [`%${v.toFixed(1)}`, 'Kazanma oranı'];
                     }
-                    return [value, 'Listeleme'];
+                    return [v, 'Listeleme'];
                   }}
                   labelFormatter={(label) => String(label)}
                 />

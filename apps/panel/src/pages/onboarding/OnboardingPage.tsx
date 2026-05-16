@@ -91,6 +91,7 @@ export function OnboardingPage(): ReactElement {
         name: fresh.organization.name,
         slug: fresh.organization.slug,
         onboardingCompleted: fresh.organization.onboardingCompleted,
+        plan: fresh.organization.plan,
       });
     },
     onSuccess: () => {

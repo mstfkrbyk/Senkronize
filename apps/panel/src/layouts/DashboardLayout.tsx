@@ -34,6 +34,7 @@ export function DashboardLayout(): ReactElement {
       name: me.organization.name,
       slug: me.organization.slug,
       onboardingCompleted: me.organization.onboardingCompleted,
+      plan: me.organization.plan,
     });
   }, [me, setOrg, setUser]);
   const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);

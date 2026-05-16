@@ -51,8 +51,20 @@ const formSchema = z
       'FIXED_MARGIN',
       'DYNAMIC',
     ]),
-    minMarginPct: z.coerce.number().min(0).max(100),
-    maxDiscountPct: z.coerce.number().min(0).max(100),
+    minMarginPct: z
+      .string()
+      .min(1, 'Min. marj gerekli.')
+      .refine((s) => {
+        const n = Number(s);
+        return !Number.isNaN(n) && n >= 0 && n <= 100;
+      }, '0–100 arası girin.'),
+    maxDiscountPct: z
+      .string()
+      .min(1, 'Max. indirim gerekli.')
+      .refine((s) => {
+        const n = Number(s);
+        return !Number.isNaN(n) && n >= 0 && n <= 100;
+      }, '0–100 arası girin.'),
     applyToAll: z.boolean(),
     barcodesRaw: z.string().optional(),
   })
@@ -89,8 +101,8 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
       name: '',
       platform: 'TRENDYOL',
       strategy: 'MATCH_BUYBOX',
-      minMarginPct: 5,
-      maxDiscountPct: 15,
+      minMarginPct: '5',
+      maxDiscountPct: '15',
       applyToAll: true,
       barcodesRaw: '',
     },
@@ -104,8 +116,8 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
         name: '',
         platform: 'TRENDYOL',
         strategy: 'MATCH_BUYBOX',
-        minMarginPct: 5,
-        maxDiscountPct: 15,
+        minMarginPct: '5',
+        maxDiscountPct: '15',
         applyToAll: true,
         barcodesRaw: '',
       });
@@ -126,8 +138,8 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
         name: values.name,
         platform: values.platform,
         strategy: values.strategy,
-        minMarginPct: String(values.minMarginPct),
-        maxDiscountPct: String(values.maxDiscountPct),
+        minMarginPct: String(Number(values.minMarginPct)),
+        maxDiscountPct: String(Number(values.maxDiscountPct)),
         applyToAll: values.applyToAll,
         barcodes,
         isActive: true,
@@ -218,7 +230,12 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
                   <FormItem>
                     <FormLabel>Min. kar marjı (%)</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} max={100} {...field} />
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -231,7 +248,12 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
                   <FormItem>
                     <FormLabel>Max. indirim (%)</FormLabel>
                     <FormControl>
-                      <Input type="number" min={0} max={100} {...field} />
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
