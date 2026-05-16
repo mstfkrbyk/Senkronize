@@ -1,5 +1,6 @@
 FROM node:22-alpine AS base
-RUN npm install -g pnpm
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 FROM base AS deps
@@ -13,11 +14,11 @@ COPY apps/marketing ./apps/marketing
 RUN pnpm --filter marketing build
 
 FROM node:22-alpine AS production
-RUN npm install -g pnpm
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 COPY --from=build /app/apps/marketing/.next/standalone ./
 COPY --from=build /app/apps/marketing/.next/static ./apps/marketing/.next/static
-COPY --from=build /app/apps/marketing/public ./apps/marketing/public
 
 ENV NODE_ENV=production PORT=3000
 EXPOSE 3000

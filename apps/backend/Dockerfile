@@ -1,5 +1,6 @@
 FROM node:22-alpine AS base
-RUN npm install -g pnpm
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 # Dependencies
@@ -22,7 +23,8 @@ RUN pnpm --filter backend exec prisma generate && pnpm --filter backend build
 
 # Production image
 FROM node:22-alpine AS production
-RUN npm install -g pnpm
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
