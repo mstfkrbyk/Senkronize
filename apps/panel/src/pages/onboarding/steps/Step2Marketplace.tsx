@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { mockTestMarketplaceConnection } from '@/pages/onboarding/onboarding.api';
+import { testMarketplaceConnection } from '@/pages/onboarding/onboarding.api';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type { CredentialField } from '@/pages/onboarding/onboarding.types';
 
@@ -31,7 +31,12 @@ export function Step2Marketplace({
   onResetTest,
 }: Props): ReactElement {
   const [testing, setTesting] = useState(false);
+  const [testWarning, setTestWarning] = useState<string | null>(null);
   const option = MARKETPLACE_OPTIONS.find((o) => o.id === selectedMarketplace);
+
+  useEffect(() => {
+    setTestWarning(null);
+  }, [credentials, selectedMarketplace]);
 
   const requiredFilled =
     option?.fields.every((f) => {
@@ -46,9 +51,19 @@ export function Step2Marketplace({
       return;
     }
     setTesting(true);
+    setTestWarning(null);
     try {
-      await mockTestMarketplaceConnection();
-      onTestSuccess();
+      const result = await testMarketplaceConnection(option.id, credentials);
+      if (result === true) {
+        onTestSuccess();
+      } else if (result === false) {
+        onResetTest();
+        setTestWarning(
+          'Bağlantı doğrulanamadı. Bilgilerinizi kontrol edin; yine de sonraki adıma geçebilirsiniz.',
+        );
+      } else {
+        onResetTest();
+      }
     } finally {
       setTesting(false);
     }
@@ -61,8 +76,8 @@ export function Step2Marketplace({
           Hangi pazaryerinde satış yapıyorsunuz?
         </CardTitle>
         <CardDescription>
-          Bir pazaryeri seçin ve API bilgilerinizi girin. Test başarılı olduktan sonra devam
-          edebilirsiniz.
+          Bir pazaryeri seçin ve API bilgilerinizi girin. İsterseniz bağlantıyı test edin; test
+          başarısız olsa da kuruluma devam edebilirsiniz.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 px-0 md:px-6">
@@ -128,6 +143,14 @@ export function Step2Marketplace({
                 </Badge>
               ) : null}
             </div>
+            {testWarning ? (
+              <div
+                role="status"
+                className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+              >
+                {testWarning}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </CardContent>

@@ -44,6 +44,7 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { useListingSummary } from '@/pages/listings/hooks/useListings';
 import { useOrderSummary } from '@/pages/orders/hooks/useOrders';
+import type { MarketplaceConnectionDto } from '@/types/connection';
 import type { SyncStatusItem } from '@/types/sync';
 
 const KPI_CARDS: {
@@ -200,6 +201,17 @@ export function DashboardPage(): ReactElement {
   const orderSummaryQuery = useOrderSummary();
   const listingSummaryQuery = useListingSummary();
 
+  const connectionsCountQuery = useQuery({
+    queryKey: ['marketplace-connections', 'count'],
+    queryFn: async (): Promise<number> => {
+      const { data } = await api.get<MarketplaceConnectionDto[]>(
+        '/marketplace-connections',
+      );
+      return data.length;
+    },
+    initialData: 0,
+  });
+
   const syncQuery = useQuery({
     queryKey: ['sync-status'],
     queryFn: async (): Promise<SyncStatusItem[]> => {
@@ -232,12 +244,14 @@ export function DashboardPage(): ReactElement {
             kpi.key === 'pendingOrders' ||
             kpi.key === 'totalRevenue';
           const isListingMetric = kpi.key === 'activeListings';
+          const isConnectionsMetric = kpi.key === 'connections';
           const isLoadingKpi =
             (isOrderMetric && orderSummaryQuery.isLoading) ||
-            (isListingMetric && listingSummaryQuery.isLoading);
+            (isListingMetric && listingSummaryQuery.isLoading) ||
+            (isConnectionsMetric && connectionsCountQuery.isLoading);
           let value: string | number = '—';
           if (kpi.key === 'connections') {
-            value = syncQuery.data?.length ?? 0;
+            value = connectionsCountQuery.data ?? 0;
           } else if (kpi.key === 'activeListings') {
             value = listingSummaryQuery.data?.approved ?? '—';
           } else if (orderSummaryQuery.data) {

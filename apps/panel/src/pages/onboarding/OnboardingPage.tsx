@@ -140,19 +140,14 @@ export function OnboardingPage(): ReactElement {
       return;
     }
     if (state.currentStep === 2) {
-      if (!state.selectedMarketplace || !marketplaceTestOk) {
-        toast.error('Önce pazaryeri testini başarıyla tamamlayın.');
+      if (!state.selectedMarketplace) {
+        toast.error('Bir pazaryeri seçin.');
         return;
       }
-      try {
-        await saveMarketplaceConnection(
-          state.selectedMarketplace,
-          state.marketplaceCredentials,
-        );
-      } catch (error: unknown) {
-        toast.error(getApiErrorMessage(error));
-        return;
-      }
+      await saveMarketplaceConnection(
+        state.selectedMarketplace,
+        state.marketplaceCredentials,
+      );
     }
     if (state.currentStep === 3) {
       if (state.selectedErp) {
@@ -163,12 +158,7 @@ export function OnboardingPage(): ReactElement {
           toast.error('ERP alanlarını doldurun veya atlayın.');
           return;
         }
-        try {
-          await saveErpConnection(state.selectedErp, state.erpCredentials);
-        } catch (error: unknown) {
-          toast.error(getApiErrorMessage(error));
-          return;
-        }
+        await saveErpConnection(state.selectedErp, state.erpCredentials);
       }
     }
     goNext();
@@ -349,8 +339,7 @@ export function OnboardingPage(): ReactElement {
               type="button"
               onClick={() => void handlePrimaryNext()}
               disabled={
-                (state.currentStep === 2 &&
-                  (!state.selectedMarketplace || !marketplaceTestOk)) ||
+                (state.currentStep === 2 && !state.selectedMarketplace) ||
                 finishMutation.isPending
               }
             >

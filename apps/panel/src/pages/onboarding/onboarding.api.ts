@@ -1,31 +1,55 @@
-import { api } from '@/lib/api';
+import { isAxiosError } from 'axios';
+import { toast } from 'sonner';
 
-/** MVP: gerçek test endpoint’i gelene kadar gecikmeli başarı. */
-export async function mockTestMarketplaceConnection(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+import { api, getApiErrorMessage } from '@/lib/api';
+
+export async function testMarketplaceConnection(
+  platform: string,
+  credentials: Record<string, string>,
+): Promise<boolean | null> {
+  try {
+    const { data } = await api.post<{ connected: boolean }>(
+      '/marketplace-connections/test',
+      { platform, credentials },
+    );
+    return data.connected;
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      toast.error(getApiErrorMessage(error));
+      return null;
+    }
+    throw error;
+  }
 }
 
-/**
- * MVP: `POST /marketplace-connections` henüz yok; istek gövdesi ileride kullanılacak şekilde hazır.
- * Şimdilik ağ hatası olmaması için yerel gecikme ile başarı döner.
- */
 export async function saveMarketplaceConnection(
   platform: string,
   credentials: Record<string, string>,
 ): Promise<void> {
-  void platform;
-  void credentials;
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  try {
+    await api.post('/marketplace-connections', { platform, credentials });
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      toast.error(getApiErrorMessage(error));
+      return;
+    }
+    throw error;
+  }
 }
 
-/** MVP: `POST /erp-connections` yok; başarı simülasyonu. */
 export async function saveErpConnection(
-  erpId: string,
+  erpType: string,
   credentials: Record<string, string>,
 ): Promise<void> {
-  void erpId;
-  void credentials;
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  try {
+    await api.post('/erp-connections', { erpType, credentials });
+  } catch (error: unknown) {
+    if (isAxiosError(error)) {
+      toast.error(getApiErrorMessage(error));
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function completeOnboarding(payload: {
