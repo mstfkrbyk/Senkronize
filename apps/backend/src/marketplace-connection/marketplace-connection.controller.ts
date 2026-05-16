@@ -66,8 +66,11 @@ export class MarketplaceConnectionController {
   })
   @ApiResponse({ status: 200, description: 'Test sonucu' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
-  async test(@Body() dto: TestConnectionDto) {
-    return this.marketplaceConnectionService.testConnection(dto);
+  async test(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: TestConnectionDto,
+  ) {
+    return this.marketplaceConnectionService.testConnection(org.id, dto);
   }
 
   @Get(':id')

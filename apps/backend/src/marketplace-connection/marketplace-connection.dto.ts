@@ -1,5 +1,12 @@
-import { IsBoolean, IsEnum, IsObject, IsOptional } from 'class-validator';
 import { Marketplace } from '@prisma/client';
+import {
+  IsBoolean,
+  IsEnum,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 
 export class CreateConnectionDto {
   @IsEnum(Marketplace)
@@ -10,11 +17,17 @@ export class CreateConnectionDto {
 }
 
 export class TestConnectionDto {
-  @IsEnum(Marketplace)
-  platform!: Marketplace;
+  @IsOptional()
+  @IsString()
+  connectionId?: string;
 
+  @ValidateIf((o: TestConnectionDto) => !o.connectionId)
+  @IsEnum(Marketplace)
+  platform?: Marketplace;
+
+  @ValidateIf((o: TestConnectionDto) => !o.connectionId)
   @IsObject()
-  credentials!: Record<string, string>;
+  credentials?: Record<string, string>;
 }
 
 export class UpdateConnectionDto {

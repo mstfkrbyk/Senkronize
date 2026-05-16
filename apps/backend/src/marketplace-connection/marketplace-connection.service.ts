@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -9,12 +10,16 @@ import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { CreateConnectionDto, TestConnectionDto, UpdateConnectionDto } from './marketplace-connection.dto';
+import type {
+  CreateConnectionDto,
+  TestConnectionDto,
+  UpdateConnectionDto,
+} from './marketplace-connection.dto';
 
 export type PublicMarketplaceConnection = Omit<
   MarketplaceConnection,
   'credentialsEnc' | 'webhookSecret'
->;
+> & { accountLabel: string | null };
 
 @Injectable()
 export class MarketplaceConnectionService {
@@ -24,7 +29,49 @@ export class MarketplaceConnectionService {
     private readonly adapterRegistry: AdapterRegistry,
   ) {}
 
+  private parseCredentialsRecord(
+    credentialsEnc: string,
+  ): Record<string, string> | null {
+    try {
+      const json = this.encryptionService.decrypt(credentialsEnc);
+      const parsed: unknown = JSON.parse(json);
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        return null;
+      }
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+        if (typeof v === 'string') {
+          out[k] = v;
+        }
+      }
+      return out;
+    } catch {
+      return null;
+    }
+  }
+
+  private accountLabel(
+    platform: Marketplace,
+    creds: Record<string, string> | null,
+  ): string | null {
+    if (!creds) {
+      return null;
+    }
+    if (platform === Marketplace.TRENDYOL) {
+      return creds.sellerId ?? null;
+    }
+    if (platform === Marketplace.HEPSIBURADA) {
+      return creds.username ?? null;
+    }
+    return null;
+  }
+
   private toPublic(row: MarketplaceConnection): PublicMarketplaceConnection {
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
     return {
       id: row.id,
       organizationId: row.organizationId,
@@ -37,6 +84,7 @@ export class MarketplaceConnectionService {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       deletedAt: row.deletedAt,
+      accountLabel: this.accountLabel(row.platform, creds),
     };
   }
 
@@ -100,7 +148,30 @@ export class MarketplaceConnectionService {
     return this.toPublic(row);
   }
 
-  async testConnection(dto: TestConnectionDto): Promise<{ connected: boolean }> {
+  async testConnection(
+    organizationId: string,
+    dto: TestConnectionDto,
+  ): Promise<{ connected: boolean }> {
+    if (dto.connectionId) {
+      const row = await this.prisma.marketplaceConnection.findFirst({
+        where: { id: dto.connectionId, organizationId, deletedAt: null },
+      });
+      if (!row) {
+        throw new NotFoundException('Pazaryeri bağlantısı bulunamadı');
+      }
+      const creds = this.parseCredentialsRecord(row.credentialsEnc);
+      if (!creds) {
+        return { connected: false };
+      }
+      const adapter = this.adapterRegistry.get(row.platform);
+      const connected = await adapter.testConnection(creds);
+      return { connected };
+    }
+    if (dto.platform === undefined || dto.credentials === undefined) {
+      throw new BadRequestException(
+        'connectionId veya platform+credentials gönderilmelidir.',
+      );
+    }
     const adapter = this.adapterRegistry.get(dto.platform);
     const connected = await adapter.testConnection(dto.credentials);
     return { connected };
@@ -119,9 +190,14 @@ export class MarketplaceConnectionService {
     }
     let credentialsEnc = row.credentialsEnc;
     if (dto.credentials !== undefined) {
-      credentialsEnc = this.encryptionService.encrypt(
-        JSON.stringify(dto.credentials),
-      );
+      const current = this.parseCredentialsRecord(row.credentialsEnc) ?? {};
+      const merged: Record<string, string> = { ...current };
+      for (const [k, v] of Object.entries(dto.credentials)) {
+        if (typeof v === 'string' && v.trim().length > 0) {
+          merged[k] = v.trim();
+        }
+      }
+      credentialsEnc = this.encryptionService.encrypt(JSON.stringify(merged));
     }
     const updated = await this.prisma.marketplaceConnection.update({
       where: { id: row.id },
@@ -164,21 +240,6 @@ export class MarketplaceConnectionService {
     if (!row) {
       return null;
     }
-    const json = this.encryptionService.decrypt(row.credentialsEnc);
-    const parsed: unknown = JSON.parse(json);
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      Array.isArray(parsed)
-    ) {
-      return null;
-    }
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(parsed)) {
-      if (typeof v === 'string') {
-        out[k] = v;
-      }
-    }
-    return out;
+    return this.parseCredentialsRecord(row.credentialsEnc);
   }
 }
