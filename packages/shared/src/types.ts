@@ -1,4 +1,4 @@
-import type { ErpType, Marketplace } from './enums';
+import type { Marketplace } from './enums';
 
 /**
  * Senkronize çekirdeğinde kullanılan ürün DTO’su (adaptörlerle paylaşılır).
@@ -83,6 +83,7 @@ export interface MarketplaceOrder {
     quantity: number;
     unitPrice: number;
     platformItemId: string;
+    productName?: string;
   }>;
   totalAmount: number;
   currency: string;
@@ -134,13 +135,42 @@ export interface IMarketplaceAdapter {
   ): Promise<void>;
 }
 
-// Bölüm 16 — ERP adaptörü arayüzü
+export interface ErpInvoice {
+  erpInvoiceId: string;
+  /** Pazaryeri / platform sipariş kimliği */
+  orderRef: string;
+  invoiceNumber: string;
+  totalAmount: number;
+  currency: string;
+  issuedAt: string;
+  lines: Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    taxRate: number;
+    total: number;
+  }>;
+}
+
+export interface ErpProduct {
+  erpProductId: string;
+  barcode: string;
+  name: string;
+  stockQuantity: number;
+  purchasePrice?: number;
+}
+
+/** ERP adaptörü — bulut API (BizimHesap vb.) */
 export interface IErpAdapter {
-  type: ErpType;
-  mode: 'cloud' | 'local-agent';
+  erpType: string;
   testConnection(credentials: Record<string, string>): Promise<boolean>;
-  pullProducts(orgId: string): Promise<Product[]>;
-  pullStock(orgId: string): Promise<StockUpdate[]>;
-  pushOrders(orders: Order[], orgId: string): Promise<void>;
-  pushInvoice?(order: Order, orgId: string): Promise<void>;
+  getProducts(credentials: Record<string, string>): Promise<ErpProduct[]>;
+  createInvoice(
+    credentials: Record<string, string>,
+    invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
+  ): Promise<ErpInvoice>;
+  getInvoices(
+    credentials: Record<string, string>,
+    since?: Date,
+  ): Promise<ErpInvoice[]>;
 }

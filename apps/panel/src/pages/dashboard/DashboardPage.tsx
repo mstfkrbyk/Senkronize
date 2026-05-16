@@ -41,11 +41,12 @@ import {
 } from '@/components/ui/table';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import { useOrderSummary } from '@/pages/orders/hooks/useOrders';
 import type { SyncStatusItem } from '@/types/sync';
 
 const KPI_CARDS: {
   title: string;
-  key: keyof DashboardSummary;
+  key: 'todayOrders' | 'pendingOrders' | 'totalRevenue' | 'connections';
   icon: LucideIcon;
   color: 'blue' | 'orange' | 'green' | 'purple';
 }[] = [
@@ -62,8 +63,8 @@ const KPI_CARDS: {
     color: 'orange',
   },
   {
-    title: 'Aktif Listeler',
-    key: 'activeListings',
+    title: 'Toplam Ciro',
+    key: 'totalRevenue',
     icon: Package,
     color: 'green',
   },
@@ -74,20 +75,6 @@ const KPI_CARDS: {
     color: 'purple',
   },
 ];
-
-interface DashboardSummary {
-  todayOrders: number;
-  pendingOrders: number;
-  activeListings: number;
-  connections: number;
-}
-
-const MOCK_SUMMARY: DashboardSummary = {
-  todayOrders: 24,
-  pendingOrders: 7,
-  activeListings: 342,
-  connections: 2,
-};
 
 const MOCK_ORDERS = [
   {
@@ -196,15 +183,7 @@ function formatTry(amount: number): string {
 }
 
 export function DashboardPage(): ReactElement {
-  const summaryQuery = useQuery({
-    queryKey: ['dashboard-summary'],
-    queryFn: async (): Promise<DashboardSummary> => {
-      const { data } = await api.get<DashboardSummary>('/dashboard/summary');
-      return data;
-    },
-    enabled: false,
-    initialData: MOCK_SUMMARY,
-  });
+  const orderSummaryQuery = useOrderSummary();
 
   const syncQuery = useQuery({
     queryKey: ['sync-status'],
@@ -213,8 +192,6 @@ export function DashboardPage(): ReactElement {
       return data;
     },
   });
-
-  const summary = summaryQuery.data ?? MOCK_SUMMARY;
 
   const handleMockSyncTrigger = (): void => {
     toast.info('Senkron kuyruğu tetikleme yakında aktif olacak.');
@@ -235,7 +212,20 @@ export function DashboardPage(): ReactElement {
         {KPI_CARDS.map((kpi) => {
           const Icon = kpi.icon;
           const colors = KPI_COLOR[kpi.color];
-          const value = summary[kpi.key];
+          const isOrderMetric =
+            kpi.key === 'todayOrders' ||
+            kpi.key === 'pendingOrders' ||
+            kpi.key === 'totalRevenue';
+          const isLoadingKpi = isOrderMetric && orderSummaryQuery.isLoading;
+          let value: string | number = '—';
+          if (kpi.key === 'connections') {
+            value = syncQuery.data?.length ?? 0;
+          } else if (orderSummaryQuery.data) {
+            value =
+              kpi.key === 'totalRevenue'
+                ? formatTry(orderSummaryQuery.data.totalRevenue)
+                : orderSummaryQuery.data[kpi.key];
+          }
           return (
             <Card key={kpi.key}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -249,7 +239,11 @@ export function DashboardPage(): ReactElement {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold tabular-nums">{value}</p>
+                {isLoadingKpi ? (
+                  <Skeleton className="h-9 w-24" />
+                ) : (
+                  <p className="text-2xl font-bold tabular-nums">{value}</p>
+                )}
               </CardContent>
             </Card>
           );

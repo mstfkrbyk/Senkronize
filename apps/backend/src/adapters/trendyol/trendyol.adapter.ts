@@ -89,6 +89,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
           quantity: l.quantity,
           unitPrice: l.price,
           platformItemId: String(l.id),
+          productName: l.productName,
         })),
         totalAmount: o.grossAmount,
         currency: o.currencyCode,

@@ -4,7 +4,10 @@ import { Marketplace } from '@prisma/client';
 import type { Job } from 'bull';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { EventService } from '../event/event.service';
+import { WS_EVENTS } from '../event/event.types';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
+import { OrderService } from '../order/order.service';
 import { QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
 import type { MarketplacePullJobData } from '../queue/queue.types';
 import { SyncStatusService } from '../sync-status/sync-status.service';
@@ -16,7 +19,9 @@ export class MarketplacePullProcessor {
   constructor(
     private readonly adapterRegistry: AdapterRegistry,
     private readonly marketplaceConnectionService: MarketplaceConnectionService,
+    private readonly orderService: OrderService,
     private readonly syncStatusService: SyncStatusService,
+    private readonly eventService: EventService,
   ) {}
 
   @Process('pull-orders')
@@ -47,10 +52,18 @@ export class MarketplacePullProcessor {
         platform,
         count: orders.length,
       });
+      await this.orderService.upsertFromPlatform(
+        organizationId,
+        platform as Marketplace,
+        orders,
+      );
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,
       );
+      this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
+        count: orders.length,
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';

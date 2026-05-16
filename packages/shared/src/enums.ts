@@ -27,11 +27,9 @@ export type Marketplace =
 export type ErpType =
   | 'BIZIMHESAP'
   | 'PARASUT'
-  | 'LOGO'
-  | 'MIKRO'
-  | 'NEBIM'
-  | 'NETSIS'
-  | 'DIA';
+  | 'TSOFT'
+  | 'TICIMAX'
+  | 'LOGO';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType = 'TICIMAX' | 'TSOFT';

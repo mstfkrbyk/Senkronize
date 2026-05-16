@@ -54,11 +54,9 @@ enum Marketplace {
 enum ErpType {
   BIZIMHESAP
   PARASUT
+  TSOFT
+  TICIMAX
   LOGO
-  MIKRO
-  NEBIM
-  NETSIS
-  DIA
 }
 
 enum EcommerceType {
@@ -93,6 +91,16 @@ enum CommissionStatus {
 enum SyncDirection {
   PUSH
   PULL
+}
+
+enum OrderStatus {
+  NEW
+  PICKING
+  INVOICED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
 }
 
 model Organization {
@@ -211,15 +219,22 @@ model MarketplaceConnection {
 }
 
 model ErpConnection {
-  id              String    @id @default(cuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  type            ErpType
-  credentialsEnc  String
-  isActive        Boolean   @default(true)
-  lastSyncAt      DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  erpType          ErpType
+  credentialsEnc   String // AES-256-GCM ile şifrelenmiş JSON
+  isActive         Boolean      @default(true)
+  lastSyncAt       DateTime?
+  syncErrorCount   Int          @default(0)
+  lastErrorAt      DateTime?
+  lastErrorMessage String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  @@unique([organizationId, erpType])
+  @@index([organizationId])
 }
 
 model EcommerceConnection {
@@ -279,16 +294,48 @@ model Listing {
 }
 
 model Order {
-  id             String    @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  externalId     String?
-  status         String
-  rawPayload     Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                  String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform            Marketplace
+  platformOrderId     String
+  status              OrderStatus
+  customerName        String
+  customerPhone       String?
+  shippingAddress     String?
+  totalAmount         Decimal      @db.Decimal(10, 2)
+  currency            String       @default("TRY")
+  cargoTrackingNumber String?
+  cargoProvider       String?
+  platformCreatedAt   DateTime
+  syncedAt            DateTime     @default(now())
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  deletedAt           DateTime?
+  items               OrderItem[]
 
-  @@index([organizationId, externalId])
+  @@unique([organizationId, platform, platformOrderId])
+  @@index([organizationId])
+  @@index([organizationId, status])
+  @@index([organizationId, platform])
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  organizationId String
+  sku            String
+  barcode        String
+  productName    String?
+  quantity       Int
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  platformItemId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([organizationId])
 }
 
 model Reservation {
