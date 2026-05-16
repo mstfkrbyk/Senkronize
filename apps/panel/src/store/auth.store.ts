@@ -1,0 +1,48 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+export interface AuthUserSnapshot {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
+export interface CurrentOrgSnapshot {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface AuthState {
+  token: string | null;
+  refreshToken: string | null;
+  user: AuthUserSnapshot | null;
+  currentOrg: CurrentOrgSnapshot | null;
+  setTokens: (token: string, refreshToken: string) => void;
+  setUser: (user: AuthUserSnapshot | null) => void;
+  setOrg: (org: CurrentOrgSnapshot | null) => void;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      token: null,
+      refreshToken: null,
+      user: null,
+      currentOrg: null,
+      setTokens: (token, refreshToken) => set({ token, refreshToken }),
+      setUser: (user) => set({ user }),
+      setOrg: (currentOrg) => set({ currentOrg }),
+      logout: () =>
+        set({
+          token: null,
+          refreshToken: null,
+          user: null,
+          currentOrg: null,
+        }),
+    }),
+    { name: 'senkronize-auth' },
+  ),
+);
