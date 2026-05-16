@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
@@ -10,6 +11,7 @@ import { NotificationModule } from './notification/notification.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { UsersModule } from './users/users.module';
 
@@ -19,6 +21,7 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
       envFilePath: ['../../.env', '.env'],
     }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     CommonModule,
@@ -30,6 +33,7 @@ import { UsersModule } from './users/users.module';
     HealthModule,
     SyncStatusModule,
     NotificationModule,
+    SubscriptionModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

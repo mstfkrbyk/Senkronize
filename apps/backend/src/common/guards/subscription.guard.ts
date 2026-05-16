@@ -7,7 +7,7 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { PlanTier } from '@prisma/client';
+import { PlanTier, SubStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export const REQUIRES_PLAN_KEY = 'requiresPlan';
@@ -47,13 +47,51 @@ export class SubscriptionGuard implements CanActivate {
     const subscription = await this.prisma.subscription.findUnique({
       where: { organizationId: orgId },
     });
-    if (!subscription || subscription.status === 'CANCELLED') {
+    const now = new Date();
+
+    if (!subscription) {
       throw new HttpException(
         'Aktif abonelik bulunamadı',
         HttpStatus.PAYMENT_REQUIRED,
       );
     }
-    if (PLAN_HIERARCHY[subscription.plan] < PLAN_HIERARCHY[requiredPlan]) {
+
+    if (
+      subscription.status === SubStatus.EXPIRED ||
+      subscription.status === SubStatus.PAUSED
+    ) {
+      throw new HttpException(
+        'Abonelik bu işlem için uygun değil',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
+    if (subscription.status === SubStatus.CANCELLED) {
+      if (now > subscription.currentPeriodEnd) {
+        throw new HttpException(
+          'Abonelik dönemi sona erdi',
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
+    }
+
+    if (
+      subscription.status === SubStatus.TRIAL &&
+      subscription.trialEndsAt &&
+      now > subscription.trialEndsAt
+    ) {
+      throw new HttpException(
+        'Deneme süresi sona erdi',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
+    const effectivePlan: PlanTier =
+      subscription.status === SubStatus.TRIAL
+        ? PlanTier.BASLANGIC
+        : subscription.plan;
+
+    if (PLAN_HIERARCHY[effectivePlan] < PLAN_HIERARCHY[requiredPlan]) {
       throw new HttpException(
         `Bu özellik için ${requiredPlan} paketi gereklidir`,
         HttpStatus.PAYMENT_REQUIRED,

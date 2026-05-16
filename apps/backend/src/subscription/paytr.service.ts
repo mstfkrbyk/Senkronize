@@ -165,11 +165,8 @@ export class PaytrService {
         }),
       );
       if (data.status !== 'success' || !data.token) {
-        this.logger.warn('PayTR get-token başarısız', {
-          status: data.status,
-          reason: data.reason,
-        });
-        throw new Error(data.reason ?? 'PayTR get-token başarısız');
+        this.logger.warn('PayTR get-token başarısız yanıt');
+        throw new Error('paytr_token_failed');
       }
       return { iframeToken: data.token, merchantOid: input.merchantOid };
     } catch (err) {
