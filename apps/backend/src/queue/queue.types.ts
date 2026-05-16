@@ -41,3 +41,11 @@ export interface TrendyolWebhookJobData {
 export interface PricingRunRulesJobData {
   organizationId: string;
 }
+
+/** image-upload job payload */
+export interface ImageUploadFromUrlJobData {
+  organizationId: string;
+  imageUrl: string;
+  resourceType: 'listing' | 'product';
+  resourceId: string;
+}

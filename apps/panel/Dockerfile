@@ -1,0 +1,21 @@
+FROM node:22-alpine AS base
+RUN npm install -g pnpm
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY apps/panel/package.json ./apps/panel/
+COPY packages/shared/package.json ./packages/shared/
+COPY desktop/package.json ./desktop/
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+COPY packages/shared ./packages/shared
+RUN pnpm --filter @senkronize/shared build
+COPY apps/panel ./apps/panel
+RUN pnpm --filter panel build
+
+FROM nginx:alpine AS production
+COPY --from=build /app/apps/panel/dist /usr/share/nginx/html
+COPY apps/panel/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80

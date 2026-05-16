@@ -9,6 +9,7 @@ import { CommonModule } from './common/common.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { HealthModule } from './health/health.module';
+import { ImageModule } from './image/image.module';
 import { ImpersonationModule } from './impersonation/impersonation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ListingModule } from './listing/listing.module';
@@ -19,6 +20,7 @@ import { OrganizationModule } from './organization/organization.module';
 import { PartnerModule } from './partner/partner.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PricingModule } from './pricing/pricing.module';
+import { ProductModule } from './product/product.module';
 import { QueueModule } from './queue/queue.module';
 import { ReportsModule } from './reports/reports.module';
 import { StockModule } from './stock/stock.module';
@@ -47,6 +49,8 @@ import { WebhookModule } from './webhook/webhook.module';
     OrganizationModule,
     OrderModule,
     ListingModule,
+    ImageModule,
+    ProductModule,
     PricingModule,
     StockModule,
     UsersModule,

@@ -4,11 +4,13 @@
   "scripts": {
     "dev": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter panel dev\"",
     "dev:all": "concurrently \"pnpm --filter backend dev\" \"pnpm --filter panel dev\" \"pnpm --filter marketing dev\"",
-    "build": "pnpm -r build",
-    "lint": "pnpm -r lint",
+    "build": "pnpm --filter @senkronize/shared build && pnpm --filter backend build && pnpm --filter panel build && pnpm --filter marketing build",
     "type-check": "pnpm -r type-check",
-    "db:migrate": "pnpm --filter backend prisma:migrate",
-    "db:studio": "pnpm --filter backend prisma:studio"
+    "lint": "pnpm -r lint",
+    "test": "pnpm --filter backend test",
+    "db:migrate": "pnpm --filter backend exec prisma migrate dev",
+    "db:studio": "pnpm --filter backend exec prisma studio",
+    "db:generate": "pnpm --filter backend exec prisma generate"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

@@ -290,4 +290,33 @@ export class ListingService {
       });
     });
   }
+
+  async findListingIdByPlatformProduct(
+    organizationId: string,
+    platform: Marketplace,
+    platformProductId: string,
+  ): Promise<string | null> {
+    const row = await this.prisma.listing.findFirst({
+      where: { organizationId, platform, platformProductId, deletedAt: null },
+      select: { id: true },
+    });
+    return row?.id ?? null;
+  }
+
+  async addImageUrl(
+    organizationId: string,
+    listingId: string,
+    imageUrl: string,
+  ): Promise<void> {
+    const listing = await this.prisma.listing.findFirst({
+      where: { id: listingId, organizationId, deletedAt: null },
+    });
+    if (!listing) {
+      return;
+    }
+    await this.prisma.listing.update({
+      where: { id: listingId },
+      data: { imageUrls: { push: imageUrl } },
+    });
+  }
 }

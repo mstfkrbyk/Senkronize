@@ -1,7 +1,8 @@
-import { Process, Processor } from '@nestjs/bull';
+import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Marketplace } from '@prisma/client';
-import type { Job } from 'bull';
+import type { Job, Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
@@ -10,8 +11,12 @@ import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { OrderService } from '../order/order.service';
-import { QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
-import type { MarketplacePullJobData } from '../queue/queue.types';
+import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
+import { QUEUE_IMAGE, QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
+import type {
+  ImageUploadFromUrlJobData,
+  MarketplacePullJobData,
+} from '../queue/queue.types';
 import { SyncStatusService } from '../sync-status/sync-status.service';
 
 @Processor(QUEUE_MARKETPLACE_PULL)
@@ -25,6 +30,9 @@ export class MarketplacePullProcessor {
     private readonly listingService: ListingService,
     private readonly syncStatusService: SyncStatusService,
     private readonly eventService: EventService,
+    private readonly configService: ConfigService,
+    @InjectQueue(QUEUE_IMAGE)
+    private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
   ) {}
 
   @Process('pull-orders')
@@ -126,6 +134,36 @@ export class MarketplacePullProcessor {
         platform as Marketplace,
         all,
       );
+      const r2PublicUrl = (this.configService.get<string>('R2_PUBLIC_URL') ?? '')
+        .trim()
+        .replace(/\/+$/, '');
+      if (r2PublicUrl) {
+        for (const listing of all) {
+          const firstImage = listing.images?.[0];
+          if (!firstImage || firstImage.includes(r2PublicUrl)) {
+            continue;
+          }
+          const listingId =
+            await this.listingService.findListingIdByPlatformProduct(
+              organizationId,
+              platform as Marketplace,
+              listing.platformProductId,
+            );
+          if (!listingId) {
+            continue;
+          }
+          await this.imageQueue.add(
+            'upload-from-url',
+            {
+              organizationId,
+              imageUrl: firstImage,
+              resourceType: 'listing',
+              resourceId: listingId,
+            },
+            STANDARD_QUEUE_JOB_OPTIONS,
+          );
+        }
+      }
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,
