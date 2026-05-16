@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, RegisterDto } from './auth.dto';
 import { AuthenticatedUser } from './auth.types';
@@ -23,10 +25,13 @@ const REFRESH_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async register(
@@ -81,6 +86,24 @@ export class AuthService {
 
       return user;
     });
+
+    void this.notificationService
+      .dispatch({
+        organizationId: newUser.organizationId,
+        channel: 'email',
+        template: 'welcome',
+        payload: {
+          orgName,
+          email,
+          userEmail: email,
+        },
+      })
+      .catch((error: unknown) => {
+        this.logger.error('Hoş geldin bildirimi kuyruğa eklenemedi', {
+          organizationId: newUser.organizationId,
+          error,
+        });
+      });
 
     return this.generateTokens(
       newUser.id,
