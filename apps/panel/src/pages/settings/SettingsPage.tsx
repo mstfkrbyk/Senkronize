@@ -2,15 +2,20 @@ import type { ReactElement } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuthStore } from '@/store/auth.store';
 
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
+import { PartnersTab } from './tabs/PartnersTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { SubscriptionTab } from './tabs/SubscriptionTab';
 import { TeamTab } from './tabs/TeamTab';
 
 export function SettingsPage(): ReactElement {
   const location = useLocation();
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const showPartnersTab = orgType !== 'PARTNER';
+
   const defaultTab = location.pathname.includes('/settings/subscription')
     ? 'subscription'
     : 'profile';
@@ -31,6 +36,9 @@ export function SettingsPage(): ReactElement {
           <TabsTrigger value="team">Ekip</TabsTrigger>
           <TabsTrigger value="subscription">Abonelik</TabsTrigger>
           <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
+          {showPartnersTab ? (
+            <TabsTrigger value="partners">Partnerler</TabsTrigger>
+          ) : null}
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileTab />
@@ -47,6 +55,11 @@ export function SettingsPage(): ReactElement {
         <TabsContent value="notifications" className="mt-6">
           <NotificationsTab />
         </TabsContent>
+        {showPartnersTab ? (
+          <TabsContent value="partners" className="mt-6">
+            <PartnersTab />
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );

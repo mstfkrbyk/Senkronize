@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import type { OrgPlanTier, OrgType } from '@/types/auth';
+
 export interface AuthUserSnapshot {
   id: string;
   email: string;
@@ -8,12 +10,11 @@ export interface AuthUserSnapshot {
   role: string;
 }
 
-import type { OrgPlanTier } from '@/types/auth';
-
 export interface CurrentOrgSnapshot {
   id: string;
   name: string;
   slug: string;
+  type: OrgType;
   onboardingCompleted: boolean;
   plan: OrgPlanTier;
 }
@@ -67,6 +68,8 @@ export const useAuthStore = create<AuthState>()(
                   ),
                   plan:
                     (co as Partial<CurrentOrgSnapshot>).plan ?? 'BASLANGIC',
+                  type:
+                    (co as Partial<CurrentOrgSnapshot>).type ?? 'DIRECT',
                 }
               : null,
         };

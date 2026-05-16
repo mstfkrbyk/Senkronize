@@ -59,7 +59,7 @@ export class AuthService {
         data: {
           slug,
           name: orgName,
-          type: OrgType.DIRECT,
+          type: dto.orgType ?? OrgType.DIRECT,
         },
       });
 

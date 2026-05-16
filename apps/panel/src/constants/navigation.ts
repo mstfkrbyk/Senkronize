@@ -7,6 +7,7 @@ import {
   Settings,
   ShoppingCart,
   Tag,
+  Users2,
   Warehouse,
 } from 'lucide-react';
 
@@ -15,6 +16,7 @@ export interface NavItem {
   icon: LucideIcon;
   path: string;
   badge?: string;
+  partnerOnly?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -25,5 +27,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Fiyatlandırma', icon: Tag, path: '/pricing', badge: 'PRO' },
   { label: 'Entegrasyonlar', icon: Plug, path: '/connections' },
   { label: 'Raporlar', icon: BarChart2, path: '/reports' },
+  {
+    label: 'Partner Paneli',
+    icon: Users2,
+    path: '/partner',
+    partnerOnly: true,
+  },
   { label: 'Ayarlar', icon: Settings, path: '/settings' },
 ];

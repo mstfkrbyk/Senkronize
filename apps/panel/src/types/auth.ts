@@ -11,11 +11,13 @@ export interface AuthUserDto {
 
 export type OrgPlanTier = 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL';
 
+export type OrgType = 'DIRECT' | 'PARTNER';
+
 export interface AuthOrganizationDto {
   id: string;
   slug: string;
   name: string;
-  type: string;
+  type: OrgType;
   logoUrl: string | null;
   createdAt: string;
   onboardingCompleted: boolean;

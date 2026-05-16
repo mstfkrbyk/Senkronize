@@ -84,14 +84,22 @@ enum CargoProvider {
 }
 
 enum PartnerStatus {
+  PENDING
   ACTIVE
-  PAUSED
+  SUSPENDED
   TERMINATED
 }
 
-enum CommissionStatus {
+enum CommissionType {
+  SUBSCRIPTION_FEE
+  SERVICE_FEE
+  BONUS
+  DEDUCTION
+}
+
+enum LedgerStatus {
   PENDING
-  PAID
+  SETTLED
   CANCELLED
 }
 
@@ -131,8 +139,10 @@ model Organization {
   stockEntries             StockEntry[]
   orders                   Order[]
   reservations             Reservation[]
-  partnerOf                PartnerRelationship[] @relation("PartnerOrg")
-  clientOf                 PartnerRelationship[] @relation("ClientOrg")
+  partnerRelationships     PartnerRelationship[] @relation("PartnerOrg")
+  clientRelationships      PartnerRelationship[] @relation("ClientOrg")
+  commissionLedgerAsPartner CommissionLedger[]   @relation("LedgerPartnerOrg")
+  commissionLedgerAsClient  CommissionLedger[]   @relation("LedgerClientOrg")
   paytrSubscription        PaytrSubscription?
   payments                 Payment[]
   pricingRules             PricingRule[]
@@ -402,30 +412,44 @@ model Reservation {
 }
 
 model PartnerRelationship {
-  id              String            @id @default(cuid())
-  partnerId       String
-  partner         Organization      @relation("PartnerOrg", fields: [partnerId], references: [id], onDelete: Cascade)
-  clientId        String
-  client          Organization      @relation("ClientOrg", fields: [clientId], references: [id], onDelete: Cascade)
-  commissionRate  Decimal           @db.Decimal(5, 2)
-  canImpersonate  Boolean           @default(false)
-  status          PartnerStatus     @default(ACTIVE)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  ledgerEntries   CommissionLedger[]
+  id              String         @id @default(cuid())
+  partnerOrgId    String
+  partnerOrg      Organization   @relation("PartnerOrg", fields: [partnerOrgId], references: [id], onDelete: Cascade)
+  clientOrgId     String?
+  clientOrg       Organization?  @relation("ClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
+  invitedEmail    String?
+  status          PartnerStatus  @default(PENDING)
+  commissionPct   Decimal        @db.Decimal(5, 2) @default(10)
+  canImpersonate  Boolean        @default(true)
+  inviteToken     String?        @unique
+  inviteExpiresAt DateTime?
+  acceptedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  @@unique([partnerId, clientId])
+  @@unique([partnerOrgId, clientOrgId])
+  @@index([partnerOrgId])
+  @@index([clientOrgId])
+  @@index([partnerOrgId, invitedEmail])
 }
 
 model CommissionLedger {
-  id                      String              @id @default(cuid())
-  partnerRelationshipId   String
-  partnerRelationship     PartnerRelationship @relation(fields: [partnerRelationshipId], references: [id], onDelete: Cascade)
-  subscriptionEventId     String
-  amount                  Decimal             @db.Decimal(10, 2)
-  currency                String              @default("TRY")
-  status                  CommissionStatus    @default(PENDING)
-  createdAt               DateTime            @default(now())
+  id           String         @id @default(cuid())
+  partnerOrgId String
+  partnerOrg   Organization   @relation("LedgerPartnerOrg", fields: [partnerOrgId], references: [id], onDelete: Cascade)
+  clientOrgId  String
+  clientOrg    Organization   @relation("LedgerClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
+  type         CommissionType
+  amount       Decimal        @db.Decimal(10, 2)
+  currency     String         @default("TRY")
+  description  String?
+  referenceId  String?
+  status       LedgerStatus   @default(PENDING)
+  createdAt    DateTime       @default(now())
+  settledAt    DateTime?
+
+  @@index([partnerOrgId])
+  @@index([clientOrgId])
 }
 
 model AuditLog {

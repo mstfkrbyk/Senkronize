@@ -9,12 +9,14 @@ import { CommonModule } from './common/common.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { HealthModule } from './health/health.module';
+import { ImpersonationModule } from './impersonation/impersonation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ListingModule } from './listing/listing.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
 import { OrderModule } from './order/order.module';
 import { OrganizationModule } from './organization/organization.module';
+import { PartnerModule } from './partner/partner.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PricingModule } from './pricing/pricing.module';
 import { QueueModule } from './queue/queue.module';
@@ -50,6 +52,8 @@ import { UsersModule } from './users/users.module';
     SyncStatusModule,
     NotificationModule,
     SubscriptionModule,
+    PartnerModule,
+    ImpersonationModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

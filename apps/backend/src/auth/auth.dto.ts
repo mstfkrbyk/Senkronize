@@ -1,6 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OrgType } from '@prisma/client';
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -35,6 +37,11 @@ export class RegisterDto {
   @IsString()
   @MaxLength(20)
   phone?: string;
+
+  @ApiPropertyOptional({ enum: OrgType, enumName: 'OrgType' })
+  @IsOptional()
+  @IsEnum(OrgType)
+  orgType?: OrgType;
 }
 
 export class LoginDto {

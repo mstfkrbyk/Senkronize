@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
+import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { TopBar } from '@/components/topbar/TopBar';
 import {
   SidebarInset,
@@ -33,6 +34,7 @@ export function DashboardLayout(): ReactElement {
       id: me.organization.id,
       name: me.organization.name,
       slug: me.organization.slug,
+      type: me.organization.type,
       onboardingCompleted: me.organization.onboardingCompleted,
       plan: me.organization.plan,
     });
@@ -46,9 +48,10 @@ export function DashboardLayout(): ReactElement {
       onOpenChange={(open) => setSidebarCollapsed(!open)}
     >
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex max-h-svh flex-col overflow-hidden">
+        <ImpersonationBanner />
         <TopBar />
-        <div className="flex flex-1 flex-col gap-4 p-4 md:p-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
           <Outlet />
         </div>
       </SidebarInset>

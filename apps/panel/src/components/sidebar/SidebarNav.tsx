@@ -11,9 +11,15 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { useAuthStore } from '@/store/auth.store';
 
 export function SidebarNav(): ReactElement {
   const location = useLocation();
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+
+  const visibleItems = NAV_ITEMS.filter(
+    (item) => !item.partnerOnly || orgType === 'PARTNER',
+  );
 
   return (
     <SidebarGroup>
@@ -22,9 +28,12 @@ export function SidebarNav(): ReactElement {
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive =
+              location.pathname === item.path ||
+              (item.path !== '/' &&
+                location.pathname.startsWith(`${item.path}/`));
 
             return (
               <SidebarMenuItem key={item.path}>

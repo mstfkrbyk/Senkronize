@@ -5,6 +5,7 @@ import axios, {
 } from 'axios';
 
 import { useAuthStore } from '@/store/auth.store';
+import { useImpersonationStore } from '@/store/impersonation.store';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api/v1';
@@ -40,7 +41,8 @@ export function getApiErrorMessage(error: unknown): string {
 }
 
 api.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().token;
+  const impToken = useImpersonationStore.getState().impersonationToken;
+  const token = impToken ?? useAuthStore.getState().token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -88,7 +90,9 @@ api.interceptors.response.use(
         .getState()
         .setTokens(data.accessToken, data.refreshToken);
 
-      originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+      const impToken = useImpersonationStore.getState().impersonationToken;
+      const nextToken = impToken ?? data.accessToken;
+      originalRequest.headers.Authorization = `Bearer ${nextToken}`;
       return api(originalRequest);
     } catch {
       useAuthStore.getState().logout();
