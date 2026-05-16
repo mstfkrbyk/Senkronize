@@ -14,6 +14,8 @@ export const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
+api.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
+
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
 function parseApiErrorMessage(error: AxiosError): string {

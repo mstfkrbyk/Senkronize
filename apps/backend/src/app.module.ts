@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -36,7 +36,34 @@ import { WebhookModule } from './webhook/webhook.module';
       envFilePath: ['../../.env', '.env'],
     }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const isProd = config.get<string>('NODE_ENV') === 'production';
+        return [
+          {
+            name: 'default',
+            ttl: 60_000,
+            limit: isProd ? 100 : 1000,
+          },
+          {
+            name: 'auth',
+            ttl: 60_000,
+            limit: isProd ? 10 : 100,
+            skipIf: (context) => {
+              const req = context.switchToHttp().getRequest<{ path?: string }>();
+              const p = typeof req.path === 'string' ? req.path : '';
+              const isAuthStrict =
+                p.includes('/auth/login') ||
+                p.includes('/auth/register') ||
+                p.includes('/auth/refresh');
+              return !isAuthStrict;
+            },
+          },
+        ];
+      },
+    }),
     PrismaModule,
     CommonModule,
     AdapterModule,
