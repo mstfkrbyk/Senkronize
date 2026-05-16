@@ -12,6 +12,7 @@ export interface CurrentOrgSnapshot {
   id: string;
   name: string;
   slug: string;
+  onboardingCompleted: boolean;
 }
 
 interface AuthState {
@@ -43,6 +44,28 @@ export const useAuthStore = create<AuthState>()(
           currentOrg: null,
         }),
     }),
-    { name: 'senkronize-auth' },
+    {
+      name: 'senkronize-auth',
+      merge: (persisted, current) => {
+        if (!persisted || typeof persisted !== 'object') {
+          return current as AuthState;
+        }
+        const p = persisted as Partial<AuthState>;
+        const co = p.currentOrg;
+        return {
+          ...(current as AuthState),
+          ...p,
+          currentOrg:
+            co && typeof co === 'object'
+              ? {
+                  ...co,
+                  onboardingCompleted: Boolean(
+                    (co as CurrentOrgSnapshot).onboardingCompleted,
+                  ),
+                }
+              : null,
+        };
+      },
+    },
   ),
 );

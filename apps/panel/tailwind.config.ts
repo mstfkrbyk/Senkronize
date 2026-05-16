@@ -5,6 +5,21 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
   	extend: {
+  		keyframes: {
+  			confetti: {
+  				'0%': {
+  					transform: 'translateY(-20%) rotate(0deg)',
+  					opacity: '1',
+  				},
+  				'100%': {
+  					transform: 'translateY(110vh) rotate(720deg)',
+  					opacity: '0',
+  				},
+  			},
+  		},
+  		animation: {
+  			confetti: 'confetti 2.4s ease-in forwards',
+  		},
   		colors: {
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',

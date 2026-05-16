@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateOrganizationDto {
   @ApiPropertyOptional()
@@ -13,4 +13,9 @@ export class UpdateOrganizationDto {
   @IsString()
   @MaxLength(2048)
   logoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'İlk kurulum sihirbazı tamamlandı mı?' })
+  @IsOptional()
+  @IsBoolean()
+  onboardingCompleted?: boolean;
 }

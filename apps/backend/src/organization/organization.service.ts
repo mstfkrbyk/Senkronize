@@ -23,6 +23,9 @@ export class OrganizationService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name } : {}),
         ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+        ...(dto.onboardingCompleted !== undefined
+          ? { onboardingCompleted: dto.onboardingCompleted }
+          : {}),
       },
     });
   }

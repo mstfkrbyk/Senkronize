@@ -24,6 +24,7 @@ import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { StockPage } from '@/pages/stock/StockPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 
 export default function App(): ReactElement {
   return (
@@ -37,6 +38,7 @@ export default function App(): ReactElement {
               <Route path="/register" element={<RegisterPage />} />
             </Route>
             <Route element={<PrivateRoute />}>
+              <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />

@@ -16,6 +16,7 @@ export interface AuthOrganizationDto {
   type: string;
   logoUrl: string | null;
   createdAt: string;
+  onboardingCompleted: boolean;
 }
 
 export interface MeResponse {
