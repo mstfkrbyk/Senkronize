@@ -10,11 +10,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  clearScreen: false,
   server: {
     port: 1420,
     strictPort: true,
   },
   build: {
     outDir: 'dist',
+    target: 'chrome105',
+    minify: !process.env.TAURI_DEBUG,
+    sourcemap: !!process.env.TAURI_DEBUG,
   },
 });

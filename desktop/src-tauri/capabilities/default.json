@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Ana pencere yetkileri",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "shell:allow-open"]
 }

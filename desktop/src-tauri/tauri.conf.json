@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Senkronize",
+  "productName": "Senkronize Desktop",
   "version": "0.1.0",
   "identifier": "com.senkronize.desktop",
   "build": {
-    "beforeDevCommand": "pnpm exec concurrently -k \"vite --port 1420 --strictPort\" \"pnpm --filter panel dev\"",
-    "beforeBuildCommand": "pnpm run vite:embed-build",
+    "beforeDevCommand": "pnpm run vite:dev",
+    "beforeBuildCommand": "pnpm run build",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -13,12 +13,19 @@
     "windows": [
       {
         "label": "main",
-        "title": "Senkronize",
-        "width": 1280,
-        "height": 800,
-        "resizable": true
+        "title": "Senkronize Desktop",
+        "width": 900,
+        "height": 650,
+        "minWidth": 700,
+        "minHeight": 500,
+        "resizable": true,
+        "decorations": true
       }
     ],
+    "trayIcon": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true
+    },
     "security": {
       "csp": null,
       "capabilities": ["default"]
