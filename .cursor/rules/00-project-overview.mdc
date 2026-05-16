@@ -1,0 +1,42 @@
+---
+description: Senkronize projesinin genel tanımı, stack ve kaynak belge referansı
+alwaysApply: true
+---
+
+# Senkronize — Proje Genel Bakış
+
+Senkronize, Türkiye e-ticaret ekosistemi için **çok kiracılı (multi-tenant) SaaS** pazaryeri/ERP entegrasyon platformudur.
+
+## Stack
+
+- **Backend:** NestJS 11 + TypeScript + Prisma 6 + PostgreSQL 16
+- **Frontend:** React 19 + Vite 7 + shadcn/ui + Tailwind CSS (light-mode varsayılan)
+- **Real-time:** Socket.io WebSocket + Redis pub/sub
+- **Queue:** BullMQ + Redis
+- **Desktop:** Tauri 2 (yerel ERP köprü ajanı — Windows/macOS)
+- **Monorepo:** pnpm workspaces → `apps/backend`, `apps/panel`, `apps/marketing`, `desktop/`
+- **Ödeme:** PayTR tekrarlı ödeme
+- **E-posta:** Resend + React Email
+- **SMS:** Netgsm
+- **Depolama:** Cloudflare R2 (S3-uyumlu, sıfır egress ücreti)
+
+## Kaynak Belge
+
+Tüm kararlar, mimari, faz planı ve veri modeli burada:
+`/Users/mustmac/.cursor/plans/senkronize_yol_haritası_478874e1.plan.md`
+
+Bir konuda şüphe varsa **önce bu dosyayı oku.**
+
+## MixON-V5 (Referans Proje)
+
+`/Users/mustmac/Senkronize/MixON-V5/` yalnızca referans içindir.
+İş mantığını anlamak için okunabilir; üzerinde değişiklik yapılmaz, ticari kod oraya yazılmaz.
+
+## Sabitler
+
+- **API prefix:** `/api/v1/`
+- **Panel dili:** Türkçe (tüm UI metinleri Türkçe olacak)
+- **Paket tipleri:** `BASLANGIC / GELISIM / PRO / KURUMSAL`
+- **Org tipleri:** `DIRECT / PARTNER`
+- **Renk:** Slate-900 sidebar, Sky-400 accent, Slate-100 sayfa arka planı
+- **Tenant izolasyon yöntemi:** Row-level (`organizationId` her tabloda)

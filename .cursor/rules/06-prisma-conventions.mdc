@@ -1,0 +1,72 @@
+---
+description: Prisma şema kuralları, soft-delete, transaction zorunluluğu ve isimlendirme
+globs: **/*.prisma,apps/backend/**/*.ts
+alwaysApply: false
+---
+
+# Prisma Kuralları
+
+## Her Modelde Zorunlu Alanlar
+
+```prisma
+model Example {
+  id             String    @id @default(cuid())
+  organizationId String                          // multi-tenancy — asla eksik bırakma
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?                       // soft-delete
+}
+```
+
+## Soft-Delete Zorunlu
+
+Kullanıcı, organizasyon, ürün ve sipariş verileri **asla hard-delete edilmez.**
+`deletedAt DateTime?` kullan. Tüm sorgularda `where: { deletedAt: null }` filtrele.
+
+```typescript
+// ✅ DOĞRU — soft delete
+await this.prisma.product.update({
+  where: { id, organizationId },
+  data: { deletedAt: new Date() },
+});
+
+// ❌ YANLIŞ — hard delete
+await this.prisma.product.delete({ where: { id } });
+```
+
+## Transaction Zorunluluğu
+
+Birden fazla tablo değişiyorsa `$transaction()` zorunludur. Kısmi yazma bırakma.
+
+```typescript
+// ✅ DOĞRU
+await this.prisma.$transaction(async (tx) => {
+  await tx.order.update({ where: { id }, data: { status: 'COMPLETED' } });
+  await tx.reservation.deleteMany({ where: { orderId: id } });
+  await tx.stockMovement.create({ data: { ... } });
+});
+```
+
+## Sorgularda organizationId Filtresi
+
+```typescript
+// ✅ Her sorguya mutlaka ekle
+const product = await this.prisma.product.findFirst({
+  where: { id: productId, organizationId, deletedAt: null },
+});
+if (!product) throw new NotFoundException('Ürün bulunamadı');
+```
+
+## İsimlendirme
+
+| Kapsam | Kural | Örnek |
+|---|---|---|
+| Model | PascalCase | `MarketplaceConnection` |
+| Alan | camelCase | `organizationId`, `credentialsEnc` |
+| Enum | PascalCase (model), SCREAMING_SNAKE (değer) | `PlanTier.BASLANGIC` |
+| Relation | alan adı = tablo adı küçük harf | `organization Organization @relation(...)` |
+
+## Migration
+
+`schema.prisma` değiştirildiğinde mutlaka `prisma migrate dev --name <açıklama>` çalıştır.
+Migration dosyalarını asla manuel düzenleme.

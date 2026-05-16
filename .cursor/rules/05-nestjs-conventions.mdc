@@ -1,0 +1,82 @@
+---
+description: NestJS modül yapısı, DTO kullanımı, exception handling ve injection kuralları
+globs: apps/backend/**/*.ts
+alwaysApply: false
+---
+
+# NestJS Kuralları
+
+## Modül Yapısı
+
+Her domain kendi modülüne sahiptir. Catch-all ya da "utils" modülü yaratma.
+
+```
+order/
+  order.module.ts
+  order.controller.ts
+  order.service.ts
+  order.dto.ts          # CreateOrderDto, UpdateOrderDto
+  order.types.ts        # İç tipler, interface'ler
+  order.service.spec.ts
+```
+
+## DTO — class-validator Zorunlu
+
+Her request body için DTO sınıfı ve `class-validator` dekoratörleri kullan.
+`ValidationPipe` global olarak aktif; `forbidNonWhitelisted: true` olmalı.
+
+```typescript
+export class CreateListingDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  title: string;
+
+  @IsNumber()
+  @Min(0)
+  price: number;
+
+  @IsEnum(Marketplace)
+  platform: Marketplace;
+}
+```
+
+## Exception Handling
+
+Ham `Error` fırlatma. NestJS built-in exception'ları kullan:
+
+| Durum | Exception |
+|---|---|
+| Kayıt bulunamadı | `NotFoundException` |
+| Yetkisiz erişim | `ForbiddenException` |
+| Geçersiz veri | `BadRequestException` |
+| Zaten var | `ConflictException` |
+| Ödeme gerekli | `HttpException(402)` |
+
+## Guard Sırası
+
+```typescript
+@UseGuards(JwtAuthGuard, SubscriptionGuard, RolesGuard)
+@Controller('listings')
+export class ListingController {}
+```
+
+## Dependency Injection
+
+Constructor injection kullan. `ModuleRef.get()` yalnızca circular bağımlılık zorunluluğunda.
+
+```typescript
+// ✅ DOĞRU
+constructor(
+  private readonly listingService: ListingService,
+  private readonly prisma: PrismaService,
+) {}
+```
+
+## Logger
+
+`@nestjs/common` Logger sınıfını kullan. Her servis kendi logger'ını oluşturur:
+
+```typescript
+private readonly logger = new Logger(OrderService.name);
+```

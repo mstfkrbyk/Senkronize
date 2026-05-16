@@ -1,0 +1,73 @@
+---
+description: Güvenlik kuralları — credential şifreleme, audit log ve hata yönetimi
+alwaysApply: true
+---
+
+# Güvenlik Kuralları
+
+## Credential Şifreleme (Zorunlu)
+
+Pazaryeri API anahtarları ve ERP şifreleri **DB'ye yazılmadan önce AES-256-GCM ile şifrelenir.**
+`EncryptionService` kullan; ham metin asla `credentialsEnc` alanına yazma.
+
+```typescript
+// ✅ DOĞRU
+const encrypted = this.encryptionService.encrypt(JSON.stringify(credentials));
+await this.prisma.marketplaceConnection.create({
+  data: { organizationId, platform, credentialsEnc: encrypted },
+});
+
+// ❌ YANLIŞ — ham metin kaydetme
+await this.prisma.marketplaceConnection.create({
+  data: { credentialsEnc: JSON.stringify(credentials) },
+});
+```
+
+## Hassas Veri Loglama Yasak
+
+Şu alanlar hiçbir `logger.*` çağrısına, hata mesajına veya response'a girmez:
+`password`, `passwordHash`, `token`, `apiKey`, `secretKey`, `credentialsEnc`, `webhookSecret`
+
+```typescript
+// ❌ YANLIŞ
+logger.error('Auth failed', { user, password });
+
+// ✅ DOĞRU
+logger.error('Auth failed', { email: user.email });
+```
+
+## Audit Log Zorunluluğu
+
+Aşağıdaki işlemler gerçekleştiğinde `AuditLogService.log()` çağrısı **zorunludur:**
+
+- Partner impersonation başlangıç ve bitiş
+- Kullanıcı rol veya izin değişikliği
+- Abonelik plan değişikliği (yükseltme, düşürme, iptal)
+- Hesap silme talebi
+- Admin tarafından müşteri verisi erişimi
+
+```typescript
+await this.auditLogService.log({
+  actorUserId: actor.id,
+  actorOrgId: actor.organizationId,
+  impersonatedOrgId: impersonatedOrg?.id,
+  action: 'partner.impersonation_start',
+  resourceType: 'Organization',
+  resourceId: clientOrgId,
+});
+```
+
+## Üretim Ortamı Hata Mesajları
+
+İç hata detayları (stack trace, DB sorgusu, servis adı) kullanıcıya dönmez.
+NestJS global exception filter kullan; sadece `statusCode`, `error`, `message` dön.
+
+## Rate Limiting
+
+Auth endpoint'leri (`/auth/login`, `/auth/register`) `ThrottlerGuard` ile korunur.
+Varsayılan: 10 istek / dakika. Aşılırsa 429 Too Many Requests.
+
+## JWT Güvenliği
+
+Access token süresi: 15 dakika. Refresh token: 7 gün.
+Refresh token'lar DB'de saklanır ve logout'ta geçersiz kılınır.

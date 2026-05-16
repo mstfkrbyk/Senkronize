@@ -1,0 +1,66 @@
+---
+description: Abonelik paket kapısı — Pro+ özellikler ve limit kontrolleri
+globs: apps/backend/**/*.ts
+alwaysApply: false
+---
+
+# Özellik Kapısı (Feature Gating) Kuralları
+
+## Pro+ Özellikleri
+
+BuyBox takibi, otomatik fiyatlama ve rakip fiyat analizi yalnızca
+**PRO** ve **KURUMSAL** planlarda kullanılabilir.
+
+```typescript
+// ✅ Guard ile koru
+@RequiresPlan(PlanTier.PRO)
+@Get('buybox')
+async getBuyboxData(@CurrentOrg() org: Organization) {
+  return this.pricingService.getBuyboxSnapshot(org.id);
+}
+```
+
+## Paket Tier Sırası
+
+`BASLANGIC < GELISIM < PRO < KURUMSAL`
+
+`RequiresPlan(PlanTier.PRO)` → PRO ve KURUMSAL geçer, BASLANGIC ve GELISIM reddedilir.
+
+## Limit Kontrolleri
+
+Her işlem öncesi ilgili limit kontrol edilir. Aşılınca `HttpException(402)` dön.
+
+```typescript
+// Pazaryeri bağlantısı eklemeden önce
+async addMarketplaceConnection(orgId: string, platform: Marketplace): Promise<void> {
+  const sub = await this.subscriptionService.getActive(orgId);
+  const currentCount = await this.prisma.marketplaceConnection.count({
+    where: { organizationId: orgId, isActive: true },
+  });
+  if (sub.marketplaceLimit && currentCount >= sub.marketplaceLimit) {
+    throw new HttpException(
+      'Paketinizin pazaryeri bağlantı limitine ulaştınız. Paketi yükseltin.',
+      HttpStatus.PAYMENT_REQUIRED,
+    );
+  }
+}
+```
+
+## Backend vs Frontend Sorumluluğu
+
+| Katman | Görev |
+|---|---|
+| **Backend** | Gerçek güvenlik kontrolü — guard ve limit check |
+| **Frontend** | UX iyileştirme — kilidi kapalı göster, yükseltme yönlendir |
+
+Frontend kontrolü hiçbir zaman tek başına güvenlik sağlamaz.
+
+## Kontrol Edilecek Limitler
+
+| Limit | Alan | Kontrol Zamanı |
+|---|---|---|
+| Aylık sipariş | `monthlyOrderLimit` | Sipariş sync öncesi |
+| Pazaryeri bağlantısı | `marketplaceLimit` | Bağlantı ekleme öncesi |
+| E-ticaret platformu | `ecommerceLimit` | Bağlantı ekleme öncesi |
+| ERP bağlantısı | `erpLimit` | Bağlantı ekleme öncesi |
+| Kullanıcı sayısı | `userLimit` | Kullanıcı davet öncesi |

@@ -1,0 +1,69 @@
+---
+description: TypeScript kod standartları — any yasak, hata yutma yasak, strict mod
+globs: **/*.ts,**/*.tsx
+alwaysApply: false
+---
+
+# TypeScript Standartları
+
+## `any` Yasak — `unknown` Kullan
+
+```typescript
+// ❌ YANLIŞ
+function process(data: any) { return data.value; }
+
+// ✅ DOĞRU
+function process(data: unknown): string {
+  if (typeof data === 'object' && data !== null && 'value' in data) {
+    return String((data as { value: unknown }).value);
+  }
+  throw new TypeError('Geçersiz veri yapısı');
+}
+```
+
+## Açık Return Tipi Zorunlu
+
+```typescript
+// ❌ YANLIŞ
+async function getOrders() {
+  return this.prisma.order.findMany();
+}
+
+// ✅ DOĞRU
+async function getOrders(): Promise<Order[]> {
+  return this.prisma.order.findMany();
+}
+```
+
+## Hata Yutma Yasak
+
+```typescript
+// ❌ YANLIŞ — boş catch
+try { await sync(); } catch (e) {}
+
+// ✅ DOĞRU
+try {
+  await sync();
+} catch (error) {
+  this.logger.error('Sync başarısız', { error, organizationId });
+  throw new SyncFailedError('Senkronizasyon başarısız oldu', { cause: error });
+}
+```
+
+## Async/Await
+
+Promise chain (`.then`/`.catch`) yerine `async/await` kullan.
+`async` fonksiyonlarda unhandled rejection bırakma.
+
+## Null Safety
+
+Optional chaining (`?.`) kullanmadan önce değerin gerçekten opsiyonel olup olmadığını düşün.
+Güvenlik kritik yollarda `!` (non-null assertion) kullanma — explicit kontrol yap.
+
+## Import Sırası
+
+1. Node.js built-in modüller
+2. Dış bağımlılıklar (npm)
+3. İç modüller (`@/`, `../`, `./`)
+
+Aynı kategori içinde alfabetik sıra.

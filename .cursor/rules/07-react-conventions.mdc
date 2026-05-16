@@ -1,0 +1,69 @@
+---
+description: React bileşen yapısı, TanStack Query, Zustand ve shadcn/ui kullanım kuralları
+globs: apps/panel/**/*.tsx,apps/panel/**/*.ts
+alwaysApply: false
+---
+
+# React Kuralları
+
+## Bileşen Yapısı
+
+- Yalnızca functional components (class component yasak)
+- Dosya adı: PascalCase (`OrderList.tsx`, `PricingPanel.tsx`)
+- Props tipi: `interface Props {}` olarak tanımla, inline yazma
+
+```typescript
+interface Props {
+  orderId: string;
+  onStatusChange: (status: OrderStatus) => void;
+}
+
+export function OrderCard({ orderId, onStatusChange }: Props) { ... }
+```
+
+## Server State — TanStack Query
+
+API verisi için `useState` + `useEffect` kullanma. Her zaman TanStack Query kullan.
+
+```typescript
+// ✅ DOĞRU
+const { data: orders, isLoading, error } = useQuery({
+  queryKey: ['orders', filters],
+  queryFn: () => api.orders.list(filters),
+});
+
+// Mutation
+const { mutate: updateStatus } = useMutation({
+  mutationFn: (id: string) => api.orders.updateStatus(id, 'COMPLETED'),
+  onSuccess: () => queryClient.invalidateQueries({ queryKey: ['orders'] }),
+});
+```
+
+## Client State — Zustand
+
+Yalnızca UI state için (modal açık/kapalı, seçili filtreler, sidebar durumu).
+Server state'i Zustand'a kopyalama — TanStack Query yönetir.
+
+## UI Bileşenleri — shadcn/ui Önce
+
+Sıfırdan UI yazmadan önce shadcn/ui'de var mı kontrol et:
+Button, Input, Select, Dialog, Table, Badge, Card, Tabs, Toast vb.
+
+## Zorunluluklar
+
+- Tüm UI metinleri **Türkçe** (label, placeholder, hata mesajı, boş state)
+- Inline style yasak → Tailwind utility class veya `App.css` değişkenleri kullan
+- Her veri çeken bileşende **loading durumu** ve **error durumu** göster
+- Veri yoksa **boş state mesajı** göster ("Henüz sipariş yok" gibi)
+- Pro+ özellik ekranlarında paket yükseltme yönlendirmesi göster
+
+## Dosya Organizasyonu
+
+```
+pages/          # Rota düzeyinde bileşenler (bir rota = bir dosya)
+components/     # Paylaşılan bileşenler
+hooks/          # Custom hook'lar (use* prefix zorunlu)
+lib/            # API client, yardımcı fonksiyonlar
+stores/         # Zustand store'ları
+types/          # TypeScript tipleri
+```

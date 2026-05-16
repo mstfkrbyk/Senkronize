@@ -1,0 +1,76 @@
+---
+description: BullMQ iş kuyruğu kuralları — dış API çağrılarını senkron handler'dan yasaklar
+globs: apps/backend/**/*.ts
+alwaysApply: false
+---
+
+# BullMQ Kuyruk Kuralları
+
+## Temel Kural
+
+**Dış API çağrıları (Trendyol, Hepsiburada, n11, Amazon, Logo, Mikro vb.)
+asla HTTP request handler içinden doğrudan yapılmaz.**
+
+Tüm dış API çağrıları BullMQ kuyruğuna iş olarak eklenir; worker asenkron işler.
+
+```typescript
+// ❌ YANLIŞ — controller veya service'den doğrudan dış API çağrısı
+@Post('sync')
+async sync(@CurrentOrg() org: Organization) {
+  await this.trendyolApi.pushStock(org.id); // ← bu yasak
+}
+
+// ✅ DOĞRU — kuyruğa iş ekle
+@Post('sync')
+async sync(@CurrentOrg() org: Organization): Promise<{ jobId: string }> {
+  const job = await this.marketplacePushQueue.add('push-stock', {
+    organizationId: org.id,
+    platform: Marketplace.TRENDYOL,
+  }, { attempts: 5, backoff: { type: 'exponential', delay: 30_000 } });
+  return { jobId: job.id };
+}
+```
+
+## Kuyruk İsimleri (Değiştirme)
+
+| Sabit | Değer | Açıklama |
+|---|---|---|
+| `QUEUE_MARKETPLACE_PULL` | `marketplace-pull` | Pazaryerinden sipariş/stok çekme |
+| `QUEUE_MARKETPLACE_PUSH` | `marketplace-push` | Fiyat/stok platformlara gönderme |
+| `QUEUE_ERP_SYNC` | `erp-sync` | ERP ↔ Senkronize senkronizasyonu |
+| `QUEUE_NOTIFICATION` | `notification-dispatch` | E-posta, SMS, push bildirimleri |
+| `QUEUE_PRICING` | `pricing-engine` | BuyBox ve otomatik fiyatlama |
+| `QUEUE_IMAGE` | `image-upload` | Ürün görseli R2'ya yükleme |
+
+## Job Seçenekleri (Zorunlu)
+
+```typescript
+await queue.add('job-name', payload, {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 30_000 },
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 500 },
+});
+```
+
+## Retry ve Dead-Letter Akışı
+
+- 1. hata → 30 sn bekle
+- 2-3. hata → üstel backoff (1 dk, 5 dk)
+- 4-5. hata → 15 dk bekle + kullanıcıya in-app bildirim
+- 5. hata sonrası → dead-letter kuyruğu + e-posta uyarısı
+
+## Worker Hata Yönetimi
+
+Worker içinde unhandled exception bırakma.
+Job başarısız olduğunda `AuditLog` veya `NotificationService` tetikle.
+
+```typescript
+@OnWorkerEvent('failed')
+async onFailed(job: Job, error: Error) {
+  this.logger.error('Job failed', { jobId: job.id, error });
+  if (job.attemptsMade >= job.opts.attempts) {
+    await this.notificationService.sendSyncFailureAlert(job.data.organizationId);
+  }
+}
+```

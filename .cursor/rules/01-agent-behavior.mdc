@@ -1,0 +1,43 @@
+---
+description: AI ajanın nasıl davranması ve ne zaman soru sorması gerektiğini tanımlar
+alwaysApply: true
+---
+
+# Ajan Davranış Kuralları
+
+## Kesinlikle YAPMA
+
+- Mimari kararları tek başına alma. Plan dosyasında yoksa **önce sor.**
+- İstenen kapsam dışına çıkma — "şu da düzeltilebilir" diye ilgisiz kod refactor etme.
+- Yeni npm bağımlılığı eklemeden önce kullanıcıyı bilgilendirmeden ekleme.
+- `MixON-V5/` dizinindeki dosyaları değiştirme.
+- Monorepo dizin yapısını (`apps/`, `packages/`, `desktop/`) değiştirme.
+- Birden fazla modülü aynı anda yeniden yazma.
+- Veritabanı şemasını (schema.prisma) migration oluşturmadan değiştirme.
+- Çalışan bir entegrasyon adaptörünü habersiz kırma.
+
+## Her Zaman YAP
+
+- Bir konu belirsizse plan dosyasını kontrol et; hâlâ belirsizse sor.
+- Mevcut `IMarketplaceAdapter` veya `IErpAdapter` arayüzü varsa onu uygula, yeni pattern icat etme.
+- Her değişiklikten sonra TypeScript derleyici hatasını ve linter uyarısını kontrol et.
+- Güvenlik kritik kod (auth, tenant isolation, credential şifreleme) için ekstra dikkat göster.
+- Bir şeyi değiştirirken mevcut testlerin kırılıp kırılmadığını kontrol et.
+
+## Bunları Yapmadan Önce SOR
+
+- Plan dosyasında yer almayan yeni bir özellik veya pattern eklenecekse
+- Mevcut bir arayüz, şema veya servis sözleşmesi değiştirilecekse
+- Yeni bir npm paketi eklenecekse (güvenlik, lisans riski)
+- Mevcut faz kapsamının dışına çıkılacaksa
+- İki farklı yaklaşım arasında seçim yapılması gerekiyorsa
+
+## Kapsam Yönetimi
+
+Her geliştirme oturumunda yalnızca o oturumda istenen modül/özellik üzerinde çalış.
+"Şunu da düzelteyim" mantığıyla kapsam genişletme — bağımsız bir iş olarak öner.
+
+## Hata Durumunda
+
+Bir şeyin nasıl yapılacağından emin değilsen, tahminde bulunarak ilerlemek yerine dur ve sor.
+Yarım kalmış kod bırakma; ya tamamla ya da açıkça "bu kısmı bitiremedim, şundan dolayı" de.

@@ -1,0 +1,75 @@
+---
+description: Test yazma kuralları — dosya yerleşimi, mock pattern, kritik akışlar ve kapsam hedefi
+globs: **/*.spec.ts,**/*.e2e-spec.ts
+alwaysApply: false
+---
+
+# Test Kuralları
+
+## Dosya Yerleşimi
+
+Birim/entegrasyon testleri test ettiği dosyanın yanında:
+
+```
+order.service.ts
+order.service.spec.ts   ← yanında
+```
+
+E2E testler: `apps/backend/test/*.e2e-spec.ts`
+
+## Zorunlu Test Kapsamı
+
+Her yeni servis için **en az 1 happy-path testi** zorunludur.
+Güvenlik kritik fonksiyonlar için **negatif test** (yetkisiz erişim) de zorunludur.
+
+```typescript
+// ✅ Happy path
+it('should return orders for the correct organization', async () => {
+  const orders = await service.findAll(org.id);
+  expect(orders.every(o => o.organizationId === org.id)).toBe(true);
+});
+
+// ✅ Güvenlik — cross-tenant erişim engeli
+it('should NOT return orders from another organization', async () => {
+  const orders = await service.findAll(otherOrg.id);
+  expect(orders.some(o => o.organizationId === org.id)).toBe(false);
+});
+```
+
+## Kritik E2E Akışlar
+
+Şu akışlar için e2e testi zorunludur (Faz 6):
+
+1. Kullanıcı kaydı ve login
+2. Abonelik başlatma + PayTR webhook işleme
+3. Pazaryeri bağlantısı ekleme + bağlantı testi
+4. İlk ürün sync (marketplace-push kuyruğu)
+5. Sipariş çekme ve DB kaydı
+
+## Mock Pattern
+
+```typescript
+// Prisma mock
+const mockPrisma = {
+  order: {
+    findMany: jest.fn().mockResolvedValue([mockOrder]),
+    create: jest.fn().mockResolvedValue(mockOrder),
+  },
+};
+
+// Dış servis mock
+jest.spyOn(trendyolApiService, 'pushStock')
+    .mockResolvedValue({ success: true, updated: 5 });
+```
+
+## Tenant İzolasyonu
+
+Her test farklı `organizationId` kullan.
+Test veritabanı için transactional rollback veya ayrı schema kullan.
+`prisma.$transaction` ile sarılmış testlerde sonunda rollback yap.
+
+## Ne Test Etme
+
+- Prisma ORM'un kendi davranışını test etme
+- 3. taraf SDK'ların iç implementasyonunu test etme
+- Sadece bizim yazdığımız iş mantığını test et

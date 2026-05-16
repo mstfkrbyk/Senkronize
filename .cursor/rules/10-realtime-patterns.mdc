@@ -1,0 +1,67 @@
+---
+description: Socket.io WebSocket oda isimlendirme, event isimleri ve emit kuralları
+globs: apps/backend/**/*.gateway.ts,apps/panel/**/*.tsx,apps/panel/**/*.ts
+alwaysApply: false
+---
+
+# Socket.io Real-time Kuralları
+
+## Oda İsimlendirme
+
+Format: `org:{organizationId}`
+
+```typescript
+// Backend — client bağlandığında odaya ekle
+@SubscribeMessage('join')
+handleJoin(client: Socket, payload: { orgId: string }): void {
+  // JWT'den orgId doğrula, payload'daki orgId'ye güvenme
+  client.join(`org:${verifiedOrgId}`);
+}
+```
+
+## Event İsimlendirme
+
+Format: `domain:eylem` — küçük harf, iki nokta ayırıcı
+
+| Event | Yön | Tetikleyici |
+|---|---|---|
+| `order:new` | server→client | Yeni sipariş çekildi |
+| `order:updated` | server→client | Sipariş durumu değişti |
+| `listing:synced` | server→client | Listeleme sync tamamlandı |
+| `stock:alert` | server→client | Stok kritik seviyeye indi |
+| `price:updated` | server→client | BuyBox fiyat değişikliği |
+| `sync:status` | server→client | Entegrasyon sağlık güncellemesi |
+| `notification:new` | server→client | Yeni in-app bildirim |
+| `sync:trigger` | client→server | "Şu entegrasyonu şimdi sync et" |
+
+Yeni event eklemeden önce bu listeyi kontrol et; plan dosyasıyla uyumlu ol.
+
+## Backend Emit Kuralı
+
+**Daima org odasına emit et — asla global broadcast yapma.**
+
+```typescript
+// ✅ DOĞRU — sadece ilgili org'a
+this.server.to(`org:${organizationId}`).emit('order:new', orderDto);
+
+// ❌ YANLIŞ — tüm bağlı istemcilere broadcast
+this.server.emit('order:new', orderDto);
+```
+
+## Frontend — Event Dinleme
+
+```typescript
+// ✅ TanStack Query cache'ini invalidate et
+useEffect(() => {
+  socket.on('order:new', () => {
+    queryClient.invalidateQueries({ queryKey: ['orders'] });
+    toast.success('Yeni sipariş geldi');
+  });
+  return () => { socket.off('order:new'); };
+}, [socket, queryClient]);
+```
+
+## Bağlantı Yönetimi
+
+Frontend'de Socket.io bağlantısı tek bir context/hook üzerinden yönetilir.
+Her bileşen kendi bağlantısını oluşturmaz. Bağlantı auth sonrası kurulur, logout'ta kesilir.

@@ -1,0 +1,59 @@
+---
+description: Multi-tenancy güvenlik kuralları — her sorguya organizationId filtresi zorunlu
+alwaysApply: true
+---
+
+# Multi-Tenancy: #1 Güvenlik Kuralı
+
+Her Prisma sorgusunda `organizationId` filtresi **ZORUNLUDUR.**
+`organizationId` her zaman JWT token içinden alınır — asla request body veya URL parametresinden değil.
+
+## YANLIŞ
+
+```typescript
+// ❌ body'den organizationId alma
+const products = await prisma.product.findMany({
+  where: { organizationId: dto.orgId },
+});
+
+// ❌ organizationId filtresi eksik
+const orders = await prisma.order.findMany();
+
+// ❌ URL param'dan alma
+const org = await prisma.organization.findUnique({
+  where: { id: req.params.orgId },
+});
+```
+
+## DOĞRU
+
+```typescript
+// ✅ JWT context'ten al
+@Get()
+async list(@CurrentOrg() org: Organization): Promise<Order[]> {
+  return this.orderService.findAll(org.id);
+}
+
+// ✅ Service katmanında her zaman orgId ile filtrele
+async findAll(organizationId: string): Promise<Order[]> {
+  return this.prisma.order.findMany({
+    where: { organizationId, deletedAt: null },
+  });
+}
+```
+
+## Zorunlu Guard
+
+Tüm protected controller'larda `@UseGuards(JwtAuthGuard)` bulunmalıdır.
+Admin rotaları (`/admin`) için ek olarak `@Roles(UserRole.SUPER_ADMIN)` gerekir.
+
+## Partner Impersonation
+
+Bir partner müşteri adına işlem yaparken JWT payload'ında `impersonatedOrgId` bulunur.
+Bu durumda sorgular `impersonatedOrgId` üzerinden çalışır — aynı kural geçerli.
+Her impersonation işlemi `AuditLog`'a yazılır; bu zorunludur, atlanamaz.
+
+## Cross-Tenant Erişim
+
+Hiçbir zaman farklı `organizationId`'ye ait veri döndürme.
+Admin endpoint'leri bile organizasyonu explicit olarak belirtmek zorundadır.
