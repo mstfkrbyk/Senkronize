@@ -1,6 +1,12 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -39,6 +45,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 export function LoginPage(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const token = useAuthStore((s) => s.token);
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -74,12 +81,18 @@ export function LoginPage(): ReactElement {
         id: me.organization.id,
         name: me.organization.name,
         slug: me.organization.slug,
+        type: me.organization.type,
         onboardingCompleted: me.organization.onboardingCompleted,
         plan: me.organization.plan,
       });
     },
     onSuccess: () => {
       toast.success('Giriş başarılı.');
+      const inviteToken = searchParams.get('inviteToken');
+      if (inviteToken) {
+        navigate(`/invite/${encodeURIComponent(inviteToken)}`, { replace: true });
+        return;
+      }
       const target =
         from && from.startsWith('/') && !from.startsWith('/login')
           ? from
@@ -96,6 +109,15 @@ export function LoginPage(): ReactElement {
   }, []);
 
   if (token) {
+    const inviteToken = searchParams.get('inviteToken');
+    if (inviteToken) {
+      return (
+        <Navigate
+          to={`/invite/${encodeURIComponent(inviteToken)}`}
+          replace
+        />
+      );
+    }
     return <Navigate to="/dashboard" replace />;
   }
 

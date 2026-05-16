@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserSwitch } from 'lucide-react';
+import { ArrowLeftRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -37,7 +37,7 @@ export function ImpersonationBanner(): ReactElement | null {
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-white">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <UserSwitch className="size-5 shrink-0" aria-hidden />
+        <ArrowLeftRight className="size-5 shrink-0" aria-hidden />
         <span className="truncate text-sm">
           Şu an <strong>{impersonatedOrg.name}</strong> hesabında çalışıyorsunuz
         </span>

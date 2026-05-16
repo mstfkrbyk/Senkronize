@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getApiErrorMessage } from '@/lib/api';
-import type { PartnerRelationship, PartnerStatus } from '@/types/partner';
+import type { PartnerStatus } from '@/types/partner';
 
 import {
   useLeavePartnerRelationship,

@@ -13,18 +13,20 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
+import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ConnectionsPage } from '@/pages/connections/ConnectionsPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
+import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
 import { ListingsPage } from '@/pages/listings/ListingsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 import { OrdersPage } from '@/pages/orders/OrdersPage';
+import { PartnerPage } from '@/pages/partner/PartnerPage';
 import { PricingPage } from '@/pages/pricing/PricingPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { StockPage } from '@/pages/stock/StockPage';
-import { LoginPage } from '@/pages/auth/LoginPage';
-import { RegisterPage } from '@/pages/auth/RegisterPage';
-import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 
 export default function App(): ReactElement {
   return (
@@ -33,6 +35,7 @@ export default function App(): ReactElement {
         <BrowserRouter>
           <Toaster position="top-center" richColors closeButton />
           <Routes>
+            <Route path="/invite/:token" element={<InviteAcceptPage />} />
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
@@ -49,6 +52,7 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/partner" element={<PartnerPage />} />
                 <Route path="/settings/subscription" element={<SettingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>

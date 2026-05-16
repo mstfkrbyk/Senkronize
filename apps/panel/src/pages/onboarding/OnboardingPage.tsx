@@ -90,6 +90,7 @@ export function OnboardingPage(): ReactElement {
         id: fresh.organization.id,
         name: fresh.organization.name,
         slug: fresh.organization.slug,
+        type: fresh.organization.type,
         onboardingCompleted: fresh.organization.onboardingCompleted,
         plan: fresh.organization.plan,
       });

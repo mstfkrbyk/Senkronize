@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -13,42 +13,21 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getApiErrorMessage } from '@/lib/api';
-import { useAuthStore } from '@/store/auth.store';
-
 import { useAcceptPartnerInvite } from '@/pages/partner/hooks/usePartner';
+import { useAuthStore } from '@/store/auth.store';
 
 export function InviteAcceptPage(): ReactElement {
   const { token: urlToken } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const jwt = useAuthStore((s) => s.token);
-  const accept = useAcceptPartnerInvite();
+  const { mutate, isPending } = useAcceptPartnerInvite();
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!urlToken) {
       setMessage('Geçersiz davet bağlantısı.');
-      return;
     }
-    if (!jwt) {
-      return;
-    }
-
-    const storageKey = `senkronize-invite-attempt:${urlToken}`;
-    if (sessionStorage.getItem(storageKey)) {
-      return;
-    }
-    sessionStorage.setItem(storageKey, '1');
-
-    accept.mutate(urlToken, {
-      onSuccess: () => {
-        navigate('/dashboard', { replace: true });
-      },
-      onError: (error: unknown) => {
-        sessionStorage.removeItem(storageKey);
-        setMessage(getApiErrorMessage(error));
-      },
-    });
-  }, [urlToken, jwt, accept, navigate]);
+  }, [urlToken]);
 
   if (!urlToken) {
     return (
@@ -56,7 +35,9 @@ export function InviteAcceptPage(): ReactElement {
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle>Davet</CardTitle>
-            <CardDescription>Geçersiz davet bağlantısı.</CardDescription>
+            <CardDescription>
+              {message ?? 'Geçersiz davet bağlantısı.'}
+            </CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -76,12 +57,12 @@ export function InviteAcceptPage(): ReactElement {
           </CardHeader>
           <CardFooter className="flex flex-col gap-2 sm:flex-row">
             <Button type="button" className="w-full sm:w-auto" asChild>
-              <a href={loginHref}>Giriş yap</a>
+              <Link to={loginHref}>Giriş yap</Link>
             </Button>
             <Button type="button" variant="outline" className="w-full sm:w-auto" asChild>
-              <a href={`/register?inviteToken=${encodeURIComponent(urlToken)}`}>
+              <Link to={`/register?inviteToken=${encodeURIComponent(urlToken)}`}>
                 Kayıt ol
-              </a>
+              </Link>
             </Button>
           </CardFooter>
         </Card>
@@ -112,10 +93,35 @@ export function InviteAcceptPage(): ReactElement {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Partner daveti</CardTitle>
-          <CardDescription>Davetiniz işleniyor…</CardDescription>
+          <CardDescription>
+            Partner ilişkisini kurmak için onaylayın. İşlem tamamlandığında panele
+            yönlendirileceksiniz.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="flex justify-center py-6">
-          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+        <CardContent className="flex flex-col items-center gap-4 py-4">
+          {isPending ? (
+            <Loader2
+              className="size-8 animate-spin text-muted-foreground"
+              aria-label="Yükleniyor"
+            />
+          ) : null}
+          <Button
+            type="button"
+            className="w-full sm:w-auto"
+            disabled={isPending}
+            onClick={() => {
+              mutate(urlToken, {
+                onSuccess: () => {
+                  navigate('/dashboard', { replace: true });
+                },
+                onError: (error: unknown) => {
+                  setMessage(getApiErrorMessage(error));
+                },
+              });
+            }}
+          >
+            {isPending ? 'İşleniyor…' : 'Daveti kabul et'}
+          </Button>
         </CardContent>
       </Card>
     </div>

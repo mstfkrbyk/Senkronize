@@ -31,7 +31,7 @@ import { useInviteClient } from './hooks/usePartner';
 
 const inviteSchema = z.object({
   clientEmail: z.string().email('Geçerli bir e-posta girin.'),
-  commissionPct: z.coerce.number().min(0).max(100).optional(),
+  commissionPct: z.number().min(0).max(100),
   canImpersonate: z.boolean(),
 });
 
@@ -144,7 +144,20 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
                 <FormItem>
                   <FormLabel>Komisyon oranı (%)</FormLabel>
                   <FormControl>
-                    <Input type="number" min={0} max={100} step={0.5} {...field} />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      name={field.name}
+                      ref={field.ref}
+                      value={Number.isFinite(field.value) ? String(field.value) : ''}
+                      onBlur={field.onBlur}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        field.onChange(v === '' ? 10 : Number(v));
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -2,28 +2,33 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import type {
   CommissionSummary,
   PartnerRelationship,
 } from '@/types/partner';
 
 export function useMyClients() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
   return useQuery({
     queryKey: ['partner', 'clients'],
     queryFn: async (): Promise<PartnerRelationship[]> => {
       const { data } = await api.get<PartnerRelationship[]>('/partner/clients');
       return data;
     },
+    enabled: orgType === 'PARTNER',
   });
 }
 
 export function useCommissionSummary() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
   return useQuery({
     queryKey: ['partner', 'commission'],
     queryFn: async (): Promise<CommissionSummary> => {
       const { data } = await api.get<CommissionSummary>('/partner/commission');
       return data;
     },
+    enabled: orgType === 'PARTNER',
   });
 }
 
@@ -70,10 +75,14 @@ export function useTerminateRelationship() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partner', 'clients'] });
     },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
   });
 }
 
 export function useMyPartners() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
   return useQuery({
     queryKey: ['partner', 'my-partners'],
     queryFn: async (): Promise<PartnerRelationship[]> => {
@@ -82,6 +91,7 @@ export function useMyPartners() {
       );
       return data;
     },
+    enabled: Boolean(orgType) && orgType !== 'PARTNER',
   });
 }
 
