@@ -1,0 +1,306 @@
+// Senkronize — multi-tenant veri modeli (Bölüm 7 + tamamlayıcı ilişkiler)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrgType {
+  DIRECT
+  PARTNER
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+enum PlanTier {
+  BASLANGIC
+  GELISIM
+  PRO
+  KURUMSAL
+}
+
+enum SubStatus {
+  TRIAL
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum Marketplace {
+  TRENDYOL
+  HEPSIBURADA
+  N11
+  AMAZON_TR
+  CICEKSEPETI
+}
+
+enum ErpType {
+  BIZIMHESAP
+  PARASUT
+  LOGO
+  MIKRO
+  NEBIM
+  NETSIS
+  DIA
+}
+
+enum EcommerceType {
+  TICIMAX
+  TSOFT
+}
+
+enum CargoProvider {
+  YURTICI
+  ARAS
+  MNG
+  SURAT
+  PTT
+  UPS
+  DHL
+  HEPSIJET
+  TRENDYOL_EXPRESS
+}
+
+enum PartnerStatus {
+  ACTIVE
+  PAUSED
+  TERMINATED
+}
+
+enum CommissionStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+enum SyncDirection {
+  PUSH
+  PULL
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  type      OrgType
+  logoUrl   String?
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+
+  users                    User[]
+  subscription             Subscription?
+  marketplaceConnections   MarketplaceConnection[]
+  erpConnections           ErpConnection[]
+  ecommerceConnections     EcommerceConnection[]
+  cargoConnections         CargoConnection[]
+  products                 Product[]
+  listings                 Listing[]
+  orders                   Order[]
+  reservations             Reservation[]
+  partnerOf                PartnerRelationship[] @relation("PartnerOrg")
+  clientOf                 PartnerRelationship[] @relation("ClientOrg")
+}
+
+model User {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String    @unique
+  passwordHash   String
+  name           String
+  phone          String?
+  role           UserRole
+  permissions    Json      @default("{}")
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  refreshTokens RefreshToken[]
+}
+
+model Subscription {
+  id                  String    @id @default(cuid())
+  organizationId      String    @unique
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                PlanTier
+  status              SubStatus
+  trialEndsAt         DateTime?
+  currentPeriodStart  DateTime
+  currentPeriodEnd    DateTime
+  paytrSubscriptionId String?
+  monthlyOrderLimit   Int?
+  marketplaceLimit    Int?
+  ecommerceLimit      Int?
+  erpLimit            Int?
+  userLimit           Int?
+  addons              Json      @default("[]")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model MarketplaceConnection {
+  id              String      @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform        Marketplace
+  credentialsEnc  String
+  isActive        Boolean     @default(true)
+  lastSyncAt      DateTime?
+  syncErrorCount  Int         @default(0)
+  webhookSecret   String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([organizationId, platform])
+}
+
+model ErpConnection {
+  id              String    @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  type            ErpType
+  credentialsEnc  String
+  isActive        Boolean   @default(true)
+  lastSyncAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model EcommerceConnection {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform        EcommerceType
+  credentialsEnc  String
+  isActive        Boolean        @default(true)
+  lastSyncAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([organizationId, platform])
+}
+
+model CargoConnection {
+  id              String         @id @default(cuid())
+  organizationId  String
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider        CargoProvider
+  credentialsEnc  String?
+  isActive        Boolean        @default(true)
+  lastSyncAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([organizationId, provider])
+}
+
+model Product {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  sku            String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  listings      Listing[]
+  reservations  Reservation[]
+}
+
+model Listing {
+  id             String      @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  marketplace    Marketplace
+  externalId     String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@unique([organizationId, marketplace, productId])
+}
+
+model Order {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  status         String
+  rawPayload     Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, externalId])
+}
+
+model Reservation {
+  id             String    @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity       Int
+  sourceOrderId  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model PartnerRelationship {
+  id              String            @id @default(cuid())
+  partnerId       String
+  partner         Organization      @relation("PartnerOrg", fields: [partnerId], references: [id], onDelete: Cascade)
+  clientId        String
+  client          Organization      @relation("ClientOrg", fields: [clientId], references: [id], onDelete: Cascade)
+  commissionRate  Decimal           @db.Decimal(5, 2)
+  canImpersonate  Boolean           @default(false)
+  status          PartnerStatus     @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  ledgerEntries   CommissionLedger[]
+
+  @@unique([partnerId, clientId])
+}
+
+model CommissionLedger {
+  id                      String              @id @default(cuid())
+  partnerRelationshipId   String
+  partnerRelationship     PartnerRelationship @relation(fields: [partnerRelationshipId], references: [id], onDelete: Cascade)
+  subscriptionEventId     String
+  amount                  Decimal             @db.Decimal(10, 2)
+  currency                String              @default("TRY")
+  status                  CommissionStatus    @default(PENDING)
+  createdAt               DateTime            @default(now())
+}
+
+model AuditLog {
+  id                 String   @id @default(cuid())
+  actorUserId        String
+  actorOrgId         String
+  impersonatedOrgId  String?
+  action             String
+  resourceType       String
+  resourceId         String?
+  metadata           Json     @default("{}")
+  createdAt          DateTime @default(now())
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}

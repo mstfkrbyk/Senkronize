@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+*.env.local
+.DS_Store
+*.log
+.turbo/
+coverage/
+prisma/generated/
+
+# Desktop (Tauri / embed)
+desktop/app-icon.png
+desktop/public/panel/
