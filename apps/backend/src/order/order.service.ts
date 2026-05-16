@@ -138,6 +138,27 @@ export class OrderService {
     }
   }
 
+  /**
+   * Trendyol webhook vb. platform olaylarından gelen durum güncellemesi.
+   */
+  async updateStatusFromPlatform(
+    organizationId: string,
+    platform: Marketplace,
+    platformOrderId: string,
+    platformStatus: string,
+  ): Promise<void> {
+    const status = mapPlatformStatus(platformStatus);
+    await this.prisma.order.updateMany({
+      where: {
+        organizationId,
+        platform,
+        platformOrderId,
+        deletedAt: null,
+      },
+      data: { status, syncedAt: new Date() },
+    });
+  }
+
   async getSummary(organizationId: string): Promise<OrderSummaryDto> {
     const baseWhere: Prisma.OrderWhereInput = {
       organizationId,
@@ -226,6 +247,8 @@ export class OrderService {
 }
 
 function mapPlatformStatus(platformStatus: string): OrderStatus {
+  const key = platformStatus.trim();
+  const upper = key.toUpperCase();
   const map: Record<string, OrderStatus> = {
     Created: OrderStatus.NEW,
     Picking: OrderStatus.PICKING,
@@ -235,5 +258,21 @@ function mapPlatformStatus(platformStatus: string): OrderStatus {
     Cancelled: OrderStatus.CANCELLED,
     UnDelivered: OrderStatus.RETURNED,
   };
-  return map[platformStatus] ?? OrderStatus.NEW;
+  const upperMap: Record<string, OrderStatus> = {
+    CREATED: OrderStatus.NEW,
+    PICKING: OrderStatus.PICKING,
+    INVOICED: OrderStatus.INVOICED,
+    SHIPPED: OrderStatus.SHIPPED,
+    DELIVERED: OrderStatus.DELIVERED,
+    CANCELLED: OrderStatus.CANCELLED,
+    UNDELIVERED: OrderStatus.RETURNED,
+  };
+  return (
+    map[key] ??
+    upperMap[upper] ??
+    (key.length > 0
+      ? map[key.charAt(0).toUpperCase() + key.slice(1).toLowerCase()]
+      : undefined) ??
+    OrderStatus.NEW
+  );
 }

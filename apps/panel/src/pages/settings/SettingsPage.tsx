@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
 import { PartnersTab } from './tabs/PartnersTab';
+import { SecurityTab } from './tabs/SecurityTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { SubscriptionTab } from './tabs/SubscriptionTab';
 import { TeamTab } from './tabs/TeamTab';
@@ -36,6 +37,7 @@ export function SettingsPage(): ReactElement {
           <TabsTrigger value="team">Ekip</TabsTrigger>
           <TabsTrigger value="subscription">Abonelik</TabsTrigger>
           <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
+          <TabsTrigger value="security">{'Güvenlik & KVKK'}</TabsTrigger>
           {showPartnersTab ? (
             <TabsTrigger value="partners">Partnerler</TabsTrigger>
           ) : null}
@@ -54,6 +56,9 @@ export function SettingsPage(): ReactElement {
         </TabsContent>
         <TabsContent value="notifications" className="mt-6">
           <NotificationsTab />
+        </TabsContent>
+        <TabsContent value="security" className="mt-6">
+          <SecurityTab />
         </TabsContent>
         {showPartnersTab ? (
           <TabsContent value="partners" className="mt-6">

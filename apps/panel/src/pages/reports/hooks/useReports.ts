@@ -1,7 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 
 import { api } from '@/lib/api';
-import type { ReportFilters, SalesReportData } from '@/types/report';
+import type {
+  PlatformReportData,
+  ReportFilters,
+  SalesReportData,
+  TopProduct,
+} from '@/types/report';
+
+export interface SalesReportQueryState {
+  kind: 'api' | 'mock' | 'placeholder';
+  rows: SalesReportData[];
+}
 
 function generateMockSalesData(days: number): SalesReportData[] {
   let seed = 2_147_483_647;
@@ -24,18 +35,63 @@ function generateMockSalesData(days: number): SalesReportData[] {
   });
 }
 
-const MOCK_SALES_DATA = generateMockSalesData(30);
-
 export function useSalesReport(filters: ReportFilters) {
   return useQuery({
     queryKey: ['reports', 'sales', filters],
-    queryFn: async (): Promise<SalesReportData[]> => {
-      const { data } = await api.get<SalesReportData[]>('/reports/sales', {
-        params: filters,
-      });
-      return data;
+    queryFn: async (): Promise<SalesReportQueryState> => {
+      try {
+        const { data } = await api.get<SalesReportData[]>('/reports/sales', {
+          params: filters,
+        });
+        return { kind: 'api', rows: data };
+      } catch (error) {
+        if (isAxiosError(error)) {
+          return { kind: 'mock', rows: generateMockSalesData(30) };
+        }
+        throw error;
+      }
     },
-    initialData: MOCK_SALES_DATA,
-    enabled: false,
+    placeholderData: {
+      kind: 'placeholder',
+      rows: generateMockSalesData(30),
+    },
+  });
+}
+
+export function usePlatformReport(filters: ReportFilters) {
+  return useQuery({
+    queryKey: ['reports', 'platform', filters],
+    queryFn: async (): Promise<PlatformReportData[]> => {
+      try {
+        const { data } = await api.get<PlatformReportData[]>('/reports/platform', {
+          params: filters,
+        });
+        return data;
+      } catch (error) {
+        if (isAxiosError(error)) {
+          return [];
+        }
+        throw error;
+      }
+    },
+  });
+}
+
+export function useTopProducts(limit = 20) {
+  return useQuery({
+    queryKey: ['reports', 'products', limit],
+    queryFn: async (): Promise<TopProduct[]> => {
+      try {
+        const { data } = await api.get<TopProduct[]>('/reports/products', {
+          params: { limit },
+        });
+        return data;
+      } catch (error) {
+        if (isAxiosError(error)) {
+          return [];
+        }
+        throw error;
+      }
+    },
   });
 }

@@ -162,6 +162,37 @@ export class ListingService {
     }
   }
 
+  /**
+   * Pazaryeri webhook (ör. ürün onayı) ile listeleme onay durumunu günceller.
+   */
+  async updateApprovalStatusFromWebhook(
+    organizationId: string,
+    platform: Marketplace,
+    opts: {
+      approved: boolean;
+      platformProductId?: string;
+      barcode?: string;
+    },
+  ): Promise<void> {
+    const where: Prisma.ListingWhereInput = {
+      organizationId,
+      platform,
+      deletedAt: null,
+    };
+    if (opts.platformProductId) {
+      where.platformProductId = opts.platformProductId;
+    } else if (opts.barcode) {
+      where.barcode = opts.barcode;
+    } else {
+      return;
+    }
+
+    await this.prisma.listing.updateMany({
+      where,
+      data: { approved: opts.approved, lastSyncAt: new Date() },
+    });
+  }
+
   async triggerSync(organizationId: string): Promise<{ jobIds: string[] }> {
     const connections = await this.prisma.marketplaceConnection.findMany({
       where: { organizationId, isActive: true, deletedAt: null },

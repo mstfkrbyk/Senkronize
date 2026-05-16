@@ -33,7 +33,7 @@ export function PlatformBreakdown({ data }: Props): ReactElement {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Platform gelir dağılımı</CardTitle>
+        <CardTitle className="text-base">Platform dağılımı</CardTitle>
       </CardHeader>
       <CardContent className="h-72">
         {chartData.length === 0 || chartData.every((d) => d.value === 0) ? (

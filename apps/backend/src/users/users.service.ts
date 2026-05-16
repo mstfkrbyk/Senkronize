@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,9 +13,67 @@ import { InviteUserDto, UpdateUserRoleDto } from './users.dto';
 
 const BCRYPT_ROUNDS = 10;
 
+export interface AuditLogListItem {
+  id: string;
+  action: string;
+  resource: string;
+  resourceId: string | null;
+  userId: string;
+  userEmail: string | null;
+  userName: string | null;
+  createdAt: string;
+  metadata: Record<string, unknown>;
+}
+
+function metadataToRecord(value: Prisma.JsonValue): Record<string, unknown> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
+}
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getAuditLog(
+    organizationId: string,
+    limit: number,
+  ): Promise<AuditLogListItem[]> {
+    const take = Math.min(Math.max(limit, 1), 100);
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { actorOrgId: organizationId },
+          { impersonatedOrgId: organizationId },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+
+    const userIds = [...new Set(logs.map((l) => l.actorUserId))];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true, name: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    return logs.map((l) => {
+      const u = userMap.get(l.actorUserId);
+      return {
+        id: l.id,
+        action: l.action,
+        resource: l.resourceType,
+        resourceId: l.resourceId,
+        userId: l.actorUserId,
+        userEmail: u?.email ?? null,
+        userName: u?.name ?? null,
+        createdAt: l.createdAt.toISOString(),
+        metadata: metadataToRecord(l.metadata),
+      };
+    });
+  }
 
   async list(organizationId: string) {
     return this.prisma.user.findMany({

@@ -11,3 +11,16 @@ export interface ReportFilters {
   platform?: string;
   groupBy?: 'day' | 'week' | 'month';
 }
+
+export interface PlatformReportData {
+  platform: string;
+  totalOrders: number;
+  totalRevenue: number;
+  percentage: number;
+}
+
+export interface TopProduct {
+  barcode: string;
+  totalQuantity: number;
+  orderCount: number;
+}

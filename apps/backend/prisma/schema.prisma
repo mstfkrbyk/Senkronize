@@ -148,6 +148,23 @@ model Organization {
   pricingRules             PricingRule[]
   priceHistories           PriceHistory[]
   buyBoxSnapshots          BuyBoxSnapshot[]
+  webhookEvents            WebhookEvent[]
+}
+
+model WebhookEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform       Marketplace
+  eventType      String // "ORDER_STATUS_CHANGED", "PRODUCT_APPROVED" vb.
+  payload        Json
+  processed      Boolean      @default(false)
+  processedAt    DateTime?
+  error          String?
+  receivedAt     DateTime     @default(now())
+
+  @@index([organizationId, processed])
+  @@index([organizationId, platform])
 }
 
 model User {

@@ -32,6 +32,11 @@ export interface NotificationJobData {
   payload: Record<string, unknown>;
 }
 
+/** Trendyol webhook işleme — notification-dispatch kuyruğu */
+export interface TrendyolWebhookJobData {
+  webhookEventId: string;
+}
+
 /** pricing-engine job payload */
 export interface PricingRunRulesJobData {
   organizationId: string;

@@ -20,10 +20,12 @@ import { PartnerModule } from './partner/partner.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PricingModule } from './pricing/pricing.module';
 import { QueueModule } from './queue/queue.module';
+import { ReportsModule } from './reports/reports.module';
 import { StockModule } from './stock/stock.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { UsersModule } from './users/users.module';
+import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { UsersModule } from './users/users.module';
     SubscriptionModule,
     PartnerModule,
     ImpersonationModule,
+    WebhookModule,
+    ReportsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
