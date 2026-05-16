@@ -5,6 +5,19 @@ import { useAuthStore } from '@/store/auth.store';
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001';
 
 let socket: Socket | null = null;
+let socketConnectionRefCount = 0;
+
+/** Birden fazla bileşen aynı anda bağlantı tutabilir; son release'te socket kapanır. */
+export function retainSocketConnection(): () => void {
+  socketConnectionRefCount += 1;
+  connectSocket();
+  return (): void => {
+    socketConnectionRefCount = Math.max(0, socketConnectionRefCount - 1);
+    if (socketConnectionRefCount === 0) {
+      disconnectSocket();
+    }
+  };
+}
 
 export function getSocket(): Socket {
   if (!socket) {

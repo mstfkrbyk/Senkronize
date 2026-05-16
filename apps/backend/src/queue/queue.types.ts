@@ -4,13 +4,14 @@ export interface MarketplacePushJobData {
   platform: string;
   type: 'stock' | 'price' | 'listing';
   resourceIds: string[];
+  payload?: Record<string, unknown>;
 }
 
 /** marketplace-pull job payload */
 export interface MarketplacePullJobData {
   organizationId: string;
   platform: string;
-  type: 'orders' | 'stock';
+  type: 'orders' | 'stock' | 'listings';
   since?: string;
 }
 

@@ -1,0 +1,110 @@
+import type { ReactElement } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import type { StockEntry } from '@/types/stock';
+
+interface Props {
+  entries: StockEntry[];
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('tr-TR', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function platformLabel(platform: string | null): string {
+  if (!platform) {
+    return 'Merkezi';
+  }
+  return getMarketplaceBranding(platform).label;
+}
+
+function quantityTone(qty: number): string {
+  if (qty < 5) {
+    return 'font-medium text-destructive';
+  }
+  if (qty <= 20) {
+    return 'font-medium text-amber-700';
+  }
+  return 'font-medium text-green-700';
+}
+
+export function StockTable({ entries }: Props): ReactElement {
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Ürün adı</TableHead>
+            <TableHead>Barkod</TableHead>
+            <TableHead>Platform</TableHead>
+            <TableHead className="text-right">Stok</TableHead>
+            <TableHead className="text-right">Rezerve</TableHead>
+            <TableHead className="text-right">Kullanılabilir</TableHead>
+            <TableHead>Son güncelleme</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {entries.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell className="max-w-[220px] font-medium">
+                <span className="line-clamp-2">
+                  {row.product?.name ?? '—'}
+                </span>
+                {row.product?.sku ? (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    SKU: {row.product.sku}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
+              <TableCell>
+                {!row.platform ? (
+                  <Badge variant="outline" className="border-slate-200 bg-slate-50">
+                    Merkezi
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1">
+                    <span aria-hidden>
+                      {getMarketplaceBranding(row.platform).logo}
+                    </span>
+                    {platformLabel(row.platform)}
+                  </Badge>
+                )}
+              </TableCell>
+              <TableCell
+                className={`text-right tabular-nums ${quantityTone(row.quantity)}`}
+              >
+                {row.quantity}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {row.reservedQty}
+              </TableCell>
+              <TableCell className="text-right tabular-nums font-medium">
+                {row.availableQty}
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {formatDate(row.updatedAt)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

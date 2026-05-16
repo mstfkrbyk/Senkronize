@@ -121,6 +121,7 @@ model Organization {
   cargoConnections         CargoConnection[]
   products                 Product[]
   listings                 Listing[]
+  stockEntries             StockEntry[]
   orders                   Order[]
   reservations             Reservation[]
   partnerOf                PartnerRelationship[] @relation("PartnerOrg")
@@ -265,32 +266,72 @@ model CargoConnection {
   @@unique([organizationId, provider])
 }
 
+// Merkezi ürün kataloğu (ERP veya manuel)
 model Product {
   id             String    @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name           String
+  barcode        String
   sku            String?
+  name           String
+  description    String?
+  brand          String?
+  category       String?
+  imageUrls      String[]
+  isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
+  listings       Listing[]
+  stockEntries   StockEntry[]
+  reservations   Reservation[]
 
-  listings      Listing[]
-  reservations  Reservation[]
+  @@unique([organizationId, barcode])
+  @@index([organizationId])
 }
 
+// Pazaryerindeki ürün listesi (platform x ürün)
 model Listing {
-  id             String      @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  marketplace    Marketplace
-  externalId     String?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productId         String?
+  product           Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  platform          Marketplace
+  platformProductId String
+  barcode           String
+  title             String
+  salePrice         Decimal      @db.Decimal(10, 2)
+  listPrice         Decimal      @db.Decimal(10, 2)
+  quantity          Int          @default(0)
+  approved          Boolean      @default(false)
+  imageUrls         String[]
+  lastSyncAt        DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
 
-  @@unique([organizationId, marketplace, productId])
+  @@unique([organizationId, platform, platformProductId])
+  @@index([organizationId])
+  @@index([organizationId, platform])
+}
+
+// Stok takibi (platform bazlı veya merkezi)
+model StockEntry {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  barcode        String
+  platform       Marketplace? // null = merkezi stok
+  quantity       Int
+  reservedQty    Int           @default(0)
+  updatedAt      DateTime      @updatedAt
+  createdAt      DateTime      @default(now())
+
+  @@unique([organizationId, barcode, platform])
+  @@index([organizationId])
 }
 
 model Order {

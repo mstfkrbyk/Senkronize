@@ -1,0 +1,174 @@
+import type { ReactElement } from 'react';
+import { useState } from 'react';
+import { Banknote, Boxes, Package } from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import type { Listing } from '@/types/listing';
+
+interface Props {
+  listings: Listing[];
+  onRowClick: (listing: Listing) => void;
+  onOpenPrice: (listing: Listing) => void;
+  onOpenStock: (listing: Listing) => void;
+}
+
+function formatTryFromDecimal(value: string): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+  }).format(Number(value));
+}
+
+function ListingThumb({ urls }: { urls: string[] }): ReactElement {
+  const [failed, setFailed] = useState(false);
+  const url = urls[0];
+  if (!url || failed) {
+    return (
+      <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted/40">
+        <Package className="h-5 w-5 text-muted-foreground" aria-hidden />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-10 w-10 rounded-md border object-cover"
+      onError={() => {
+        setFailed(true);
+      }}
+    />
+  );
+}
+
+function PlatformBadge({ platform }: { platform: string }): ReactElement {
+  const tone: Record<string, string> = {
+    TRENDYOL: 'border-orange-300 bg-orange-50 text-orange-900',
+    HEPSIBURADA: 'border-red-300 bg-red-50 text-red-900',
+  };
+  const branding = getMarketplaceBranding(platform);
+  return (
+    <Badge
+      variant="outline"
+      className={tone[platform] ?? 'border-slate-200 bg-slate-50'}
+    >
+      <span className="mr-1" aria-hidden>
+        {branding.logo}
+      </span>
+      {branding.label}
+    </Badge>
+  );
+}
+
+export function ListingsTable({
+  listings,
+  onRowClick,
+  onOpenPrice,
+  onOpenStock,
+}: Props): ReactElement {
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[56px]">Görsel</TableHead>
+            <TableHead>Ürün adı</TableHead>
+            <TableHead>Barkod</TableHead>
+            <TableHead>Platform</TableHead>
+            <TableHead className="text-right">Fiyat</TableHead>
+            <TableHead className="text-right">Stok</TableHead>
+            <TableHead>Durum</TableHead>
+            <TableHead className="w-[200px]">İşlemler</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {listings.map((listing) => (
+            <TableRow
+              key={listing.id}
+              className="cursor-pointer"
+              onClick={() => {
+                onRowClick(listing);
+              }}
+            >
+              <TableCell>
+                <ListingThumb urls={listing.imageUrls} />
+              </TableCell>
+              <TableCell className="max-w-[220px] font-medium">
+                <span className="line-clamp-2">{listing.title}</span>
+              </TableCell>
+              <TableCell className="font-mono text-xs">{listing.barcode}</TableCell>
+              <TableCell>
+                <PlatformBadge platform={listing.platform} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                {formatTryFromDecimal(listing.salePrice)}
+              </TableCell>
+              <TableCell
+                className={`text-right tabular-nums ${listing.quantity < 5 ? 'font-medium text-destructive' : ''}`}
+              >
+                {listing.quantity}
+              </TableCell>
+              <TableCell>
+                {listing.approved ? (
+                  <Badge
+                    variant="outline"
+                    className="border-green-200 bg-green-50 text-green-800"
+                  >
+                    Onaylı
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-200 bg-amber-50 text-amber-900"
+                  >
+                    Beklemede
+                  </Badge>
+                )}
+              </TableCell>
+              <TableCell>
+                <div className="flex flex-wrap gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenPrice(listing);
+                    }}
+                  >
+                    <Banknote className="h-3.5 w-3.5" aria-hidden />
+                    Fiyat
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenStock(listing);
+                    }}
+                  >
+                    <Boxes className="h-3.5 w-3.5" aria-hidden />
+                    Stok
+                  </Button>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}

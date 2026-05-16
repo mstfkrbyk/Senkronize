@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  ClipboardList,
   Clock,
   Package,
   Plug,
@@ -41,14 +42,20 @@ import {
 } from '@/components/ui/table';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import { useListingSummary } from '@/pages/listings/hooks/useListings';
 import { useOrderSummary } from '@/pages/orders/hooks/useOrders';
 import type { SyncStatusItem } from '@/types/sync';
 
 const KPI_CARDS: {
   title: string;
-  key: 'todayOrders' | 'pendingOrders' | 'totalRevenue' | 'connections';
+  key:
+    | 'todayOrders'
+    | 'pendingOrders'
+    | 'totalRevenue'
+    | 'activeListings'
+    | 'connections';
   icon: LucideIcon;
-  color: 'blue' | 'orange' | 'green' | 'purple';
+  color: 'blue' | 'orange' | 'green' | 'sky' | 'purple';
 }[] = [
   {
     title: 'Bugünkü Siparişler',
@@ -67,6 +74,12 @@ const KPI_CARDS: {
     key: 'totalRevenue',
     icon: Package,
     color: 'green',
+  },
+  {
+    title: 'Aktif listeler',
+    key: 'activeListings',
+    icon: ClipboardList,
+    color: 'sky',
   },
   {
     title: 'Entegrasyonlar',
@@ -136,6 +149,7 @@ const KPI_COLOR: Record<
   blue: { ring: 'ring-blue-100', icon: 'text-blue-600' },
   orange: { ring: 'ring-orange-100', icon: 'text-orange-600' },
   green: { ring: 'ring-green-100', icon: 'text-green-600' },
+  sky: { ring: 'ring-sky-100', icon: 'text-sky-600' },
   purple: { ring: 'ring-purple-100', icon: 'text-purple-600' },
 };
 
@@ -184,6 +198,7 @@ function formatTry(amount: number): string {
 
 export function DashboardPage(): ReactElement {
   const orderSummaryQuery = useOrderSummary();
+  const listingSummaryQuery = useListingSummary();
 
   const syncQuery = useQuery({
     queryKey: ['sync-status'],
@@ -208,7 +223,7 @@ export function DashboardPage(): ReactElement {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {KPI_CARDS.map((kpi) => {
           const Icon = kpi.icon;
           const colors = KPI_COLOR[kpi.color];
@@ -216,10 +231,15 @@ export function DashboardPage(): ReactElement {
             kpi.key === 'todayOrders' ||
             kpi.key === 'pendingOrders' ||
             kpi.key === 'totalRevenue';
-          const isLoadingKpi = isOrderMetric && orderSummaryQuery.isLoading;
+          const isListingMetric = kpi.key === 'activeListings';
+          const isLoadingKpi =
+            (isOrderMetric && orderSummaryQuery.isLoading) ||
+            (isListingMetric && listingSummaryQuery.isLoading);
           let value: string | number = '—';
           if (kpi.key === 'connections') {
             value = syncQuery.data?.length ?? 0;
+          } else if (kpi.key === 'activeListings') {
+            value = listingSummaryQuery.data?.approved ?? '—';
           } else if (orderSummaryQuery.data) {
             value =
               kpi.key === 'totalRevenue'

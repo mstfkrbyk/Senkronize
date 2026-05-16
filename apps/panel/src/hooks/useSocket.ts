@@ -1,22 +1,44 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import type { Socket } from 'socket.io-client';
 
-import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
+import {
+  disconnectSocket,
+  getSocket,
+  retainSocketConnection,
+} from '@/lib/socket';
 import { useAuthStore } from '@/store/auth.store';
 
-export function useSocket(): Socket | null {
+export interface UseSocketResult {
+  socket: Socket | null;
+  on: (event: string, handler: (data: unknown) => void) => () => void;
+}
+
+export function useSocket(): UseSocketResult {
   const token = useAuthStore((s) => s.token);
 
   useEffect(() => {
     if (!token) {
       disconnectSocket();
-      return;
+      return undefined;
     }
-    connectSocket();
-    return () => {
-      disconnectSocket();
-    };
+    return retainSocketConnection();
   }, [token]);
 
-  return token ? getSocket() : null;
+  const on = useCallback(
+    (event: string, handler: (data: unknown) => void): (() => void) => {
+      const s = getSocket();
+      const listener = (payload: unknown): void => {
+        handler(payload);
+      };
+      s.on(event, listener);
+      return (): void => {
+        s.off(event, listener);
+      };
+    },
+    [],
+  );
+
+  const socket = token ? getSocket() : null;
+
+  return { socket, on };
 }

@@ -7,8 +7,14 @@ import type { Marketplace } from './enums';
 export interface Product {
   id: string;
   organizationId: string;
-  name: string;
+  barcode: string;
   sku?: string | null;
+  name: string;
+  description?: string | null;
+  brand?: string | null;
+  category?: string | null;
+  imageUrls: string[];
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
   deletedAt?: Date | null;
@@ -20,11 +26,20 @@ export interface Product {
 export interface Listing {
   id: string;
   organizationId: string;
-  productId: string;
-  marketplace: Marketplace;
-  externalId?: string | null;
+  productId?: string | null;
+  platform: Marketplace;
+  platformProductId: string;
+  barcode: string;
+  title: string;
+  salePrice: number;
+  listPrice: number;
+  quantity: number;
+  approved: boolean;
+  imageUrls: string[];
+  lastSyncAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;
 }
 
 /**

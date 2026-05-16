@@ -10,12 +10,14 @@ import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { HealthModule } from './health/health.module';
 import { JobsModule } from './jobs/jobs.module';
+import { ListingModule } from './listing/listing.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
 import { OrderModule } from './order/order.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { QueueModule } from './queue/queue.module';
+import { StockModule } from './stock/stock.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { UsersModule } from './users/users.module';
@@ -39,6 +41,8 @@ import { UsersModule } from './users/users.module';
     AuthModule,
     OrganizationModule,
     OrderModule,
+    ListingModule,
+    StockModule,
     UsersModule,
     HealthModule,
     SyncStatusModule,
