@@ -66,16 +66,72 @@ export interface WebhookEvent {
   payload: unknown;
 }
 
-// Bölüm 16 — Pazaryeri adaptörü arayüzü
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface MarketplaceOrder {
+  platformOrderId: string;
+  status: string;
+  customerName: string;
+  items: Array<{
+    sku: string;
+    barcode: string;
+    quantity: number;
+    unitPrice: number;
+    platformItemId: string;
+  }>;
+  totalAmount: number;
+  currency: string;
+  createdAt: string;
+  cargoTrackingNumber?: string;
+  cargoProvider?: string;
+}
+
+export interface MarketplaceListing {
+  platformProductId: string;
+  barcode: string;
+  title: string;
+  quantity: number;
+  salePrice: number;
+  listPrice: number;
+  approved: boolean;
+  images: string[];
+}
+
+export interface StockUpdatePayload {
+  barcode: string;
+  quantity: number;
+}
+
+export interface PriceUpdatePayload {
+  barcode: string;
+  salePrice: number;
+  listPrice: number;
+}
+
 export interface IMarketplaceAdapter {
-  platform: Marketplace;
+  platform: string;
   testConnection(credentials: Record<string, string>): Promise<boolean>;
-  pushProducts(products: Product[], orgId: string): Promise<SyncResult>;
-  pushStock(listings: Listing[], orgId: string): Promise<SyncResult>;
-  pushPrices(listings: Listing[], orgId: string): Promise<SyncResult>;
-  pullOrders(orgId: string, since?: Date): Promise<Order[]>;
-  pullStock(orgId: string): Promise<StockUpdate[]>;
-  handleWebhook(payload: unknown, secret: string): Promise<WebhookEvent>;
+  getOrders(
+    credentials: Record<string, string>,
+    since?: Date,
+  ): Promise<MarketplaceOrder[]>;
+  getListings(
+    credentials: Record<string, string>,
+    page?: number,
+  ): Promise<PaginatedResult<MarketplaceListing>>;
+  updateStock(
+    credentials: Record<string, string>,
+    updates: StockUpdatePayload[],
+  ): Promise<void>;
+  updatePrice(
+    credentials: Record<string, string>,
+    updates: PriceUpdatePayload[],
+  ): Promise<void>;
 }
 
 // Bölüm 16 — ERP adaptörü arayüzü

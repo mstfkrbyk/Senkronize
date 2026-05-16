@@ -27,7 +27,12 @@ export class SyncStatusService {
     platform: Marketplace,
   ): Promise<void> {
     const conn = await this.prisma.marketplaceConnection.findFirst({
-      where: { organizationId, platform, isActive: true },
+      where: {
+        organizationId,
+        platform,
+        isActive: true,
+        deletedAt: null,
+      },
     });
     if (!conn) {
       return;
@@ -37,6 +42,8 @@ export class SyncStatusService {
       data: {
         lastSyncAt: new Date(),
         syncErrorCount: 0,
+        lastErrorAt: null,
+        lastErrorMessage: null,
       },
     });
     const status: SyncHealthStatus = {
@@ -52,9 +59,15 @@ export class SyncStatusService {
   async recordError(
     organizationId: string,
     platform: Marketplace,
+    errorMessage?: string,
   ): Promise<void> {
     const conn = await this.prisma.marketplaceConnection.findFirst({
-      where: { organizationId, platform, isActive: true },
+      where: {
+        organizationId,
+        platform,
+        isActive: true,
+        deletedAt: null,
+      },
     });
     if (!conn) {
       return;
@@ -62,7 +75,13 @@ export class SyncStatusService {
     const nextCount = conn.syncErrorCount + 1;
     const row = await this.prisma.marketplaceConnection.update({
       where: { id: conn.id },
-      data: { syncErrorCount: nextCount },
+      data: {
+        syncErrorCount: nextCount,
+        lastErrorAt: new Date(),
+        lastErrorMessage: errorMessage
+          ? errorMessage.slice(0, 2000)
+          : null,
+      },
     });
     const status: SyncHealthStatus = {
       organizationId,
@@ -78,7 +97,7 @@ export class SyncStatusService {
 
   async getStatus(organizationId: string): Promise<SyncHealthStatus[]> {
     const rows = await this.prisma.marketplaceConnection.findMany({
-      where: { organizationId, isActive: true },
+      where: { organizationId, isActive: true, deletedAt: null },
       orderBy: { platform: 'asc' },
     });
     return rows.map((row) => ({

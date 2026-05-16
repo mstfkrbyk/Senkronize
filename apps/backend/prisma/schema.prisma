@@ -191,19 +191,23 @@ model Payment {
 }
 
 model MarketplaceConnection {
-  id              String      @id @default(cuid())
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  platform        Marketplace
-  credentialsEnc  String
-  isActive        Boolean     @default(true)
-  lastSyncAt      DateTime?
-  syncErrorCount  Int         @default(0)
-  webhookSecret   String?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                String       @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform          Marketplace
+  credentialsEnc    String // AES-256-GCM ile şifrelenmiş JSON
+  isActive          Boolean      @default(true)
+  lastSyncAt        DateTime?
+  syncErrorCount    Int          @default(0)
+  lastErrorAt       DateTime?
+  lastErrorMessage  String?
+  webhookSecret     String? // platform'dan gelen webhook doğrulaması için
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
 
   @@unique([organizationId, platform])
+  @@index([organizationId])
 }
 
 model ErpConnection {

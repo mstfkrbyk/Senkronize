@@ -6,12 +6,13 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "lint": "eslint src --ext .ts",
-    "type-check": "tsc --noEmit",
+    "type-check": "pnpm --filter @senkronize/shared run build && tsc --noEmit",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@senkronize/shared": "workspace:*",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bull": "^11.0.4",
     "@nestjs/common": "^11.1.0",
