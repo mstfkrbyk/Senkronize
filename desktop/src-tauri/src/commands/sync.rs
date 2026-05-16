@@ -9,26 +9,22 @@ pub struct SyncResult {
     pub synced_at: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TriggerSyncArgs {
-    pub api_url: String,
-    pub token: String,
-    pub platform: String,
-}
-
 #[command]
-pub async fn trigger_sync(args: TriggerSyncArgs) -> Result<SyncResult, String> {
+pub async fn trigger_sync(
+    api_url: String,
+    token: String,
+    platform: String,
+) -> Result<SyncResult, String> {
     let client = reqwest::Client::new();
     let url = format!(
         "{}/api/v1/listings/sync",
-        args.api_url.trim().trim_end_matches('/')
+        api_url.trim().trim_end_matches('/')
     );
 
     let response = client
         .post(url)
-        .bearer_auth(&args.token)
-        .json(&serde_json::json!({ "platform": args.platform }))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({ "platform": platform }))
         .timeout(std::time::Duration::from_secs(30))
         .send()
         .await
@@ -38,7 +34,7 @@ pub async fn trigger_sync(args: TriggerSyncArgs) -> Result<SyncResult, String> {
     if response.status().is_success() {
         Ok(SyncResult {
             success: true,
-            message: format!("{} senkronizasyonu başlatıldı", args.platform),
+            message: format!("{} senkronizasyonu başlatıldı", platform),
             synced_at: now,
         })
     } else {

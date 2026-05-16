@@ -38,20 +38,14 @@ export const tauriApi = {
     localErpBaseUrl?: string | null,
   ): Promise<HealthStatus> =>
     invoke<HealthStatus>('check_health', {
-      args: {
-        apiUrl,
-        token,
-        localErpBaseUrl: localErpBaseUrl ?? null,
-      },
+      apiUrl,
+      token,
+      localErpBaseUrl: localErpBaseUrl ?? null,
     }),
 
   triggerSync: (apiUrl: string, token: string, platform: string): Promise<SyncResult> =>
-    invoke<SyncResult>('trigger_sync', {
-      args: { apiUrl, token, platform },
-    }),
+    invoke<SyncResult>('trigger_sync', { apiUrl, token, platform }),
 
   testLocalErpConnection: (baseUrl: string): Promise<LocalErpTestResult> =>
-    invoke<LocalErpTestResult>('test_local_erp_connection', {
-      args: { baseUrl },
-    }),
+    invoke<LocalErpTestResult>('test_local_erp_connection', { baseUrl }),
 };

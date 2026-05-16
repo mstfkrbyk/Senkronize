@@ -5,6 +5,10 @@ import { SyncLogItem } from '@/components/SyncLogItem';
 import { tauriApi } from '@/lib/tauri';
 import { useAppStore } from '@/store/app.store';
 
+function logKey(log: { syncedAt: string; message: string }, idx: number): string {
+  return `${log.syncedAt}::${idx}::${log.message}`;
+}
+
 export function StatusPage(): ReactElement {
   const token = useAppStore((s) => s.token);
   const apiUrl = useAppStore((s) => s.apiUrl);
@@ -59,41 +63,35 @@ export function StatusPage(): ReactElement {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="stackLg">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900">Durum</h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Bulut bağlantısı ve hızlı senkronizasyon kontrolleri.
-        </p>
+        <h1 className="h2">Durum</h1>
+        <p className="muted">Bulut bağlantısı ve hızlı senkronizasyon kontrolleri.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`}
-          />
-          <span className="font-medium">{connected ? 'Bağlı' : 'Bağlantı Yok'}</span>
+      <div className="row">
+        <div className="pill">
+          <span className={`dot ${connected ? 'dotOk' : 'dotBad'}`} />
+          <span style={{ fontWeight: 650 }}>{connected ? 'Bağlı' : 'Bağlantı Yok'}</span>
         </div>
-        <div className="text-sm text-slate-700">
-          <span className="font-medium">Organizasyon:</span>{' '}
-          <span>{token?.orgName ?? '—'}</span>
+        <div style={{ fontSize: 13, color: '#334155' }}>
+          <span style={{ fontWeight: 650 }}>Organizasyon:</span> {token?.orgName ?? '—'}
         </div>
-        <div className="text-sm text-slate-700">
-          <span className="font-medium">Son senkron:</span>{' '}
-          <span>{lastSyncAt ?? '—'}</span>
+        <div style={{ fontSize: 13, color: '#334155' }}>
+          <span style={{ fontWeight: 650 }}>Son senkron:</span> {lastSyncAt ?? '—'}
         </div>
       </div>
 
       <ConnectionStatus health={health} />
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-900">Şimdi Sync Et</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="panel">
+        <p className="h2">Şimdi Sync Et</p>
+        <div className="gridActions" style={{ marginTop: 12 }}>
           <button
             type="button"
             disabled={!token || busy}
             onClick={() => void runSync('TRENDYOL', 'Trendyol')}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn btnGhost"
           >
             Trendyol
           </button>
@@ -101,48 +99,37 @@ export function StatusPage(): ReactElement {
             type="button"
             disabled={!token || busy}
             onClick={() => void runSync('HEPSIBURADA', 'Hepsiburada')}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn btnGhost"
           >
             Hepsiburada
           </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="row">
         <button
           type="button"
           disabled={!token || busy}
           onClick={() => void refreshHealth()}
-          className="rounded-lg bg-sky-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn btnAccent"
         >
           Sağlık Kontrolü
         </button>
       </div>
 
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-          {error}
-        </div>
-      ) : null}
+      {error ? <div className="alert">{error}</div> : null}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-900">Son 5 Senkron Logu</p>
-        <div className="mt-3 space-y-2">
+      <div className="panel">
+        <p className="h2">Son 5 Senkron Logu</p>
+        <div className="stack" style={{ marginTop: 12 }}>
           {syncLogs.slice(0, 5).map((log, idx) => (
-            <SyncLogItem
-              // eslint-disable-next-line react/no-array-index-key -- log list has no stable id
-              key={`${log.syncedAt}-${idx}`}
-              log={log}
-              platformLabel="Senkron"
-            />
+            <SyncLogItem key={logKey(log, idx)} log={log} platformLabel="Senkron" />
           ))}
-          {syncLogs.length === 0 ? (
-            <p className="text-sm text-slate-600">Henüz log yok.</p>
-          ) : null}
+          {syncLogs.length === 0 ? <p className="muted" style={{ margin: 0 }}>Henüz log yok.</p> : null}
         </div>
       </div>
 
-      <p className="text-xs text-slate-500">Sürüm: {health?.version ?? '—'}</p>
+      <p className="small">Sürüm: {health?.version ?? '—'}</p>
     </div>
   );
 }

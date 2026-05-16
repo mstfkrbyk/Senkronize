@@ -45,7 +45,7 @@ export function SetupPage(): ReactElement {
       };
 
       await tauriApi.saveToken(payload);
-      await tauriApi.loadToken(); // doğrula
+      await tauriApi.loadToken();
       setApiUrl(apiUrl.trim());
       setHealth(health);
       setToken(payload);
@@ -58,21 +58,21 @@ export function SetupPage(): ReactElement {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-6">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-900">Senkronize Desktop Kurulumu</h1>
-        <p className="mt-2 text-sm text-slate-600">
+    <div className="center">
+      <div className="card">
+        <h1 className="h1">Senkronize Desktop Kurulumu</h1>
+        <p className="muted">
           Bu uygulama yerel ERP/muhasebe yazılımınız ile Senkronize bulut API arasında köprü kurar.
         </p>
 
-        <form className="mt-6 space-y-4" onSubmit={(e) => void onSubmit(e)}>
+        <form className="stack" style={{ marginTop: 18 }} onSubmit={(e) => void onSubmit(e)}>
           <div>
-            <label className="text-sm font-medium text-slate-800" htmlFor="apiUrl">
+            <label className="fieldLabel" htmlFor="apiUrl">
               API URL
             </label>
             <input
               id="apiUrl"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+              className="input"
               value={apiUrl}
               onChange={(ev) => setApiUrlField(ev.target.value)}
               autoComplete="off"
@@ -80,46 +80,42 @@ export function SetupPage(): ReactElement {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-800" htmlFor="token">
+            <label className="fieldLabel" htmlFor="token">
               API Token
             </label>
             <input
               id="token"
               type="password"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+              className="input"
               value={token}
               onChange={(ev) => setTokenField(ev.target.value)}
               autoComplete="off"
             />
-            <button
-              type="button"
-              className="mt-2 text-sm font-medium text-sky-600 hover:underline"
-              onClick={() => void open(PANEL_TOKEN_HINT)}
-            >
+            <button type="button" className="linkBtn" onClick={() => void open(PANEL_TOKEN_HINT)}>
               Senkronize panelinden API token oluşturun
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid2">
             <div>
-              <label className="text-sm font-medium text-slate-800" htmlFor="orgName">
+              <label className="fieldLabel" htmlFor="orgName">
                 Organizasyon adı (opsiyonel)
               </label>
               <input
                 id="orgName"
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+                className="input"
                 value={orgName}
                 onChange={(ev) => setOrgName(ev.target.value)}
                 autoComplete="organization"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-800" htmlFor="orgId">
+              <label className="fieldLabel" htmlFor="orgId">
                 Organizasyon ID (opsiyonel)
               </label>
               <input
                 id="orgId"
-                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+                className="input"
                 value={orgId}
                 onChange={(ev) => setOrgId(ev.target.value)}
                 autoComplete="off"
@@ -127,17 +123,9 @@ export function SetupPage(): ReactElement {
             </div>
           </div>
 
-          {error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-              {error}
-            </div>
-          ) : null}
+          {error ? <div className="alert">{error}</div> : null}
 
-          <button
-            type="submit"
-            disabled={!canSubmit || loading}
-            className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <button type="submit" disabled={!canSubmit || loading} className="btn btnPrimary">
             {loading ? 'Bağlanıyor…' : 'Bağlan'}
           </button>
         </form>

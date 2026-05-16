@@ -12,20 +12,16 @@ pub struct HealthStatus {
     pub version: String,
 }
 
-#[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CheckHealthArgs {
-    pub api_url: String,
-    pub token: String,
-    pub local_erp_base_url: Option<String>,
-}
-
 #[command]
-pub async fn check_health(args: CheckHealthArgs) -> Result<HealthStatus, String> {
+pub async fn check_health(
+    api_url: String,
+    token: String,
+    local_erp_base_url: Option<String>,
+) -> Result<HealthStatus, String> {
     let client = api_client::http_client();
-    let cloud_ok = api_client::ping_cloud_health(&client, &args.api_url, &args.token).await;
+    let cloud_ok = api_client::ping_cloud_health(&client, &api_url, &token).await;
 
-    let local_erp_connected = match &args.local_erp_base_url {
+    let local_erp_connected = match &local_erp_base_url {
         Some(url) if !url.trim().is_empty() => local_erp::ping_http_base(url).await,
         _ => false,
     };

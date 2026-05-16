@@ -10,17 +10,9 @@ pub struct LocalErpTestResult {
     pub message: String,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TestLocalErpArgs {
-    pub base_url: String,
-}
-
 #[command]
-pub async fn test_local_erp_connection(
-    args: TestLocalErpArgs,
-) -> Result<LocalErpTestResult, String> {
-    let base = args.base_url.trim().trim_end_matches('/').to_string();
+pub async fn test_local_erp_connection(base_url: String) -> Result<LocalErpTestResult, String> {
+    let base = base_url.trim().trim_end_matches('/').to_string();
     if base.is_empty() {
         return Ok(LocalErpTestResult {
             reachable: false,

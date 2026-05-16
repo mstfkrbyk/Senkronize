@@ -3,6 +3,10 @@ import { useMemo, type ReactElement } from 'react';
 import { SyncLogItem } from '@/components/SyncLogItem';
 import { useAppStore } from '@/store/app.store';
 
+function logKey(log: { syncedAt: string; message: string }, idx: number): string {
+  return `${log.syncedAt}::${idx}::${log.message}`;
+}
+
 export function LogsPage(): ReactElement {
   const syncLogs = useAppStore((s) => s.syncLogs);
   const clearSyncLogs = useAppStore((s) => s.clearSyncLogs);
@@ -10,33 +14,22 @@ export function LogsPage(): ReactElement {
   const items = useMemo(() => syncLogs, [syncLogs]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="stackLg">
+      <div className="flexBetween">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900">Senkron Logları</h1>
-          <p className="mt-1 text-sm text-slate-600">Son 100 kayıt saklanır.</p>
+          <h1 className="h2">Senkron Logları</h1>
+          <p className="muted">Son 100 kayıt saklanır.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => clearSyncLogs()}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
-        >
+        <button type="button" onClick={() => clearSyncLogs()} className="btn btnGhost">
           Logları Temizle
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="stack">
         {items.map((log, idx) => (
-          <SyncLogItem
-            // eslint-disable-next-line react/no-array-index-key -- log list has no stable id
-            key={`${log.syncedAt}-${idx}`}
-            log={log}
-            platformLabel="Senkron"
-          />
+          <SyncLogItem key={logKey(log, idx)} log={log} platformLabel="Senkron" />
         ))}
-        {items.length === 0 ? (
-          <p className="text-sm text-slate-600">Henüz log yok.</p>
-        ) : null}
+        {items.length === 0 ? <p className="muted" style={{ margin: 0 }}>Henüz log yok.</p> : null}
       </div>
     </div>
   );

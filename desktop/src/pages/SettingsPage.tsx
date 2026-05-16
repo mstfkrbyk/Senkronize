@@ -45,55 +45,57 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
   }
 
   return (
-    <div className="space-y-6">
+    <div className="stackLg">
       <div>
-        <h1 className="text-lg font-semibold text-slate-900">Ayarlar</h1>
-        <p className="mt-1 text-sm text-slate-600">Bağlantı ve yerel çalışma tercihleri.</p>
+        <h1 className="h2">Ayarlar</h1>
+        <p className="muted">Bağlantı ve yerel çalışma tercihleri.</p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="text-sm font-semibold text-slate-900" htmlFor="settingsApiUrl">
+      <div className="panel">
+        <label className="fieldLabel" htmlFor="settingsApiUrl">
           API URL
         </label>
         <input
           id="settingsApiUrl"
-          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+          className="input"
           value={apiUrl}
           onChange={(e) => setApiUrl(e.target.value)}
           autoComplete="off"
         />
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="text-sm font-semibold text-slate-900" htmlFor="localErpUrl">
+      <div className="panel">
+        <label className="fieldLabel" htmlFor="localErpUrl">
           Yerel ERP tabanı (HTTP)
         </label>
         <input
           id="localErpUrl"
-          className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+          className="input"
           value={localErpBaseUrl}
           onChange={(e) => setLocalErpBaseUrl(e.target.value)}
           placeholder="http://192.168.1.10:8080"
           autoComplete="off"
         />
-        <div className="mt-3 flex flex-wrap items-center gap-3">
+        <div className="row" style={{ marginTop: 12 }}>
           <button
             type="button"
             disabled={busy || localErpBaseUrl.trim().length === 0}
             onClick={() => void onTestErp()}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+            className="btn btnGhost"
           >
             Bağlantıyı Test Et
           </button>
-          {erpTestMessage ? <p className="text-sm text-slate-700">{erpTestMessage}</p> : null}
+          {erpTestMessage ? (
+            <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>{erpTestMessage}</p>
+          ) : null}
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between gap-4">
+      <div className="panel">
+        <div className="flexBetween">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Başlangıçta otomatik başlat</p>
-            <p className="mt-1 text-sm text-slate-600">
+            <p className="h2">Başlangıçta otomatik başlat</p>
+            <p className="muted" style={{ marginTop: 8 }}>
               Şimdilik yalnızca arayüzde tutulur (işletim sistemi entegrasyonu sonraya bırakıldı).
             </p>
           </div>
@@ -102,26 +104,20 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
             role="switch"
             aria-checked={launchOnStartup}
             onClick={() => setLaunchOnStartup((v) => !v)}
-            className={`relative h-7 w-12 rounded-full transition ${
-              launchOnStartup ? 'bg-sky-400' : 'bg-slate-300'
-            }`}
+            className={`toggle ${launchOnStartup ? 'toggleOn' : 'toggleOff'}`}
           >
-            <span
-              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition ${
-                launchOnStartup ? 'left-5' : 'left-1'
-              }`}
-            />
+            <span className={`knob ${launchOnStartup ? 'knobOn' : ''}`} />
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p className="text-sm font-semibold text-slate-900">Sync aralığı</p>
-        <p className="mt-1 text-sm text-slate-600">
+      <div className="panel">
+        <p className="h2">Sync aralığı</p>
+        <p className="muted" style={{ marginTop: 8 }}>
           Şimdilik yalnızca planlama arayüzü; zamanlayıcı entegrasyonu sonraki adım.
         </p>
         <select
-          className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none ring-sky-400 focus:ring-2"
+          className="select"
           value={syncInterval}
           onChange={(e) => setSyncInterval(e.target.value as SyncInterval)}
         >
@@ -132,16 +128,19 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
         </select>
       </div>
 
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-        <p className="text-sm font-semibold text-red-900">Oturumu sıfırla</p>
-        <p className="mt-1 text-sm text-red-800">
+      <div className="dangerPanel">
+        <p className="h2" style={{ color: '#7f1d1d' }}>
+          Oturumu sıfırla
+        </p>
+        <p className="muted" style={{ marginTop: 8, color: '#7f1d1d' }}>
           Anahtar zincirindeki token silinir ve kurulum ekranına dönersiniz.
         </p>
         <button
           type="button"
           disabled={busy}
           onClick={() => void onResetToken()}
-          className="mt-3 rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn btnDanger"
+          style={{ marginTop: 12 }}
         >
           Tokenı Sıfırla
         </button>
