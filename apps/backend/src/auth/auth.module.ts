@@ -1,0 +1,40 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { JwtSignOptions } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { PrismaModule } from '../prisma/prisma.module';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
+import { JwtRefreshStrategy } from './jwt-refresh.strategy';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { JwtStrategy } from './jwt.strategy';
+
+@Module({
+  imports: [
+    PrismaModule,
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+        signOptions: {
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
+            '15m') as NonNullable<JwtSignOptions['expiresIn']>,
+        },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    JwtAuthGuard,
+    JwtRefreshAuthGuard,
+  ],
+  exports: [AuthService, JwtAuthGuard],
+})
+export class AuthModule {}
