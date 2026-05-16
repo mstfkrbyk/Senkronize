@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.next/
+out/
 .env
 *.env.local
 .DS_Store
@@ -7,6 +9,10 @@ dist/
 .turbo/
 coverage/
 prisma/generated/
+*.tsbuildinfo
+desktop/public/panel/
+desktop/app-icon.png
+target/
 
 # Desktop (Tauri / embed)
 desktop/app-icon.png
