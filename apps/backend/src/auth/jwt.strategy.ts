@@ -3,14 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuthenticatedUser } from './auth.types';
-
-export interface JwtPayload {
-  sub: string;
-  orgId: string;
-  role: string;
-  impersonatedOrgId?: string;
-}
+import { AuthenticatedUser, JwtPayload } from './auth.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {

@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { Strategy } from 'passport-jwt';
 import { UserRole } from '@prisma/client';
 import { AuthService } from './auth.service';
-import { JwtPayload } from './jwt.strategy';
+import { JwtPayload } from './auth.types';
 
 export type JwtRefreshValidatedUser = {
   id: string;
