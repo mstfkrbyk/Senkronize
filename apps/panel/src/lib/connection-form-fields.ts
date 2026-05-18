@@ -217,6 +217,114 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
     { key: 'apiKey', label: 'API Key', type: 'text', required: true },
   ],
+  ALLEGRO: [
+    { key: 'clientId', label: 'Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'scope',
+      label: 'OAuth Scope (opsiyonel)',
+      type: 'text',
+      required: false,
+      hint: 'Boş bırakılırsa Allegro varsayılan client_credentials kapsamı kullanılır.',
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel, önbellek)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'currency',
+      label: 'Para birimi (fiyat için)',
+      type: 'text',
+      required: false,
+      defaultValue: 'PLN',
+    },
+  ],
+  WILDBERRIES: [
+    { key: 'apiKey', label: 'API Key (Authorization)', type: 'password', required: true },
+    {
+      key: 'warehouseId',
+      label: 'Depo ID (stok için)',
+      type: 'text',
+      required: true,
+    },
+    {
+      key: 'currencyId',
+      label: 'Para birimi ID (fiyat, örn. 643)',
+      type: 'text',
+      required: false,
+      defaultValue: '643',
+    },
+  ],
+  OZON: [
+    { key: 'clientId', label: 'Client-Id', type: 'text', required: true },
+    { key: 'apiKey', label: 'Api-Key', type: 'password', required: true },
+    {
+      key: 'warehouseId',
+      label: 'Depo ID (stok için, sayı)',
+      type: 'text',
+      required: true,
+    },
+  ],
+  NOON: [{ key: 'apiKey', label: 'Api-Key', type: 'password', required: true }],
+  AMAZON_EU: [
+    { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    { key: 'clientId', label: 'LWA Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'LWA Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'refreshToken',
+      label: 'Refresh Token',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'marketplaceId',
+      label: 'Marketplace ID (DE/FR/UK/IT/ES)',
+      type: 'text',
+      required: true,
+      hint: 'Örn. DE: A1PA6795UKMFR9, UK: A1F83G8C2ARO7P',
+    },
+    {
+      key: 'currency',
+      label: 'Para birimi (opsiyonel, örn. EUR)',
+      type: 'text',
+      required: false,
+    },
+  ],
+  CDISCOUNT: [
+    {
+      key: 'apiLogin',
+      label: 'API Login',
+      type: 'text',
+      required: true,
+    },
+    {
+      key: 'apiPassword',
+      label: 'API Password',
+      type: 'password',
+      required: true,
+    },
+  ],
+  KAUFLAND: [
+    { key: 'accessKey', label: 'Access Key (Shop-Client-Key)', type: 'text', required: true },
+    {
+      key: 'secretKey',
+      label: 'Secret Key',
+      type: 'password',
+      required: true,
+    },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -404,6 +512,13 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'N11',
   'CICEKSEPETI',
   'AMAZON_TR',
+  'AMAZON_EU',
+  'ALLEGRO',
+  'WILDBERRIES',
+  'OZON',
+  'NOON',
+  'CDISCOUNT',
+  'KAUFLAND',
   'PTTAVM',
   'PAZARAMA',
   'GETIR',

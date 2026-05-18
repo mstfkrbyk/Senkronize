@@ -8,21 +8,47 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { AMAZON_TR_MARKETPLACE_ID } from './amazon.constants';
 import {
   amazonCreateSpClient,
   amazonGetLwaToken,
   amazonGetListingsForMarketplace,
   amazonGetOrdersForMarketplace,
-  amazonResolveMarketplaceId,
   amazonUpdatePriceForMarketplace,
   amazonUpdateStockForMarketplace,
-} from './amazon-sp-api.shared';
+} from '../amazon/amazon-sp-api.shared';
+import {
+  AMAZON_EU_MARKETPLACE_CURRENCY,
+  AMAZON_EU_MARKETPLACE_ID_SET,
+  AMAZON_EU_MARKETPLACE_IDS,
+} from './amazon-eu.constants';
 
 @Injectable()
-export class AmazonAdapter implements IMarketplaceAdapter {
-  readonly platform = 'AMAZON_TR';
-  private readonly logger = new Logger(AmazonAdapter.name);
+export class AmazonEuAdapter implements IMarketplaceAdapter {
+  readonly platform = 'AMAZON_EU';
+  private readonly logger = new Logger(AmazonEuAdapter.name);
+
+  private resolveEuMarketplaceId(credentials: Record<string, string>): string {
+    const id = credentials.marketplaceId?.trim() ?? '';
+    if (!id) {
+      throw new Error(
+        `Amazon EU: marketplaceId zorunludur (ör. DE=${AMAZON_EU_MARKETPLACE_IDS.DE})`,
+      );
+    }
+    if (!AMAZON_EU_MARKETPLACE_ID_SET.has(id)) {
+      throw new Error(
+        'Amazon EU: marketplaceId DE/FR/UK/IT/ES SP-API kimliklerinden biri olmalıdır',
+      );
+    }
+    return id;
+  }
+
+  private resolveCurrency(marketplaceId: string, credentials: Record<string, string>): string {
+    const override = credentials.currency?.trim().toUpperCase();
+    if (override && override.length === 3) {
+      return override;
+    }
+    return AMAZON_EU_MARKETPLACE_CURRENCY[marketplaceId] ?? 'EUR';
+  }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
@@ -30,12 +56,13 @@ export class AmazonAdapter implements IMarketplaceAdapter {
       if (!clientId || !clientSecret || !refreshToken || !sellerId) {
         return false;
       }
+      this.resolveEuMarketplaceId(credentials);
       const token = await amazonGetLwaToken(credentials);
       const client = amazonCreateSpClient(token);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
-      this.logger.warn('Amazon bağlantı testi başarısız', {
+      this.logger.warn('Amazon EU bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
       return false;
@@ -48,14 +75,12 @@ export class AmazonAdapter implements IMarketplaceAdapter {
   ): Promise<MarketplaceOrder[]> {
     const token = await amazonGetLwaToken(credentials);
     const client = amazonCreateSpClient(token);
-    const marketplaceId = amazonResolveMarketplaceId(
-      credentials,
-      AMAZON_TR_MARKETPLACE_ID,
-    );
+    const marketplaceId = this.resolveEuMarketplaceId(credentials);
+    const currency = this.resolveCurrency(marketplaceId, credentials);
     return await amazonGetOrdersForMarketplace(
       client,
       marketplaceId,
-      'TRY',
+      currency,
       since,
     );
   }
@@ -67,10 +92,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     const token = await amazonGetLwaToken(credentials);
     const client = amazonCreateSpClient(token);
     const sellerId = credentials.sellerId;
-    const marketplaceId = amazonResolveMarketplaceId(
-      credentials,
-      AMAZON_TR_MARKETPLACE_ID,
-    );
+    const marketplaceId = this.resolveEuMarketplaceId(credentials);
     return await amazonGetListingsForMarketplace(client, sellerId, marketplaceId, page);
   }
 
@@ -81,17 +103,14 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     const token = await amazonGetLwaToken(credentials);
     const client = amazonCreateSpClient(token);
     const sellerId = credentials.sellerId;
-    const marketplaceId = amazonResolveMarketplaceId(
-      credentials,
-      AMAZON_TR_MARKETPLACE_ID,
-    );
+    const marketplaceId = this.resolveEuMarketplaceId(credentials);
     await amazonUpdateStockForMarketplace(
       client,
       sellerId,
       marketplaceId,
       updates,
       (sku, message) => {
-        this.logger.warn('Amazon stok güncellemesi başarısız', { sku, error: message });
+        this.logger.warn('Amazon EU stok güncellemesi başarısız', { sku, error: message });
       },
     );
   }
@@ -103,18 +122,19 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     const token = await amazonGetLwaToken(credentials);
     const client = amazonCreateSpClient(token);
     const sellerId = credentials.sellerId;
-    const marketplaceId = amazonResolveMarketplaceId(
-      credentials,
-      AMAZON_TR_MARKETPLACE_ID,
-    );
+    const marketplaceId = this.resolveEuMarketplaceId(credentials);
+    const currency = this.resolveCurrency(marketplaceId, credentials);
     await amazonUpdatePriceForMarketplace(
       client,
       sellerId,
       marketplaceId,
-      'TRY',
+      currency,
       updates,
       (sku, message) => {
-        this.logger.warn('Amazon fiyat güncellemesi başarısız', { sku, error: message });
+        this.logger.warn('Amazon EU fiyat güncellemesi başarısız', {
+          sku,
+          error: message,
+        });
       },
     );
   }

@@ -80,7 +80,7 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.WILDBERRIES]: 'Wildberries',
   [Marketplace.OZON]: 'Ozon',
   [Marketplace.NOON]: 'Noon',
-  [Marketplace.AMAZON_EU]: 'Amazon EU',
+  [Marketplace.AMAZON_EU]: 'Amazon Avrupa',
   [Marketplace.CDISCOUNT]: 'Cdiscount',
   [Marketplace.KAUFLAND]: 'Kaufland',
 };

@@ -2,6 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
 
 import { AmazonAdapter } from './amazon/amazon.adapter';
+import { AmazonEuAdapter } from './amazon-eu/amazon-eu.adapter';
+import { AllegroAdapter } from './allegro/allegro.adapter';
+import { CdiscountAdapter } from './cdiscount/cdiscount.adapter';
+import { KauflandAdapter } from './kaufland/kaufland.adapter';
+import { NoonAdapter } from './noon/noon.adapter';
+import { OzonAdapter } from './ozon/ozon.adapter';
+import { WildberriesAdapter } from './wildberries/wildberries.adapter';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { BoynerAdapter } from './boyner/boyner.adapter';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
@@ -53,6 +60,13 @@ export class AdapterRegistry {
 
   constructor(
     private readonly amazon: AmazonAdapter,
+    private readonly amazonEu: AmazonEuAdapter,
+    private readonly allegro: AllegroAdapter,
+    private readonly wildberries: WildberriesAdapter,
+    private readonly ozon: OzonAdapter,
+    private readonly noon: NoonAdapter,
+    private readonly cdiscount: CdiscountAdapter,
+    private readonly kaufland: KauflandAdapter,
     private readonly trendyol: TrendyolAdapter,
     private readonly hepsiburada: HepsiburadaAdapter,
     private readonly n11: N11Adapter,
@@ -99,6 +113,13 @@ export class AdapterRegistry {
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
+      ['AMAZON_EU', amazonEu],
+      ['ALLEGRO', allegro],
+      ['WILDBERRIES', wildberries],
+      ['OZON', ozon],
+      ['NOON', noon],
+      ['CDISCOUNT', cdiscount],
+      ['KAUFLAND', kaufland],
       ['TRENDYOL', trendyol],
       ['HEPSIBURADA', hepsiburada],
       ['N11', n11],

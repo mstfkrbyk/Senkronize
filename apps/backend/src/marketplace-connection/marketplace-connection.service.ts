@@ -139,6 +139,24 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.VATAN || platform === Marketplace.TEKNOSA || platform === Marketplace.MAVI) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
+    if (platform === Marketplace.ALLEGRO) {
+      return creds.clientId ?? null;
+    }
+    if (platform === Marketplace.WILDBERRIES || platform === Marketplace.NOON) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.OZON) {
+      return creds.clientId ?? null;
+    }
+    if (platform === Marketplace.AMAZON_EU) {
+      return creds.sellerId ?? creds.marketplaceId ?? null;
+    }
+    if (platform === Marketplace.CDISCOUNT) {
+      return creds.apiLogin ?? creds.apiKey ?? null;
+    }
+    if (platform === Marketplace.KAUFLAND) {
+      return creds.accessKey ?? creds.clientId ?? null;
+    }
     return null;
   }
 

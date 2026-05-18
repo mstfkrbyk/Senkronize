@@ -133,5 +133,12 @@ export const PLATFORM_RATE_LIMITS: Record<string, number> = {
   UNIPOS: 40,
   AKINON: 40,
   IKAS: 40,
+  ALLEGRO: 90,
+  WILDBERRIES: 60,
+  OZON: 40,
+  NOON: 45,
+  AMAZON_EU: 60,
+  CDISCOUNT: 30,
+  KAUFLAND: 60,
   DEFAULT: 30,
 };

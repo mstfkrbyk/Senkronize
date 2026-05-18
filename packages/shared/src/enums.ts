@@ -52,7 +52,14 @@ export type Marketplace =
   | 'MEDIAMARKT'
   | 'TEKNOSA'
   | 'KOTON'
-  | 'MAVI';
+  | 'MAVI'
+  | 'ALLEGRO'
+  | 'WILDBERRIES'
+  | 'OZON'
+  | 'NOON'
+  | 'AMAZON_EU'
+  | 'CDISCOUNT'
+  | 'KAUFLAND';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
