@@ -3,11 +3,13 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Clock,
+  LineChart,
   Package,
   Plug,
   PlugZap,
   RefreshCw,
   ShoppingCart,
+  Undo2,
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
@@ -57,6 +59,7 @@ import { orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { DashboardSummaryDto } from '@/types/dashboard-summary';
 import type { Order, OrderStatus } from '@/types/order';
+import type { StockForecastSummaryDto } from '@/types/stock-forecast';
 import type { SyncStatusItem } from '@/types/sync';
 
 const MOCK_WEEKLY = [
@@ -202,6 +205,17 @@ export function DashboardPage(): ReactElement {
       const { data } = await api.get<DashboardSummaryDto>(
         '/reports/dashboard-summary',
         { params: { period: kpiPeriod } },
+      );
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
+  const stockForecastSummaryQuery = useQuery({
+    queryKey: ['stock-forecast', 'summary'],
+    queryFn: async (): Promise<StockForecastSummaryDto> => {
+      const { data } = await api.get<StockForecastSummaryDto>(
+        '/stock/forecast/summary',
       );
       return data;
     },
@@ -568,6 +582,50 @@ export function DashboardPage(): ReactElement {
           </CardContent>
         </Card>
       </div>
+
+      <Card
+        role="button"
+        tabIndex={0}
+        className="cursor-pointer transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => {
+          navigate('/stock/forecast');
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            navigate('/stock/forecast');
+          }
+        }}
+      >
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">
+            {t('dashboard.stockForecastCriticalTitle')}
+          </CardTitle>
+          <div
+            className={`rounded-full p-2 ring-2 ${KPI_ICON.sky.ring} bg-background`}
+          >
+            <LineChart className={`h-4 w-4 ${KPI_ICON.sky.icon}`} aria-hidden />
+          </div>
+        </CardHeader>
+        <CardContent>
+          {stockForecastSummaryQuery.isPending ? (
+            <Skeleton className="h-9 w-24" />
+          ) : stockForecastSummaryQuery.isError ? (
+            <p className="text-sm text-muted-foreground">—</p>
+          ) : (
+            <>
+              <p
+                className={`text-2xl font-bold tabular-nums ${pendingOrdersTone(stockForecastSummaryQuery.data?.countWithin7Days ?? 0)}`}
+              >
+                {stockForecastSummaryQuery.data?.countWithin7Days ?? 0}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('dashboard.stockForecastCriticalHint')}
+              </p>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card

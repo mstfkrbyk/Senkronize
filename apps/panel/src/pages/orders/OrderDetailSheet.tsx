@@ -190,8 +190,8 @@ export function OrderDetailSheet({
       const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
       return res.data as Blob;
     },
-    onSuccess: () => {
-      const url = URL.createObjectURL(blob);
+    onSuccess: (pdfBlob: Blob) => {
+      const url = URL.createObjectURL(pdfBlob);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => {
         URL.revokeObjectURL(url);
@@ -347,6 +347,31 @@ export function OrderDetailSheet({
                   {ORDER_STATUS_LABEL_TR[displayOrder.status]}
                 </Badge>
               </div>
+
+              {displayOrder.cancellationRequestedAt ? (
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+                  <span className="font-medium">İptal talebi kayıtlı</span>
+                  <p className="mt-1 text-sky-900">
+                    {formatDate(displayOrder.cancellationRequestedAt)}
+                    {displayOrder.cancellationRequestNote
+                      ? ` — ${displayOrder.cancellationRequestNote}`
+                      : ''}
+                  </p>
+                </div>
+              ) : null}
+
+              {canRequestCancellation ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full border-amber-200 text-amber-950 hover:bg-amber-50"
+                  onClick={() => {
+                    setCancelDialogOpen(true);
+                  }}
+                >
+                  İptal talebi oluştur
+                </Button>
+              ) : null}
 
               {['CANCELLED', 'RETURNED'].includes(displayOrder.status) ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -744,6 +769,61 @@ export function OrderDetailSheet({
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setCompareDialogOpen(false)}>
             Kapat
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>İptal talebi</DialogTitle>
+          <DialogDescription>
+            Pazaryeri tarafında iptal süreci bağlantıya göre değişebilir. Talebiniz
+            kaydedilir.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="cancel-note">Açıklama (isteğe bağlı)</Label>
+          <Textarea
+            id="cancel-note"
+            rows={4}
+            value={cancelNote}
+            placeholder="İptal nedeninizi yazın"
+            onChange={(e) => {
+              setCancelNote(e.target.value);
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setCancelDialogOpen(false);
+            }}
+          >
+            Vazgeç
+          </Button>
+          <Button
+            type="button"
+            disabled={
+              !displayOrder || cancellationRequestMutation.isPending
+            }
+            onClick={() => {
+              if (!displayOrder) {
+                return;
+              }
+              cancellationRequestMutation.mutate({
+                orderId: displayOrder.id,
+                note: cancelNote,
+              });
+            }}
+          >
+            {cancellationRequestMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            ) : null}
+            Talebi gönder
           </Button>
         </DialogFooter>
       </DialogContent>
