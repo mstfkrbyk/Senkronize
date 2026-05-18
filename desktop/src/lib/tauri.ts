@@ -28,6 +28,27 @@ export interface LocalErpTestResult {
   message: string;
 }
 
+export interface ErpTestResult {
+  success: boolean;
+  message: string;
+  productCount: number | null;
+}
+
+export interface ErpConfigPayload {
+  erpType: string;
+  baseUrl: string;
+  username: string;
+  password: string;
+  extra: string | null;
+}
+
+export interface ErpToCloudSyncResult {
+  success: boolean;
+  syncedCount: number;
+  errorCount: number;
+  message: string;
+}
+
 export const tauriApi = {
   saveToken: (payload: TokenPayload): Promise<void> =>
     invoke<void>('save_token', { payload }),
@@ -52,4 +73,18 @@ export const tauriApi = {
 
   testLocalErpConnection: (baseUrl: string): Promise<LocalErpTestResult> =>
     invoke<LocalErpTestResult>('test_local_erp_connection', { baseUrl }),
+
+  testErpConnection: (args: {
+    erpType: string;
+    baseUrl: string;
+    username: string;
+    password: string;
+    extra: string | null;
+  }): Promise<ErpTestResult> => invoke<ErpTestResult>('test_erp_connection', args),
+
+  syncErpToCloud: (args: {
+    erpConfig: ErpConfigPayload;
+    cloudApiUrl: string;
+    cloudApiKey: string;
+  }): Promise<ErpToCloudSyncResult> => invoke<ErpToCloudSyncResult>('sync_erp_to_cloud', args),
 };

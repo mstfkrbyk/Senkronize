@@ -418,12 +418,67 @@ body {
   line-height: 1.45;
 }
 
+.logBodyTrunc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .iconOk {
   color: #059669;
 }
 
 .iconBad {
   color: #dc2626;
+}
+
+.iconInfo {
+  color: #1d4ed8;
+}
+
+.iconWarn {
+  color: #d97706;
+}
+
+.logTimeMono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+}
+
+.logLevelTextInfo {
+  color: #1d4ed8;
+}
+
+.logLevelTextError {
+  color: #b91c1c;
+}
+
+.logLevelTextSuccess {
+  color: #047857;
+}
+
+.logLevelTextWarn {
+  color: #a16207;
+}
+
+.logCopyBtn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.logCopyBtn:hover {
+  color: var(--text);
+  border-color: #cbd5e1;
 }
 
 .logBadge {

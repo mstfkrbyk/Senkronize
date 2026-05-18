@@ -1,15 +1,16 @@
 import { listen } from '@tauri-apps/api/event';
-import { Activity, ScrollText, Settings } from 'lucide-react';
+import { Activity, Link2, ScrollText, Settings } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 
 import { tauriApi } from '@/lib/tauri';
+import { ErpBridgePage } from '@/pages/ErpBridgePage';
 import { LogsPage } from '@/pages/LogsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { SetupPage } from '@/pages/SetupPage';
 import { StatusPage } from '@/pages/StatusPage';
 import { useAppStore } from '@/store/app.store';
 
-type Page = 'status' | 'settings' | 'logs';
+type Page = 'status' | 'settings' | 'logs' | 'erpBridge';
 
 export default function App(): ReactElement {
   const token = useAppStore((s) => s.token);
@@ -111,6 +112,14 @@ export default function App(): ReactElement {
           </button>
           <button
             type="button"
+            className={`navBtn ${page === 'erpBridge' ? 'navBtnActive' : ''}`}
+            onClick={() => setPage('erpBridge')}
+          >
+            <Link2 size={16} />
+            ERP Bridge
+          </button>
+          <button
+            type="button"
             className={`navBtn ${page === 'logs' ? 'navBtnActive' : ''}`}
             onClick={() => setPage('logs')}
           >
@@ -123,6 +132,7 @@ export default function App(): ReactElement {
       <main className="main">
         {page === 'status' ? <StatusPage /> : null}
         {page === 'settings' ? <SettingsPage onResetSession={onResetSession} /> : null}
+        {page === 'erpBridge' ? <ErpBridgePage /> : null}
         {page === 'logs' ? <LogsPage /> : null}
       </main>
     </div>

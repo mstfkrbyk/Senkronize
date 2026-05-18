@@ -2,7 +2,7 @@ mod commands;
 mod services;
 mod tray;
 
-use commands::{auth, erp, health, sync};
+use commands::{auth, erp, health, local_sync, sync};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +21,8 @@ pub fn run() {
             health::check_health,
             sync::trigger_sync,
             erp::test_local_erp_connection,
+            erp::test_erp_connection,
+            local_sync::sync_erp_to_cloud,
         ])
         .run(tauri::generate_context!())
         .expect("Tauri uygulaması başlatılamadı");
