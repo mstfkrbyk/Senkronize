@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  NotificationType,
   PaymentStatus,
   PlanTier,
   SubStatus,
@@ -14,10 +15,12 @@ import {
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { EmailService } from '../notifications/email/email.service';
+import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
+import type { UsageStats } from './subscription.types';
 
 const PLAN_PRICES_KURUS: Record<PlanTier, number> = {
   BASLANGIC: 290_000,
@@ -84,6 +87,7 @@ export class SubscriptionService {
     private readonly encryptionService: EncryptionService,
     private readonly emailService: EmailService,
     private readonly partnerService: PartnerService,
+    private readonly inAppNotificationService: InAppNotificationService,
   ) {}
 
   /** DB'de limit null ise paket varsayılanı */
@@ -94,7 +98,7 @@ export class SubscriptionService {
     );
   }
 
-  async getSubscription(organizationId: string): Promise<unknown> {
+  async getSubscription(organizationId: string): Promise<Subscription> {
     const sub = await this.prisma.subscription.findUnique({
       where: { organizationId },
     });
@@ -102,6 +106,323 @@ export class SubscriptionService {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
     return sub;
+  }
+
+  async changePlan(
+    organizationId: string,
+    actorUserId: string,
+    newPlan: PlanTier,
+  ): Promise<Subscription> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+    if (sub.status !== SubStatus.ACTIVE && sub.status !== SubStatus.TRIAL) {
+      throw new BadRequestException(
+        'Plan değişikliği yalnızca aktif veya deneme aboneliklerinde yapılabilir.',
+      );
+    }
+    if (sub.plan === newPlan) {
+      throw new BadRequestException('Zaten bu plandasınız.');
+    }
+
+    const previousPlan = sub.plan;
+    const limits = PLAN_LIMITS[newPlan];
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.subscription.update({
+        where: { organizationId },
+        data: {
+          plan: newPlan,
+          monthlyOrderLimit: limits.monthlyOrderLimit,
+          marketplaceLimit: limits.marketplaceLimit,
+          ecommerceLimit: limits.ecommerceLimit,
+          erpLimit: limits.erpLimit,
+          userLimit: limits.userLimit,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId: organizationId,
+          impersonatedOrgId: null,
+          action: 'subscription.plan_changed',
+          resourceType: 'Subscription',
+          resourceId: next.id,
+          metadata: {
+            previousPlan,
+            newPlan,
+          },
+        },
+      });
+      return next;
+    });
+
+    try {
+      await this.inAppNotificationService.create({
+        organizationId,
+        type: NotificationType.SYSTEM,
+        title: 'Paket güncellendi',
+        message: `Abonelik planınız ${PLAN_LABEL_TR[newPlan]} olarak güncellendi.`,
+        link: '/settings/subscription',
+        metadata: { previousPlan, newPlan },
+      });
+    } catch (notifyErr) {
+      this.logger.warn('Plan değişikliği in-app bildirimi oluşturulamadı', {
+        organizationId,
+        message: notifyErr instanceof Error ? notifyErr.message : 'unknown',
+      });
+    }
+
+    const owner = await this.prisma.user.findFirst({
+      where: {
+        organizationId,
+        role: UserRole.OWNER,
+        deletedAt: null,
+      },
+    });
+    if (owner?.email) {
+      void this.emailService
+        .sendSubscriptionPlanChanged(
+          owner.email,
+          owner.name ?? 'Merhaba',
+          PLAN_LABEL_TR[previousPlan],
+          PLAN_LABEL_TR[newPlan],
+        )
+        .catch((error: unknown) => {
+          this.logger.error('Plan değişikliği e-postası gönderilemedi', {
+            organizationId,
+            error,
+          });
+        });
+    }
+
+    return updated;
+  }
+
+  async cancelSubscription(
+    organizationId: string,
+    actorUserId: string,
+    reason?: string,
+  ): Promise<void> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+    if (sub.status === SubStatus.CANCELLED) {
+      return;
+    }
+
+    const trimmedReason = reason?.trim().slice(0, 500) ?? null;
+    const canceledAt = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.subscription.update({
+        where: { organizationId },
+        data: {
+          status: SubStatus.CANCELLED,
+          canceledAt,
+          cancelReason: trimmedReason,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId: organizationId,
+          impersonatedOrgId: null,
+          action: 'subscription.cancel_requested',
+          resourceType: 'Subscription',
+          resourceId: sub.id,
+          metadata: {
+            previousStatus: sub.status,
+            effectiveUntil: sub.currentPeriodEnd.toISOString(),
+            hasReason: Boolean(trimmedReason),
+          },
+        },
+      });
+    });
+
+    try {
+      await this.inAppNotificationService.create({
+        organizationId,
+        type: NotificationType.SYSTEM,
+        title: 'Abonelik iptal talebi',
+        message: `Aboneliğiniz ${sub.currentPeriodEnd.toLocaleDateString('tr-TR')} tarihine kadar kullanılabilir.`,
+        link: '/settings/subscription',
+        metadata: { effectiveUntil: sub.currentPeriodEnd.toISOString() },
+      });
+    } catch (notifyErr) {
+      this.logger.warn('İptal in-app bildirimi oluşturulamadı', {
+        organizationId,
+        message: notifyErr instanceof Error ? notifyErr.message : 'unknown',
+      });
+    }
+
+    const owner = await this.prisma.user.findFirst({
+      where: {
+        organizationId,
+        role: UserRole.OWNER,
+        deletedAt: null,
+      },
+    });
+    if (owner?.email) {
+      void this.emailService
+        .sendSubscriptionCancelled(
+          owner.email,
+          owner.name ?? 'Merhaba',
+          sub.currentPeriodEnd,
+        )
+        .catch((error: unknown) => {
+          this.logger.error('İptal bilgilendirme e-postası gönderilemedi', {
+            organizationId,
+            error,
+          });
+        });
+    }
+  }
+
+  async reactivateSubscription(
+    organizationId: string,
+    actorUserId: string,
+  ): Promise<Subscription> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+    if (sub.status !== SubStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Yeniden aktivasyon yalnızca iptal edilmiş abonelikler için geçerlidir.',
+      );
+    }
+
+    const periodStart = new Date();
+    const periodEnd = new Date(periodStart);
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    const limits = PLAN_LIMITS[sub.plan];
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.subscription.update({
+        where: { organizationId },
+        data: {
+          status: SubStatus.ACTIVE,
+          canceledAt: null,
+          cancelReason: null,
+          trialEndsAt: null,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          nextBillingAt: periodEnd,
+          monthlyOrderLimit: limits.monthlyOrderLimit,
+          marketplaceLimit: limits.marketplaceLimit,
+          ecommerceLimit: limits.ecommerceLimit,
+          erpLimit: limits.erpLimit,
+          userLimit: limits.userLimit,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId: organizationId,
+          impersonatedOrgId: null,
+          action: 'subscription.reactivated',
+          resourceType: 'Subscription',
+          resourceId: next.id,
+          metadata: {
+            plan: sub.plan,
+            periodEnd: periodEnd.toISOString(),
+          },
+        },
+      });
+      return next;
+    });
+
+    try {
+      await this.inAppNotificationService.create({
+        organizationId,
+        type: NotificationType.SYSTEM,
+        title: 'Abonelik yeniden aktif',
+        message: `Aboneliğiniz yeniden etkinleştirildi. Dönem bitişi: ${periodEnd.toLocaleDateString('tr-TR')}.`,
+        link: '/settings/subscription',
+        metadata: { plan: sub.plan },
+      });
+    } catch (notifyErr) {
+      this.logger.warn('Yeniden aktivasyon bildirimi oluşturulamadı', {
+        organizationId,
+        message: notifyErr instanceof Error ? notifyErr.message : 'unknown',
+      });
+    }
+
+    return updated;
+  }
+
+  async getUsageStats(organizationId: string): Promise<UsageStats> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    const defaults = PLAN_LIMITS[sub.plan];
+    const orderLimit = sub.monthlyOrderLimit ?? defaults.monthlyOrderLimit;
+    const marketplaceLimit =
+      sub.marketplaceLimit ?? defaults.marketplaceLimit;
+    const ecommerceLimit = sub.ecommerceLimit ?? defaults.ecommerceLimit;
+    const erpLimit = sub.erpLimit ?? defaults.erpLimit;
+    const userLimit = sub.userLimit ?? defaults.userLimit;
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [
+      ordersThisMonth,
+      marketplaceCount,
+      ecommerceCount,
+      erpCount,
+      userCount,
+    ] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          createdAt: { gte: monthStart },
+        },
+      }),
+      this.prisma.marketplaceConnection.count({
+        where: { organizationId, isActive: true, deletedAt: null },
+      }),
+      this.prisma.ecommerceConnection.count({
+        where: { organizationId, isActive: true },
+      }),
+      this.prisma.erpConnection.count({
+        where: { organizationId, isActive: true, deletedAt: null },
+      }),
+      this.prisma.user.count({
+        where: { organizationId, deletedAt: null },
+      }),
+    ]);
+
+    let trialDaysLeft: number | null = null;
+    if (sub.status === SubStatus.TRIAL && sub.trialEndsAt) {
+      const diff = Math.ceil(
+        (sub.trialEndsAt.getTime() - now.getTime()) / 86_400_000,
+      );
+      trialDaysLeft = diff > 0 ? diff : 0;
+    }
+
+    return {
+      orders: { used: ordersThisMonth, limit: orderLimit },
+      marketplaces: { used: marketplaceCount, limit: marketplaceLimit },
+      ecommerce: { used: ecommerceCount, limit: ecommerceLimit },
+      erp: { used: erpCount, limit: erpLimit },
+      users: { used: userCount, limit: userLimit },
+      trialDaysLeft,
+    };
   }
 
   async createCheckoutToken(
@@ -147,42 +468,6 @@ export class SubscriptionService {
         'Ödeme oturumu başlatılamadı. Lütfen daha sonra tekrar deneyin.',
       );
     }
-  }
-
-  async cancelSubscription(
-    organizationId: string,
-    actorUserId: string,
-  ): Promise<void> {
-    const sub = await this.prisma.subscription.findUnique({
-      where: { organizationId },
-    });
-    if (!sub) {
-      throw new NotFoundException('Abonelik bulunamadı.');
-    }
-    if (sub.status === SubStatus.CANCELLED) {
-      return;
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.subscription.update({
-        where: { organizationId },
-        data: { status: SubStatus.CANCELLED },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId,
-          actorOrgId: organizationId,
-          impersonatedOrgId: null,
-          action: 'subscription.cancel_requested',
-          resourceType: 'Subscription',
-          resourceId: sub.id,
-          metadata: {
-            previousStatus: sub.status,
-            effectiveUntil: sub.currentPeriodEnd.toISOString(),
-          },
-        },
-      });
-    });
   }
 
   async getPaymentHistory(
@@ -277,6 +562,8 @@ export class SubscriptionService {
             ecommerceLimit: limits.ecommerceLimit,
             erpLimit: limits.erpLimit,
             userLimit: limits.userLimit,
+            canceledAt: null,
+            cancelReason: null,
           },
         });
 

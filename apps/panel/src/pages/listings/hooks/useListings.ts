@@ -22,7 +22,7 @@ function buildListingParams(
   return params;
 }
 
-export function useListings(filters: ListingFilters) {
+export function useListings(filters: ListingFilters, enabled = true) {
   return useQuery({
     queryKey: ['listings', filters],
     queryFn: async (): Promise<ListingsResponse> => {
@@ -32,6 +32,7 @@ export function useListings(filters: ListingFilters) {
       return data;
     },
     staleTime: 60_000,
+    enabled,
   });
 }
 

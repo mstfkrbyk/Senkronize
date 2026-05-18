@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { useAuthStore } from '@/store/auth.store';
 
 import { PartnerCommissionHistoryTab } from './PartnerCommissionHistoryTab';
@@ -9,6 +10,7 @@ import { PartnerInviteTab } from './PartnerInviteTab';
 
 export function PartnerPage(): ReactElement {
   const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const plan = useAuthStore((s) => s.currentOrg?.plan);
 
   if (orgType !== 'PARTNER') {
     return (
@@ -29,6 +31,15 @@ export function PartnerPage(): ReactElement {
           Müşterilerinizi, davetlerinizi ve komisyonlarınızı buradan yönetin.
         </p>
       </div>
+
+      {plan !== 'KURUMSAL' ? (
+        <UpgradePrompt
+          feature="Kurumsal partner özellikleri"
+          requiredPlan="KURUMSAL"
+          currentPlan={plan}
+          description="Özel SLA, gelişmiş raporlama ve öncelikli entegrasyon desteği Kurumsal pakette sunulur."
+        />
+      ) : null}
 
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList>

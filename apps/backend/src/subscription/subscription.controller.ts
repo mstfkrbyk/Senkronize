@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
+import type { Subscription } from '@prisma/client';
 import type { Request } from 'express';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
@@ -22,10 +23,13 @@ import { PaytrService } from './paytr.service';
 import { isPaytrWebhookIpAllowed } from './paytr-webhook-ip';
 import type { PaytrWebhookPayload } from './paytr.types';
 import {
+  SubscriptionCancelDto,
+  SubscriptionChangePlanDto,
   SubscriptionCheckoutDto,
   SubscriptionPaymentsQueryDto,
 } from './subscription.dto';
 import { SubscriptionService } from './subscription.service';
+import type { UsageStats } from './subscription.types';
 
 function getClientIp(req: Request): string {
   const xff = req.headers['x-forwarded-for'];
@@ -83,8 +87,24 @@ export class SubscriptionController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
-  async me(@CurrentOrg() org: CurrentOrgPayload): Promise<unknown> {
+  async me(@CurrentOrg() org: CurrentOrgPayload): Promise<Subscription> {
     return this.subscriptionService.getSubscription(org.id);
+  }
+
+  @Get('usage')
+  @UseGuards(JwtAuthGuard)
+  async usage(@CurrentOrg() org: CurrentOrgPayload): Promise<UsageStats> {
+    return this.subscriptionService.getUsageStats(org.id);
+  }
+
+  @Post('change-plan')
+  @UseGuards(JwtAuthGuard)
+  async changePlan(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionChangePlanDto,
+  ): Promise<Subscription> {
+    return this.subscriptionService.changePlan(org.id, user.id, dto.plan);
   }
 
   @Post('checkout')
@@ -111,13 +131,38 @@ export class SubscriptionController {
   async cancel(
     @CurrentOrg() org: CurrentOrgPayload,
     @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionCancelDto,
   ): Promise<void> {
-    await this.subscriptionService.cancelSubscription(org.id, user.id);
+    await this.subscriptionService.cancelSubscription(
+      org.id,
+      user.id,
+      dto.reason,
+    );
+  }
+
+  @Post('reactivate')
+  @UseGuards(JwtAuthGuard)
+  async reactivate(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Subscription> {
+    return this.subscriptionService.reactivateSubscription(org.id, user.id);
   }
 
   @Get('payments')
   @UseGuards(JwtAuthGuard)
   async payments(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: SubscriptionPaymentsQueryDto,
+  ): Promise<unknown> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    return this.subscriptionService.getPaymentHistory(org.id, page, limit);
+  }
+
+  @Get('invoices')
+  @UseGuards(JwtAuthGuard)
+  async invoices(
     @CurrentOrg() org: CurrentOrgPayload,
     @Query() query: SubscriptionPaymentsQueryDto,
   ): Promise<unknown> {

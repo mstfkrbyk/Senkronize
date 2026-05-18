@@ -23,7 +23,9 @@ const ACTION_LABELS: Record<string, string> = {
   'partner.impersonation_start': 'Hesap Erişimi Başladı',
   'partner.impersonation_end': 'Hesap Erişimi Bitti',
   'subscription.plan_activated': 'Abonelik Aktifleşti',
+  'subscription.plan_changed': 'Abonelik Planı Değişti',
   'subscription.cancel_requested': 'Abonelik İptal Talebi',
+  'subscription.reactivated': 'Abonelik Yeniden Aktifleşti',
   'subscription.payment_failed': 'Ödeme Başarısız',
 };
 

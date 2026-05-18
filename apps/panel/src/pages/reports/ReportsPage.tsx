@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { exportToCsv } from '@/lib/csv-export';
 import { printReport } from '@/lib/pdf-export';
+import { useAuthStore } from '@/store/auth.store';
 import type { ReportFilters, SalesReportData } from '@/types/report';
 
 import { PlatformBreakdown } from './PlatformBreakdown';
@@ -79,6 +81,8 @@ function formatTry(n: number): string {
 
 export function ReportsPage(): ReactElement {
   usePageTitle('Raporlar');
+  const plan = useAuthStore((s) => s.currentOrg?.plan);
+  const hasProfitAccess = plan === 'PRO' || plan === 'KURUMSAL';
   const initialRange = useMemo(() => defaultDateRange(), []);
   const [activeTab, setActiveTab] = useState('overview');
 
@@ -118,7 +122,7 @@ export function ReportsPage(): ReactElement {
       endDate: profitEnd,
       platform: profitPlatform,
     },
-    { enabled: activeTab === 'profit' },
+    { enabled: activeTab === 'profit' && hasProfitAccess },
   );
 
   const stockQuery = useStockValueReport({ enabled: activeTab === 'stock' });
@@ -441,6 +445,14 @@ export function ReportsPage(): ReactElement {
         </TabsContent>
 
         <TabsContent value="profit">
+          {!hasProfitAccess ? (
+            <UpgradePrompt
+              feature="Kâr raporu ve kâr analizi"
+              requiredPlan="PRO"
+              currentPlan={plan}
+              description="Platform bazlı kâr dağılımı ve detaylı kâr analizi PRO ve Kurumsal paketlerde kullanılabilir."
+            />
+          ) : (
           <div id="report-content" className="space-y-6">
           {profitQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -669,6 +681,7 @@ export function ReportsPage(): ReactElement {
             </Card>
           </div>
         </div>
+          )}
         </TabsContent>
 
         <TabsContent value="stock">

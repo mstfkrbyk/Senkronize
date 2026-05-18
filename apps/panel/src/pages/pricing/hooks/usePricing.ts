@@ -10,7 +10,7 @@ import type {
   PricingRule,
 } from '@/types/pricing';
 
-export function useBuyBoxSummary() {
+export function useBuyBoxSummary(enabled = true) {
   return useQuery({
     queryKey: ['pricing', 'buybox'],
     queryFn: async (): Promise<BuyBoxSummary> => {
@@ -18,16 +18,18 @@ export function useBuyBoxSummary() {
       return data;
     },
     staleTime: 30_000,
+    enabled,
   });
 }
 
-export function usePricingRules() {
+export function usePricingRules(enabled = true) {
   return useQuery({
     queryKey: ['pricing', 'rules'],
     queryFn: async (): Promise<PricingRule[]> => {
       const { data } = await api.get<PricingRule[]>('/pricing/rules');
       return data;
     },
+    enabled,
   });
 }
 
@@ -99,7 +101,7 @@ export function useUpdatePricingRuleActive() {
   });
 }
 
-export function useBuyBoxWinRate(days = 7) {
+export function useBuyBoxWinRate(days = 7, enabled = true) {
   return useQuery({
     queryKey: ['pricing', 'win-rate', days],
     queryFn: async (): Promise<BuyBoxWinRateStats> => {
@@ -109,10 +111,14 @@ export function useBuyBoxWinRate(days = 7) {
       return data;
     },
     staleTime: 30_000,
+    enabled,
   });
 }
 
-export function useBuyBoxListingAnalysis(listingId: string | null) {
+export function useBuyBoxListingAnalysis(
+  listingId: string | null,
+  queryEnabled = true,
+) {
   return useQuery({
     queryKey: ['pricing', 'buybox-analysis', listingId],
     queryFn: async (): Promise<BuyBoxListingAnalysis> => {
@@ -121,12 +127,16 @@ export function useBuyBoxListingAnalysis(listingId: string | null) {
       );
       return data;
     },
-    enabled: listingId != null && listingId.length > 0,
+    enabled:
+      queryEnabled && listingId != null && listingId.length > 0,
     staleTime: 15_000,
   });
 }
 
-export function usePriceHistory(filters?: { barcode?: string; platform?: string }) {
+export function usePriceHistory(
+  filters?: { barcode?: string; platform?: string },
+  enabled = true,
+) {
   return useQuery({
     queryKey: ['pricing', 'history', filters],
     queryFn: async (): Promise<{ items: PriceHistoryEntry[]; total: number }> => {
@@ -136,5 +146,6 @@ export function usePriceHistory(filters?: { barcode?: string; platform?: string 
       );
       return data;
     },
+    enabled,
   });
 }

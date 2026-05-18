@@ -213,6 +213,7 @@ model Organization {
   ecommerceConnections      EcommerceConnection[]
   cargoConnections          CargoConnection[]
   products                  Product[]
+  productVariants           ProductVariant[]
   listings                  Listing[]
   stockEntries              StockEntry[]
   orders                    Order[]
@@ -373,6 +374,8 @@ model Subscription {
   erpLimit            Int?
   userLimit           Int?
   addons              Json         @default("[]")
+  canceledAt          DateTime?
+  cancelReason        String?
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
 }
@@ -487,11 +490,14 @@ model Product {
   description    String?
   brand          String?
   category       String?
+  costPrice      Decimal?      @db.Decimal(12, 2)
+  tags           String[]      @default([])
   imageUrls      String[]
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
+  variants       ProductVariant[]
   listings       Listing[]
   stockEntries   StockEntry[]
   reservations   Reservation[]
@@ -499,6 +505,31 @@ model Product {
   @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([organizationId, createdAt])
+}
+
+model ProductVariant {
+  id             String    @id @default(cuid())
+  organizationId String
+  productId      String
+  sku            String
+  barcode        String?
+  title          String
+  attributes     Json
+  price          Decimal?  @db.Decimal(12, 2)
+  costPrice      Decimal?  @db.Decimal(12, 2)
+  stock          Int       @default(0)
+  imageUrl       String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sku])
+  @@index([productId])
+  @@index([organizationId, isActive])
 }
 
 // Pazaryerindeki ürün listesi (platform x ürün)

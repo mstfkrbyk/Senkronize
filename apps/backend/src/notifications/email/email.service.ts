@@ -77,6 +77,53 @@ export class EmailService {
     );
   }
 
+  async sendSubscriptionPlanChanged(
+    to: string,
+    name: string,
+    previousPlanLabel: string,
+    newPlanLabel: string,
+  ): Promise<void> {
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Abonelik planınız güncellendi',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Merhaba ${name},</h2>
+        <p>Abonelik planınız <strong>${previousPlanLabel}</strong> paketinden <strong>${newPlanLabel}</strong> paketine güncellendi.</p>
+        <p>Mevcut fatura döneminiz ve erişim süreniz korunmuştur.</p>
+        <a href="${base}/settings/subscription"
+           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Aboneliği Görüntüle
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendSubscriptionCancelled(
+    to: string,
+    name: string,
+    accessUntil: Date,
+  ): Promise<void> {
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Abonelik iptal talebiniz alındı',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Merhaba ${name},</h2>
+        <p>Abonelik iptal talebiniz kaydedildi.</p>
+        <p><strong>${accessUntil.toLocaleDateString('tr-TR')}</strong> tarihine kadar mevcut paketinizle erişiminiz devam eder.</p>
+        <a href="${base}/settings/subscription"
+           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Abonelik Ayarları
+        </a>
+      </div>
+    `,
+    );
+  }
+
   async sendSubscriptionConfirm(
     to: string,
     name: string,

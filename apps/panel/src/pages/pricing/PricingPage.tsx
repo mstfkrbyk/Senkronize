@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { useListings } from '@/pages/listings/hooks/useListings';
@@ -38,42 +38,21 @@ function hasProAccess(plan: string | undefined): boolean {
 
 export function PricingPage(): ReactElement {
   usePageTitle('Fiyatlandırma');
-  const navigate = useNavigate();
   const plan = useAuthStore((s) => s.currentOrg?.plan);
+  const proAccess = hasProAccess(plan);
   const [createOpen, setCreateOpen] = useState(false);
   const [analysisListingId, setAnalysisListingId] = useState<string>('');
 
-  const buyBoxQuery = useBuyBoxSummary();
-  const winRateQuery = useBuyBoxWinRate(7);
-  const listingsPickerQuery = useListings({ page: 1, limit: 100 });
+  const buyBoxQuery = useBuyBoxSummary(proAccess);
+  const winRateQuery = useBuyBoxWinRate(7, proAccess);
+  const listingsPickerQuery = useListings({ page: 1, limit: 100 }, proAccess);
   const listingAnalysisQuery = useBuyBoxListingAnalysis(
     analysisListingId === '' ? null : analysisListingId,
+    proAccess,
   );
-  const rulesQuery = usePricingRules();
-  const historyQuery = usePriceHistory();
+  const rulesQuery = usePricingRules(proAccess);
+  const historyQuery = usePriceHistory(undefined, proAccess);
   const runMutation = useRunPricing();
-
-  if (!hasProAccess(plan)) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 text-center">
-        <Lock className="h-12 w-12 text-muted-foreground" aria-hidden />
-        <h2 className="text-xl font-semibold text-primary">
-          Bu özellik PRO pakette mevcuttur
-        </h2>
-        <p className="max-w-md text-muted-foreground">
-          Otomatik BuyBox optimizasyonu ile rakiplerinizin önüne geçin.
-        </p>
-        <Button
-          type="button"
-          onClick={() => {
-            navigate('/settings/subscription');
-          }}
-        >
-          Paketi yükselt
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -89,7 +68,7 @@ export function PricingPage(): ReactElement {
         <Button
           type="button"
           className="shrink-0 gap-2"
-          disabled={runMutation.isPending}
+          disabled={runMutation.isPending || !proAccess}
           onClick={() => {
             runMutation.mutate();
           }}
@@ -103,9 +82,20 @@ export function PricingPage(): ReactElement {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium text-primary">BuyBox özeti</h2>
-        <BuyBoxDashboard summaryQuery={buyBoxQuery} />
+        {!proAccess ? (
+          <UpgradePrompt
+            feature="BuyBox takibi ve analiz"
+            requiredPlan="PRO"
+            currentPlan={plan}
+            description="BuyBox özeti, kazanma oranı ve listeleme analizi PRO ve Kurumsal paketlerde açıktır."
+          />
+        ) : (
+          <BuyBoxDashboard summaryQuery={buyBoxQuery} />
+        )}
       </section>
 
+      {proAccess ? (
+        <>
       <section className="space-y-3">
         <h2 className="text-lg font-medium text-primary">Win rate (son 7 gün)</h2>
         <p className="text-sm text-muted-foreground">
@@ -340,6 +330,9 @@ export function PricingPage(): ReactElement {
         <p className="text-sm text-muted-foreground">Son 20 değişiklik</p>
         <PriceHistoryTable query={historyQuery} />
       </section>
+
+        </>
+      ) : null}
 
       <CreateRuleDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>

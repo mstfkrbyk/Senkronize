@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { AuthModule } from '../auth/auth.module';
 import { EventModule } from '../event/event.module';
+import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PartnerModule } from '../partner/partner.module';
 import { PaytrService } from './paytr.service';
 import { SubscriptionController } from './subscription.controller';
@@ -16,6 +17,7 @@ import { TrialExpiryTask } from './trial-expiry.task';
     }),
     AuthModule,
     EventModule,
+    InAppNotificationModule,
     PartnerModule,
   ],
   controllers: [SubscriptionController],
