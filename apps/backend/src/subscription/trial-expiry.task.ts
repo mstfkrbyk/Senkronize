@@ -1,11 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { SubStatus, UserRole } from '@prisma/client';
+import { PlanTier, SubStatus, UserRole } from '@prisma/client';
 
 import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const MS_PER_DAY = 86_400_000;
+
+const SUGGESTED_TRIAL_FOLLOWUP_PLAN_LABEL: Record<PlanTier, string> = {
+  BASLANGIC: 'Senkronize — Başlangıç Paketi',
+  GELISIM: 'Senkronize — Gelişim Paketi',
+  PRO: 'Senkronize — Pro Paket',
+  KURUMSAL: 'Senkronize — Kurumsal Paket',
+};
 
 @Injectable()
 export class TrialExpiryTask {
@@ -14,7 +22,12 @@ export class TrialExpiryTask {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly config: ConfigService,
   ) {}
+
+  private panelBaseUrl(): string {
+    return this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com';
+  }
 
   @Cron(CronExpression.EVERY_HOUR)
   async checkExpiredTrials(): Promise<void> {
@@ -78,11 +91,41 @@ export class TrialExpiryTask {
       }
 
       try {
-        await this.emailService.sendTrialExpiring(
-          owner.email,
-          owner.name ?? 'Merhaba',
-          3,
-        );
+        const [ordersCount, syncJobsCount] = await Promise.all([
+          this.prisma.order.count({
+            where: {
+              organizationId: sub.organizationId,
+              deletedAt: null,
+              createdAt: { gte: sub.createdAt },
+            },
+          }),
+          this.prisma.listing.count({
+            where: {
+              organizationId: sub.organizationId,
+              deletedAt: null,
+              lastSyncAt: { gte: sub.createdAt },
+            },
+          }),
+        ]);
+
+        const suggestedLabel =
+          SUGGESTED_TRIAL_FOLLOWUP_PLAN_LABEL[sub.plan];
+
+        await this.emailService.sendTrialExpiring(owner.email, {
+          name: owner.name ?? 'Merhaba',
+          trialEndDate: sub.trialEndsAt.toLocaleDateString('tr-TR'),
+          daysLeft: 3,
+          lostFeatures: [
+            'Çoklu pazaryeri ve kanal senkronizasyonu',
+            'Otomatik stok ve fiyat güncellemeleri',
+            'Sipariş, kargo ve ERP entegrasyonları',
+          ],
+          currentPlanLabel: 'Ücretsiz deneme',
+          suggestedPlanLabel: suggestedLabel,
+          subscribeUrl: `${this.panelBaseUrl()}/settings/subscription`,
+          ordersCount,
+          syncJobsCount,
+        });
         await this.prisma.auditLog.create({
           data: {
             actorUserId: owner.id,

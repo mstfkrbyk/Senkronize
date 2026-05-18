@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
+import { EmailTemplateService } from './email-template.service';
 import { EmailService } from './email.service';
 
 describe('EmailService', () => {
@@ -18,8 +19,9 @@ describe('EmailService', () => {
       }),
     } as unknown as ConfigService;
 
-    const service = new EmailService(config);
-    await service.sendWelcome('user@example.com', 'Ali');
+    const templateService = new EmailTemplateService(config);
+    const service = new EmailService(config, templateService);
+    await service.sendWelcome('user@example.com', { name: 'Ali' });
 
     expect(postSpy).not.toHaveBeenCalled();
     postSpy.mockRestore();

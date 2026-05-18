@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ödeme onayı</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="padding:24px 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#0f172a;">
+              Ödeme onaylandı
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 24px 16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#475569;line-height:1.55;">
+              Merhaba <strong>{{recipientName}}</strong>,<br />
+              <strong>{{planName}}</strong> planı için ödemeniz başarıyla alındı.
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                <tr style="background-color:#f8fafc;">
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;">Fatura no</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;font-weight:600;text-align:right;">{{invoiceNumber}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;border-top:1px solid #e2e8f0;">Tarih</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:right;border-top:1px solid #e2e8f0;">{{invoiceDate}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#334155;">
+              Firma bilgileri
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;">
+              <div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#475569;line-height:1.55;padding:14px;border:1px solid #e2e8f0;border-radius:10px;background-color:#fafafa;">
+                <strong style="color:#0f172a;">{{companyName}}</strong><br />
+                {{companyTaxId}}<br />
+                {{companyAddressLines}}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:700;color:#334155;">
+              Ücret detayı
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e2e8f0;border-radius:10px;">
+                <tr>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;">Plan</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;text-align:right;font-weight:600;">{{planName}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;border-top:1px solid #e2e8f0;">Dönem</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:right;border-top:1px solid #e2e8f0;">{{billingPeriodLabel}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;border-top:1px solid #e2e8f0;">Ara toplam (KDV hariç)</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:right;border-top:1px solid #e2e8f0;">{{amountExclVatTry}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;border-top:1px solid #e2e8f0;">KDV ({{vatRatePercent}})</td>
+                  <td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:right;border-top:1px solid #e2e8f0;">{{vatAmountTry}}</td>
+                </tr>
+                <tr style="background-color:#eef2ff;">
+                  <td style="padding:14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#312e81;border-top:1px solid #c7d2fe;">KDV dahil toplam</td>
+                  <td style="padding:14px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#312e81;text-align:right;border-top:1px solid #c7d2fe;">{{totalInclVatTry}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#475569;">
+              Sonraki ödeme tarihi: <strong>{{nextPaymentDate}}</strong>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 24px 24px 24px;">
+              <a href="{{invoiceDownloadUrl}}" style="display:inline-block;padding:14px 28px;background-color:#6366f1;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;">
+                Faturayı İndir
+              </a>
+              <p style="margin:12px 0 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;">PDF indirme bağlantısı yakında panel üzerinden sunulacaktır.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background-color:#0f172a;text-align:center;">
+              <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#cbd5e1;line-height:1.5;">
+                Senkronize | Tüm pazaryerleriniz tek panelde
+              </p>
+              <a href="{{unsubscribeUrl}}" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#93c5fd;text-decoration:underline;">
+                E-posta tercihlerini yönet
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

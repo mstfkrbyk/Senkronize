@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { NotificationType, UserRole } from '@prisma/client';
 
@@ -14,7 +15,12 @@ export class StockAlertTask {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly inAppNotificationService: InAppNotificationService,
+    private readonly config: ConfigService,
   ) {}
+
+  private panelBaseUrl(): string {
+    return this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com';
+  }
 
   @Cron('0 8 * * *')
   async checkLowStock(): Promise<void> {
@@ -70,7 +76,7 @@ export class StockAlertTask {
           deletedAt: null,
           quantity: { lte: 5, gt: 0 },
         },
-        select: { title: true, quantity: true },
+        select: { title: true, quantity: true, barcode: true },
         take: 10,
         orderBy: { quantity: 'asc' },
       });
@@ -83,11 +89,17 @@ export class StockAlertTask {
         },
       });
 
-      await this.emailService.sendLowStockAlert(
-        admin.email,
-        admin.name ?? 'Merhaba',
-        lowProducts.map((p) => ({ name: p.title, stock: p.quantity })),
-      );
+      await this.emailService.sendLowStockAlert(admin.email, {
+        recipientName: admin.name ?? 'Merhaba',
+        count: totalLow,
+        products: lowProducts.map((p) => ({
+          name: p.title,
+          sku: p.barcode,
+          currentStock: p.quantity,
+          threshold: 5,
+        })),
+        stockUpdateUrl: `${this.panelBaseUrl()}/stock`,
+      });
 
       try {
         await this.inAppNotificationService.create({

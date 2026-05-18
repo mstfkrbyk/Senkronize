@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   NotificationType,
   PaymentStatus,
@@ -15,6 +16,7 @@ import {
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { EmailService } from '../notifications/email/email.service';
+import type { InvoiceEmailData } from '../notifications/email/email-template.types';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -35,6 +37,20 @@ const PLAN_LABEL_TR: Record<PlanTier, string> = {
   PRO: 'Senkronize — Pro Paket',
   KURUMSAL: 'Senkronize — Kurumsal Paket',
 };
+
+const PLAN_TIER_RANK: Record<PlanTier, number> = {
+  BASLANGIC: 0,
+  GELISIM: 1,
+  PRO: 2,
+  KURUMSAL: 3,
+};
+
+function formatTryAmount(amount: number): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+  }).format(amount);
+}
 
 /** Paket yenilemesinde uygulanan limit varsayılanları */
 const PLAN_LIMITS: Record<
@@ -77,6 +93,17 @@ const PLAN_LIMITS: Record<
   },
 };
 
+function planLimitFeatureLines(plan: PlanTier): string[] {
+  const L = PLAN_LIMITS[plan];
+  return [
+    `Aylık sipariş limiti: ${L.monthlyOrderLimit.toLocaleString('tr-TR')}`,
+    `Pazaryeri bağlantısı: ${L.marketplaceLimit}`,
+    `E-ticaret bağlantısı: ${L.ecommerceLimit}`,
+    `ERP bağlantısı: ${L.erpLimit}`,
+    `Kullanıcı kotası: ${L.userLimit}`,
+  ];
+}
+
 @Injectable()
 export class SubscriptionService {
   private readonly logger = new Logger(SubscriptionService.name);
@@ -88,7 +115,13 @@ export class SubscriptionService {
     private readonly emailService: EmailService,
     private readonly partnerService: PartnerService,
     private readonly inAppNotificationService: InAppNotificationService,
+    private readonly config: ConfigService,
   ) {}
+
+  /** Panel taban URL (e-posta bağlantıları) */
+  private panelBaseUrl(): string {
+    return this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com';
+  }
 
   /** DB'de limit null ise paket varsayılanı */
   effectiveMarketplaceLimit(subscription: Subscription): number {
@@ -184,13 +217,21 @@ export class SubscriptionService {
       },
     });
     if (owner?.email) {
+      const isUpgrade =
+        PLAN_TIER_RANK[newPlan] > PLAN_TIER_RANK[previousPlan];
+      const newFeatures = isUpgrade
+        ? planLimitFeatureLines(newPlan)
+        : [];
       void this.emailService
-        .sendSubscriptionPlanChanged(
-          owner.email,
-          owner.name ?? 'Merhaba',
-          PLAN_LABEL_TR[previousPlan],
-          PLAN_LABEL_TR[newPlan],
-        )
+        .sendSubscriptionPlanChanged(owner.email, {
+          name: owner.name ?? 'Merhaba',
+          previousPlanLabel: PLAN_LABEL_TR[previousPlan],
+          newPlanLabel: PLAN_LABEL_TR[newPlan],
+          effectiveDate: new Date().toLocaleDateString('tr-TR'),
+          newFeatures,
+          exploreUrl: `${this.panelBaseUrl()}/settings/subscription`,
+          isUpgrade,
+        })
         .catch((error: unknown) => {
           this.logger.error('Plan değişikliği e-postası gönderilemedi', {
             organizationId,
@@ -632,13 +673,33 @@ export class SubscriptionService {
         },
       });
       if (ownerForEmail?.email) {
+        const organization = await this.prisma.organization.findFirst({
+          where: { id: payment.organizationId, deletedAt: null },
+        });
+        const totalTry = totalKurus / 100;
+        const amountExclVat = totalTry / 1.2;
+        const vatAmount = totalTry - amountExclVat;
+        const addressParts = [organization?.address, organization?.city].filter(
+          (v): v is string => typeof v === 'string' && v.trim().length > 0,
+        );
+        const invoiceData: InvoiceEmailData = {
+          recipientName: ownerForEmail.name ?? 'Merhaba',
+          invoiceNumber: `INV-${payment.id.slice(-10).toUpperCase()}`,
+          invoiceDate: periodStart.toLocaleDateString('tr-TR'),
+          companyName: organization?.name ?? '—',
+          companyTaxId: organization?.taxNumber ?? '',
+          companyAddress: addressParts.join('\n'),
+          planName: PLAN_LABEL_TR[payment.plan],
+          billingPeriodLabel: `${periodStart.toLocaleDateString('tr-TR')} — ${periodEnd.toLocaleDateString('tr-TR')}`,
+          amountExclVatTry: formatTryAmount(amountExclVat),
+          vatRatePercent: '%20',
+          vatAmountTry: formatTryAmount(vatAmount),
+          totalInclVatTry: formatTryAmount(totalTry),
+          invoiceDownloadUrl: `${this.panelBaseUrl()}/settings/subscription`,
+          nextPaymentDate: nextBilling.toLocaleDateString('tr-TR'),
+        };
         void this.emailService
-          .sendSubscriptionConfirm(
-            ownerForEmail.email,
-            ownerForEmail.name ?? 'Merhaba',
-            PLAN_LABEL_TR[payment.plan],
-            nextBilling,
-          )
+          .sendSubscriptionConfirm(ownerForEmail.email, invoiceData)
           .catch((error: unknown) => {
             this.logger.error('Abonelik onay e-postası gönderilemedi', {
               organizationId: payment.organizationId,

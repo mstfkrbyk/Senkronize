@@ -2,13 +2,27 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
+import type {
+  InvoiceEmailData,
+  LowStockEmailData,
+  OrderEmailData,
+  PartnerInviteData,
+  PlanChangedData,
+  TrialExpiringData,
+  WelcomeEmailData,
+} from './email-template.types';
+import { EmailTemplateService } from './email-template.service';
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private readonly apiKey: string;
   private readonly from = 'Senkronize <noreply@senkronize.com>';
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly templateService: EmailTemplateService,
+  ) {
     this.apiKey = this.config.get<string>('RESEND_API_KEY') ?? '';
   }
 
@@ -38,66 +52,69 @@ export class EmailService {
     }
   }
 
-  async sendWelcome(to: string, name: string): Promise<void> {
-    const base = this.panelBaseUrl();
+  async sendWelcome(to: string, data: WelcomeEmailData): Promise<void> {
+    const html = this.templateService.renderWelcome(data);
     await this.send(
       to,
-      "Senkronize'ye Hoş Geldiniz!",
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h1 style="color:#1a1a1a">Hoş Geldiniz, ${name}!</h1>
-        <p>Senkronize hesabınız başarıyla oluşturuldu.</p>
-        <p>14 günlük ücretsiz deneme süreniz başladı. Panele giriş yaparak ilk bağlantınızı ekleyebilirsiniz.</p>
-        <a href="${base}/connections"
-           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
-          Panele Git
-        </a>
-        <p style="color:#666;font-size:14px;margin-top:32px">Senkronize Ekibi</p>
-      </div>
-    `,
+      `Senkronize'a Hoşgeldiniz, ${data.name}! 🎉`,
+      html,
     );
   }
 
-  async sendTrialExpiring(to: string, name: string, daysLeft: number): Promise<void> {
-    const base = this.panelBaseUrl();
+  async sendOrderNew(to: string, data: OrderEmailData): Promise<void> {
+    const html = this.templateService.renderOrderNew(data);
     await this.send(
       to,
-      `Deneme süreniz ${daysLeft} gün içinde bitiyor`,
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>Merhaba ${name},</h2>
-        <p>Senkronize ücretsiz deneme sürenizin bitmesine <strong>${daysLeft} gün</strong> kaldı.</p>
-        <p>Hizmet kesintisi yaşamamak için bir plan seçin.</p>
-        <a href="${base}/settings/subscription"
-           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
-          Plan Seç
-        </a>
-      </div>
-    `,
+      `Yeni Sipariş: #${data.orderNumber} - ${data.platform}`,
+      html,
+    );
+  }
+
+  async sendLowStockAlert(to: string, data: LowStockEmailData): Promise<void> {
+    const html = this.templateService.renderLowStock(data);
+    await this.send(
+      to,
+      `⚠️ ${data.count} Ürününüzde Stok Kritik Seviyede`,
+      html,
+    );
+  }
+
+  async sendTrialExpiring(to: string, data: TrialExpiringData): Promise<void> {
+    const html = this.templateService.renderTrialExpiring(data);
+    await this.send(
+      to,
+      `Deneme Süreniz ${data.daysLeft} Gün İçinde Sona Eriyor`,
+      html,
     );
   }
 
   async sendSubscriptionPlanChanged(
     to: string,
-    name: string,
-    previousPlanLabel: string,
-    newPlanLabel: string,
+    data: PlanChangedData,
   ): Promise<void> {
-    const base = this.panelBaseUrl();
+    const html = this.templateService.renderPlanChanged(data);
     await this.send(
       to,
-      'Abonelik planınız güncellendi',
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>Merhaba ${name},</h2>
-        <p>Abonelik planınız <strong>${previousPlanLabel}</strong> paketinden <strong>${newPlanLabel}</strong> paketine güncellendi.</p>
-        <p>Mevcut fatura döneminiz ve erişim süreniz korunmuştur.</p>
-        <a href="${base}/settings/subscription"
-           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
-          Aboneliği Görüntüle
-        </a>
-      </div>
-    `,
+      `Planınız ${data.newPlanLabel} Olarak Güncellendi`,
+      html,
+    );
+  }
+
+  async sendPartnerInvite(to: string, data: PartnerInviteData): Promise<void> {
+    const html = this.templateService.renderPartnerInvite(data);
+    await this.send(
+      to,
+      `${data.partnerName} Sizi Senkronize'a Davet Ediyor`,
+      html,
+    );
+  }
+
+  async sendInvoice(to: string, data: InvoiceEmailData): Promise<void> {
+    const html = this.templateService.renderInvoice(data);
+    await this.send(
+      to,
+      `Ödeme Onaylandı - ${data.planName} Planı`,
+      html,
     );
   }
 
@@ -116,7 +133,7 @@ export class EmailService {
         <p>Abonelik iptal talebiniz kaydedildi.</p>
         <p><strong>${accessUntil.toLocaleDateString('tr-TR')}</strong> tarihine kadar mevcut paketinizle erişiminiz devam eder.</p>
         <a href="${base}/settings/subscription"
-           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+           style="background:#6366f1;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
           Abonelik Ayarları
         </a>
       </div>
@@ -126,53 +143,9 @@ export class EmailService {
 
   async sendSubscriptionConfirm(
     to: string,
-    name: string,
-    plan: string,
-    nextBillingDate: Date,
+    data: InvoiceEmailData,
   ): Promise<void> {
-    const base = this.panelBaseUrl();
-    await this.send(
-      to,
-      `${plan} planı aktivasyon onayı`,
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>Merhaba ${name},</h2>
-        <p><strong>${plan}</strong> planınız aktive edildi.</p>
-        <p>Sonraki fatura tarihi: <strong>${nextBillingDate.toLocaleDateString('tr-TR')}</strong></p>
-        <a href="${base}"
-           style="background:#4f46e5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
-          Panele Git
-        </a>
-      </div>
-    `,
-    );
-  }
-
-  async sendLowStockAlert(
-    to: string,
-    name: string,
-    products: { name: string; stock: number }[],
-  ): Promise<void> {
-    const rows = products
-      .map(
-        (p) =>
-          `<tr><td style="padding:8px;border-bottom:1px solid #eee">${p.name}</td><td style="padding:8px;border-bottom:1px solid #eee;color:#ef4444">${p.stock}</td></tr>`,
-      )
-      .join('');
-    await this.send(
-      to,
-      `${products.length} ürünün stoğu kritik seviyede`,
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>Merhaba ${name},</h2>
-        <p>Aşağıdaki ürünlerin stok seviyesi kritik eşiğin altına düştü:</p>
-        <table style="width:100%;border-collapse:collapse">
-          <thead><tr><th style="text-align:left;padding:8px;background:#f5f5f5">Ürün</th><th style="text-align:left;padding:8px;background:#f5f5f5">Stok</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `,
-    );
+    await this.sendInvoice(to, data);
   }
 
   async sendOutOfStockWeeklyReport(
