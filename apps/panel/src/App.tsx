@@ -13,6 +13,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
+import { AuditLogPage } from '@/pages/audit/AuditLogPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { ConnectionsPage } from '@/pages/connections/ConnectionsPage';
@@ -54,6 +55,7 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
+                <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />
                 <Route path="/partner" element={<PartnerPage />} />

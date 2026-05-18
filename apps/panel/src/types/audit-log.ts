@@ -9,3 +9,10 @@ export interface AuditLogEntry {
   createdAt: string;
   metadata: Record<string, unknown>;
 }
+
+export interface AuditLogsPageResponse {
+  logs: AuditLogEntry[];
+  total: number;
+  page: number;
+  limit: number;
+}

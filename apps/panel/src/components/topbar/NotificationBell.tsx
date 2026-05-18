@@ -14,6 +14,12 @@ import { useUiStore, type Notification, type NotificationType } from '@/store/ui
 import { Bell } from 'lucide-react';
 
 const VALID_TYPES: readonly NotificationType[] = [
+  'sync_error',
+  'sync_success',
+  'low_stock',
+  'order_new',
+  'buybox_won',
+  'trial_expiring',
   'order',
   'stock',
   'system',

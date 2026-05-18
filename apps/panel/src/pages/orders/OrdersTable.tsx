@@ -83,8 +83,10 @@ function StatusBadge({ status }: { status: OrderStatus }): ReactElement {
 
 export function OrdersTable({ orders, onRowClick }: Props): ReactElement {
   return (
-    <div className="rounded-md border">
-      <Table>
+    <div className="overflow-x-auto -mx-4 sm:mx-0">
+      <div className="inline-block min-w-[700px] w-full sm:min-w-0">
+        <div className="rounded-md border">
+          <Table className="min-w-[700px] sm:min-w-full">
         <TableHeader>
           <TableRow>
             <TableHead>Platform</TableHead>
@@ -137,6 +139,8 @@ export function OrdersTable({ orders, onRowClick }: Props): ReactElement {
           ))}
         </TableBody>
       </Table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -10,12 +10,14 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/store/auth.store';
 
 export function SidebarNav(): ReactElement {
   const location = useLocation();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const visibleItems = NAV_ITEMS.filter(
     (item) => !item.partnerOnly || orgType === 'PARTNER',
@@ -42,7 +44,14 @@ export function SidebarNav(): ReactElement {
                   isActive={isActive}
                   tooltip={item.label}
                 >
-                  <NavLink to={item.path}>
+                  <NavLink
+                    to={item.path}
+                    onClick={() => {
+                      if (isMobile) {
+                        setOpenMobile(false);
+                      }
+                    }}
+                  >
                     <Icon className="size-4 shrink-0" />
                     <span className="truncate">{item.label}</span>
                     {item.badge === 'canlı' ? (

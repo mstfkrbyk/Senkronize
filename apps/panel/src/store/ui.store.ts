@@ -1,7 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type NotificationType = 'order' | 'stock' | 'system' | 'payment';
+export type NotificationType =
+  | 'sync_error'
+  | 'sync_success'
+  | 'low_stock'
+  | 'order_new'
+  | 'buybox_won'
+  | 'trial_expiring'
+  | 'order'
+  | 'stock'
+  | 'system'
+  | 'payment';
 
 export interface Notification {
   id: string;

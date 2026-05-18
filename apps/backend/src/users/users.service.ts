@@ -14,6 +14,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditLogsQueryDto } from './audit-logs-query.dto';
 import {
   InviteUserDto,
   UpdateNotificationPreferencesDto,
@@ -34,11 +35,31 @@ export interface AuditLogListItem {
   metadata: Record<string, unknown>;
 }
 
+export interface AuditLogsPageResult {
+  logs: AuditLogListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 function metadataToRecord(value: Prisma.JsonValue): Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return value as Record<string, unknown>;
+}
+
+function buildAuditActionWhere(
+  actionFilter: string | undefined,
+): Prisma.StringFilter | undefined {
+  const rawAction =
+    typeof actionFilter === 'string' ? actionFilter.trim() : '';
+  if (rawAction.length === 0) {
+    return undefined;
+  }
+  return rawAction.endsWith('*')
+    ? { startsWith: rawAction.slice(0, -1) }
+    : { equals: rawAction };
 }
 
 const NOTIFICATION_PREF_BOOLEAN_KEYS = [
@@ -89,14 +110,7 @@ export class UsersService {
     actionFilter?: string,
   ): Promise<AuditLogListItem[]> {
     const take = Math.min(Math.max(limit, 1), 100);
-    const rawAction =
-      typeof actionFilter === 'string' ? actionFilter.trim() : '';
-    const actionWhere =
-      rawAction.length > 0
-        ? rawAction.endsWith('*')
-          ? { startsWith: rawAction.slice(0, -1) }
-          : { equals: rawAction }
-        : undefined;
+    const actionWhere = buildAuditActionWhere(actionFilter);
 
     const logs = await this.prisma.auditLog.findMany({
       where: {
@@ -131,6 +145,122 @@ export class UsersService {
         metadata: metadataToRecord(l.metadata),
       };
     });
+  }
+
+  async getAuditLogsPage(
+    organizationId: string,
+    query: AuditLogsQueryDto,
+  ): Promise<AuditLogsPageResult> {
+    const page = Math.max(1, query.page ?? 1);
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const skip = (page - 1) * limit;
+
+    const actionWhere = buildAuditActionWhere(query.action);
+
+    const createdAtFilter: Prisma.DateTimeFilter = {};
+    if (query.from) {
+      const from = new Date(query.from);
+      if (!Number.isNaN(from.getTime())) {
+        createdAtFilter.gte = from;
+      }
+    }
+    if (query.to) {
+      const to = new Date(query.to);
+      if (!Number.isNaN(to.getTime())) {
+        createdAtFilter.lte = to;
+      }
+    }
+
+    const emailTrim = query.userEmail?.trim();
+    let actorUserIn: Prisma.AuditLogWhereInput | undefined;
+    if (emailTrim && emailTrim.length > 0) {
+      const orgMembers = await this.prisma.user.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          email: { contains: emailTrim, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      const impersonationActorRows = await this.prisma.auditLog.findMany({
+        where: { impersonatedOrgId: organizationId },
+        select: { actorUserId: true },
+        distinct: ['actorUserId'],
+      });
+      const impersonationActorIds = [
+        ...new Set(impersonationActorRows.map((r) => r.actorUserId)),
+      ];
+      let partnerMatchIds: string[] = [];
+      if (impersonationActorIds.length > 0) {
+        partnerMatchIds = (
+          await this.prisma.user.findMany({
+            where: {
+              id: { in: impersonationActorIds },
+              deletedAt: null,
+              email: { contains: emailTrim, mode: 'insensitive' },
+            },
+            select: { id: true },
+          })
+        ).map((u) => u.id);
+      }
+      const allowed = [
+        ...new Set([...orgMembers.map((u) => u.id), ...partnerMatchIds]),
+      ];
+      if (allowed.length === 0) {
+        return { logs: [], total: 0, page, limit };
+      }
+      actorUserIn = { actorUserId: { in: allowed } };
+    }
+
+    const where: Prisma.AuditLogWhereInput = {
+      AND: [
+        {
+          OR: [
+            { actorOrgId: organizationId },
+            { impersonatedOrgId: organizationId },
+          ],
+        },
+        ...(actionWhere ? [{ action: actionWhere }] : []),
+        ...(Object.keys(createdAtFilter).length > 0
+          ? [{ createdAt: createdAtFilter }]
+          : []),
+        ...(actorUserIn ? [actorUserIn] : []),
+      ],
+    };
+
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    const userIds = [...new Set(logs.map((l) => l.actorUserId))];
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, email: true, name: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const items: AuditLogListItem[] = logs.map((l) => {
+      const u = userMap.get(l.actorUserId);
+      return {
+        id: l.id,
+        action: l.action,
+        resource: l.resourceType,
+        resourceId: l.resourceId,
+        userId: l.actorUserId,
+        userEmail: u?.email ?? null,
+        userName: u?.name ?? null,
+        createdAt: l.createdAt.toISOString(),
+        metadata: metadataToRecord(l.metadata),
+      };
+    });
+
+    return { logs: items, total, page, limit };
   }
 
   async list(organizationId: string) {

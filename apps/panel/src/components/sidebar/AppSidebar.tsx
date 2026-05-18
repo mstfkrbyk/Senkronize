@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
+import { NotificationBell } from '@/components/topbar/NotificationBell';
 import { SidebarNav } from '@/components/sidebar/SidebarNav';
 import { SidebarUser } from '@/components/sidebar/SidebarUser';
 import {
@@ -60,6 +61,9 @@ export function AppSidebar(): ReactElement {
         <SidebarNav />
       </SidebarContent>
       <SidebarFooter className="gap-2 border-t border-sidebar-border p-2">
+        <div className="hidden w-full justify-center px-1 md:flex">
+          <NotificationBell />
+        </div>
         <SidebarUser />
         <SidebarSeparator className="bg-sidebar-border" />
         <CollapseToggle />

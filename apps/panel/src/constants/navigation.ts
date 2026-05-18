@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowRightLeft,
   BarChart2,
+  History,
   LayoutDashboard,
   Package,
   Plug,
@@ -29,6 +30,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Fiyatlandırma', icon: Tag, path: '/pricing', badge: 'PRO' },
   { label: 'Entegrasyonlar', icon: Plug, path: '/connections' },
   { label: 'Sync Durumu', icon: Activity, path: '/sync-logs' },
+  { label: 'Aktivite Geçmişi', icon: History, path: '/audit-logs' },
   { label: 'Raporlar', icon: BarChart2, path: '/reports' },
   { label: 'Geçiş sihirbazı', icon: ArrowRightLeft, path: '/migration' },
   {

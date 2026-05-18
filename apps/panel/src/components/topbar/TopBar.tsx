@@ -92,7 +92,9 @@ export function TopBar(): ReactElement {
         )}
       </div>
 
-      <NotificationBell />
+      <div className="shrink-0 md:hidden">
+        <NotificationBell />
+      </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
