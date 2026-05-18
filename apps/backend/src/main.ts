@@ -30,7 +30,7 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  app.use(compression());
+  app.use(compression({ threshold: 1024, level: 6 }));
 
   const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
     .split(',')
@@ -125,6 +125,13 @@ async function bootstrap(): Promise<void> {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: { persistAuthorization: true },
+  });
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.endsWith('docs-json')) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+    }
+    next();
   });
 
   const port = process.env.BACKEND_PORT ?? 3001;

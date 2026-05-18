@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { InjectQueue } from '@nestjs/bull';
 import {
   BadRequestException,
@@ -9,6 +11,8 @@ import { Marketplace, Prisma, type Listing } from '@prisma/client';
 import type { Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
+import { readThroughCache } from '../common/cache/cache.decorator';
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
@@ -76,17 +80,41 @@ export interface ListingDetailResponse {
   buyBox: ListingDetailBuyBox | null;
 }
 
+const listingFindAllSelect = {
+  id: true,
+  organizationId: true,
+  productId: true,
+  platform: true,
+  platformProductId: true,
+  barcode: true,
+  title: true,
+  salePrice: true,
+  listPrice: true,
+  quantity: true,
+  approved: true,
+  imageUrls: true,
+  lastSyncAt: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+} satisfies Prisma.ListingSelect;
+
+type ListingFindAllRow = Prisma.ListingGetPayload<{
+  select: typeof listingFindAllSelect;
+}>;
+
 @Injectable()
 export class ListingService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     @InjectQueue(QUEUE_MARKETPLACE_PULL)
     private readonly marketplacePullQueue: Queue<MarketplacePullJobData>,
   ) {}
 
-  private serializeListing(row: Listing): SerializedListing {
+  private serializeListing(row: Listing | ListingFindAllRow): SerializedListing {
     return {
       ...row,
       salePrice: row.salePrice.toString(),
@@ -94,7 +122,44 @@ export class ListingService {
     };
   }
 
+  private listingFindAllCacheKey(
+    organizationId: string,
+    query: ListingQueryDto,
+  ): string {
+    const payload = {
+      page: query.page ?? 1,
+      limit: query.limit ?? 20,
+      platforms: query.platforms?.length
+        ? [...query.platforms].sort().join(',')
+        : '',
+      platform: query.platform ?? '',
+      approved: query.approved ?? '',
+      stockTier: query.stockTier ?? '',
+      search: query.search ?? '',
+      minSalePrice: query.minSalePrice ?? '',
+      maxSalePrice: query.maxSalePrice ?? '',
+      lastSyncAtSince: query.lastSyncAtSince ?? '',
+      lastSyncAtUntil: query.lastSyncAtUntil ?? '',
+      category: query.category ?? '',
+    };
+    const digest = createHash('sha256')
+      .update(JSON.stringify(payload))
+      .digest('hex')
+      .slice(0, 24);
+    return CacheService.key('listings', organizationId, digest);
+  }
+
   async findAll(
+    organizationId: string,
+    query: ListingQueryDto,
+  ): Promise<{ items: SerializedListing[]; total: number }> {
+    const cacheKey = this.listingFindAllCacheKey(organizationId, query);
+    return readThroughCache(this.cache, cacheKey, 300, async () =>
+      this.findAllUncached(organizationId, query),
+    );
+  }
+
+  private async findAllUncached(
     organizationId: string,
     query: ListingQueryDto,
   ): Promise<{ items: SerializedListing[]; total: number }> {
@@ -185,9 +250,10 @@ export class ListingService {
       }),
     };
 
-    const [rows, total] = await Promise.all([
+    const [rows, total] = await this.prisma.$transaction([
       this.prisma.listing.findMany({
         where,
+        select: listingFindAllSelect,
         orderBy: { updatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -244,6 +310,7 @@ export class ListingService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.cache.invalidateListingsForOrg(organizationId);
   }
 
   async getListingDetail(
@@ -345,6 +412,9 @@ export class ListingService {
         },
       });
     }
+    if (listings.length > 0) {
+      await this.cache.invalidateListingsForOrg(organizationId);
+    }
   }
 
   /**
@@ -376,6 +446,7 @@ export class ListingService {
       where,
       data: { approved: opts.approved, lastSyncAt: new Date() },
     });
+    await this.cache.invalidateListingsForOrg(organizationId);
   }
 
   async triggerSync(organizationId: string): Promise<{ jobIds: string[] }> {
@@ -428,6 +499,7 @@ export class ListingService {
         listPrice: new Prisma.Decimal(listPrice),
       },
     });
+    await this.cache.invalidateListingsForOrg(organizationId);
   }
 
   async updateStock(
@@ -474,6 +546,7 @@ export class ListingService {
         update: { quantity },
       });
     });
+    await this.cache.invalidateListingsForOrg(organizationId);
   }
 
   async findListingIdByPlatformProduct(
@@ -503,6 +576,7 @@ export class ListingService {
       where: { id: listingId },
       data: { imageUrls: { push: imageUrl } },
     });
+    await this.cache.invalidateListingsForOrg(organizationId);
   }
 
   async bulkUpdateStockAndPrice(
@@ -586,6 +660,9 @@ export class ListingService {
         }
         updated++;
       }
+    }
+    if (updated > 0) {
+      await this.cache.invalidateListingsForOrg(organizationId);
     }
     return { updated };
   }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
 
+import { readThroughCache } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -75,6 +76,13 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.TEKNOSA]: 'Teknosa',
   [Marketplace.KOTON]: 'Koton',
   [Marketplace.MAVI]: 'Mavi',
+  [Marketplace.ALLEGRO]: 'Allegro',
+  [Marketplace.WILDBERRIES]: 'Wildberries',
+  [Marketplace.OZON]: 'Ozon',
+  [Marketplace.NOON]: 'Noon',
+  [Marketplace.AMAZON_EU]: 'Amazon EU',
+  [Marketplace.CDISCOUNT]: 'Cdiscount',
+  [Marketplace.KAUFLAND]: 'Kaufland',
 };
 
 @Injectable()
@@ -89,12 +97,8 @@ export class ReportsService {
     period: 'default' | '24h' | '7d' | 'month' | undefined,
   ): Promise<DashboardSummaryDto> {
     const p = period ?? 'default';
-    const cacheKey = CacheService.key('reports', organizationId, 'dashboard', p);
-    const cached = await this.cache.get<DashboardSummaryDto>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
+    const cacheKey = CacheService.key('dashboard', organizationId, p);
+    return readThroughCache(this.cache, cacheKey, 120, async () => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);
@@ -222,7 +226,7 @@ export class ReportsService {
       );
     }
 
-    const summary: DashboardSummaryDto = {
+    return {
       todayOrders,
       todayOrdersDelta,
       pendingOrders,
@@ -234,8 +238,7 @@ export class ReportsService {
       windowOrdersPrev,
       windowOrdersDeltaPct,
     };
-    await this.cache.set(cacheKey, summary, 60);
-    return summary;
+    });
   }
 
   async getSalesReport(
@@ -246,8 +249,8 @@ export class ReportsService {
   ): Promise<SalesReportRow[]> {
     const cacheKey = CacheService.key(
       'reports',
-      organizationId,
       'sales',
+      organizationId,
       startDate.toISOString(),
       endDate.toISOString(),
       groupBy,
@@ -405,6 +408,15 @@ export class ReportsService {
     organizationId: string,
     params: { from: Date; to: Date; platform?: Marketplace },
   ): Promise<ProfitReportDto> {
+    const cacheKey = CacheService.key(
+      'reports',
+      'profit',
+      organizationId,
+      params.from.toISOString(),
+      params.to.toISOString(),
+      params.platform ?? 'all',
+    );
+    return readThroughCache(this.cache, cacheKey, 1800, async () => {
     const orderWhere: Prisma.OrderWhereInput = {
       organizationId,
       deletedAt: null,
@@ -515,11 +527,19 @@ export class ReportsService {
       byPlatform,
       topProducts,
     };
+    });
   }
 
   async getStockValueReport(
     organizationId: string,
   ): Promise<StockValueReportDto> {
+    const cacheKey = CacheService.key(
+      'reports',
+      'stock-value',
+      organizationId,
+      'current',
+    );
+    return readThroughCache(this.cache, cacheKey, 900, async () => {
     const listings = await this.prisma.listing.findMany({
       where: { organizationId, deletedAt: null },
       select: {
@@ -569,6 +589,7 @@ export class ReportsService {
         skuCount: v.skuCount,
       })),
     };
+    });
   }
 
   async getOrderTrend(
@@ -579,6 +600,15 @@ export class ReportsService {
       to: Date;
     },
   ): Promise<OrderTrendDto> {
+    const cacheKey = CacheService.key(
+      'reports',
+      'order-trend',
+      organizationId,
+      params.granularity,
+      params.from.toISOString(),
+      params.to.toISOString(),
+    );
+    return readThroughCache(this.cache, cacheKey, 600, async () => {
     const groupBy =
       params.granularity === 'daily'
         ? 'day'
@@ -596,6 +626,7 @@ export class ReportsService {
       orderCounts: rows.map((r) => r.totalOrders),
       revenues: rows.map((r) => r.totalRevenue),
     };
+    });
   }
 
   async getPlatformComparison(
@@ -604,16 +635,12 @@ export class ReportsService {
   ): Promise<PlatformComparisonDto> {
     const cacheKey = CacheService.key(
       'reports',
-      organizationId,
       'platform-comparison',
+      organizationId,
       params.from.toISOString(),
       params.to.toISOString(),
     );
-    const cached = await this.cache.get<PlatformComparisonDto>(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
+    return readThroughCache(this.cache, cacheKey, 1800, async () => {
     const baseWhere: Prisma.OrderWhereInput = {
       organizationId,
       deletedAt: null,
@@ -708,9 +735,8 @@ export class ReportsService {
         };
       });
 
-    const result: PlatformComparisonDto = { platforms };
-    await this.cache.set(cacheKey, result, 300);
-    return result;
+    return { platforms };
+    });
   }
 
   private describeConnectionSync(

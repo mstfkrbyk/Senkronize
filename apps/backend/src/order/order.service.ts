@@ -104,7 +104,7 @@ export class OrderService {
       }),
     };
 
-    const [rows, total] = await Promise.all([
+    const [rows, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where,
         include: { items: true },
@@ -115,10 +115,53 @@ export class OrderService {
       this.prisma.order.count({ where }),
     ]);
 
+    const thumbnailByKey = await this.loadThumbnailsForOrdersPage(
+      organizationId,
+      rows,
+    );
+
     return {
-      items: rows.map((o) => this.serializeOrder(o)),
+      items: rows.map((o) => this.serializeOrder(o, thumbnailByKey)),
       total,
     };
+  }
+
+  private async loadThumbnailsForOrdersPage(
+    organizationId: string,
+    orders: (Order & { items: OrderItem[] })[],
+  ): Promise<Map<string, string | null>> {
+    const orFilters: Prisma.ListingWhereInput[] = [];
+    const seen = new Set<string>();
+    for (const o of orders) {
+      for (const i of o.items) {
+        const k = `${o.platform}:${i.barcode}`;
+        if (seen.has(k)) {
+          continue;
+        }
+        seen.add(k);
+        orFilters.push({ platform: o.platform, barcode: i.barcode });
+      }
+    }
+    if (orFilters.length === 0) {
+      return new Map();
+    }
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        OR: orFilters,
+      },
+      select: { platform: true, barcode: true, imageUrls: true },
+    });
+    const map = new Map<string, string | null>();
+    for (const row of listings) {
+      const first = row.imageUrls?.[0];
+      map.set(
+        `${row.platform}:${row.barcode}`,
+        typeof first === 'string' ? first : null,
+      );
+    }
+    return map;
   }
 
   private async loadItemThumbnails(
@@ -148,7 +191,10 @@ export class OrderService {
     const map = new Map<string, string | null>();
     for (const row of listings) {
       const first = row.imageUrls?.[0];
-      map.set(row.barcode, typeof first === 'string' ? first : null);
+      map.set(
+        `${platform}:${row.barcode}`,
+        typeof first === 'string' ? first : null,
+      );
     }
     return map;
   }
@@ -365,20 +411,22 @@ export class OrderService {
 
   private serializeOrder(
     order: Order & { items: OrderItem[] },
-    thumbnailByBarcode?: Map<string, string | null>,
+    thumbnailByKey?: Map<string, string | null>,
   ): SerializedOrder {
     return {
       ...order,
       totalAmount: order.totalAmount.toString(),
-      items: order.items.map((item) => ({
-        ...item,
-        unitPrice: item.unitPrice.toString(),
-        ...(thumbnailByBarcode?.has(item.barcode)
-          ? {
-              thumbnailUrl: thumbnailByBarcode.get(item.barcode) ?? null,
-            }
-          : {}),
-      })),
+      items: order.items.map((item) => {
+        const thumbKey = `${order.platform}:${item.barcode}`;
+        const base: SerializedOrderItem = {
+          ...item,
+          unitPrice: item.unitPrice.toString(),
+        };
+        if (thumbnailByKey?.has(thumbKey)) {
+          base.thumbnailUrl = thumbnailByKey.get(thumbKey) ?? null;
+        }
+        return base;
+      }),
     };
   }
 }

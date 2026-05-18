@@ -66,29 +66,59 @@ export class CacheService implements OnModuleDestroy {
     }
   }
 
-  async delByPattern(pattern: string): Promise<void> {
+  /**
+   * SCAN ile anahtar silme (KEYS yerine; üretim yükü için daha güvenli).
+   */
+  async delPattern(pattern: string): Promise<void> {
     if (!this.redis) {
       return;
     }
     try {
-      const keys = await this.redis.keys(pattern);
-      if (keys.length > 0) {
-        await this.redis.del(...keys);
-      }
+      let cursor = '0';
+      do {
+        const [next, keys] = await this.redis.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          256,
+        );
+        cursor = next;
+        if (keys.length > 0) {
+          const batchSize = 500;
+          for (let i = 0; i < keys.length; i += batchSize) {
+            const slice = keys.slice(i, i + batchSize);
+            await this.redis.unlink(...slice);
+          }
+        }
+      } while (String(cursor) !== '0');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Cache delByPattern failed: ${message}`);
+      this.logger.warn(`Cache delPattern failed: ${message}`);
     }
   }
 
-  /** Rapor önbelleğini temizle (sipariş senkronu vb.) */
+  async delByPattern(pattern: string): Promise<void> {
+    await this.delPattern(pattern);
+  }
+
+  /** Rapor + panel özet önbelleğini temizle (sipariş senkronu vb.) */
   async invalidateReportsForOrg(organizationId: string): Promise<void> {
-    await this.delByPattern(CacheService.key('reports', organizationId, '*'));
+    await Promise.all([
+      this.delPattern(CacheService.key('reports', '*', organizationId, '*')),
+      this.delPattern(CacheService.key('reports', organizationId, '*')),
+      this.delPattern(CacheService.key('dashboard', organizationId, '*')),
+    ]);
   }
 
   /** Ürün listesi önbelleğini temizle */
   async invalidateProductsForOrg(organizationId: string): Promise<void> {
-    await this.delByPattern(CacheService.key('products', organizationId, '*'));
+    await this.delPattern(CacheService.key('products', organizationId, '*'));
+  }
+
+  /** Listeleme listesi önbelleğini temizle */
+  async invalidateListingsForOrg(organizationId: string): Promise<void> {
+    await this.delPattern(CacheService.key('listings', organizationId, '*'));
   }
 
   static key(...parts: (string | number)[]): string {
