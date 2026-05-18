@@ -37,7 +37,7 @@ import { ProductService } from './product.service';
 const PRODUCT_IMAGE_LIMIT = 5 * 1024 * 1024;
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
-@ApiTags('Ürünler')
+@ApiTags('products')
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {

@@ -15,7 +15,7 @@ import type { Request } from 'express';
 
 import { WebhookService } from './webhook.service';
 
-@ApiTags('Webhooklar')
+@ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhookController {
   constructor(private readonly webhookService: WebhookService) {}

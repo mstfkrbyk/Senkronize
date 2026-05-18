@@ -91,9 +91,23 @@ async function bootstrap(): Promise<void> {
 
   const config = new DocumentBuilder()
     .setTitle('Senkronize API')
-    .setDescription('Pazaryeri/ERP entegrasyon platformu API')
+    .setDescription('E-ticaret entegrasyon platformu API dokümantasyonu')
     .setVersion('1.0')
     .addBearerAuth()
+    .addTag('auth', 'Kimlik doğrulama')
+    .addTag('organizations', 'Organizasyon yönetimi')
+    .addTag('users', 'Kullanıcı yönetimi')
+    .addTag('marketplace-connections', 'Pazaryeri bağlantıları')
+    .addTag('erp-connections', 'ERP bağlantıları')
+    .addTag('orders', 'Siparişler')
+    .addTag('products', 'Ürünler')
+    .addTag('listings', 'Listelemeler')
+    .addTag('pricing', 'Fiyatlandırma ve BuyBox')
+    .addTag('reports', 'Raporlar')
+    .addTag('partner', 'Partner/bayi sistemi')
+    .addTag('admin', 'Super admin')
+    .addTag('sync', 'Senkronizasyon durumu')
+    .addTag('webhooks', 'Webhook işleme')
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);

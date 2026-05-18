@@ -49,7 +49,7 @@ type AdminSubscriptionListItem = Prisma.SubscriptionGetPayload<{
   include: typeof ADMIN_SUBSCRIPTION_LIST_INCLUDE;
 }>;
 
-@ApiTags('Admin')
+@ApiTags('admin')
 @ApiBearerAuth()
 @Controller('admin')
 @UseGuards(JwtAuthGuard, SuperAdminGuard)

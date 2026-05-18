@@ -30,7 +30,7 @@ import {
   type SerializedListing,
 } from './listing.service';
 
-@ApiTags('Listelemeler')
+@ApiTags('listings')
 @ApiBearerAuth()
 @Controller('listings')
 export class ListingController {

@@ -31,7 +31,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 import { JwtRefreshValidatedUser } from './jwt-refresh.strategy';
 
-@ApiTags('Auth')
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

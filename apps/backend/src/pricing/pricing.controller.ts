@@ -37,7 +37,7 @@ import {
 import type { BuyBoxSummaryResponse, PriceHistoryItemResponse } from './pricing.service';
 import { PricingService } from './pricing.service';
 
-@ApiTags('Fiyatlandırma')
+@ApiTags('pricing')
 @ApiBearerAuth()
 @RequiresPlan(PlanTier.PRO)
 @UseGuards(JwtAuthGuard, SubscriptionGuard)

@@ -10,7 +10,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SyncStatusService } from './sync-status.service';
 import type { SyncHealthStatus } from './sync-status.types';
 
-@ApiTags('Senkronizasyon')
+@ApiTags('sync')
 @ApiBearerAuth()
 @Controller('sync')
 export class SyncStatusController {

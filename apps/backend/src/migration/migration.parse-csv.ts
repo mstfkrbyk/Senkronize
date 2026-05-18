@@ -30,7 +30,13 @@ export function parseCsvRows(csv: string): MigrationRow[] {
 
   return lines.slice(1).map((line) => {
     const cols = line.split(sep);
-    const saleRaw = getCol(cols, ['saleprice', 'satisfiyati', 'fiyat', 'price']);
+    const saleRaw = getCol(cols, [
+      'saleprice',
+      'satisfiyati',
+      'satışfiyatı',
+      'fiyat',
+      'price',
+    ]);
     const listRaw = getCol(cols, [
       'listprice',
       'listeprice',
@@ -51,6 +57,8 @@ export function parseCsvRows(csv: string): MigrationRow[] {
           'ad',
           'ürün',
           'urun',
+          'ürünadı',
+          'urunadi',
           'isim',
           'productname',
           'baslik',
@@ -66,5 +74,6 @@ export function parseCsvRows(csv: string): MigrationRow[] {
       description: getCol(cols, ['description', 'aciklama', 'açıklama']),
       imageUrl: getCol(cols, ['imageurl', 'gorsel', 'resim', 'url']),
     };
-  });
+  })
+    .filter((row) => row.barcode.length > 0 && row.name.length > 0);
 }

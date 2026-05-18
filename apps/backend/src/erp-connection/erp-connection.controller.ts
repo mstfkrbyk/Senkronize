@@ -27,7 +27,7 @@ import {
 } from './erp-connection.dto';
 import { ErpConnectionService } from './erp-connection.service';
 
-@ApiTags('ERP bağlantıları')
+@ApiTags('erp-connections')
 @ApiBearerAuth()
 @Controller('erp-connections')
 export class ErpConnectionController {

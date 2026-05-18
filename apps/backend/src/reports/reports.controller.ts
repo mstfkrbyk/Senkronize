@@ -31,7 +31,7 @@ import type {
   TopProductRow,
 } from './reports.types';
 
-@ApiTags('Raporlar')
+@ApiTags('reports')
 @ApiBearerAuth()
 @Controller('reports')
 export class ReportsController {

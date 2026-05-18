@@ -1,12 +1,15 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   ForbiddenException,
   Get,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -29,7 +32,7 @@ import {
 } from './partner.dto';
 import { PartnerService } from './partner.service';
 
-@ApiTags('Partner')
+@ApiTags('partner')
 @ApiBearerAuth()
 @Controller('partner')
 @UseGuards(JwtAuthGuard)
@@ -42,7 +45,7 @@ export class PartnerController {
   @ApiResponse({ status: 403 })
   async getClients(
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<PartnerRelationship[]> {
+  ): Promise<Awaited<ReturnType<PartnerService['getMyClients']>>> {
     return this.partnerService.getMyClients(user.organizationId);
   }
 
@@ -54,6 +57,40 @@ export class PartnerController {
     @Body() dto: InviteClientDto,
   ): Promise<{ inviteUrl: string }> {
     return this.partnerService.inviteClient(user.organizationId, dto);
+  }
+
+  @Get('clients/:clientOrgId')
+  @ApiOperation({ summary: 'Müşteri özeti (partner erişimi)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 403 })
+  async getClientDetail(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('clientOrgId') clientOrgId: string,
+  ): Promise<Awaited<ReturnType<PartnerService['getClientDetail']>>> {
+    return this.partnerService.getClientDetail(
+      user.organizationId,
+      clientOrgId,
+    );
+  }
+
+  @Post('clients/:clientOrgId/access')
+  @ApiOperation({ summary: 'Müşteri hesabına geçiş tokenı' })
+  @ApiResponse({ status: 200 })
+  async accessClient(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('clientOrgId') clientOrgId: string,
+  ): Promise<{ impersonationToken: string; expiresIn: number }> {
+    if (user.isImpersonating) {
+      throw new ForbiddenException(
+        'Zaten müşteri adına oturum açık; önce normal oturuma dönün.',
+      );
+    }
+    return this.partnerService.startClientAccess(
+      user.organizationId,
+      clientOrgId,
+      user.id,
+      user.role,
+    );
   }
 
   @Delete('clients/:id')
@@ -79,6 +116,30 @@ export class PartnerController {
       user.organizationId,
       id,
       dto,
+    );
+  }
+
+  @Get('dashboard')
+  @ApiOperation({ summary: 'Partner paneli özeti' })
+  @ApiResponse({ status: 200 })
+  async getPartnerDashboard(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['getDashboard']>>> {
+    return this.partnerService.getDashboard(user.organizationId);
+  }
+
+  @Get('commissions')
+  @ApiOperation({ summary: 'Komisyon geçmişi (sayfalı)' })
+  @ApiResponse({ status: 200 })
+  async getCommissions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
+  ): Promise<Awaited<ReturnType<PartnerService['getCommissions']>>> {
+    return this.partnerService.getCommissions(
+      user.organizationId,
+      page,
+      limit,
     );
   }
 

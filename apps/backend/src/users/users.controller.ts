@@ -30,7 +30,7 @@ import {
 } from './users.dto';
 import { UsersService } from './users.service';
 
-@ApiTags('Users')
+@ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {

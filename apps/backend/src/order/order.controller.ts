@@ -12,7 +12,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OrderQueryDto, type OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
 
-@ApiTags('Siparişler')
+@ApiTags('orders')
 @ApiBearerAuth()
 @Controller('orders')
 export class OrderController {

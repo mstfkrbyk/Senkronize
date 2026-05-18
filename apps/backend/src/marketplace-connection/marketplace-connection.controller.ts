@@ -27,7 +27,7 @@ import {
 } from './marketplace-connection.dto';
 import { MarketplaceConnectionService } from './marketplace-connection.service';
 
-@ApiTags('Pazaryeri bağlantıları')
+@ApiTags('marketplace-connections')
 @ApiBearerAuth()
 @Controller('marketplace-connections')
 export class MarketplaceConnectionController {

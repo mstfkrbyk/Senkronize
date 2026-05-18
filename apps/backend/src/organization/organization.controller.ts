@@ -16,7 +16,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { UpdateOrganizationDto } from './organization.dto';
 import { OrganizationService } from './organization.service';
 
-@ApiTags('Organizations')
+@ApiTags('organizations')
 @ApiBearerAuth()
 @Controller('organizations')
 export class OrganizationController {
