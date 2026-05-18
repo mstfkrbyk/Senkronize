@@ -14,6 +14,7 @@ import { ImageModule } from './image/image.module';
 import { ImpersonationModule } from './impersonation/impersonation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ListingModule } from './listing/listing.module';
+import { MigrationModule } from './migration/migration.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
 import { OrderModule } from './order/order.module';
@@ -78,6 +79,7 @@ import { WebhookModule } from './webhook/webhook.module';
     OrganizationModule,
     OrderModule,
     ListingModule,
+    MigrationModule,
     ImageModule,
     ProductModule,
     PricingModule,

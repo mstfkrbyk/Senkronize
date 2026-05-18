@@ -19,6 +19,7 @@ import { ConnectionsPage } from '@/pages/connections/ConnectionsPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
 import { ListingsPage } from '@/pages/listings/ListingsPage';
+import { MigrationPage } from '@/pages/migration/MigrationPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 import { OrdersPage } from '@/pages/orders/OrdersPage';
@@ -54,6 +55,7 @@ export default function App(): ReactElement {
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/migration" element={<MigrationPage />} />
                 <Route path="/partner" element={<PartnerPage />} />
                 <Route path="/settings/subscription" element={<SettingsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
