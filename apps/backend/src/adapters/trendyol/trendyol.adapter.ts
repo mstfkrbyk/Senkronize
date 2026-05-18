@@ -9,7 +9,15 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { TRENDYOL_BASE_URL, TRENDYOL_INTEGRATOR_ID } from './trendyol.constants';
+import {
+  TRENDYOL_BASE_URL,
+  TRENDYOL_PRODUCTS,
+  TRENDYOL_SELLER_ORDERS,
+  TRENDYOL_SHIPMENT_PROVIDERS,
+  TRENDYOL_STOCK_UPDATE,
+  TRENDYOL_USER_AGENT_SUFFIX,
+  trendyolSellerPath,
+} from './trendyol.constants';
 import type {
   TrendyolOrdersResponse,
   TrendyolProductsResponse,
@@ -26,10 +34,10 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     apiSecret: string,
   ): AxiosInstance {
     return axios.create({
-      baseURL: `${TRENDYOL_BASE_URL}/suppliers/${sellerId}`,
+      baseURL: TRENDYOL_BASE_URL,
       auth: { username: apiKey, password: apiSecret },
       headers: {
-        'User-Agent': `${sellerId} - ${TRENDYOL_INTEGRATOR_ID}`,
+        'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
         'Content-Type': 'application/json',
       },
       timeout: 15_000,
@@ -43,7 +51,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
         return false;
       }
       const client = this.getClient(sellerId, apiKey, apiSecret);
-      await client.get('/addresses');
+      await client.get(trendyolSellerPath(TRENDYOL_SHIPMENT_PROVIDERS, sellerId));
       return true;
     } catch (error) {
       this.logger.warn('Trendyol bağlantı testi başarısız', {
@@ -71,11 +79,14 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       status: 'Created,Picking,Invoiced,Shipped,Delivered',
     };
 
-    const { data } = await client.get<TrendyolOrdersResponse>('/orders', {
-      params,
-    });
+    const { data } = await client.get<TrendyolOrdersResponse>(
+      trendyolSellerPath(TRENDYOL_SELLER_ORDERS, sellerId),
+      { params },
+    );
 
-    return data.content.map((o) => {
+    const rows = data.orders ?? data.content ?? [];
+
+    return rows.map((o) => {
       const first = o.shipmentAddress?.firstName ?? '';
       const last = o.shipmentAddress?.lastName ?? '';
       const customerName = `${first} ${last}`.trim() || '—';
@@ -107,12 +118,17 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     const { sellerId, apiKey, apiSecret } = credentials;
     const client = this.getClient(sellerId, apiKey, apiSecret);
 
-    const { data } = await client.get<TrendyolProductsResponse>('/products', {
-      params: { page, size: 50 },
-    });
+    const { data } = await client.get<TrendyolProductsResponse>(
+      trendyolSellerPath(TRENDYOL_PRODUCTS, sellerId),
+      { params: { page, size: 50 } },
+    );
+
+    const productRows = data.content ?? data.products ?? [];
+    const total =
+      data.totalElements ?? data.totalCount ?? productRows.length;
 
     return {
-      items: data.content.map((p) => ({
+      items: productRows.map((p) => ({
         platformProductId: p.id,
         barcode: p.barcode,
         title: p.title,
@@ -122,7 +138,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
         approved: p.approved,
         images: p.images.map((i) => i.url),
       })),
-      total: data.totalElements,
+      total,
       page: data.page,
       pageSize: 50,
     };
@@ -137,12 +153,15 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
 
     const batches = chunk(updates, 100);
     for (const batch of batches) {
-      await client.post('/products/price-and-inventory', {
-        items: batch.map((u) => ({
-          barcode: u.barcode,
-          quantity: u.quantity,
-        })),
-      });
+      await client.put(
+        trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId),
+        {
+          items: batch.map((u) => ({
+            barcode: u.barcode,
+            quantity: u.quantity,
+          })),
+        },
+      );
     }
   }
 
@@ -155,13 +174,16 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
 
     const batches = chunk(updates, 100);
     for (const batch of batches) {
-      await client.post('/products/price-and-inventory', {
-        items: batch.map((u) => ({
-          barcode: u.barcode,
-          salePrice: u.salePrice,
-          listPrice: u.listPrice,
-        })),
-      });
+      await client.put(
+        trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId),
+        {
+          items: batch.map((u) => ({
+            barcode: u.barcode,
+            salePrice: u.salePrice,
+            listPrice: u.listPrice,
+          })),
+        },
+      );
     }
   }
 }

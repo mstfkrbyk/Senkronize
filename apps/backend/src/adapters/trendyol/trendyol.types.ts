@@ -1,4 +1,4 @@
-// GET /suppliers/{sellerId}/orders
+// GET …/order/sellers/{sellerId}/orders (V2) — V1'de content, V2'de orders
 export interface TrendyolOrderLine {
   quantity: number;
   salesCampaignId: number;
@@ -38,15 +38,18 @@ export interface TrendyolOrder {
   status: string;
 }
 
+/** V1: content, totalElements — V2: orders, totalCount */
 export interface TrendyolOrdersResponse {
-  content: TrendyolOrder[];
-  totalElements: number;
+  content?: TrendyolOrder[];
+  orders?: TrendyolOrder[];
+  totalElements?: number;
+  totalCount?: number;
   totalPages: number;
   page: number;
   size: number;
 }
 
-// GET /suppliers/{sellerId}/products
+// GET …/product/sellers/{sellerId}/products
 export interface TrendyolProduct {
   id: string;
   approved: boolean;
@@ -64,8 +67,10 @@ export interface TrendyolProduct {
 }
 
 export interface TrendyolProductsResponse {
-  content: TrendyolProduct[];
-  totalElements: number;
+  content?: TrendyolProduct[];
+  products?: TrendyolProduct[];
+  totalElements?: number;
+  totalCount?: number;
   totalPages: number;
   page: number;
   size: number;

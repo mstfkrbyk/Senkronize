@@ -9,6 +9,7 @@ import {
 import { Marketplace, Prisma } from '@prisma/client';
 import type { Queue } from 'bull';
 
+import { TRENDYOL_WEBHOOK_EVENTS } from '../adapters/trendyol/trendyol.constants';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { ListingService } from '../listing/listing.service';
 import { OrderService } from '../order/order.service';
@@ -82,6 +83,13 @@ export class WebhookService {
     }
 
     const eventType = extractTrendyolEventType(parsed);
+    const normalizedType = eventType.trim().toUpperCase();
+    const v2Types = TRENDYOL_WEBHOOK_EVENTS as readonly string[];
+    if (normalizedType !== 'UNKNOWN' && !v2Types.includes(normalizedType)) {
+      this.logger.warn('Trendyol webhook beklenmeyen event tipi', {
+        eventType: normalizedType,
+      });
+    }
 
     const event = await this.prisma.webhookEvent.create({
       data: {
@@ -139,7 +147,10 @@ export class WebhookService {
   ): Promise<void> {
     const normalized = eventType.trim().toUpperCase();
 
-    if (normalized === 'ORDER_STATUS_CHANGED') {
+    if (
+      normalized === 'ORDER_STATUS_CHANGED' ||
+      normalized === 'PACKAGE_STATUS_CHANGED'
+    ) {
       const ids = extractOrderIdentifiers(payload);
       if (ids.platformOrderId && ids.status) {
         await this.orderService.updateStatusFromPlatform(
@@ -159,6 +170,20 @@ export class WebhookService {
         Marketplace.TRENDYOL,
         {
           approved: true,
+          platformProductId: product.platformProductId,
+          barcode: product.barcode,
+        },
+      );
+      return;
+    }
+
+    if (normalized === 'PRODUCT_REJECTED') {
+      const product = extractProductIdentifiers(payload);
+      await this.listingService.updateApprovalStatusFromWebhook(
+        organizationId,
+        Marketplace.TRENDYOL,
+        {
+          approved: false,
           platformProductId: product.platformProductId,
           barcode: product.barcode,
         },
