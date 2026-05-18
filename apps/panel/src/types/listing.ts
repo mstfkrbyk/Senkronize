@@ -1,4 +1,8 @@
-export type ListingPlatform = 'TRENDYOL' | 'HEPSIBURADA';
+export type ListingPlatform =
+  | 'TRENDYOL'
+  | 'HEPSIBURADA'
+  | 'TSOFT'
+  | 'TICIMAX';
 
 export interface Listing {
   id: string;

@@ -49,6 +49,8 @@ enum Marketplace {
   N11
   AMAZON_TR
   CICEKSEPETI
+  TSOFT
+  TICIMAX
 }
 
 enum PricingStrategy {

@@ -94,14 +94,15 @@ export class SubscriptionController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SubscriptionCheckoutDto,
     @Req() req: Request,
-  ): Promise<{ iframeToken: string; merchantOid: string }> {
+  ): Promise<{ iframeToken: string; merchantOid: string; token: string }> {
     const userIp = getClientIp(req);
-    return this.subscriptionService.createCheckoutToken(
+    const result = await this.subscriptionService.createCheckoutToken(
       org.id,
       user,
       dto.plan,
       userIp,
     );
+    return { ...result, token: result.iframeToken };
   }
 
   @Post('cancel')

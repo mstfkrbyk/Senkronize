@@ -33,9 +33,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePaymentHistory } from '@/hooks/usePaymentHistory';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { PlanTier, PaymentRecord, SubscriptionRecord } from '@/types/subscription';
+import type {
+  PaymentStatus,
+  PlanTier,
+  SubscriptionRecord,
+  SubscriptionStatus,
+} from '@/types/subscription';
 
 const PAYTR_IFRAME_BASE = 'https://www.paytr.com/odeme/guvenli/';
 
@@ -85,8 +91,8 @@ function planLabel(id: PlanTier): string {
   return PLANS.find((p) => p.id === id)?.name ?? map[id] ?? id;
 }
 
-function statusLabel(status: string): string {
-  const map: Record<string, string> = {
+function statusLabel(status: SubscriptionStatus): string {
+  const map: Record<SubscriptionStatus, string> = {
     TRIAL: 'Deneme',
     ACTIVE: 'Aktif',
     PAUSED: 'Duraklatıldı',
@@ -96,23 +102,139 @@ function statusLabel(status: string): string {
   return map[status] ?? status;
 }
 
-function paymentStatusLabel(s: string): string {
-  const map: Record<string, string> = {
+function paymentStatusLabel(s: PaymentStatus): string {
+  const map: Record<PaymentStatus, string> = {
     PENDING: 'Beklemede',
     SUCCESS: 'Başarılı',
     FAILED: 'Başarısız',
+    REFUNDED: 'İade',
   };
   return map[s] ?? s;
 }
 
+function PaymentStatusBadge({ status }: { status: string }): ReactElement {
+  const s = status.toUpperCase() as PaymentStatus;
+  if (s === 'SUCCESS') {
+    return (
+      <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600">
+        {paymentStatusLabel(s)}
+      </Badge>
+    );
+  }
+  if (s === 'FAILED') {
+    return (
+      <Badge variant="destructive">{paymentStatusLabel(s)}</Badge>
+    );
+  }
+  if (s === 'REFUNDED') {
+    return (
+      <Badge variant="secondary">{paymentStatusLabel(s)}</Badge>
+    );
+  }
+  return (
+    <Badge className="border-amber-300 bg-amber-100 text-amber-950 hover:bg-amber-100">
+      {paymentStatusLabel('PENDING')}
+    </Badge>
+  );
+}
+
+function trialDaysLeft(trialEndsAt: string | null): number | null {
+  if (!trialEndsAt) {
+    return null;
+  }
+  const end = new Date(trialEndsAt).getTime();
+  const diff = Math.ceil((end - Date.now()) / 86_400_000);
+  return diff > 0 ? diff : 0;
+}
+
+function SubscriptionStatusBanner({
+  sub,
+}: {
+  sub: SubscriptionRecord;
+}): ReactElement | null {
+  const endLabel = new Date(sub.currentPeriodEnd).toLocaleDateString('tr-TR');
+  const nextPay =
+    sub.nextBillingAt != null
+      ? new Date(sub.nextBillingAt).toLocaleDateString('tr-TR')
+      : endLabel;
+  const trialLeft = trialDaysLeft(sub.trialEndsAt);
+
+  if (sub.status === 'TRIAL') {
+    if (trialLeft != null) {
+      return (
+        <div
+          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          role="status"
+        >
+          <strong>Deneme süresi:</strong> 14 günlük denemeniz{' '}
+          <span className="font-semibold">{trialLeft} gün</span> daha devam ediyor.
+        </div>
+      );
+    }
+    return (
+      <div
+        className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+        role="status"
+      >
+        <strong>Deneme süresi:</strong> Deneme paketiniz aktif.
+      </div>
+    );
+  }
+
+  if (sub.status === 'ACTIVE') {
+    return (
+      <div
+        className="flex flex-col gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-950 sm:flex-row sm:items-center sm:justify-between"
+        role="status"
+      >
+        <span>
+          <strong>{planLabel(sub.plan)}</strong> paketiniz aktif.
+        </span>
+        <Badge className="w-fit border-0 bg-emerald-600 text-white hover:bg-emerald-600">
+          Sonraki ödeme: {nextPay}
+        </Badge>
+      </div>
+    );
+  }
+
+  if (sub.status === 'CANCELLED') {
+    return (
+      <div
+        className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-950"
+        role="status"
+      >
+        <strong>İptal talebi:</strong> Aboneliğiniz{' '}
+        <span className="font-semibold">{endLabel}</span> tarihinde sona erecek.
+      </div>
+    );
+  }
+
+  if (sub.status === 'EXPIRED') {
+    return (
+      <div
+        className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm text-slate-900"
+        role="status"
+      >
+        <p className="font-medium">Aboneliğiniz sona erdi.</p>
+        <p className="mt-1 text-muted-foreground">
+          Hizmete devam etmek için aşağıdan bir paket seçip ödeme yapın.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
+
 export function SubscriptionTab(): ReactElement {
   const queryClient = useQueryClient();
-  const [checkoutToken, setCheckoutToken] = useState<string | null>(null);
+  const [paytrToken, setPaytrToken] = useState<string | null>(null);
+  const [showPayment, setShowPayment] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null);
 
   const subQuery = useQuery({
-    queryKey: ['subscriptions', 'me'],
+    queryKey: ['subscription', 'me'],
     queryFn: async (): Promise<SubscriptionRecord> => {
       const { data } = await api.get<SubscriptionRecord>('/subscriptions/me');
       return data;
@@ -125,32 +247,23 @@ export function SubscriptionTab(): ReactElement {
     },
   });
 
-  const paymentsQuery = useQuery({
-    queryKey: ['subscriptions', 'payments'],
-    queryFn: async () => {
-      const { data } = await api.get<{
-        items: PaymentRecord[];
-        total: number;
-        page: number;
-        limit: number;
-      }>('/subscriptions/payments', { params: { page: 1, limit: 20 } });
-      return data;
-    },
-    enabled: subQuery.isSuccess,
-  });
+  const paymentsQuery = usePaymentHistory(subQuery.isSuccess);
 
   const currentPlan = subQuery.data?.plan ?? null;
 
   const checkoutMutation = useMutation({
-    mutationFn: async (plan: PlanTier): Promise<{ iframeToken: string }> => {
-      const { data } = await api.post<{ iframeToken: string; merchantOid: string }>(
-        '/subscriptions/checkout',
-        { plan },
-      );
-      return data;
+    mutationFn: async (plan: PlanTier): Promise<{ token: string }> => {
+      const { data } = await api.post<{
+        token: string;
+        iframeToken: string;
+        merchantOid: string;
+      }>('/subscriptions/checkout', { plan });
+      const token = data.token ?? data.iframeToken;
+      return { token };
     },
-    onSuccess: (data) => {
-      setCheckoutToken(data.iframeToken);
+    onSuccess: ({ token }) => {
+      setPaytrToken(token);
+      setShowPayment(true);
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -162,9 +275,9 @@ export function SubscriptionTab(): ReactElement {
       await api.post('/subscriptions/cancel');
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['subscriptions', 'me'] });
+      toast.success('Aboneliğiniz dönem sonunda iptal edilecek.');
+      void queryClient.invalidateQueries({ queryKey: ['subscription'] });
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      toast.success('Abonelik iptali talebiniz alındı.');
       setCancelOpen(false);
     },
     onError: (e: unknown) => {
@@ -198,25 +311,28 @@ export function SubscriptionTab(): ReactElement {
       ) : null}
 
       {subQuery.isSuccess && subQuery.data ? (
-        <Card className="max-w-xl">
-          <CardHeader>
-            <CardTitle className="text-base">Mevcut paket</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Plan:</span>{' '}
-              <span className="font-medium">{planLabel(subQuery.data.plan)}</span>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Durum:</span>{' '}
-              {statusLabel(subQuery.data.status)}
-            </p>
-            <p>
-              <span className="text-muted-foreground">Dönem sonu:</span>{' '}
-              {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <SubscriptionStatusBanner sub={subQuery.data} />
+          <Card className="max-w-xl">
+            <CardHeader>
+              <CardTitle className="text-base">Mevcut paket</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p>
+                <span className="text-muted-foreground">Plan:</span>{' '}
+                <span className="font-medium">{planLabel(subQuery.data.plan)}</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Durum:</span>{' '}
+                {statusLabel(subQuery.data.status)}
+              </p>
+              <p>
+                <span className="text-muted-foreground">Dönem sonu:</span>{' '}
+                {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -323,10 +439,12 @@ export function SubscriptionTab(): ReactElement {
                     <TableCell>
                       {new Intl.NumberFormat('tr-TR', {
                         style: 'currency',
-                        currency: 'TRY',
+                        currency: p.currency === 'TRY' || !p.currency ? 'TRY' : p.currency,
                       }).format(p.amount / 100)}
                     </TableCell>
-                    <TableCell>{paymentStatusLabel(p.status)}</TableCell>
+                    <TableCell>
+                      <PaymentStatusBadge status={p.status} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -335,16 +453,26 @@ export function SubscriptionTab(): ReactElement {
         ) : null}
       </div>
 
-      <Dialog open={checkoutToken != null} onOpenChange={() => setCheckoutToken(null)}>
-        <DialogContent className="max-w-3xl">
+      <Dialog
+        open={showPayment && paytrToken != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowPayment(false);
+            setPaytrToken(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>PayTR ödeme</DialogTitle>
+            <DialogTitle>Güvenli Ödeme</DialogTitle>
           </DialogHeader>
-          {checkoutToken ? (
+          {paytrToken ? (
             <iframe
-              title="PayTR ödeme"
-              className="h-[560px] w-full rounded-md border"
-              src={`${PAYTR_IFRAME_BASE}${checkoutToken}`}
+              title="PayTR güvenli ödeme"
+              src={`${PAYTR_IFRAME_BASE}${paytrToken}`}
+              className="w-full rounded-md border-0"
+              height={600}
+              scrolling="no"
             />
           ) : null}
         </DialogContent>

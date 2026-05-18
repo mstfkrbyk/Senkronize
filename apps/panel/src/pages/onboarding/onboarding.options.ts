@@ -20,6 +20,31 @@ export const MARKETPLACE_OPTIONS: MarketplaceOption[] = [
       { key: 'password', label: 'Şifre', type: 'password', required: true },
     ],
   },
+  {
+    id: 'TSOFT',
+    label: 'T-Soft',
+    logo: '🏬',
+    fields: [
+      {
+        key: 'storeUrl',
+        label: 'Mağaza URL',
+        type: 'text',
+        placeholder: 'https://magaza.com',
+        required: true,
+      },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'TICIMAX',
+    label: 'Ticimax',
+    logo: '🛒',
+    fields: [
+      { key: 'siteUrl', label: 'Site URL', type: 'text', required: true },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+    ],
+  },
 ];
 
 export const ERP_OPTIONS: ErpOption[] = [

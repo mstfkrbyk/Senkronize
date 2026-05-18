@@ -13,7 +13,12 @@ export type UserRole =
 export type PlanTier = 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL';
 
 /** Prisma `SubStatus` ile uyumlu */
-export type SubStatus = 'TRIAL' | 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+export type SubStatus =
+  | 'TRIAL'
+  | 'ACTIVE'
+  | 'PAUSED'
+  | 'CANCELLED'
+  | 'EXPIRED';
 
 /** Prisma `Marketplace` ile uyumlu */
 export type Marketplace =
@@ -21,7 +26,9 @@ export type Marketplace =
   | 'HEPSIBURADA'
   | 'N11'
   | 'AMAZON_TR'
-  | 'CICEKSEPETI';
+  | 'CICEKSEPETI'
+  | 'TSOFT'
+  | 'TICIMAX';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

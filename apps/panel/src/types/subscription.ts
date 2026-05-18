@@ -7,6 +7,8 @@ export type SubscriptionStatus =
 
 export type PlanTier = 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL';
 
+export type PaymentStatus = 'PENDING' | 'SUCCESS' | 'FAILED' | 'REFUNDED';
+
 export interface SubscriptionRecord {
   id: string;
   organizationId: string;
@@ -25,22 +27,22 @@ export interface SubscriptionRecord {
   updatedAt: string;
 }
 
-export interface PaymentRecord {
+export interface Payment {
   id: string;
-  organizationId: string;
   amount: number;
   currency: string;
-  status: string;
-  paytrOrderId: string;
+  status: PaymentStatus;
   plan: PlanTier;
+  createdAt: string;
   periodStart: string | null;
   periodEnd: string | null;
-  failReason: string | null;
-  createdAt: string;
 }
 
+/** @deprecated Payment ile aynı — geriye dönük uyumluluk */
+export type PaymentRecord = Payment;
+
 export interface PaymentsPage {
-  items: PaymentRecord[];
+  items: Payment[];
   total: number;
   page: number;
   limit: number;

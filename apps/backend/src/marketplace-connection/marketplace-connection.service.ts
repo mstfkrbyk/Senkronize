@@ -67,6 +67,12 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.HEPSIBURADA) {
       return creds.username ?? null;
     }
+    if (platform === Marketplace.TSOFT) {
+      return creds.storeUrl ?? null;
+    }
+    if (platform === Marketplace.TICIMAX) {
+      return creds.siteUrl ?? null;
+    }
     return null;
   }
 

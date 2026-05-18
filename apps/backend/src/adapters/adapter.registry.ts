@@ -24,6 +24,8 @@ export class AdapterRegistry {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['TRENDYOL', trendyol],
       ['HEPSIBURADA', hepsiburada],
+      ['TSOFT', tsoft],
+      ['TICIMAX', ticimax],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],
