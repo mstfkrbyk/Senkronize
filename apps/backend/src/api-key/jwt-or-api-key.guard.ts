@@ -3,54 +3,38 @@ import {
   type ExecutionContext,
   Injectable,
 } from '@nestjs/common';
-
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-
-import { ApiKeyAuthGuard } from './api-key-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
 
 const SK_LIVE = 'sk_live_';
 
-function readBearerToken(req: {
+function hasApiKey(req: {
   headers?: Record<string, string | string[] | undefined>;
-}): string | null {
+}): boolean {
   const authz = req.headers?.authorization;
-  if (typeof authz !== 'string' || !authz.startsWith('Bearer ')) {
-    return null;
+  if (typeof authz === 'string' && authz.startsWith('Bearer ')) {
+    return authz.slice(7).trim().startsWith(SK_LIVE);
   }
-  return authz.slice(7).trim();
+  const xKey = req.headers?.['x-api-key'] ?? req.headers?.['X-Api-Key'];
+  const key = Array.isArray(xKey) ? xKey[0] : xKey;
+  return typeof key === 'string' && key.startsWith(SK_LIVE);
 }
 
-function readXApiKey(req: {
-  headers?: Record<string, string | string[] | undefined>;
-}): string | null {
-  const raw = req.headers?.['x-api-key'] ?? req.headers?.['X-Api-Key'];
-  if (Array.isArray(raw)) {
-    return typeof raw[0] === 'string' ? raw[0] : null;
-  }
-  return typeof raw === 'string' ? raw : null;
-}
+const JwtGuard = AuthGuard('jwt');
+const ApiKeyGuard = AuthGuard('api-key');
 
 @Injectable()
 export class JwtOrApiKeyGuard implements CanActivate {
-  constructor(
-    private readonly jwtGuard: JwtAuthGuard,
-    private readonly apiKeyGuard: ApiKeyAuthGuard,
-  ) {}
-
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<{
       headers?: Record<string, string | string[] | undefined>;
     }>();
-    const bearer = readBearerToken(req);
-    const xKey = readXApiKey(req);
-    const usesApiKey =
-      (bearer != null && bearer.startsWith(SK_LIVE)) ||
-      (xKey != null && xKey.startsWith(SK_LIVE));
 
-    if (usesApiKey) {
-      return (await this.apiKeyGuard.canActivate(context)) as boolean;
+    if (hasApiKey(req)) {
+      const guard = new ApiKeyGuard();
+      return (await guard.canActivate(context)) as boolean;
     }
 
-    return (await this.jwtGuard.canActivate(context)) as boolean;
+    const guard = new JwtGuard();
+    return (await guard.canActivate(context)) as boolean;
   }
 }
