@@ -6,7 +6,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "test": "jest --config ./jest.config.ts",
-    "test:cov": "jest --config ./jest.config.ts --coverage",
+    "test:cov": "jest --config ./jest.config.ts --coverage --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.config.ts --runInBand",
     "lint": "eslint src --ext .ts",
     "type-check": "pnpm --filter @senkronize/shared run build && tsc --noEmit -p tsconfig.build.json",
