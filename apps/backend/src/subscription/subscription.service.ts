@@ -13,6 +13,7 @@ import {
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { EmailService } from '../notifications/email/email.service';
+import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
@@ -81,6 +82,7 @@ export class SubscriptionService {
     private readonly paytrService: PaytrService,
     private readonly encryptionService: EncryptionService,
     private readonly emailService: EmailService,
+    private readonly partnerService: PartnerService,
   ) {}
 
   async getSubscription(organizationId: string): Promise<unknown> {
@@ -317,6 +319,14 @@ export class SubscriptionService {
           });
         }
       });
+
+      const paymentAmountTry = totalKurus / 100;
+      await this.partnerService.recordCommission(
+        payment.organizationId,
+        paymentAmountTry,
+        `Abonelik ödemesi (${payment.plan})`,
+        payment.id,
+      );
 
       const ownerForEmail = await this.prisma.user.findFirst({
         where: {

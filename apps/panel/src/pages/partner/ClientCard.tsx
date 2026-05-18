@@ -29,7 +29,7 @@ import { useImpersonationStore } from '@/store/impersonation.store';
 import type { PartnerRelationship, PartnerStatus } from '@/types/partner';
 
 import {
-  useStartImpersonation,
+  usePartnerClientAccess,
   useTerminateRelationship,
 } from './hooks/usePartner';
 
@@ -65,7 +65,7 @@ export function ClientCard({ relationship }: Props): ReactElement {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const startImpersonation = useImpersonationStore((s) => s.startImpersonation);
-  const startImp = useStartImpersonation();
+  const startImp = usePartnerClientAccess();
   const terminate = useTerminateRelationship();
   const [confirmOpen, setConfirmOpen] = useState(false);
 

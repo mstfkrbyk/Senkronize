@@ -3,8 +3,9 @@ import type { ReactElement } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth.store';
 
-import { ClientsTab } from './ClientsTab';
-import { CommissionTab } from './CommissionTab';
+import { PartnerCommissionHistoryTab } from './PartnerCommissionHistoryTab';
+import { PartnerDashboardTab } from './PartnerDashboardTab';
+import { PartnerInviteTab } from './PartnerInviteTab';
 
 export function PartnerPage(): ReactElement {
   const orgType = useAuthStore((s) => s.currentOrg?.type);
@@ -25,20 +26,24 @@ export function PartnerPage(): ReactElement {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-primary">Partner Paneli</h1>
         <p className="text-muted-foreground">
-          Müşterilerinizi ve komisyonlarınızı buradan yönetin.
+          Müşterilerinizi, davetlerinizi ve komisyonlarınızı buradan yönetin.
         </p>
       </div>
 
-      <Tabs defaultValue="clients" className="w-full">
+      <Tabs defaultValue="dashboard" className="w-full">
         <TabsList>
-          <TabsTrigger value="clients">Müşteriler</TabsTrigger>
-          <TabsTrigger value="commission">Komisyon</TabsTrigger>
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="invite">Müşteri Davet</TabsTrigger>
+          <TabsTrigger value="commissions">Komisyon Geçmişi</TabsTrigger>
         </TabsList>
-        <TabsContent value="clients" className="mt-6">
-          <ClientsTab />
+        <TabsContent value="dashboard" className="mt-6">
+          <PartnerDashboardTab />
         </TabsContent>
-        <TabsContent value="commission" className="mt-6">
-          <CommissionTab />
+        <TabsContent value="invite" className="mt-6">
+          <PartnerInviteTab />
+        </TabsContent>
+        <TabsContent value="commissions" className="mt-6">
+          <PartnerCommissionHistoryTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { AuthModule } from '../auth/auth.module';
 import { EventModule } from '../event/event.module';
+import { PartnerModule } from '../partner/partner.module';
 import { PaytrService } from './paytr.service';
 import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
@@ -15,6 +16,7 @@ import { TrialExpiryTask } from './trial-expiry.task';
     }),
     AuthModule,
     EventModule,
+    PartnerModule,
   ],
   controllers: [SubscriptionController],
   providers: [PaytrService, SubscriptionService, TrialExpiryTask],

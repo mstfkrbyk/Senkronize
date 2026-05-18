@@ -5,6 +5,8 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type {
   CommissionSummary,
+  PartnerCommissionsPage,
+  PartnerDashboard,
   PartnerRelationship,
 } from '@/types/partner';
 
@@ -48,19 +50,48 @@ export function useInviteClient() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partner', 'clients'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'commissions'] });
     },
   });
 }
 
-export function useStartImpersonation() {
+export function usePartnerDashboard() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  return useQuery({
+    queryKey: ['partner', 'dashboard'],
+    queryFn: async (): Promise<PartnerDashboard> => {
+      const { data } = await api.get<PartnerDashboard>('/partner/dashboard');
+      return data;
+    },
+    enabled: orgType === 'PARTNER',
+  });
+}
+
+export function usePartnerCommissions(page: number, limit: number) {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  return useQuery({
+    queryKey: ['partner', 'commissions', page, limit],
+    queryFn: async (): Promise<PartnerCommissionsPage> => {
+      const { data } = await api.get<PartnerCommissionsPage>(
+        '/partner/commissions',
+        { params: { page, limit } },
+      );
+      return data;
+    },
+    enabled: orgType === 'PARTNER',
+  });
+}
+
+export function usePartnerClientAccess() {
   return useMutation({
     mutationFn: async (
       clientOrgId: string,
-    ): Promise<{ impersonationToken: string }> => {
-      const { data } = await api.post<{ impersonationToken: string }>(
-        '/impersonation/start',
-        { clientOrgId },
-      );
+    ): Promise<{ impersonationToken: string; expiresIn: number }> => {
+      const { data } = await api.post<{
+        impersonationToken: string;
+        expiresIn: number;
+      }>(`/partner/clients/${clientOrgId}/access`);
       return data;
     },
   });
@@ -74,6 +105,8 @@ export function useTerminateRelationship() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partner', 'clients'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'dashboard'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'commissions'] });
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -99,7 +132,7 @@ export function useAcceptPartnerInvite() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (token: string): Promise<void> => {
-      await api.post('/partner/accept-invite', { token });
+      await api.post('/partner/accept-invite', { inviteToken: token });
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partner', 'my-partners'] });

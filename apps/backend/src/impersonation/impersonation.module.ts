@@ -21,5 +21,6 @@ import { ImpersonationService } from './impersonation.service';
   ],
   controllers: [ImpersonationController],
   providers: [ImpersonationService],
+  exports: [ImpersonationService],
 })
 export class ImpersonationModule {}
