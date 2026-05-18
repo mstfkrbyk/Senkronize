@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -21,6 +22,7 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
   useDeleteErpConnection,
@@ -31,14 +33,47 @@ import {
 import { getApiErrorMessage } from '@/lib/api';
 import { getErpBranding } from '@/pages/connections/erp-display';
 
-import { EditErpConnectionDialog } from './EditErpConnectionDialog';
-
 interface Props {
   connection: ErpConnectionDto;
+  onEditPress: (connection: ErpConnectionDto) => void;
 }
 
-export function ErpConnectionCard({ connection }: Props): ReactElement {
-  const [editOpen, setEditOpen] = useState(false);
+type ErpStatusUi = 'active' | 'error' | 'inactive';
+
+function deriveErpStatus(connection: ErpConnectionDto): ErpStatusUi {
+  if (!connection.isActive) {
+    return 'inactive';
+  }
+  if (connection.syncErrorCount >= 3) {
+    return 'error';
+  }
+  return 'active';
+}
+
+function ErpStatusBadge({ status }: { status: ErpStatusUi }): ReactElement {
+  const config: Record<ErpStatusUi, { label: string; className: string }> = {
+    active: {
+      label: 'Aktif',
+      className: 'border-green-200 bg-green-50 text-green-800',
+    },
+    error: {
+      label: 'Hata',
+      className: 'border-red-200 bg-red-50 text-red-800',
+    },
+    inactive: {
+      label: 'Bağlantı Yok',
+      className: 'border-slate-200 bg-slate-100 text-slate-700',
+    },
+  };
+  const c = config[status];
+  return (
+    <Badge variant="outline" className={c.className}>
+      {c.label}
+    </Badge>
+  );
+}
+
+export function ErpConnectionCard({ connection, onEditPress }: Props): ReactElement {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const testMutation = useTestErpConnection();
   const toggleMutation = useToggleErpConnection();
@@ -53,6 +88,8 @@ export function ErpConnectionCard({ connection }: Props): ReactElement {
           locale: tr,
         })
       : 'Henüz senkron yok';
+
+  const status = deriveErpStatus(connection);
 
   const handleTest = (): void => {
     testMutation.mutate(
@@ -100,25 +137,27 @@ export function ErpConnectionCard({ connection }: Props): ReactElement {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-lg font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               <span aria-hidden>{logo}</span>
               <span>{label}</span>
+              <ErpStatusBadge status={status} />
             </div>
             <p className="text-sm text-muted-foreground">
               {accountFieldLabel}: {connection.accountLabel ?? '—'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {connection.isActive ? 'Aktif' : 'Pasif'}
-            </span>
+          <div className="flex flex-col items-end gap-1">
+            <Label htmlFor={`active-erp-${connection.id}`} className="text-xs text-muted-foreground">
+              Bağlantıyı etkinleştir
+            </Label>
             <Switch
+              id={`active-erp-${connection.id}`}
               checked={connection.isActive}
               disabled={toggleMutation.isPending}
               onCheckedChange={(v) => {
                 handleActiveChange(v);
               }}
-              aria-label="ERP bağlantısı aktif"
+              aria-label="Bağlantıyı etkinleştir"
             />
           </div>
         </CardHeader>
@@ -149,7 +188,7 @@ export function ErpConnectionCard({ connection }: Props): ReactElement {
             size="sm"
             variant="secondary"
             onClick={() => {
-              setEditOpen(true);
+              onEditPress(connection);
             }}
           >
             Düzenle
@@ -166,12 +205,6 @@ export function ErpConnectionCard({ connection }: Props): ReactElement {
           </Button>
         </CardFooter>
       </Card>
-
-      <EditErpConnectionDialog
-        connection={connection}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

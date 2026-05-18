@@ -1,16 +1,17 @@
-import type { ErpOption, MarketplaceOption } from '@/pages/onboarding/onboarding.types';
-
 import {
+  type ConnectionFormFieldDef,
   ERP_CONNECTION_FORM_FIELDS,
   ERP_TYPE_IDS,
+  ECOMMERCE_MARKETPLACE_IDS,
   MARKETPLACE_CONNECTION_FORM_FIELDS,
   MARKETPLACE_PLATFORM_IDS,
-  ECOMMERCE_MARKETPLACE_IDS,
 } from '@/lib/connection-form-fields';
 import { getErpDisplay, getMarketplaceDisplay } from '@/lib/platform-display';
-
-import type { ConnectionFormFieldDef } from '@/lib/connection-form-fields';
-import type { CredentialField } from '@/pages/onboarding/onboarding.types';
+import type {
+  CredentialField,
+  ErpOption,
+  MarketplaceOption,
+} from '@/pages/onboarding/onboarding.types';
 
 function toCredentialField(f: ConnectionFormFieldDef): CredentialField {
   const type: CredentialField['type'] =

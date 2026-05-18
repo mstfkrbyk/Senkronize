@@ -1,23 +1,29 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Plug } from 'lucide-react';
 
+import {
+  ConnectionFormModal,
+  type ConnectionFormModalConfig,
+} from '@/components/ConnectionFormModal';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
-import { useErpConnections } from '@/hooks/useErpConnections';
+import { useErpConnections, type ErpConnectionDto } from '@/hooks/useErpConnections';
+import { ECOMMERCE_MARKETPLACE_IDS } from '@/lib/connection-form-fields';
 import { getApiErrorMessage } from '@/lib/api';
+import type { MarketplaceConnectionDto } from '@/types/connection';
 
-import { AddConnectionDialog } from './AddConnectionDialog';
-import { AddErpConnectionDialog } from './AddErpConnectionDialog';
 import { ConnectionCard } from './ConnectionCard';
 import { ErpConnectionCard } from './ErpConnectionCard';
 
+const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
+
 export function ConnectionsPage(): ReactElement {
-  const [activeTab, setActiveTab] = useState('marketplace');
-  const [addMarketplaceOpen, setAddMarketplaceOpen] = useState(false);
-  const [addErpOpen, setAddErpOpen] = useState(false);
+  const [mainTab, setMainTab] = useState<'marketplace' | 'ecommerce' | 'erp'>('marketplace');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
 
   const {
     data: connections,
@@ -35,11 +41,47 @@ export function ConnectionsPage(): ReactElement {
     refetch: refetchErp,
   } = useErpConnections();
 
-  const openAddDialog = (): void => {
-    if (activeTab === 'erp') {
-      setAddErpOpen(true);
+  const marketplaceOnly = useMemo((): MarketplaceConnectionDto[] => {
+    return (connections ?? []).filter((c) => !ECOMMERCE_SET.has(c.platform));
+  }, [connections]);
+
+  const ecommerceOnly = useMemo((): MarketplaceConnectionDto[] => {
+    return (connections ?? []).filter((c) => ECOMMERCE_SET.has(c.platform));
+  }, [connections]);
+
+  const openAddModal = (): void => {
+    if (mainTab === 'erp') {
+      setModalConfig({ kind: 'erp', mode: 'create' });
+    } else if (mainTab === 'ecommerce') {
+      setModalConfig({
+        kind: 'marketplace',
+        mode: 'create',
+        listFilter: 'ecommerce',
+      });
     } else {
-      setAddMarketplaceOpen(true);
+      setModalConfig({
+        kind: 'marketplace',
+        mode: 'create',
+        listFilter: 'marketplace',
+      });
+    }
+    setModalOpen(true);
+  };
+
+  const openEditMarketplace = (c: MarketplaceConnectionDto): void => {
+    setModalConfig({ kind: 'marketplace', mode: 'edit', connection: c });
+    setModalOpen(true);
+  };
+
+  const openEditErp = (c: ErpConnectionDto): void => {
+    setModalConfig({ kind: 'erp', mode: 'edit', connection: c });
+    setModalOpen(true);
+  };
+
+  const handleModalOpenChange = (next: boolean): void => {
+    setModalOpen(next);
+    if (!next) {
+      setModalConfig(null);
     }
   };
 
@@ -48,22 +90,24 @@ export function ConnectionsPage(): ReactElement {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Entegrasyonlar
+            Bağlantılar
           </h1>
           <p className="text-muted-foreground">
-            Pazaryeri ve altyapı bağlantılarınızı yönetin.
+            Pazaryeri, e-ticaret siteniz ve ERP entegrasyonlarınızı yönetin.
           </p>
         </div>
-        <Button type="button" onClick={() => openAddDialog()}>
-          Yeni Ekle
+        <Button type="button" onClick={() => openAddModal()}>
+          Bağlantı Ekle
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
+        <TabsList className="flex h-auto flex-wrap gap-1">
           <TabsTrigger value="marketplace">Pazaryerleri</TabsTrigger>
-          <TabsTrigger value="erp">ERP / Altyapı</TabsTrigger>
+          <TabsTrigger value="ecommerce">E-Ticaret</TabsTrigger>
+          <TabsTrigger value="erp">ERP</TabsTrigger>
         </TabsList>
+
         <TabsContent value="marketplace" className="mt-6">
           {mpLoading ? (
             <div className="grid gap-4 md:grid-cols-2">
@@ -90,34 +134,99 @@ export function ConnectionsPage(): ReactElement {
             </div>
           ) : null}
 
-          {!mpLoading && !mpError && (connections ?? []).length === 0 ? (
+          {!mpLoading && !mpError && marketplaceOnly.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
               <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-              <h2 className="text-lg font-medium">Henüz entegrasyon yok</h2>
+              <h2 className="text-lg font-medium">Henüz pazaryeri bağlantısı yok</h2>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Pazaryeri hesaplarınızı bağlayarak sipariş ve stok
-                senkronizasyonuna başlayın.
+                Pazaryeri hesaplarınızı bağlayarak sipariş ve stok senkronizasyonuna başlayın.
               </p>
               <Button
                 type="button"
                 className="mt-6"
                 onClick={() => {
-                  setAddMarketplaceOpen(true);
+                  setMainTab('marketplace');
+                  setModalConfig({
+                    kind: 'marketplace',
+                    mode: 'create',
+                    listFilter: 'marketplace',
+                  });
+                  setModalOpen(true);
                 }}
               >
-                İlk entegrasyonu ekle
+                Pazaryeri bağlantısı ekle
               </Button>
             </div>
           ) : null}
 
-          {!mpLoading && !mpError && (connections ?? []).length > 0 ? (
+          {!mpLoading && !mpError && marketplaceOnly.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
-              {(connections ?? []).map((c) => (
-                <ConnectionCard key={c.id} connection={c} />
+              {marketplaceOnly.map((c) => (
+                <ConnectionCard key={c.id} connection={c} onEditPress={openEditMarketplace} />
               ))}
             </div>
           ) : null}
         </TabsContent>
+
+        <TabsContent value="ecommerce" className="mt-6">
+          {mpLoading ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Skeleton className="h-48 w-full" />
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : null}
+
+          {mpError ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+              <p className="text-sm font-medium text-destructive">
+                {getApiErrorMessage(mpErr)}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4"
+                onClick={() => {
+                  void refetchMp();
+                }}
+              >
+                Tekrar dene
+              </Button>
+            </div>
+          ) : null}
+
+          {!mpLoading && !mpError && ecommerceOnly.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+              <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
+              <h2 className="text-lg font-medium">Henüz e-ticaret bağlantısı yok</h2>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                T-Soft, Ticimax, WooCommerce, Shopify veya İdeasoft mağazanızı bağlayın.
+              </p>
+              <Button
+                type="button"
+                className="mt-6"
+                onClick={() => {
+                  setModalConfig({
+                    kind: 'marketplace',
+                    mode: 'create',
+                    listFilter: 'ecommerce',
+                  });
+                  setModalOpen(true);
+                }}
+              >
+                E-ticaret bağlantısı ekle
+              </Button>
+            </div>
+          ) : null}
+
+          {!mpLoading && !mpError && ecommerceOnly.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {ecommerceOnly.map((c) => (
+                <ConnectionCard key={c.id} connection={c} onEditPress={openEditMarketplace} />
+              ))}
+            </div>
+          ) : null}
+        </TabsContent>
+
         <TabsContent value="erp" className="mt-6">
           {erpLoading ? (
             <div className="grid gap-4 md:grid-cols-2">
@@ -149,17 +258,17 @@ export function ConnectionsPage(): ReactElement {
               <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
               <h2 className="text-lg font-medium">Henüz ERP bağlantısı yok</h2>
               <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Muhasebe veya e-ticaret altyapınızı bağlayarak fatura ve stok
-                akışını tek yerden yönetin.
+                Muhasebe veya stok sistemini bağlayarak fatura ve stok akışını tek yerden yönetin.
               </p>
               <Button
                 type="button"
                 className="mt-6"
                 onClick={() => {
-                  setAddErpOpen(true);
+                  setModalConfig({ kind: 'erp', mode: 'create' });
+                  setModalOpen(true);
                 }}
               >
-                İlk ERP bağlantısını ekle
+                ERP bağlantısı ekle
               </Button>
             </div>
           ) : null}
@@ -167,18 +276,18 @@ export function ConnectionsPage(): ReactElement {
           {!erpLoading && !erpIsError && (erpConnections ?? []).length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2">
               {(erpConnections ?? []).map((c) => (
-                <ErpConnectionCard key={c.id} connection={c} />
+                <ErpConnectionCard key={c.id} connection={c} onEditPress={openEditErp} />
               ))}
             </div>
           ) : null}
         </TabsContent>
       </Tabs>
 
-      <AddConnectionDialog
-        open={addMarketplaceOpen}
-        onOpenChange={setAddMarketplaceOpen}
+      <ConnectionFormModal
+        open={modalOpen}
+        onOpenChange={handleModalOpenChange}
+        config={modalConfig}
       />
-      <AddErpConnectionDialog open={addErpOpen} onOpenChange={setAddErpOpen} />
     </div>
   );
 }

@@ -22,6 +22,7 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { getApiErrorMessage } from '@/lib/api';
 import {
@@ -33,56 +34,46 @@ import {
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
-import { EditConnectionDialog } from './EditConnectionDialog';
-
 interface Props {
   connection: MarketplaceConnectionDto;
+  onEditPress: (connection: MarketplaceConnectionDto) => void;
 }
 
-type ConnectionHealthUi = 'healthy' | 'degraded' | 'down' | 'pending';
+type ConnectionStatusUi = 'active' | 'error' | 'inactive';
 
-function deriveConnectionHealth(
-  connection: MarketplaceConnectionDto,
-): ConnectionHealthUi {
-  if (connection.syncErrorCount >= 5) {
-    return 'down';
+function deriveConnectionStatus(connection: MarketplaceConnectionDto): ConnectionStatusUi {
+  if (!connection.isActive) {
+    return 'inactive';
   }
   if (connection.syncErrorCount >= 3) {
-    return 'degraded';
+    return 'error';
   }
-  if (!connection.lastSyncAt && connection.syncErrorCount === 0) {
-    return 'pending';
-  }
-  return 'healthy';
+  return 'active';
 }
 
-function ConnectionHealthBadge({
-  health,
+function ConnectionStatusBadge({
+  status,
 }: {
-  health: ConnectionHealthUi;
+  status: ConnectionStatusUi;
 }): ReactElement {
   const config: Record<
-    ConnectionHealthUi,
+    ConnectionStatusUi,
     { label: string; className: string }
   > = {
-    healthy: {
+    active: {
       label: 'Aktif',
       className: 'border-green-200 bg-green-50 text-green-800',
     },
-    degraded: {
-      label: 'Yavaş',
-      className: 'border-amber-200 bg-amber-50 text-amber-900',
-    },
-    down: {
+    error: {
       label: 'Hata',
       className: 'border-red-200 bg-red-50 text-red-800',
     },
-    pending: {
-      label: 'Bekleniyor',
+    inactive: {
+      label: 'Bağlantı Yok',
       className: 'border-slate-200 bg-slate-100 text-slate-700',
     },
   };
-  const c = config[health];
+  const c = config[status];
   return (
     <Badge variant="outline" className={c.className}>
       {c.label}
@@ -90,8 +81,7 @@ function ConnectionHealthBadge({
   );
 }
 
-export function ConnectionCard({ connection }: Props): ReactElement {
-  const [editOpen, setEditOpen] = useState(false);
+export function ConnectionCard({ connection, onEditPress }: Props): ReactElement {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const testMutation = useTestConnection();
   const updateMutation = useUpdateMarketplaceConnection();
@@ -110,7 +100,7 @@ export function ConnectionCard({ connection }: Props): ReactElement {
         })
       : 'Henüz senkron yok';
 
-  const health = deriveConnectionHealth(connection);
+  const status = deriveConnectionStatus(connection);
 
   const handleTriggerSync = (): void => {
     triggerSyncMutation.mutate(connection.id, {
@@ -172,24 +162,25 @@ export function ConnectionCard({ connection }: Props): ReactElement {
             <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               <span aria-hidden>{logo}</span>
               <span>{label}</span>
-              <ConnectionHealthBadge health={health} />
+              <ConnectionStatusBadge status={status} />
             </div>
             <p className="text-sm text-muted-foreground">
               {accountFieldLabel}:{' '}
               {connection.accountLabel ?? '—'}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {connection.isActive ? 'Aktif' : 'Pasif'}
-            </span>
+          <div className="flex flex-col items-end gap-1">
+            <Label htmlFor={`active-mp-${connection.id}`} className="text-xs text-muted-foreground">
+              Bağlantıyı etkinleştir
+            </Label>
             <Switch
+              id={`active-mp-${connection.id}`}
               checked={connection.isActive}
               disabled={updateMutation.isPending}
               onCheckedChange={(v) => {
                 handleActiveChange(v);
               }}
-              aria-label="Bağlantı aktif"
+              aria-label="Bağlantıyı etkinleştir"
             />
           </div>
         </CardHeader>
@@ -234,7 +225,7 @@ export function ConnectionCard({ connection }: Props): ReactElement {
             size="sm"
             variant="secondary"
             onClick={() => {
-              setEditOpen(true);
+              onEditPress(connection);
             }}
           >
             Düzenle
@@ -251,12 +242,6 @@ export function ConnectionCard({ connection }: Props): ReactElement {
           </Button>
         </CardFooter>
       </Card>
-
-      <EditConnectionDialog
-        connection={connection}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-      />
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
