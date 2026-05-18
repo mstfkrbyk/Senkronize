@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -25,5 +25,20 @@ export class SyncStatusController {
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<SyncHealthStatus[]> {
     return this.syncStatusService.getStatus(org.id);
+  }
+
+  @Post(':connectionId/trigger')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Bağlantı için manuel senkron kuyruğa al' })
+  @ApiResponse({ status: 200, description: 'İşler kuyruğa eklendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 403, description: 'Pasif bağlantı' })
+  @ApiResponse({ status: 404, description: 'Bağlantı bulunamadı' })
+  async triggerSync(
+    @Param('connectionId') connectionId: string,
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ message: string }> {
+    await this.syncStatusService.triggerManualSync(connectionId, org.id);
+    return { message: 'Sync queued' };
   }
 }

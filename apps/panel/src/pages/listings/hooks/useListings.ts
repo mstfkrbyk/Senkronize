@@ -112,3 +112,36 @@ export function useUpdateStock() {
     },
   });
 }
+
+export interface BulkListingUpdateItem {
+  listingId?: string;
+  barcode?: string;
+  quantity?: number;
+  salePrice?: number;
+  listPrice?: number;
+}
+
+export function useBulkListingUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      items: BulkListingUpdateItem[],
+    ): Promise<{ updated: number }> => {
+      const { data } = await api.post<{ updated: number }>(
+        '/listings/bulk-update',
+        { items },
+      );
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.updated)} listeleme güncellendi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}

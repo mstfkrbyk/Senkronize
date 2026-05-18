@@ -19,6 +19,7 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  BulkUpdateDto,
   ListingQueryDto,
   UpdatePriceDto,
   UpdateStockDto,
@@ -87,6 +88,18 @@ export class ListingController {
           ? 'Aktif pazaryeri bağlantısı yok; kuyruğa iş eklenmedi.'
           : 'Senkronizasyon işleri kuyruğa eklendi.',
     };
+  }
+
+  @Post('bulk-update')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu stok ve fiyat güncelleme (barkod bazlı)' })
+  @ApiResponse({ status: 200, description: 'Güncellenen listeleme sayısı' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async bulkUpdate(
+    @Body() dto: BulkUpdateDto,
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ updated: number }> {
+    return this.listingService.bulkUpdateStockAndPrice(org.id, dto.items);
   }
 
   @Patch(':id/price')

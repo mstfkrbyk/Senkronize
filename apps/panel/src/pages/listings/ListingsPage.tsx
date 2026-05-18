@@ -1,13 +1,24 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Percent, Upload } from 'lucide-react';
+import Papa from 'papaparse';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
@@ -19,6 +30,7 @@ import { ListingsTable } from './ListingsTable';
 import { UpdatePriceDialog } from './UpdatePriceDialog';
 import { UpdateStockDialog } from './UpdateStockDialog';
 import {
+  useBulkListingUpdate,
   useListingSummary,
   useListings,
   useSyncListings,
@@ -27,6 +39,14 @@ import {
 } from './hooks/useListings';
 
 const PAGE_SIZE = 20;
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function normalizeCsvKey(key: string): string {
+  return key.trim().toLowerCase();
+}
 
 function escapeCsvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -60,6 +80,7 @@ function downloadListingsCsv(rows: Listing[]): void {
 export function ListingsPage(): ReactElement {
   const queryClient = useQueryClient();
   const { on } = useSocket();
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [filters, setFilters] = useState<ListingFiltersState>({
     page: 1,
@@ -72,12 +93,15 @@ export function ListingsPage(): ReactElement {
   const [stockTarget, setStockTarget] = useState<Listing | null>(null);
   const [stockOpen, setStockOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPctOpen, setBulkPctOpen] = useState(false);
+  const [bulkPctInput, setBulkPctInput] = useState('0');
 
   const listingsQuery = useListings(filters);
   const summaryQuery = useListingSummary();
   const syncMutation = useSyncListings();
   const updatePriceMutation = useUpdatePrice();
   const updateStockMutation = useUpdateStock();
+  const bulkUpdateMutation = useBulkListingUpdate();
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -107,6 +131,102 @@ export function ListingsPage(): ReactElement {
     if (!open) {
       setSelectedListing(null);
     }
+  };
+
+  const selectedRowsOnPage =
+    data?.items.filter((l) => selectedIds.has(l.id)) ?? [];
+
+  const handleBulkResetStock = (): void => {
+    if (selectedRowsOnPage.length === 0) {
+      return;
+    }
+    bulkUpdateMutation.mutate(
+      selectedRowsOnPage.map((l) => ({ listingId: l.id, quantity: 0 })),
+    );
+  };
+
+  const handleBulkPctApply = (): void => {
+    const pct = Number(String(bulkPctInput).replace(',', '.'));
+    if (!Number.isFinite(pct)) {
+      toast.error('Geçerli bir yüzde girin.');
+      return;
+    }
+    if (selectedRowsOnPage.length === 0) {
+      return;
+    }
+    const factor = 1 + pct / 100;
+    bulkUpdateMutation.mutate(
+      selectedRowsOnPage.map((l) => ({
+        listingId: l.id,
+        salePrice: Math.max(
+          0.01,
+          roundMoney(Number(l.salePrice) * factor),
+        ),
+        listPrice: Math.max(
+          0.01,
+          roundMoney(Number(l.listPrice) * factor),
+        ),
+      })),
+      {
+        onSuccess: () => {
+          setBulkPctOpen(false);
+        },
+      },
+    );
+  };
+
+  const handleCsvFile = (file: File): void => {
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (result) => {
+        const items: {
+          barcode: string;
+          quantity?: number;
+          salePrice?: number;
+          listPrice?: number;
+        }[] = [];
+        for (const raw of result.data) {
+          const row: Record<string, string> = {};
+          for (const [k, v] of Object.entries(raw)) {
+            row[normalizeCsvKey(k)] = String(v ?? '').trim();
+          }
+          const barcode = row.barcode ?? row.barkod ?? '';
+          if (!barcode) {
+            continue;
+          }
+          const qRaw = row.quantity ?? row.qty ?? row.miktar ?? '';
+          const saleRaw = row.saleprice ?? row.price ?? row.fiyat ?? '';
+          const listRaw = row.listprice ?? '';
+          const entry: (typeof items)[number] = { barcode };
+          if (qRaw !== '' && Number.isFinite(Number(qRaw))) {
+            entry.quantity = Math.max(0, Math.round(Number(qRaw)));
+          }
+          if (saleRaw !== '' && Number.isFinite(Number(saleRaw))) {
+            entry.salePrice = Number(saleRaw);
+          }
+          if (listRaw !== '' && Number.isFinite(Number(listRaw))) {
+            entry.listPrice = Number(listRaw);
+          }
+          if (
+            entry.quantity === undefined &&
+            entry.salePrice === undefined &&
+            entry.listPrice === undefined
+          ) {
+            continue;
+          }
+          items.push(entry);
+        }
+        if (items.length === 0) {
+          toast.error('CSV içinde güncellenecek satır bulunamadı.');
+          return;
+        }
+        bulkUpdateMutation.mutate(items);
+      },
+      error: (err: Error) => {
+        toast.error(err.message ?? 'CSV okunamadı');
+      },
+    });
   };
 
   return (
@@ -180,21 +300,75 @@ export function ListingsPage(): ReactElement {
           <Badge variant="secondary" aria-live="polite">
             {selectedIds.size} seçili
           </Badge>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            disabled={selectedIds.size === 0}
-            onClick={() => {
-              const rows = data.items.filter((l) => selectedIds.has(l.id));
-              downloadListingsCsv(rows);
-              toast.success('CSV indirildi');
-            }}
-          >
-            <Download className="h-4 w-4 shrink-0" aria-hidden />
-            Seçilenleri dışa aktar
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={
+                selectedIds.size === 0 || bulkUpdateMutation.isPending
+              }
+              onClick={() => {
+                handleBulkResetStock();
+              }}
+            >
+              Toplu stok sıfırla
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={selectedIds.size === 0}
+              onClick={() => {
+                setBulkPctInput('0');
+                setBulkPctOpen(true);
+              }}
+            >
+              <Percent className="mr-1 h-3.5 w-3.5" aria-hidden />
+              Toplu fiyat (%)
+            </Button>
+            <input
+              ref={csvInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="sr-only"
+              aria-hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) {
+                  handleCsvFile(f);
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={bulkUpdateMutation.isPending}
+              onClick={() => {
+                csvInputRef.current?.click();
+              }}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" aria-hidden />
+              CSV içe aktar
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={selectedIds.size === 0}
+              onClick={() => {
+                const rows = data.items.filter((l) => selectedIds.has(l.id));
+                downloadListingsCsv(rows);
+                toast.success('CSV indirildi');
+              }}
+            >
+              <Download className="h-4 w-4 shrink-0" aria-hidden />
+              Seçilenleri dışa aktar
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -347,6 +521,52 @@ export function ListingsPage(): ReactElement {
         }}
         mutation={updateStockMutation}
       />
+
+      <Dialog open={bulkPctOpen} onOpenChange={setBulkPctOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Toplu fiyat güncelle</DialogTitle>
+            <DialogDescription>
+              Seçili ürünlerin satış ve liste fiyatına yüzde uygulanır (ör. +10
+              veya -5).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="bulk-pct">Yüzde değişim</Label>
+            <Input
+              id="bulk-pct"
+              inputMode="decimal"
+              placeholder="örn. 10 veya -5"
+              value={bulkPctInput}
+              onChange={(e) => {
+                setBulkPctInput(e.target.value);
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setBulkPctOpen(false);
+              }}
+            >
+              İptal
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                bulkUpdateMutation.isPending || selectedRowsOnPage.length === 0
+              }
+              onClick={() => {
+                handleBulkPctApply();
+              }}
+            >
+              {bulkUpdateMutation.isPending ? 'Uygulanıyor…' : 'Uygula'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import {
 } from './reports.dto';
 import { ReportsService } from './reports.service';
 import type {
+  DashboardSummaryDto,
   PlatformReportRow,
   SalesReportRow,
   StockMovementRow,
@@ -28,6 +29,17 @@ import type {
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
+
+  @Get('dashboard-summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Panel özet KPI' })
+  @ApiResponse({ status: 200, description: 'Özet metrikler' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async getDashboardSummary(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<DashboardSummaryDto> {
+    return this.reportsService.getDashboardSummary(org.id);
+  }
 
   @Get('sales')
   @UseGuards(JwtAuthGuard)

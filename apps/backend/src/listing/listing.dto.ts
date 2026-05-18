@@ -1,15 +1,19 @@
 import { Marketplace } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsPositive,
   IsString,
   Max,
   Min,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 export class ListingQueryDto {
@@ -54,4 +58,40 @@ export class UpdateStockDto {
   @IsInt()
   @Min(0)
   quantity!: number;
+}
+
+export class BulkUpdateItemDto {
+  @IsOptional()
+  @IsString()
+  listingId?: string;
+
+  @ValidateIf((o: BulkUpdateItemDto) => !o.listingId)
+  @IsString()
+  @IsNotEmpty()
+  barcode?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  quantity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  salePrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  listPrice?: number;
+}
+
+export class BulkUpdateDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkUpdateItemDto)
+  items!: BulkUpdateItemDto[];
 }

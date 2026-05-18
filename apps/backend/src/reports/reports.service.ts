@@ -4,6 +4,7 @@ import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
+  DashboardSummaryDto,
   PlatformReportRow,
   SalesReportRow,
   StockMovementRow,
@@ -39,6 +40,93 @@ function periodKeyUtc(
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getDashboardSummary(
+    organizationId: string,
+  ): Promise<DashboardSummaryDto> {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+
+    const orderBase: Prisma.OrderWhereInput = {
+      organizationId,
+      deletedAt: null,
+    };
+
+    const [
+      todayOrders,
+      yesterdayOrders,
+      pendingOrders,
+      totalProducts,
+      activeConnections,
+      totalConnections,
+      lowStockCount,
+    ] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          platformCreatedAt: { gte: startOfToday },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          platformCreatedAt: {
+            gte: startOfYesterday,
+            lt: startOfToday,
+          },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          status: {
+            in: [
+              OrderStatus.NEW,
+              OrderStatus.PICKING,
+              OrderStatus.INVOICED,
+            ],
+          },
+        },
+      }),
+      this.prisma.product.count({
+        where: { organizationId, deletedAt: null },
+      }),
+      this.prisma.marketplaceConnection.count({
+        where: { organizationId, deletedAt: null, isActive: true },
+      }),
+      this.prisma.marketplaceConnection.count({
+        where: { organizationId, deletedAt: null },
+      }),
+      this.prisma.listing.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          quantity: { gt: 0, lte: 5 },
+        },
+      }),
+    ]);
+
+    let todayOrdersDelta = 0;
+    if (yesterdayOrders === 0) {
+      todayOrdersDelta = todayOrders > 0 ? 100 : 0;
+    } else {
+      todayOrdersDelta = Math.round(
+        ((todayOrders - yesterdayOrders) / yesterdayOrders) * 100,
+      );
+    }
+
+    return {
+      todayOrders,
+      todayOrdersDelta,
+      pendingOrders,
+      totalProducts,
+      activeConnections,
+      totalConnections,
+      lowStockCount,
+    };
+  }
 
   async getSalesReport(
     organizationId: string,

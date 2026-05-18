@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -26,6 +27,7 @@ import { getApiErrorMessage } from '@/lib/api';
 import {
   useDeleteConnection,
   useTestConnection,
+  useTriggerManualSync,
   useUpdateMarketplaceConnection,
 } from '@/hooks/useConnections';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -37,12 +39,64 @@ interface Props {
   connection: MarketplaceConnectionDto;
 }
 
+type ConnectionHealthUi = 'healthy' | 'degraded' | 'down' | 'pending';
+
+function deriveConnectionHealth(
+  connection: MarketplaceConnectionDto,
+): ConnectionHealthUi {
+  if (connection.syncErrorCount >= 5) {
+    return 'down';
+  }
+  if (connection.syncErrorCount >= 3) {
+    return 'degraded';
+  }
+  if (!connection.lastSyncAt && connection.syncErrorCount === 0) {
+    return 'pending';
+  }
+  return 'healthy';
+}
+
+function ConnectionHealthBadge({
+  health,
+}: {
+  health: ConnectionHealthUi;
+}): ReactElement {
+  const config: Record<
+    ConnectionHealthUi,
+    { label: string; className: string }
+  > = {
+    healthy: {
+      label: 'Aktif',
+      className: 'border-green-200 bg-green-50 text-green-800',
+    },
+    degraded: {
+      label: 'Yavaş',
+      className: 'border-amber-200 bg-amber-50 text-amber-900',
+    },
+    down: {
+      label: 'Hata',
+      className: 'border-red-200 bg-red-50 text-red-800',
+    },
+    pending: {
+      label: 'Bekleniyor',
+      className: 'border-slate-200 bg-slate-100 text-slate-700',
+    },
+  };
+  const c = config[health];
+  return (
+    <Badge variant="outline" className={c.className}>
+      {c.label}
+    </Badge>
+  );
+}
+
 export function ConnectionCard({ connection }: Props): ReactElement {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const testMutation = useTestConnection();
   const updateMutation = useUpdateMarketplaceConnection();
   const deleteMutation = useDeleteConnection();
+  const triggerSyncMutation = useTriggerManualSync();
 
   const { label, logo, accountFieldLabel } = getMarketplaceBranding(
     connection.platform,
@@ -55,6 +109,19 @@ export function ConnectionCard({ connection }: Props): ReactElement {
           locale: tr,
         })
       : 'Henüz senkron yok';
+
+  const health = deriveConnectionHealth(connection);
+
+  const handleTriggerSync = (): void => {
+    triggerSyncMutation.mutate(connection.id, {
+      onSuccess: () => {
+        toast.success('Senkron kuyruğa alındı.');
+      },
+      onError: (error) => {
+        toast.error(getApiErrorMessage(error));
+      },
+    });
+  };
 
   const handleTest = (): void => {
     testMutation.mutate(
@@ -102,9 +169,10 @@ export function ConnectionCard({ connection }: Props): ReactElement {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <div className="space-y-1">
-            <div className="flex items-center gap-2 text-lg font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               <span aria-hidden>{logo}</span>
               <span>{label}</span>
+              <ConnectionHealthBadge health={health} />
             </div>
             <p className="text-sm text-muted-foreground">
               {accountFieldLabel}:{' '}
@@ -136,6 +204,20 @@ export function ConnectionCard({ connection }: Props): ReactElement {
           ) : null}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2 border-t pt-4">
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            disabled={
+              triggerSyncMutation.isPending ||
+              !connection.isActive
+            }
+            onClick={() => {
+              handleTriggerSync();
+            }}
+          >
+            {triggerSyncMutation.isPending ? 'Kuyruk…' : 'Şimdi Sync Et'}
+          </Button>
           <Button
             type="button"
             size="sm"

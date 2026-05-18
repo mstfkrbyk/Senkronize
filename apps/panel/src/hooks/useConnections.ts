@@ -54,6 +54,10 @@ export function useCreateConnection(): ReturnType<
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['marketplace-connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
     },
   });
 }
@@ -82,6 +86,9 @@ export function useUpdateMarketplaceConnection(): ReturnType<
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['marketplace-connections'] });
       void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
     },
   });
 }
@@ -100,6 +107,32 @@ export function useDeleteConnection(): ReturnType<
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['marketplace-connections'] });
       void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
+    },
+  });
+}
+
+export function useTriggerManualSync(): ReturnType<
+  typeof useMutation<{ message: string }, Error, string>
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (connectionId: string): Promise<{ message: string }> => {
+      const { data } = await api.post<{ message: string }>(
+        `/sync/${connectionId}/trigger`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['marketplace-connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
     },
   });
 }

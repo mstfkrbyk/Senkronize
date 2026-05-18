@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Marketplace } from '@prisma/client';
+import type { Queue } from 'bull';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
+import { QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
+import type { MarketplacePullJobData } from '../queue/queue.types';
 import type { SyncHealthStatus } from './sync-status.types';
 
 function deriveStatus(errorCount: number): SyncHealthStatus['status'] {
@@ -20,6 +25,8 @@ export class SyncStatusService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventService: EventService,
+    @InjectQueue(QUEUE_MARKETPLACE_PULL)
+    private readonly marketplacePullQueue: Queue<MarketplacePullJobData>,
   ) {}
 
   async recordSuccess(
@@ -48,6 +55,7 @@ export class SyncStatusService {
     });
     const status: SyncHealthStatus = {
       organizationId,
+      connectionId: row.id,
       platform: row.platform,
       lastSuccessAt: row.lastSyncAt,
       errorCount: row.syncErrorCount,
@@ -85,6 +93,7 @@ export class SyncStatusService {
     });
     const status: SyncHealthStatus = {
       organizationId,
+      connectionId: row.id,
       platform: row.platform,
       lastSuccessAt: row.lastSyncAt,
       errorCount: row.syncErrorCount,
@@ -102,10 +111,53 @@ export class SyncStatusService {
     });
     return rows.map((row) => ({
       organizationId,
+      connectionId: row.id,
       platform: row.platform,
       lastSuccessAt: row.lastSyncAt,
       errorCount: row.syncErrorCount,
       status: deriveStatus(row.syncErrorCount),
     }));
+  }
+
+  async triggerManualSync(
+    connectionId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const conn = await this.prisma.marketplaceConnection.findFirst({
+      where: {
+        id: connectionId,
+        organizationId,
+        deletedAt: null,
+      },
+    });
+    if (!conn) {
+      throw new NotFoundException('Bağlantı bulunamadı');
+    }
+    if (!conn.isActive) {
+      throw new ForbiddenException('Pasif bağlantı için senkron tetiklenemez');
+    }
+    const platform = conn.platform;
+    await this.marketplacePullQueue.add(
+      'pull-orders',
+      {
+        organizationId,
+        platform,
+        type: 'orders',
+      },
+      STANDARD_QUEUE_JOB_OPTIONS,
+    );
+    await this.marketplacePullQueue.add(
+      'pull-listings',
+      {
+        organizationId,
+        platform,
+        type: 'listings',
+      },
+      STANDARD_QUEUE_JOB_OPTIONS,
+    );
+    this.eventService.emit(organizationId, WS_EVENTS.SYNC_TRIGGER, {
+      connectionId,
+      platform,
+    });
   }
 }

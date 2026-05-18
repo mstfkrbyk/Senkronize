@@ -1,9 +1,11 @@
-import type { LucideIcon } from 'lucide-react';
 import {
-  ClipboardList,
+  AlertTriangle,
+  ArrowDownRight,
+  ArrowUpRight,
   Clock,
   Package,
   Plug,
+  PlugZap,
   RefreshCw,
   ShoppingCart,
 } from 'lucide-react';
@@ -41,57 +43,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useTriggerManualSync } from '@/hooks/useConnections';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
-import { useListingSummary } from '@/pages/listings/hooks/useListings';
-import { useOrderSummary } from '@/pages/orders/hooks/useOrders';
-import type { MarketplaceConnectionDto } from '@/types/connection';
+import type { DashboardSummaryDto } from '@/types/dashboard-summary';
 import type { Order, OrderStatus } from '@/types/order';
 import type { SyncStatusItem } from '@/types/sync';
-
-const KPI_CARDS: {
-  title: string;
-  key:
-    | 'todayOrders'
-    | 'pendingOrders'
-    | 'totalRevenue'
-    | 'activeListings'
-    | 'connections';
-  icon: LucideIcon;
-  color: 'blue' | 'orange' | 'green' | 'sky' | 'purple';
-}[] = [
-  {
-    title: 'Bugünkü Siparişler',
-    key: 'todayOrders',
-    icon: ShoppingCart,
-    color: 'blue',
-  },
-  {
-    title: 'Bekleyen Siparişler',
-    key: 'pendingOrders',
-    icon: Clock,
-    color: 'orange',
-  },
-  {
-    title: 'Toplam Ciro',
-    key: 'totalRevenue',
-    icon: Package,
-    color: 'green',
-  },
-  {
-    title: 'Aktif listeler',
-    key: 'activeListings',
-    icon: ClipboardList,
-    color: 'sky',
-  },
-  {
-    title: 'Entegrasyonlar',
-    key: 'connections',
-    icon: Plug,
-    color: 'purple',
-  },
-];
+import { useNavigate } from 'react-router-dom';
 
 const MOCK_WEEKLY = [
   { gun: 'Pzt', siparis: 12 },
@@ -103,8 +62,8 @@ const MOCK_WEEKLY = [
   { gun: 'Paz', siparis: 7 },
 ] as const;
 
-const KPI_COLOR: Record<
-  (typeof KPI_CARDS)[number]['color'],
+const KPI_ICON: Record<
+  'blue' | 'orange' | 'green' | 'sky' | 'purple',
   { ring: string; icon: string }
 > = {
   blue: { ring: 'ring-blue-100', icon: 'text-blue-600' },
@@ -167,8 +126,8 @@ function SyncStatusBadge({
   status: SyncStatusItem['status'];
 }): ReactElement {
   const label: Record<SyncStatusItem['status'], string> = {
-    healthy: 'Sağlıklı',
-    warning: 'Uyarı',
+    healthy: 'Aktif',
+    warning: 'Yavaş',
     error: 'Hata',
   };
   const tone: Record<SyncStatusItem['status'], string> = {
@@ -183,13 +142,6 @@ function SyncStatusBadge({
   );
 }
 
-function formatTry(amount: number): string {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-  }).format(amount);
-}
-
 function formatTryFromString(amount: string, currency: string): string {
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
@@ -197,23 +149,29 @@ function formatTryFromString(amount: string, currency: string): string {
   }).format(Number(amount));
 }
 
-export function DashboardPage(): ReactElement {
-  const orderSummaryQuery = useOrderSummary();
-  const listingSummaryQuery = useListingSummary();
+function pendingOrdersTone(count: number): string {
+  if (count === 0) {
+    return 'text-green-600';
+  }
+  if (count <= 5) {
+    return 'text-amber-600';
+  }
+  return 'text-red-600';
+}
 
-  const connectionsCountQuery = useQuery({
-    queryKey: ['marketplace-connections', 'count'],
-    queryFn: async (): Promise<number> => {
-      const { data } = await api.get<
-        | MarketplaceConnectionDto[]
-        | { items: MarketplaceConnectionDto[]; total: number }
-      >('/marketplace-connections');
-      if (Array.isArray(data)) {
-        return data.length;
-      }
-      return data.total;
+export function DashboardPage(): ReactElement {
+  const navigate = useNavigate();
+  const triggerSyncMutation = useTriggerManualSync();
+
+  const dashboardSummaryQuery = useQuery({
+    queryKey: ['reports', 'dashboard-summary'],
+    queryFn: async (): Promise<DashboardSummaryDto> => {
+      const { data } = await api.get<DashboardSummaryDto>(
+        '/reports/dashboard-summary',
+      );
+      return data;
     },
-    initialData: 0,
+    staleTime: 60_000,
   });
 
   const recentOrdersQuery = useQuery({
@@ -249,16 +207,14 @@ export function DashboardPage(): ReactElement {
     },
   });
 
-  const handleMockSyncTrigger = (): void => {
-    toast.info('Senkron kuyruğu tetikleme yakında aktif olacak.');
-  };
-
   const chartData =
     weeklySalesQuery.isError || weeklySalesQuery.isPending
       ? [...MOCK_WEEKLY]
       : chartFromSalesReport(weeklySalesQuery.data);
 
   const recentOrders = recentOrdersQuery.data ?? [];
+  const dash = dashboardSummaryQuery.data;
+  const kpiLoading = dashboardSummaryQuery.isPending;
 
   return (
     <div className="space-y-8">
@@ -271,54 +227,201 @@ export function DashboardPage(): ReactElement {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {KPI_CARDS.map((kpi) => {
-          const Icon = kpi.icon;
-          const colors = KPI_COLOR[kpi.color];
-          const isOrderMetric =
-            kpi.key === 'todayOrders' ||
-            kpi.key === 'pendingOrders' ||
-            kpi.key === 'totalRevenue';
-          const isListingMetric = kpi.key === 'activeListings';
-          const isConnectionsMetric = kpi.key === 'connections';
-          const isLoadingKpi =
-            (isOrderMetric && orderSummaryQuery.isLoading) ||
-            (isListingMetric && listingSummaryQuery.isLoading) ||
-            (isConnectionsMetric && connectionsCountQuery.isLoading);
-          let value: string | number = '—';
-          if (kpi.key === 'connections') {
-            value = connectionsCountQuery.data ?? 0;
-          } else if (kpi.key === 'activeListings') {
-            value = listingSummaryQuery.data?.approved ?? '—';
-          } else if (orderSummaryQuery.data) {
-            value =
-              kpi.key === 'totalRevenue'
-                ? formatTry(orderSummaryQuery.data.totalRevenue)
-                : orderSummaryQuery.data[kpi.key];
-          }
-          return (
-            <Card key={kpi.key}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {kpi.title}
-                </CardTitle>
-                <div
-                  className={`rounded-full p-2 ring-2 ${colors.ring} bg-background`}
+      {!dashboardSummaryQuery.isPending &&
+      !dashboardSummaryQuery.isError &&
+      dash &&
+      dash.totalConnections === 0 ? (
+        <Card className="border-dashed bg-muted/20">
+          <CardContent className="pt-8 pb-8">
+            <EmptyState
+              iconNode={
+                <PlugZap
+                  className="h-16 w-16 text-muted-foreground"
+                  aria-hidden
+                />
+              }
+              title="Henüz bağlantı yok"
+              description="Pazaryeri veya e-ticaret mağazanızı bağlayarak başlayın."
+              actionSlot={
+                <Button
+                  type="button"
+                  onClick={() => {
+                    navigate('/connections');
+                  }}
                 >
-                  <Icon className={`h-4 w-4 ${colors.icon}`} aria-hidden />
-                </div>
-              </CardHeader>
-              <CardContent>
-                {isLoadingKpi ? (
-                  <Skeleton className="h-9 w-24" />
-                ) : (
-                  <p className="text-2xl font-bold tabular-nums">{value}</p>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+                  İlk Bağlantıyı Ekle
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Bugünkü siparişler
+            </CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.blue.ring} bg-background`}
+            >
+              <ShoppingCart
+                className={`h-4 w-4 ${KPI_ICON.blue.icon}`}
+                aria-hidden
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <>
+                <p className="text-2xl font-bold tabular-nums">
+                  {dash?.todayOrders ?? '—'}
+                </p>
+                {dash ? (
+                  <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                    {dash.todayOrdersDelta >= 0 ? (
+                      <ArrowUpRight
+                        className="h-3.5 w-3.5 text-green-600"
+                        aria-hidden
+                      />
+                    ) : (
+                      <ArrowDownRight
+                        className="h-3.5 w-3.5 text-red-600"
+                        aria-hidden
+                      />
+                    )}
+                    <span
+                      className={
+                        dash.todayOrdersDelta >= 0
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                      }
+                    >
+                      {dash.todayOrdersDelta >= 0 ? '+' : ''}
+                      {String(dash.todayOrdersDelta)}%
+                    </span>
+                    <span>düne göre</span>
+                  </p>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Bekleyen siparişler
+            </CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.orange.ring} bg-background`}
+            >
+              <Clock className={`h-4 w-4 ${KPI_ICON.orange.icon}`} aria-hidden />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <p
+                className={`text-2xl font-bold tabular-nums ${pendingOrdersTone(dash?.pendingOrders ?? 0)}`}
+              >
+                {dash?.pendingOrders ?? '—'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Toplam ürün</CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.green.ring} bg-background`}
+            >
+              <Package className={`h-4 w-4 ${KPI_ICON.green.icon}`} aria-hidden />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <p className="text-2xl font-bold tabular-nums">
+                {dash?.totalProducts?.toLocaleString('tr-TR') ?? '—'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Aktif bağlantılar
+            </CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.purple.ring} bg-background`}
+            >
+              <Plug className={`h-4 w-4 ${KPI_ICON.purple.icon}`} aria-hidden />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <p className="text-2xl font-bold tabular-nums">
+                {dash
+                  ? `${String(dash.activeConnections)}/${String(dash.totalConnections)}`
+                  : '—'}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Düşük stok</CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.sky.ring} bg-background`}
+            >
+              <AlertTriangle
+                className={`h-4 w-4 ${KPI_ICON.sky.icon}`}
+                aria-hidden
+              />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <p className="text-2xl font-bold tabular-nums">
+                {dash?.lowStockCount ?? '—'}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Stok 1–5 arası listeleme
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {dashboardSummaryQuery.isError ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          {getApiErrorMessage(dashboardSummaryQuery.error)}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              void dashboardSummaryQuery.refetch();
+            }}
+          >
+            Tekrar dene
+          </Button>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -483,7 +586,7 @@ export function DashboardPage(): ReactElement {
                     : 'Henüz senkron yok';
                   return (
                     <div
-                      key={row.platform}
+                      key={row.connectionId}
                       className="rounded-lg border bg-muted/30 p-4"
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -510,11 +613,21 @@ export function DashboardPage(): ReactElement {
                         size="sm"
                         variant="secondary"
                         className="mt-3 w-full"
+                        disabled={triggerSyncMutation.isPending}
                         onClick={() => {
-                          handleMockSyncTrigger();
+                          triggerSyncMutation.mutate(row.connectionId, {
+                            onSuccess: () => {
+                              toast.success('Senkron kuyruğa alındı.');
+                            },
+                            onError: (err) => {
+                              toast.error(getApiErrorMessage(err));
+                            },
+                          });
                         }}
                       >
-                        Sync Et
+                        {triggerSyncMutation.isPending
+                          ? 'Kuyruk…'
+                          : 'Şimdi Sync Et'}
                       </Button>
                     </div>
                   );

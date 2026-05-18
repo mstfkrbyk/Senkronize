@@ -12,7 +12,7 @@ import type {
   MarketplacePushJobData,
 } from '../queue/queue.types';
 
-import type { ListingQueryDto } from './listing.dto';
+import type { BulkUpdateItemDto, ListingQueryDto } from './listing.dto';
 
 export type SerializedListing = Omit<Listing, 'salePrice' | 'listPrice'> & {
   salePrice: string;
@@ -318,5 +318,90 @@ export class ListingService {
       where: { id: listingId },
       data: { imageUrls: { push: imageUrl } },
     });
+  }
+
+  async bulkUpdateStockAndPrice(
+    organizationId: string,
+    items: BulkUpdateItemDto[],
+  ): Promise<{ updated: number }> {
+    let updated = 0;
+    for (const item of items) {
+      const hasPatch =
+        item.quantity !== undefined ||
+        item.salePrice !== undefined ||
+        item.listPrice !== undefined;
+      if (!hasPatch) {
+        continue;
+      }
+
+      if (item.listingId) {
+        const row = await this.prisma.listing.findFirst({
+          where: {
+            id: item.listingId,
+            organizationId,
+            deletedAt: null,
+          },
+        });
+        if (!row) {
+          continue;
+        }
+        if (item.quantity !== undefined) {
+          await this.updateStock(organizationId, row.id, item.quantity);
+        }
+        if (item.salePrice !== undefined || item.listPrice !== undefined) {
+          const salePrice =
+            item.salePrice !== undefined
+              ? item.salePrice
+              : Number(row.salePrice);
+          const listPrice =
+            item.listPrice !== undefined
+              ? item.listPrice
+              : Number(row.listPrice);
+          await this.updatePrice(
+            organizationId,
+            row.id,
+            salePrice,
+            listPrice,
+          );
+        }
+        updated++;
+        continue;
+      }
+
+      if (!item.barcode) {
+        continue;
+      }
+
+      const rows = await this.prisma.listing.findMany({
+        where: {
+          organizationId,
+          barcode: item.barcode,
+          deletedAt: null,
+        },
+      });
+      for (const row of rows) {
+        if (item.quantity !== undefined) {
+          await this.updateStock(organizationId, row.id, item.quantity);
+        }
+        if (item.salePrice !== undefined || item.listPrice !== undefined) {
+          const salePrice =
+            item.salePrice !== undefined
+              ? item.salePrice
+              : Number(row.salePrice);
+          const listPrice =
+            item.listPrice !== undefined
+              ? item.listPrice
+              : Number(row.listPrice);
+          await this.updatePrice(
+            organizationId,
+            row.id,
+            salePrice,
+            listPrice,
+          );
+        }
+        updated++;
+      }
+    }
+    return { updated };
   }
 }
