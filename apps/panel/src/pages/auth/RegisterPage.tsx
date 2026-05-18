@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { getApiErrorMessage, api } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 import { useAuthStore } from '@/store/auth.store';
 import type { MeResponse, TokenPair } from '@/types/auth';
 import { Button } from '@/components/ui/button';
@@ -32,10 +33,16 @@ import { Input } from '@/components/ui/input';
 
 const registerSchema = z
   .object({
-    name: z.string().min(2, 'Ad en az 2 karakter olmalıdır.'),
-    email: z.string().email('Geçerli bir e-posta girin.'),
+    name: z
+      .string()
+      .min(1, FORM_MESSAGES.required)
+      .min(2, 'Ad en az 2 karakter olmalıdır.'),
+    email: z
+      .string()
+      .min(1, FORM_MESSAGES.required)
+      .email(FORM_MESSAGES.email),
     password: z.string().min(8, 'Şifre en az 8 karakter olmalıdır.'),
-    confirmPassword: z.string().min(1, 'Şifre tekrarı gerekli.'),
+    confirmPassword: z.string().min(1, FORM_MESSAGES.required),
     acceptTos: z.boolean().refine((v) => v === true, {
       message: 'Kullanım şartlarını kabul etmelisiniz.',
     }),

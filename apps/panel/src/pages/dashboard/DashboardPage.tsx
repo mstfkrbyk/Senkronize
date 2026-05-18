@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -27,6 +28,7 @@ import {
 
 import { ActivityFeed } from '@/components/ActivityFeed';
 import { EmptyState } from '@/components/EmptyState';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -46,6 +48,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTriggerManualSync } from '@/hooks/useConnections';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
@@ -53,7 +56,6 @@ import { getMarketplaceBranding } from '@/pages/connections/marketplace-display'
 import type { DashboardSummaryDto } from '@/types/dashboard-summary';
 import type { Order, OrderStatus } from '@/types/order';
 import type { SyncStatusItem } from '@/types/sync';
-import { useNavigate } from 'react-router-dom';
 
 const MOCK_WEEKLY = [
   { gun: 'Pzt', siparis: 12 },
@@ -163,6 +165,7 @@ function pendingOrdersTone(count: number): string {
 }
 
 export function DashboardPage(): ReactElement {
+  usePageTitle('Dashboard');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { socket } = useSocket();
@@ -519,11 +522,7 @@ export function DashboardPage(): ReactElement {
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {recentOrdersQuery.isPending ? (
-              <div className="space-y-2 p-2">
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-                <Skeleton className="h-10 w-full" />
-              </div>
+              <TableSkeleton rows={5} cols={5} />
             ) : null}
             {recentOrdersQuery.isError ? (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">

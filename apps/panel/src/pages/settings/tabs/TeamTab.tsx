@@ -51,10 +51,14 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 import type { OrgUser } from '@/types/user';
 
 const inviteSchema = z.object({
-  email: z.string().email('Geçerli bir e-posta girin.'),
+  email: z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .email(FORM_MESSAGES.email),
   name: z.string().max(100).optional(),
   role: z.enum(['ADMIN', 'MANAGER', 'VIEWER']),
 });

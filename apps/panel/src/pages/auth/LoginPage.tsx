@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { getApiErrorMessage, api } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 import { useAuthStore } from '@/store/auth.store';
 import type { MeResponse, TokenPair } from '@/types/auth';
 import { Button } from '@/components/ui/button';
@@ -36,8 +37,11 @@ import {
 import { Input } from '@/components/ui/input';
 
 const loginSchema = z.object({
-  email: z.string().email('Geçerli bir e-posta girin.'),
-  password: z.string().min(1, 'Şifre gerekli.'),
+  email: z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .email(FORM_MESSAGES.email),
+  password: z.string().min(1, FORM_MESSAGES.required),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;

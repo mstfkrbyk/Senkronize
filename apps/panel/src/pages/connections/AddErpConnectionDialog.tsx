@@ -25,6 +25,12 @@ import {
   useTestErpConnection,
 } from '@/hooks/useErpConnections';
 import { getApiErrorMessage } from '@/lib/api';
+import {
+  FORM_MESSAGES,
+  HTTPS_URL_CREDENTIAL_KEYS,
+  isValidHttpsUrl,
+} from '@/lib/form-messages';
+import { cn } from '@/lib/utils';
 import { ERP_OPTIONS, type ErpOption } from '@/pages/connections/erp-display';
 
 interface Props {
@@ -45,6 +51,7 @@ export function AddErpConnectionDialog({
     emptyCredentials(ERP_OPTIONS[0]),
   );
   const [lastTestOk, setLastTestOk] = useState<boolean | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const selected = useMemo(
     () => ERP_OPTIONS.find((o) => o.id === erpType) ?? ERP_OPTIONS[0],
@@ -61,21 +68,46 @@ export function AddErpConnectionDialog({
       setCredentials(emptyCredentials(opt));
     }
     setLastTestOk(null);
+    setFieldErrors({});
   };
 
   const setField = (key: string, value: string): void => {
     setCredentials((prev) => ({ ...prev, [key]: value }));
     setLastTestOk(null);
+    setFieldErrors((prev) => {
+      if (!prev[key]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
-  const requiredFilled = selected.fields.every((f) => {
-    if (!f.required) {
-      return true;
+  const validateCredentials = (): boolean => {
+    const next: Record<string, string> = {};
+    for (const f of selected.fields) {
+      const raw = (credentials[f.key] ?? '').trim();
+      if (f.required && raw.length === 0) {
+        next[f.key] = FORM_MESSAGES.required;
+        continue;
+      }
+      if (
+        HTTPS_URL_CREDENTIAL_KEYS.has(f.key) &&
+        raw.length > 0 &&
+        !isValidHttpsUrl(raw)
+      ) {
+        next[f.key] = FORM_MESSAGES.urlHttps;
+      }
     }
-    return (credentials[f.key] ?? '').trim().length > 0;
-  });
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleTest = (): void => {
+    if (!validateCredentials()) {
+      return;
+    }
     testMutation.mutate(
       { erpType, credentials },
       {
@@ -98,8 +130,7 @@ export function AddErpConnectionDialog({
   };
 
   const handleSave = (): void => {
-    if (!requiredFilled) {
-      toast.error('Lütfen tüm zorunlu alanları doldurun.');
+    if (!validateCredentials()) {
       return;
     }
     createMutation.mutate(
@@ -124,6 +155,7 @@ export function AddErpConnectionDialog({
         onOpenChange(next);
         if (!next) {
           setLastTestOk(null);
+          setFieldErrors({});
         }
       }}
     >
@@ -162,11 +194,16 @@ export function AddErpConnectionDialog({
                 type={field.type === 'password' ? 'password' : 'text'}
                 autoComplete="off"
                 placeholder={field.placeholder}
+                aria-invalid={Boolean(fieldErrors[field.key])}
+                className={cn(fieldErrors[field.key] && 'border-destructive')}
                 value={credentials[field.key] ?? ''}
                 onChange={(e) => {
                   setField(field.key, e.target.value);
                 }}
               />
+              {fieldErrors[field.key] ? (
+                <p className="text-destructive text-sm">{fieldErrors[field.key]}</p>
+              ) : null}
             </div>
           ))}
           {lastTestOk === false ? (

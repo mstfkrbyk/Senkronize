@@ -8,6 +8,7 @@ import {
   Routes,
 } from 'react-router-dom';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { Toaster } from '@/components/ui/sonner';
@@ -43,12 +44,31 @@ export default function App(): ReactElement {
         <BrowserRouter>
           <Toaster position="top-center" richColors closeButton />
           <Routes>
-            <Route path="/invite/:token" element={<InviteAcceptPage />} />
-            <Route element={<AuthLayout />}>
+            <Route
+              path="/invite/:token"
+              element={
+                <ErrorBoundary>
+                  <InviteAcceptPage />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              element={
+                <ErrorBoundary>
+                  <AuthLayout />
+                </ErrorBoundary>
+              }
+            >
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
             </Route>
-            <Route element={<PrivateRoute />}>
+            <Route
+              element={
+                <ErrorBoundary>
+                  <PrivateRoute />
+                </ErrorBoundary>
+              }
+            >
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route
@@ -80,7 +100,14 @@ export default function App(): ReactElement {
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>
-            <Route path="*" element={<NotFoundPage />} />
+            <Route
+              path="*"
+              element={
+                <ErrorBoundary>
+                  <NotFoundPage />
+                </ErrorBoundary>
+              }
+            />
           </Routes>
         </BrowserRouter>
       </QueryClientProvider>

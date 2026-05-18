@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import { useAuthStore } from '@/store/auth.store';
@@ -35,6 +37,7 @@ function hasProAccess(plan: string | undefined): boolean {
 }
 
 export function PricingPage(): ReactElement {
+  usePageTitle('Fiyatlandırma');
   const navigate = useNavigate();
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const [createOpen, setCreateOpen] = useState(false);
@@ -309,7 +312,7 @@ export function PricingPage(): ReactElement {
         </div>
 
         {rulesQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Kurallar yükleniyor…</p>
+          <TableSkeleton rows={4} cols={3} />
         ) : null}
         {rulesQuery.isError ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">

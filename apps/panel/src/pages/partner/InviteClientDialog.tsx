@@ -26,12 +26,20 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { getApiErrorMessage } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 
 import { useInviteClient } from './hooks/usePartner';
 
 const inviteSchema = z.object({
-  clientEmail: z.string().email('Geçerli bir e-posta girin.'),
-  commissionPct: z.number().min(0).max(100),
+  clientEmail: z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .email(FORM_MESSAGES.email),
+  commissionPct: z
+    .number()
+    .refine((n) => Number.isFinite(n), { message: FORM_MESSAGES.required })
+    .min(0, 'Komisyon oranı 0 ile 100 arasında olmalıdır.')
+    .max(100, 'Komisyon oranı 0 ile 100 arasında olmalıdır.'),
   canImpersonate: z.boolean(),
 });
 

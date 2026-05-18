@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FORM_MESSAGES } from '@/lib/form-messages';
+import { cn } from '@/lib/utils';
 import type { Listing } from '@/types/listing';
 
 interface Props {
@@ -35,11 +37,15 @@ export function UpdatePriceDialog({
 }: Props): ReactElement {
   const [salePrice, setSalePrice] = useState('');
   const [listPrice, setListPrice] = useState('');
+  const [saleError, setSaleError] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
 
   useEffect(() => {
     if (listing && open) {
       setSalePrice(String(Number(listing.salePrice)));
       setListPrice(String(Number(listing.listPrice)));
+      setSaleError(null);
+      setListError(null);
     }
   }, [listing, open]);
 
@@ -47,9 +53,37 @@ export function UpdatePriceDialog({
     if (!listing) {
       return;
     }
-    const sale = Number(salePrice);
-    const list = Number(listPrice);
+    setSaleError(null);
+    setListError(null);
+    const saleRaw = salePrice.trim();
+    const listRaw = listPrice.trim();
+    if (saleRaw === '') {
+      setSaleError(FORM_MESSAGES.required);
+    }
+    if (listRaw === '') {
+      setListError(FORM_MESSAGES.required);
+    }
+    if (saleRaw === '' || listRaw === '') {
+      return;
+    }
+    const sale = Number(saleRaw.replace(',', '.'));
+    const list = Number(listRaw.replace(',', '.'));
+    if (Number.isNaN(sale)) {
+      setSaleError(FORM_MESSAGES.pricePositive);
+    }
+    if (Number.isNaN(list)) {
+      setListError(FORM_MESSAGES.pricePositive);
+    }
     if (Number.isNaN(sale) || Number.isNaN(list)) {
+      return;
+    }
+    if (sale <= 0) {
+      setSaleError(FORM_MESSAGES.pricePositive);
+    }
+    if (list <= 0) {
+      setListError(FORM_MESSAGES.pricePositive);
+    }
+    if (sale <= 0 || list <= 0) {
       return;
     }
     mutation.mutate(
@@ -79,11 +113,17 @@ export function UpdatePriceDialog({
               type="number"
               min={0}
               step="0.01"
+              aria-invalid={Boolean(saleError)}
+              className={cn(saleError && 'border-destructive')}
               value={salePrice}
               onChange={(e) => {
                 setSalePrice(e.target.value);
+                setSaleError(null);
               }}
             />
+            {saleError ? (
+              <p className="text-destructive text-sm">{saleError}</p>
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="list-price">Liste fiyatı (₺)</Label>
@@ -92,11 +132,17 @@ export function UpdatePriceDialog({
               type="number"
               min={0}
               step="0.01"
+              aria-invalid={Boolean(listError)}
+              className={cn(listError && 'border-destructive')}
               value={listPrice}
               onChange={(e) => {
                 setListPrice(e.target.value);
+                setListError(null);
               }}
             />
+            {listError ? (
+              <p className="text-destructive text-sm">{listError}</p>
+            ) : null}
           </div>
         </div>
         <DialogFooter>

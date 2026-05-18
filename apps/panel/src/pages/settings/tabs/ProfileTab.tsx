@@ -19,12 +19,13 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 
 const passwordSchema = z
   .object({
-    currentPassword: z.string().min(1, 'Mevcut şifre gerekli.'),
+    currentPassword: z.string().min(1, FORM_MESSAGES.required),
     newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalıdır.'),
-    confirmPassword: z.string().min(1, 'Şifre tekrarı gerekli.'),
+    confirmPassword: z.string().min(1, FORM_MESSAGES.required),
   })
   .refine((v) => v.newPassword === v.confirmPassword, {
     message: 'Şifreler eşleşmiyor.',
@@ -34,7 +35,10 @@ const passwordSchema = z
 type PasswordForm = z.infer<typeof passwordSchema>;
 
 const profileSchema = z.object({
-  name: z.string().min(2, 'Ad soyad en az 2 karakter olmalıdır.'),
+  name: z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .min(2, 'Ad soyad en az 2 karakter olmalıdır.'),
 });
 
 type ProfileForm = z.infer<typeof profileSchema>;

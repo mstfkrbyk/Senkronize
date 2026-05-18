@@ -2,8 +2,9 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 
 import { EmptyState } from '@/components/EmptyState';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import type { Order, OrderFilters as OrderFiltersState } from '@/types/order';
 
@@ -15,6 +16,7 @@ import { useOrders } from './hooks/useOrders';
 const PAGE_SIZE = 20;
 
 export function OrdersPage(): ReactElement {
+  usePageTitle('Siparişler');
   const [filters, setFilters] = useState<OrderFiltersState>({
     page: 1,
     limit: PAGE_SIZE,
@@ -54,13 +56,7 @@ export function OrdersPage(): ReactElement {
 
       <OrderFilters filters={filters} onChange={setFilters} />
 
-      {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : null}
+      {isLoading ? <TableSkeleton rows={8} cols={5} /> : null}
 
       {isError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">

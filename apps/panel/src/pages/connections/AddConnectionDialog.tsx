@@ -20,11 +20,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { getApiErrorMessage } from '@/lib/api';
 import {
   useCreateConnection,
   useTestConnection,
 } from '@/hooks/useConnections';
+import { getApiErrorMessage } from '@/lib/api';
+import {
+  FORM_MESSAGES,
+  HTTPS_URL_CREDENTIAL_KEYS,
+  isValidHttpsUrl,
+} from '@/lib/form-messages';
+import { cn } from '@/lib/utils';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type { MarketplaceOption } from '@/pages/onboarding/onboarding.types';
 
@@ -46,6 +52,7 @@ export function AddConnectionDialog({
     emptyCredentials(MARKETPLACE_OPTIONS[0]),
   );
   const [lastTestOk, setLastTestOk] = useState<boolean | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const selected = useMemo(
     () => MARKETPLACE_OPTIONS.find((o) => o.id === platform) ?? MARKETPLACE_OPTIONS[0],
@@ -62,21 +69,46 @@ export function AddConnectionDialog({
       setCredentials(emptyCredentials(opt));
     }
     setLastTestOk(null);
+    setFieldErrors({});
   };
 
   const setField = (key: string, value: string): void => {
     setCredentials((prev) => ({ ...prev, [key]: value }));
     setLastTestOk(null);
+    setFieldErrors((prev) => {
+      if (!prev[key]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
-  const requiredFilled = selected.fields.every((f) => {
-    if (!f.required) {
-      return true;
+  const validateCredentials = (): boolean => {
+    const next: Record<string, string> = {};
+    for (const f of selected.fields) {
+      const raw = (credentials[f.key] ?? '').trim();
+      if (f.required && raw.length === 0) {
+        next[f.key] = FORM_MESSAGES.required;
+        continue;
+      }
+      if (
+        HTTPS_URL_CREDENTIAL_KEYS.has(f.key) &&
+        raw.length > 0 &&
+        !isValidHttpsUrl(raw)
+      ) {
+        next[f.key] = FORM_MESSAGES.urlHttps;
+      }
     }
-    return (credentials[f.key] ?? '').trim().length > 0;
-  });
+    setFieldErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleTest = (): void => {
+    if (!validateCredentials()) {
+      return;
+    }
     testMutation.mutate(
       { platform, credentials },
       {
@@ -99,8 +131,7 @@ export function AddConnectionDialog({
   };
 
   const handleSave = (): void => {
-    if (!requiredFilled) {
-      toast.error('Lütfen tüm zorunlu alanları doldurun.');
+    if (!validateCredentials()) {
       return;
     }
     createMutation.mutate(
@@ -125,6 +156,7 @@ export function AddConnectionDialog({
         onOpenChange(next);
         if (!next) {
           setLastTestOk(null);
+          setFieldErrors({});
         }
       }}
     >
@@ -163,11 +195,16 @@ export function AddConnectionDialog({
                 type={field.type === 'password' ? 'password' : 'text'}
                 autoComplete="off"
                 placeholder={field.placeholder}
+                aria-invalid={Boolean(fieldErrors[field.key])}
+                className={cn(fieldErrors[field.key] && 'border-destructive')}
                 value={credentials[field.key] ?? ''}
                 onChange={(e) => {
                   setField(field.key, e.target.value);
                 }}
               />
+              {fieldErrors[field.key] ? (
+                <p className="text-destructive text-sm">{fieldErrors[field.key]}</p>
+              ) : null}
             </div>
           ))}
           {lastTestOk === false ? (

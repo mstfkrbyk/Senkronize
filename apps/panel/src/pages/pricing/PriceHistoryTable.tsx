@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { TableSkeleton } from '@/components/TableSkeleton';
 import {
   Table,
   TableBody,
@@ -48,31 +49,8 @@ export function PriceHistoryTable({ query }: Props): ReactElement {
 
   if (isLoading) {
     return (
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Barkod</TableHead>
-              <TableHead>Platform</TableHead>
-              <TableHead>Eski fiyat</TableHead>
-              <TableHead>Yeni fiyat</TableHead>
-              <TableHead>Değişim</TableHead>
-              <TableHead>Neden</TableHead>
-              <TableHead>Tarih</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}>
-                {Array.from({ length: 7 }).map((__, j) => (
-                  <TableCell key={j}>
-                    <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="rounded-md border p-4">
+        <TableSkeleton rows={5} cols={7} />
       </div>
     );
   }

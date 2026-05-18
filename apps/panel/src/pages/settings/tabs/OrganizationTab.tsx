@@ -19,10 +19,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 import type { OrganizationDetail } from '@/types/organization';
 
 const orgSchema = z.object({
-  name: z.string().min(2, 'Firma adı en az 2 karakter olmalıdır.'),
+  name: z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .min(2, 'Firma adı en az 2 karakter olmalıdır.'),
 });
 
 type OrgFormValues = z.infer<typeof orgSchema>;

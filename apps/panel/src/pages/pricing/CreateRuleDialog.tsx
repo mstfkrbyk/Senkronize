@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { FORM_MESSAGES } from '@/lib/form-messages';
 import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
 import { useCreateRule } from './hooks/usePricing';
@@ -47,7 +48,10 @@ const STRATEGY_LABELS: Record<PricingStrategy, string> = {
 
 const formSchema = z
   .object({
-    name: z.string().min(2, 'Kural adı en az 2 karakter olmalıdır.'),
+    name: z
+      .string()
+      .min(1, FORM_MESSAGES.required)
+      .min(2, 'Kural adı en az 2 karakter olmalıdır.'),
     platform: z.enum(['TRENDYOL', 'HEPSIBURADA']),
     strategy: z.enum([
       'MATCH_BUYBOX',
@@ -61,14 +65,14 @@ const formSchema = z
     ]),
     minMarginPct: z
       .string()
-      .min(1, 'Min. marj gerekli.')
+      .min(1, FORM_MESSAGES.required)
       .refine((s) => {
         const n = Number(s);
         return !Number.isNaN(n) && n >= 0 && n <= 100;
       }, '0–100 arası girin.'),
     maxDiscountPct: z
       .string()
-      .min(1, 'Max. indirim gerekli.')
+      .min(1, FORM_MESSAGES.required)
       .refine((s) => {
         const n = Number(s);
         return !Number.isNaN(n) && n >= 0 && n <= 100;
@@ -81,8 +85,14 @@ const formSchema = z
           return true;
         }
         const n = Number(s.replace(',', '.'));
-        return !Number.isNaN(n) && n >= 0;
-      }, 'Geçerli bir maliyet girin.'),
+        if (Number.isNaN(n)) {
+          return false;
+        }
+        if (n <= 0) {
+          return false;
+        }
+        return true;
+      }, FORM_MESSAGES.pricePositive),
     applyToAll: z.boolean(),
     barcodesRaw: z.string().optional(),
   })

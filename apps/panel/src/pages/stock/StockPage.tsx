@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
@@ -43,6 +44,7 @@ function isStockAlertPayload(
 }
 
 export function StockPage(): ReactElement {
+  usePageTitle('Stok');
   const queryClient = useQueryClient();
   const { on } = useSocket();
 
@@ -187,11 +189,7 @@ export function StockPage(): ReactElement {
       </div>
 
       {stockQuery.isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
+        <TableSkeleton rows={8} cols={5} />
       ) : null}
 
       {stockQuery.isError ? (

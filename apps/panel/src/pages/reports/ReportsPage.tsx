@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { exportToCsv } from '@/lib/csv-export';
 import type { ReportFilters, SalesReportData } from '@/types/report';
@@ -74,6 +75,7 @@ function formatTry(n: number): string {
 }
 
 export function ReportsPage(): ReactElement {
+  usePageTitle('Raporlar');
   const initialRange = useMemo(() => defaultDateRange(), []);
   const [activeTab, setActiveTab] = useState('overview');
 

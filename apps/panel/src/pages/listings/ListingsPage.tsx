@@ -7,6 +7,7 @@ import Papa from 'papaparse';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
 import type { Listing, ListingFilters as ListingFiltersState } from '@/types/listing';
@@ -80,6 +82,7 @@ function downloadListingsCsv(rows: Listing[]): void {
 }
 
 export function ListingsPage(): ReactElement {
+  usePageTitle('Ürünler');
   const queryClient = useQueryClient();
   const { on } = useSocket();
   const csvInputRef = useRef<HTMLInputElement>(null);
@@ -398,11 +401,7 @@ export function ListingsPage(): ReactElement {
       ) : null}
 
       {listingsQuery.isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
+        <TableSkeleton rows={8} cols={6} />
       ) : null}
 
       {listingsQuery.isError ? (
