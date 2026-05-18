@@ -113,6 +113,11 @@ const ReportsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
+const StockCountPage = lazy(() =>
+  import('@/pages/stock/StockCountPage').then((m) => ({
+    default: m.StockCountPage,
+  })),
+);
 const StockManagementPage = lazy(() =>
   import('@/pages/stock/StockManagementPage').then((m) => ({
     default: m.StockManagementPage,
@@ -219,6 +224,7 @@ export default function App(): ReactElement {
                 <Route path="/products/import" element={<ProductImportPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/stock/count" element={<StockCountPage />} />
                 <Route path="/stock" element={<StockManagementPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />

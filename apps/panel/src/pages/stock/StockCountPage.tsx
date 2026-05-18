@@ -292,7 +292,7 @@ export function StockCountPage(): ReactElement {
                             if (e.key === 'Enter') {
                               e.preventDefault();
                               void qtyRef.current?.focus();
-                              void qtyRef.current?.select?.();
+                              void qtyRef.current?.select();
                             }
                           }}
                         />

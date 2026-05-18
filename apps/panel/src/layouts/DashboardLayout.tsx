@@ -2,6 +2,8 @@ import type { ReactElement } from 'react';
 import { Fragment, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
+import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
+import { QuickStockSearch } from '@/components/QuickStockSearch';
 import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
@@ -46,13 +48,14 @@ export function DashboardLayout(): ReactElement {
   const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
 
   return (
-    <Fragment>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
-      >
-        Ana içeriğe geç
-      </a>
+    <BarcodeInputProvider>
+      <Fragment>
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+        >
+          Ana içeriğe geç
+        </a>
       <SidebarProvider
         open={!sidebarCollapsed}
         onOpenChange={(open) => setSidebarCollapsed(!open)}
@@ -71,6 +74,8 @@ export function DashboardLayout(): ReactElement {
         </SidebarInset>
       </SidebarProvider>
       <ShortcutsModal />
+      <QuickStockSearch />
     </Fragment>
+    </BarcodeInputProvider>
   );
 }

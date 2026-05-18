@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -288,6 +289,9 @@ export function StockManagementPage(): ReactElement {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/stock/count">Stok sayımı</Link>
+          </Button>
           <Button variant="outline" onClick={() => setWhOpen(true)}>
             Depo ekle
           </Button>
