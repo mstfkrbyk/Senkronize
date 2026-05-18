@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
 import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
 
 const path = '/blog/e-ticaret-erp-entegrasyonu';
 const description =
@@ -26,12 +28,22 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'E-Ticaret ERP Entegrasyonu: Neden Önemli ve Nasıl Yapılır?',
     description,
+    site: '@senkronize',
   },
 };
 
 export default function EcommerceErpPostPage(): ReactElement {
+  const articleLd = buildBlogArticleJsonLd({
+    headline: 'E-Ticaret ERP Entegrasyonu: Neden Önemli ve Nasıl Yapılır?',
+    description,
+    datePublished: '2026-05-10',
+    slug: 'e-ticaret-erp-entegrasyonu',
+  });
+
   return (
-    <BlogArticleShell
+    <>
+      <JsonLd data={articleLd} />
+      <BlogArticleShell
       title="E-Ticaret ERP Entegrasyonu: Neden Önemli ve Nasıl Yapılır?"
       date="10 Mayıs 2026"
       readMinutes={7}
@@ -123,5 +135,6 @@ export default function EcommerceErpPostPage(): ReactElement {
         yardımcı olur.
       </p>
     </BlogArticleShell>
+    </>
   );
 }

@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
 import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
 
 const path = '/blog/cok-kanalli-satis-stratejisi';
 const description =
@@ -27,12 +29,23 @@ export const metadata: Metadata = {
     title:
       "Çok Kanallı Satış Stratejisi: Trendyol, Hepsiburada, N11'de Başarı",
     description,
+    site: '@senkronize',
   },
 };
 
 export default function OmnichannelPostPage(): ReactElement {
+  const articleLd = buildBlogArticleJsonLd({
+    headline:
+      "Çok Kanallı Satış Stratejisi: Trendyol, Hepsiburada, N11'de Başarı",
+    description,
+    datePublished: '2026-05-01',
+    slug: 'cok-kanalli-satis-stratejisi',
+  });
+
   return (
-    <BlogArticleShell
+    <>
+      <JsonLd data={articleLd} />
+      <BlogArticleShell
       title="Çok Kanallı Satış Stratejisi: Trendyol, Hepsiburada, N11'de Başarı"
       date="1 Mayıs 2026"
       readMinutes={7}
@@ -115,5 +128,6 @@ export default function OmnichannelPostPage(): ReactElement {
         akışınızı sadeleştirebilir, ekibinizi büyümeye odaklayabilirsiniz.
       </p>
     </BlogArticleShell>
+    </>
   );
 }

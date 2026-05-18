@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
 import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
 
 const path = '/blog/trendyolda-buybox-nasil-kazanilir';
 const description =
@@ -24,12 +26,22 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: "Trendyol'da BuyBox Nasıl Kazanılır? 2026 Rehberi",
     description,
+    site: '@senkronize',
   },
 };
 
 export default function TrendyolBuyboxPostPage(): ReactElement {
+  const articleLd = buildBlogArticleJsonLd({
+    headline: "Trendyol'da BuyBox Nasıl Kazanılır? 2026 Rehberi",
+    description,
+    datePublished: '2026-05-15',
+    slug: 'trendyolda-buybox-nasil-kazanilir',
+  });
+
   return (
-    <BlogArticleShell
+    <>
+      <JsonLd data={articleLd} />
+      <BlogArticleShell
       title="Trendyol'da BuyBox Nasıl Kazanılır? 2026 Rehberi"
       date="15 Mayıs 2026"
       readMinutes={8}
@@ -129,5 +141,6 @@ export default function TrendyolBuyboxPostPage(): ReactElement {
         düşük teslim performansı) sistematik biçimde kaldıran ekipler kazanır.
       </p>
     </BlogArticleShell>
+    </>
   );
 }

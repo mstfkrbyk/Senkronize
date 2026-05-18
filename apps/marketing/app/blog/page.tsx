@@ -14,6 +14,11 @@ export const metadata: Metadata = {
   keywords: [
     'e-ticaret blog',
     'trendyol buybox',
+    'trendyol entegrasyonu',
+    'Trendyol API',
+    'buybox stratejisi',
+    'çoklu kanal satış',
+    'omnichannel',
     'erp entegrasyon',
     'çok kanallı satış',
   ],

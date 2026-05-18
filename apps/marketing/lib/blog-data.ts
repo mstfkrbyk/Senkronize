@@ -9,6 +9,33 @@ export interface BlogPostListItem {
 
 export const BLOG_POSTS: BlogPostListItem[] = [
   {
+    slug: 'trendyol-entegrasyonu-rehberi',
+    title: 'Trendyol Entegrasyonunda Yapılan 7 Kritik Hata ve Çözümleri',
+    date: '18 Mayıs 2026',
+    excerpt:
+      'Trendyol API hataları, rate limiting ve stok senkronizasyonu tuzakları: sık yapılan hatalar ve sürdürülebilir çözüm önerileri.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'buybox-kazanma-stratejileri',
+    title: "BuyBox'ı Kazanmanın 5 Altın Kuralı: Veri Odaklı Fiyatlandırma",
+    date: '17 Mayıs 2026',
+    excerpt:
+      'BuyBox nedir, fiyat rekabeti, stok ve teslimat sinyalleri; otomatik fiyatlandırma ile marjınızı koruyarak görünürlük kazanın.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'coklu-kanal-satis-rehberi',
+    title: 'Çoklu Kanal Satışta Başarının Sırrı: Merkezi Stok Yönetimi',
+    date: '16 Mayıs 2026',
+    excerpt:
+      'Omnichannel satışta stok çakışması, çift satış riski ve otomatik senkronizasyon: Senkronize ile tek kaynak doğruluğu.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
     slug: 'trendyolda-buybox-nasil-kazanilir',
     title: "Trendyol'da BuyBox Nasıl Kazanılır? 2026 Rehberi",
     date: '15 Mayıs 2026',
