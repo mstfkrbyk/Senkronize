@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
+import { Printer } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -28,6 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -37,6 +39,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { exportToCsv } from '@/lib/csv-export';
+import { printReport } from '@/lib/pdf-export';
 import type { ReportFilters, SalesReportData } from '@/types/report';
 
 import { PlatformBreakdown } from './PlatformBreakdown';
@@ -223,7 +226,8 @@ export function ReportsPage(): ReactElement {
           <TabsTrigger value="platform">Platform karşılaştırma</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview">
+          <div id="report-content" className="space-y-6">
           {salesQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(salesQuery.error)}
@@ -231,6 +235,15 @@ export function ReportsPage(): ReactElement {
           ) : null}
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => printReport('report-content', 'Satış özeti raporu')}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Yazdır / PDF
+            </Button>
             <Button
               type="button"
               variant="secondary"
@@ -266,9 +279,9 @@ export function ReportsPage(): ReactElement {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Platform</Label>
+                <Label htmlFor="rep-platform">Platform</Label>
                 <Select value={platform} onValueChange={setPlatform}>
-                  <SelectTrigger>
+                  <SelectTrigger id="rep-platform">
                     <SelectValue placeholder="Tümü" />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,12 +294,12 @@ export function ReportsPage(): ReactElement {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Gruplama</Label>
+                <Label htmlFor="rep-groupby">Gruplama</Label>
                 <Select
                   value={groupBy}
                   onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="rep-groupby">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -401,7 +414,8 @@ export function ReportsPage(): ReactElement {
                 <p className="text-sm text-muted-foreground">Ürün raporu için veri bulunamadı.</p>
               ) : (
                 <div className="rounded-md border">
-                  <Table>
+                  <Table aria-label="En çok satan ürünler">
+                    <TableCaption className="sr-only">En çok satan ürünler tablosu</TableCaption>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Barkod</TableHead>
@@ -423,14 +437,28 @@ export function ReportsPage(): ReactElement {
               )}
             </CardContent>
           </Card>
+        </div>
         </TabsContent>
 
-        <TabsContent value="profit" className="space-y-6">
+        <TabsContent value="profit">
+          <div id="report-content" className="space-y-6">
           {profitQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(profitQuery.error)}
             </div>
           ) : null}
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => printReport('report-content', 'Kâr analizi raporu')}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Yazdır / PDF
+            </Button>
+          </div>
 
           <Card>
             <CardHeader>
@@ -473,8 +501,9 @@ export function ReportsPage(): ReactElement {
               </div>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Başlangıç</Label>
+                  <Label htmlFor="profit-start">Başlangıç</Label>
                   <Input
+                    id="profit-start"
                     type="date"
                     value={profitStart}
                     onChange={(e) => {
@@ -484,8 +513,9 @@ export function ReportsPage(): ReactElement {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Bitiş</Label>
+                  <Label htmlFor="profit-end">Bitiş</Label>
                   <Input
+                    id="profit-end"
                     type="date"
                     value={profitEnd}
                     onChange={(e) => {
@@ -495,14 +525,14 @@ export function ReportsPage(): ReactElement {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Platform</Label>
+                  <Label htmlFor="profit-platform">Platform</Label>
                   <Select
                     value={profitPlatform}
                     onValueChange={(v) => {
                       setProfitPlatform(v);
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="profit-platform">
                       <SelectValue placeholder="Tümü" />
                     </SelectTrigger>
                     <SelectContent>
@@ -610,7 +640,10 @@ export function ReportsPage(): ReactElement {
                   <p className="text-sm text-muted-foreground">Bu aralıkta satır bulunamadı.</p>
                 ) : (
                   <div className="rounded-md border">
-                    <Table>
+                    <Table aria-label="Kâr raporu en çok satan ürünler">
+                      <TableCaption className="sr-only">
+                        Kâr analizi en çok satan ürünler tablosu
+                      </TableCaption>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Ürün</TableHead>
@@ -635,9 +668,11 @@ export function ReportsPage(): ReactElement {
               </CardContent>
             </Card>
           </div>
+        </div>
         </TabsContent>
 
-        <TabsContent value="stock" className="space-y-6">
+        <TabsContent value="stock">
+          <div id="report-content" className="space-y-6">
           {stockQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(stockQuery.error)}
@@ -655,24 +690,35 @@ export function ReportsPage(): ReactElement {
                 </p>
               )}
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={(stockQuery.data?.byPlatform ?? []).length === 0}
-              onClick={() =>
-                exportToCsv(
-                  (stockQuery.data?.byPlatform ?? []).map((row) => ({
-                    Platform: row.platform,
-                    'Stok değeri (TL)': row.totalValue,
-                    'SKU sayısı': row.skuCount,
-                  })),
-                  'stok-degeri-platform',
-                )
-              }
-            >
-              CSV İndir
-            </Button>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => printReport('report-content', 'Stok değeri raporu')}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Yazdır / PDF
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={(stockQuery.data?.byPlatform ?? []).length === 0}
+                onClick={() =>
+                  exportToCsv(
+                    (stockQuery.data?.byPlatform ?? []).map((row) => ({
+                      Platform: row.platform,
+                      'Stok değeri (TL)': row.totalValue,
+                      'SKU sayısı': row.skuCount,
+                    })),
+                    'stok-degeri-platform',
+                  )
+                }
+              >
+                CSV İndir
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
@@ -732,7 +778,10 @@ export function ReportsPage(): ReactElement {
                 <p className="text-sm text-muted-foreground">Listeleme kaydı yok.</p>
               ) : (
                 <div className="rounded-md border">
-                  <Table>
+                  <Table aria-label="Platform bazlı stok değeri">
+                    <TableCaption className="sr-only">
+                      Platform bazlı stok değeri tablosu
+                    </TableCaption>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Platform</TableHead>
@@ -754,14 +803,28 @@ export function ReportsPage(): ReactElement {
               )}
             </CardContent>
           </Card>
+        </div>
         </TabsContent>
 
-        <TabsContent value="trend" className="space-y-6">
+        <TabsContent value="trend">
+          <div id="report-content" className="space-y-6">
           {orderTrendQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(orderTrendQuery.error)}
             </div>
           ) : null}
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => printReport('report-content', 'Sipariş trendi raporu')}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Yazdır / PDF
+            </Button>
+          </div>
 
           <Card>
             <CardHeader>
@@ -769,30 +832,32 @@ export function ReportsPage(): ReactElement {
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label>Başlangıç</Label>
+                <Label htmlFor="trend-start">Başlangıç</Label>
                 <Input
+                  id="trend-start"
                   type="date"
                   value={trendStart}
                   onChange={(e) => setTrendStart(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Bitiş</Label>
+                <Label htmlFor="trend-end">Bitiş</Label>
                 <Input
+                  id="trend-end"
                   type="date"
                   value={trendEnd}
                   onChange={(e) => setTrendEnd(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label>Granülarite</Label>
+                <Label htmlFor="trend-granularity">Granülarite</Label>
                 <Select
                   value={trendGranularity}
                   onValueChange={(v) =>
                     setTrendGranularity(v as 'daily' | 'weekly' | 'monthly')
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="trend-granularity">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -897,14 +962,28 @@ export function ReportsPage(): ReactElement {
               CSV İndir
             </Button>
           </div>
+        </div>
         </TabsContent>
 
-        <TabsContent value="platform" className="space-y-6">
+        <TabsContent value="platform">
+          <div id="report-content" className="space-y-6">
           {platformCompareQuery.isError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(platformCompareQuery.error)}
             </div>
           ) : null}
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => printReport('report-content', 'Platform karşılaştırma raporu')}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Yazdır / PDF
+            </Button>
+          </div>
 
           <p className="text-sm text-muted-foreground">
             Tarih aralığı için üstteki Satış özeti sekmesindeki başlangıç ve bitiş tarihlerini kullanır.
@@ -942,7 +1021,10 @@ export function ReportsPage(): ReactElement {
                 <p className="text-sm text-muted-foreground">Veri bulunamadı.</p>
               ) : (
                 <div className="rounded-md border">
-                  <Table>
+                  <Table aria-label="Platform performans karşılaştırması">
+                    <TableCaption className="sr-only">
+                      Platform performans karşılaştırması tablosu
+                    </TableCaption>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Platform</TableHead>
@@ -972,6 +1054,7 @@ export function ReportsPage(): ReactElement {
               )}
             </CardContent>
           </Card>
+        </div>
         </TabsContent>
       </Tabs>
     </div>

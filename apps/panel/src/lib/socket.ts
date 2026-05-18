@@ -1,5 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
+import { toast } from 'sonner';
 
+import { queryClient } from '@/lib/queryClient';
 import { useAuthStore } from '@/store/auth.store';
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'http://localhost:3001';
@@ -19,13 +21,30 @@ export function retainSocketConnection(): () => void {
   };
 }
 
+function attachSocketLifecycle(s: Socket): void {
+  s.on('disconnect', (reason: string) => {
+    if (reason === 'io client disconnect') {
+      return;
+    }
+    toast.info('Sunucu bağlantısı kesildi, yeniden bağlanılıyor...');
+  });
+  s.on('reconnect', () => {
+    toast.success('Bağlantı yenilendi');
+    void queryClient.invalidateQueries();
+  });
+}
+
 export function getSocket(): Socket {
   if (!socket) {
     socket = io(WS_URL, {
       auth: { token: useAuthStore.getState().token },
       transports: ['websocket'],
       autoConnect: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     });
+    attachSocketLifecycle(socket);
   }
   return socket;
 }

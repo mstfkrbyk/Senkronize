@@ -66,9 +66,14 @@ export function NotificationBell(): ReactElement {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="relative shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="relative shrink-0"
+          aria-label="Bildirimler"
+        >
           <Bell className="size-5" />
-          <span className="sr-only">Bildirimler</span>
           {unread > 0 ? (
             <Badge
               variant="destructive"

@@ -2,11 +2,6 @@ import type { ReactElement } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useAuth } from '@/hooks/useAuth';
-import { api } from '@/lib/api';
-import { useAuthStore } from '@/store/auth.store';
-import { disconnectSocket } from '@/lib/socket';
-import { NAV_ITEMS } from '@/constants/navigation';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/topbar/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,6 +17,12 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { NAV_ITEMS } from '@/constants/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { api } from '@/lib/api';
+import { disconnectSocket } from '@/lib/socket';
+import { useAuthStore } from '@/store/auth.store';
+import { useUiStore } from '@/store/ui.store';
 
 function pageTitleFromPath(pathname: string): string {
   const item = NAV_ITEMS.find((n) => n.path === pathname);
@@ -48,6 +49,7 @@ export function TopBar(): ReactElement {
   const storeOrg = useAuthStore((s) => s.currentOrg);
   const storeUser = useAuthStore((s) => s.user);
   const logoutStore = useAuthStore((s) => s.logout);
+  const setShortcutsHelpOpen = useUiStore((s) => s.setShortcutsHelpOpen);
 
   const org = data?.organization ?? storeOrg;
   const user = data?.user ?? storeUser;
@@ -97,6 +99,16 @@ export function TopBar(): ReactElement {
         <div className="md:hidden">
           <NotificationBell />
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-9 shrink-0 font-semibold text-muted-foreground"
+          aria-label="Klavye kısayolları"
+          onClick={() => setShortcutsHelpOpen(true)}
+        >
+          ?
+        </Button>
         <ThemeToggle />
       </div>
 
@@ -106,6 +118,7 @@ export function TopBar(): ReactElement {
             type="button"
             variant="ghost"
             className="relative size-9 rounded-full p-0"
+            aria-label="Hesap menüsü"
           >
             <Avatar className="size-9 border">
               <AvatarFallback className="text-xs font-medium">

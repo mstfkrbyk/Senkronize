@@ -26,6 +26,8 @@ interface UiState {
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarCollapsed: () => void;
+  shortcutsHelpOpen: boolean;
+  setShortcutsHelpOpen: (open: boolean) => void;
   notifications: Notification[];
   addNotification: (n: Omit<Notification, 'id' | 'read' | 'createdAt'>) => void;
   markAllRead: () => void;
@@ -45,6 +47,8 @@ export const useUiStore = create<UiState>()(
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebarCollapsed: () =>
         set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+      shortcutsHelpOpen: false,
+      setShortcutsHelpOpen: (open) => set({ shortcutsHelpOpen: open }),
       notifications: [],
       addNotification: (partial) =>
         set((s) => {
