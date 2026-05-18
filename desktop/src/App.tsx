@@ -50,7 +50,8 @@ export default function App(): ReactElement {
 
     void (async () => {
       try {
-        const res = await tauriApi.checkForUpdates();
+        const apiUrl = useAppStore.getState().apiUrl;
+        const res = await tauriApi.checkForUpdates(apiUrl.trim().length > 0 ? apiUrl.trim() : null);
         if (res.hasUpdate) {
           setUpdateToast(res);
         }
@@ -65,6 +66,7 @@ export default function App(): ReactElement {
     let unlistenTray: (() => void) | undefined;
     let unlistenAuto: (() => void) | undefined;
     let unlistenSettings: (() => void) | undefined;
+    let unlistenDashboard: (() => void) | undefined;
 
     void (async () => {
       unlistenTray = await listen('tray-sync-request', () => {
@@ -76,12 +78,16 @@ export default function App(): ReactElement {
       unlistenSettings = await listen('open-settings', () => {
         useAppStore.getState().setPendingSidebarNav('settings');
       });
+      unlistenDashboard = await listen('open-dashboard', () => {
+        setPage('status');
+      });
     })();
 
     return () => {
       unlistenTray?.();
       unlistenAuto?.();
       unlistenSettings?.();
+      unlistenDashboard?.();
     };
   }, []);
 

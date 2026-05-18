@@ -119,11 +119,66 @@ export function ErpBridgePage(): ReactElement {
     })();
   }, [apiUrl, baseUrl, setHealth, token]);
 
+  const runFullErpSync = useCallback(
+    async (sourceLabel: string): Promise<void> => {
+      const tok = useAppStore.getState().token;
+      if (!tok) {
+        setSyncMessage('Oturum yok; önce kurulumdan giriş yapın.');
+        pushHistory(false, `${sourceLabel}: oturum yok`);
+        return;
+      }
+      if (baseUrl.trim().length === 0) {
+        setSyncMessage('ERP sunucu URL gerekli.');
+        pushHistory(false, `${sourceLabel}: URL eksik`);
+        return;
+      }
+
+      setSyncBusy(true);
+      setSyncMessage(null);
+      try {
+        await tauriApi.setTrayIndicator('syncing');
+        const products = await tauriApi.syncErpProducts({
+          erpType,
+          credentials,
+          cloudApiUrl: apiUrl.trim(),
+          apiKey: tok.token,
+        });
+        const orders = await tauriApi.syncErpOrders({
+          erpType,
+          credentials,
+          cloudApiUrl: apiUrl.trim(),
+          apiKey: tok.token,
+        });
+
+        const softFail = products.errors.length + orders.errors.length > 0;
+        const summary = [
+          summarizeEngine(sourceLabel, products, 'Ürün'),
+          summarizeEngine(sourceLabel, orders, 'Sipariş'),
+        ].join('\n');
+
+        setSyncMessage(summary);
+        pushHistory(!softFail, summary);
+
+        await tauriApi.recordLastSync(orders.syncedAt);
+        await refreshSyncStatus();
+        await tauriApi.setTrayIndicator(softFail ? 'error' : 'idle');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setSyncMessage(message);
+        pushHistory(false, `${sourceLabel}: ${message}`);
+        await tauriApi.setTrayIndicator('error');
+      } finally {
+        setSyncBusy(false);
+      }
+    },
+    [apiUrl, baseUrl, credentials, erpType, pushHistory, refreshSyncStatus, summarizeEngine],
+  );
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     void (async () => {
       unlisten = await listen('auto-sync-tick', () => {
-        if (!autoSyncOn || !token) {
+        if (!autoSyncOn || !useAppStore.getState().token) {
           return;
         }
         void runFullErpSync('Zamanlayıcı');
@@ -132,7 +187,7 @@ export function ErpBridgePage(): ReactElement {
     return () => {
       unlisten?.();
     };
-  }, [autoSyncOn, token]);
+  }, [autoSyncOn, runFullErpSync]);
 
   const cloudConnected = health?.cloudConnected === true;
   const erpLineOk = testOk === true;
@@ -161,62 +216,6 @@ export function ErpBridgePage(): ReactElement {
     }
   }
 
-  function summarizeEngine(label: string, res: ErpSyncEngineResult, kind: 'Ürün' | 'Sipariş'): string {
-    const errPart = res.errors.length ? ` | Uyarı: ${res.errors.join(' · ')}` : '';
-    return `${label} — ${kind}: ${kind === 'Ürün' ? res.productsSynced : res.ordersPushed} (${res.durationMs} ms)${errPart}`;
-  }
-
-  async function runFullErpSync(sourceLabel: string): Promise<void> {
-    if (!token) {
-      setSyncMessage('Oturum yok; önce kurulumdan giriş yapın.');
-      pushHistory(false, `${sourceLabel}: oturum yok`);
-      return;
-    }
-    if (baseUrl.trim().length === 0) {
-      setSyncMessage('ERP sunucu URL gerekli.');
-      pushHistory(false, `${sourceLabel}: URL eksik`);
-      return;
-    }
-
-    setSyncBusy(true);
-    setSyncMessage(null);
-    try {
-      await tauriApi.setTrayIndicator('syncing');
-      const products = await tauriApi.syncErpProducts({
-        erpType,
-        credentials,
-        cloudApiUrl: apiUrl.trim(),
-        apiKey: token.token,
-      });
-      const orders = await tauriApi.syncErpOrders({
-        erpType,
-        credentials,
-        cloudApiUrl: apiUrl.trim(),
-        apiKey: token.token,
-      });
-
-      const softFail = products.errors.length + orders.errors.length > 0;
-      const summary = [
-        summarizeEngine(sourceLabel, products, 'Ürün'),
-        summarizeEngine(sourceLabel, orders, 'Sipariş'),
-      ].join('\n');
-
-      setSyncMessage(summary);
-      pushHistory(!softFail, summary);
-
-      await tauriApi.recordLastSync(orders.syncedAt);
-      await refreshSyncStatus();
-      await tauriApi.setTrayIndicator(softFail ? 'error' : 'idle');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setSyncMessage(message);
-      pushHistory(false, `${sourceLabel}: ${message}`);
-      await tauriApi.setTrayIndicator('error');
-    } finally {
-      setSyncBusy(false);
-    }
-  }
-
   async function onManualSync(): Promise<void> {
     await runFullErpSync('Manuel');
   }
@@ -233,7 +232,6 @@ export function ErpBridgePage(): ReactElement {
       } else {
         await tauriApi.stopAutoSync();
       }
-      setAutoSyncOn(next);
       await refreshSyncStatus();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

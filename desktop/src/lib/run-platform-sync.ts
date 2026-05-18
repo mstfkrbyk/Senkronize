@@ -16,21 +16,39 @@ export async function runFullPlatformSync(): Promise<void> {
   }
 
   let lastAt = new Date().toISOString();
+  let anyFail = false;
 
-  for (const p of PLATFORMS) {
-    try {
-      const res = await tauriApi.triggerSync(state.apiUrl, state.token.token, p.id);
-      lastAt = res.syncedAt;
-      state.addSyncLog({ ...res, message: `${p.label}: ${res.message}` });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      state.addSyncLog({
-        success: false,
-        message: `${p.label}: ${message}`,
-        syncedAt: new Date().toISOString(),
-      });
+  try {
+    await tauriApi.setTrayIndicator('syncing');
+    for (const p of PLATFORMS) {
+      try {
+        const res = await tauriApi.triggerSync(state.apiUrl, state.token.token, p.id);
+        lastAt = res.syncedAt;
+        state.addSyncLog({ ...res, message: `${p.label}: ${res.message}` });
+        if (!res.success) {
+          anyFail = true;
+        }
+      } catch (err) {
+        anyFail = true;
+        const message = err instanceof Error ? err.message : String(err);
+        state.addSyncLog({
+          success: false,
+          message: `${p.label}: ${message}`,
+          syncedAt: new Date().toISOString(),
+        });
+      }
     }
-  }
 
-  await tauriApi.recordLastSync(lastAt);
+    await tauriApi.recordLastSync(lastAt);
+    await tauriApi.setTrayIndicator(anyFail ? 'error' : 'idle');
+  } catch (err) {
+    anyFail = true;
+    const message = err instanceof Error ? err.message : String(err);
+    state.addSyncLog({
+      success: false,
+      message,
+      syncedAt: new Date().toISOString(),
+    });
+    await tauriApi.setTrayIndicator('error');
+  }
 }
