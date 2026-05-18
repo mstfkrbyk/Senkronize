@@ -66,6 +66,69 @@ export class CreatePricingRuleDto {
   @IsArray()
   @IsString({ each: true })
   barcodes?: string[];
+
+  @ApiPropertyOptional({ description: 'Maliyet fiyatı (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  costPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Minimum kâr marjı oranı (0.10 = %10); boşsa minMarginPct kullanılır',
+    minimum: 0,
+    maximum: 2,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(2)
+  minMarginPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Rakip fiyatından düşülecek adım (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  stepAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Gece indirim oranı (0.05 = %5)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  nightDiscountPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Peak saat prim oranı (0.03 = %3)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  peakPremiumPercent?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  highStockThreshold?: number;
+
+  @ApiPropertyOptional({ description: 'Tavan fiyat (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
 }
 
 export class UpdatePricingRuleDto {
@@ -125,6 +188,96 @@ export class UpdatePricingRuleDto {
   @IsArray()
   @IsString({ each: true })
   barcodes?: string[];
+
+  @ApiPropertyOptional({ description: 'Maliyet fiyatı (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  costPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Minimum kâr marjı oranı (0.10 = %10); boşsa minMarginPct kullanılır',
+    minimum: 0,
+    maximum: 2,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(2)
+  minMarginPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Rakip fiyatından düşülecek adım (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  stepAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Gece indirim oranı (0.05 = %5)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  nightDiscountPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Peak saat prim oranı (0.03 = %3)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  peakPremiumPercent?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  lowStockThreshold?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  highStockThreshold?: number;
+
+  @ApiPropertyOptional({ description: 'Tavan fiyat (TRY)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxPrice?: number;
+}
+
+export class SimulatePricingRuleDto {
+  @ApiProperty({ description: 'Mevcut satış fiyatı' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  currentPrice!: number;
+
+  @ApiPropertyOptional({ description: 'BuyBox / rakip referans fiyatı' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  competitorPrice?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock?: number;
+
+  @ApiPropertyOptional({ description: 'BuyBox kazanan mısınız' })
+  @IsOptional()
+  @IsBoolean()
+  hasBuyBox?: boolean;
 }
 
 export class ManualPriceUpdateDto {

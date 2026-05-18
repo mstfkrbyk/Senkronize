@@ -1,0 +1,1 @@
+ALTER TYPE "PricingStrategy" ADD VALUE 'PROFIT_FOCUSED';

@@ -60,7 +60,11 @@ export class PricingProcessor {
           rule,
           Number(listing.salePrice),
           Number(snapshot.buyBoxPrice),
-          null,
+          rule.costPrice != null ? rule.costPrice : null,
+          {
+            stock: listing.quantity,
+            hasBuyBox: snapshot.isWinner,
+          },
         );
 
         if (newPrice === null) {

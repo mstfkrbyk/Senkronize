@@ -63,6 +63,10 @@ enum PricingStrategy {
   BEAT_BUYBOX
   FIXED_MARGIN
   DYNAMIC
+  AGGRESSIVE_BUYBOX
+  PROFIT_FOCUSED
+  TIME_BASED
+  STOCK_BASED
 }
 
 enum ErpType {
@@ -548,6 +552,22 @@ model PricingRule {
   minMarginPct   Decimal         @default(10) @db.Decimal(5, 2)
   maxDiscountPct Decimal         @default(20) @db.Decimal(5, 2)
   targetPosition Int             @default(1)
+  /// Maliyet fiyatı (kâr hesaplama için, TRY)
+  costPrice                Float?
+  /// Minimum kâr marjı oranı (0.10 = %10); yoksa minMarginPct kullanılır
+  minMarginPercent         Float?
+  /// Rakip / BuyBox fiyatından düşülecek adım (TRY)
+  stepAmount               Float?
+  /// Gece (00–06) indirim oranı (0.05 = %5)
+  nightDiscountPercent     Float?
+  /// Öğle peak premium (0.03 = %3)
+  peakPremiumPercent       Float?
+  /// Düşük stok eşiği (adet)
+  lowStockThreshold        Int?
+  /// Yüksek stok eşiği (adet)
+  highStockThreshold       Int?
+  /// Tavan fiyat (TRY)
+  maxPrice                 Float?
   isActive       Boolean         @default(true)
   applyToAll     Boolean         @default(false)
   barcodes       String[]

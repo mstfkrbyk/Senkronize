@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -23,11 +25,13 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequiresPlan, SubscriptionGuard } from '../common/guards/subscription.guard';
 
+import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
 import {
   CreatePricingRuleDto,
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
   PricingPlatformQueryDto,
+  SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
 import type { BuyBoxSummaryResponse, PriceHistoryItemResponse } from './pricing.service';
@@ -95,6 +99,44 @@ export class PricingController {
   @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
   async getBuyBox(@CurrentOrg() org: CurrentOrgPayload): Promise<BuyBoxSummaryResponse> {
     return this.pricingService.getBuyBoxSummary(org.id);
+  }
+
+  @Get('buybox-analysis/:listingId')
+  @ApiOperation({ summary: 'Listeleme için BuyBox analizi ve öneri' })
+  @ApiResponse({ status: 200, description: 'Analiz' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getBuyBoxAnalysis(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('listingId') listingId: string,
+  ): Promise<BuyBoxAnalysisResult> {
+    return this.pricingService.getBuyBoxListingAnalysis(org.id, listingId);
+  }
+
+  @Get('win-rate')
+  @ApiOperation({ summary: 'BuyBox kazanma oranı (tüm platformlar, anlık görüntü bazlı)' })
+  @ApiResponse({ status: 200, description: 'İstatistikler' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getWinRate(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('days', new DefaultValuePipe(7), ParseIntPipe) days: number,
+  ): Promise<BuyBoxWinRateStats> {
+    const clamped = Math.min(Math.max(days, 1), 365);
+    return this.pricingService.getBuyBoxWinRateStats(org.id, clamped);
+  }
+
+  @Post('rules/:id/simulate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Kural simülasyonu (fiyat değiştirmeden öneri)' })
+  @ApiResponse({ status: 200, description: 'Simülasyon sonucu' })
+  @ApiResponse({ status: 404, description: 'Kural bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async simulateRule(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: SimulatePricingRuleDto,
+  ): Promise<{ suggestedPrice: number | null; strategy: string }> {
+    return this.pricingService.simulateRule(org.id, id, dto);
   }
 
   @Get('buybox/:barcode')

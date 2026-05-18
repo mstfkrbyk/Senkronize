@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Marketplace, Prisma, type PricingRule } from '@prisma/client';
+import {
+  Marketplace,
+  Prisma,
+  type PricingRule,
+  type PricingStrategy,
+} from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { EventService } from '../event/event.service';
@@ -17,11 +22,13 @@ import type {
   PricingRunRulesJobData,
 } from '../queue/queue.types';
 
+import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
 import { BuyBoxService } from './buybox.service';
 import type {
   CreatePricingRuleDto,
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
+  SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
 import { PricingEngine } from './pricing.engine';
@@ -90,6 +97,24 @@ export class PricingService {
         targetPosition: dto.targetPosition ?? 1,
         applyToAll,
         barcodes: applyToAll ? [] : barcodes,
+        ...(dto.costPrice !== undefined ? { costPrice: dto.costPrice } : {}),
+        ...(dto.minMarginPercent !== undefined
+          ? { minMarginPercent: dto.minMarginPercent }
+          : {}),
+        ...(dto.stepAmount !== undefined ? { stepAmount: dto.stepAmount } : {}),
+        ...(dto.nightDiscountPercent !== undefined
+          ? { nightDiscountPercent: dto.nightDiscountPercent }
+          : {}),
+        ...(dto.peakPremiumPercent !== undefined
+          ? { peakPremiumPercent: dto.peakPremiumPercent }
+          : {}),
+        ...(dto.lowStockThreshold !== undefined
+          ? { lowStockThreshold: dto.lowStockThreshold }
+          : {}),
+        ...(dto.highStockThreshold !== undefined
+          ? { highStockThreshold: dto.highStockThreshold }
+          : {}),
+        ...(dto.maxPrice !== undefined ? { maxPrice: dto.maxPrice } : {}),
       },
     });
   }
@@ -141,6 +166,24 @@ export class PricingService {
           targetPosition: dto.targetPosition,
         }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        ...(dto.costPrice !== undefined && { costPrice: dto.costPrice }),
+        ...(dto.minMarginPercent !== undefined && {
+          minMarginPercent: dto.minMarginPercent,
+        }),
+        ...(dto.stepAmount !== undefined && { stepAmount: dto.stepAmount }),
+        ...(dto.nightDiscountPercent !== undefined && {
+          nightDiscountPercent: dto.nightDiscountPercent,
+        }),
+        ...(dto.peakPremiumPercent !== undefined && {
+          peakPremiumPercent: dto.peakPremiumPercent,
+        }),
+        ...(dto.lowStockThreshold !== undefined && {
+          lowStockThreshold: dto.lowStockThreshold,
+        }),
+        ...(dto.highStockThreshold !== undefined && {
+          highStockThreshold: dto.highStockThreshold,
+        }),
+        ...(dto.maxPrice !== undefined && { maxPrice: dto.maxPrice }),
         applyToAll: nextApplyToAll,
         barcodes: nextBarcodes,
       },
@@ -367,6 +410,47 @@ export class PricingService {
       })),
       total,
     };
+  }
+
+  async getBuyBoxListingAnalysis(
+    organizationId: string,
+    listingId: string,
+  ): Promise<BuyBoxAnalysisResult> {
+    return this.buybox.getBuyBoxAnalysis(organizationId, listingId);
+  }
+
+  async getBuyBoxWinRateStats(
+    organizationId: string,
+    days?: number,
+  ): Promise<BuyBoxWinRateStats> {
+    return this.buybox.getBuyBoxWinRate(organizationId, days ?? 7);
+  }
+
+  async simulateRule(
+    organizationId: string,
+    ruleId: string,
+    dto: SimulatePricingRuleDto,
+  ): Promise<{ suggestedPrice: number | null; strategy: PricingStrategy }> {
+    const rule = await this.prisma.pricingRule.findFirst({
+      where: { id: ruleId, organizationId, deletedAt: null },
+    });
+    if (!rule) {
+      throw new NotFoundException('Fiyat kuralı bulunamadı');
+    }
+
+    const referencePrice = dto.competitorPrice ?? dto.currentPrice;
+    const suggestedPrice = this.engine.calculateOptimalPrice(
+      rule,
+      dto.currentPrice,
+      referencePrice,
+      rule.costPrice != null ? rule.costPrice : null,
+      {
+        stock: dto.stock ?? 0,
+        hasBuyBox: dto.hasBuyBox ?? false,
+      },
+    );
+
+    return { suggestedPrice, strategy: rule.strategy };
   }
 
   async findPriceHistoryByBarcode(

@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "PricingRule" ADD COLUMN "costPrice" DOUBLE PRECISION,
+ADD COLUMN "minMarginPercent" DOUBLE PRECISION,
+ADD COLUMN "stepAmount" DOUBLE PRECISION,
+ADD COLUMN "nightDiscountPercent" DOUBLE PRECISION,
+ADD COLUMN "peakPremiumPercent" DOUBLE PRECISION,
+ADD COLUMN "lowStockThreshold" INTEGER,
+ADD COLUMN "highStockThreshold" INTEGER,
+ADD COLUMN "maxPrice" DOUBLE PRECISION;

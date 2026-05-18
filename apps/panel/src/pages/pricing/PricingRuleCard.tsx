@@ -27,6 +27,17 @@ const STRATEGY_LABELS: Record<PricingStrategy, string> = {
   BEAT_BUYBOX: "BuyBox'tan ucuz",
   FIXED_MARGIN: 'Sabit marj',
   DYNAMIC: 'Dinamik (AI)',
+  AGGRESSIVE_BUYBOX: 'Agresif BuyBox',
+  PROFIT_FOCUSED: 'Kâr odaklı',
+  TIME_BASED: 'Zaman bazlı',
+  STOCK_BASED: 'Stok bazlı',
+};
+
+const STRATEGY_BADGE: Partial<Record<PricingStrategy, string>> = {
+  AGGRESSIVE_BUYBOX: 'AGGRESSIVE',
+  PROFIT_FOCUSED: 'PROFIT_FOCUSED',
+  TIME_BASED: 'TIME_BASED',
+  STOCK_BASED: 'STOCK_BASED',
 };
 
 interface Props {
@@ -57,8 +68,15 @@ export function PricingRuleCard({ rule }: Props): ReactElement {
             <CardTitle className="text-base leading-tight">{rule.name}</CardTitle>
             <Badge variant="secondary">{platformLabel}</Badge>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {STRATEGY_BADGE[rule.strategy] ? (
+              <Badge className="bg-sky-500 text-white hover:bg-sky-500/90">
+                {STRATEGY_BADGE[rule.strategy]}
+              </Badge>
+            ) : null}
+          </div>
           <p className="text-sm text-muted-foreground">
-            {STRATEGY_LABELS[rule.strategy]}
+            {STRATEGY_LABELS[rule.strategy] ?? rule.strategy}
           </p>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
@@ -66,6 +84,18 @@ export function PricingRuleCard({ rule }: Props): ReactElement {
             <span className="text-muted-foreground">Min. marj</span>
             <span className="font-medium">%{rule.minMarginPct}</span>
           </div>
+          {rule.costPrice != null && rule.costPrice > 0 ? (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Maliyet</span>
+              <span className="font-medium">
+                {new Intl.NumberFormat('tr-TR', {
+                  style: 'currency',
+                  currency: 'TRY',
+                  maximumFractionDigits: 2,
+                }).format(rule.costPrice)}
+              </span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between gap-2">
             <span className="text-muted-foreground">Aktif</span>
             <Switch

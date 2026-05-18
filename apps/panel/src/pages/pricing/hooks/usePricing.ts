@@ -3,7 +3,9 @@ import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
+  BuyBoxListingAnalysis,
   BuyBoxSummary,
+  BuyBoxWinRateStats,
   PriceHistoryEntry,
   PricingRule,
 } from '@/types/pricing';
@@ -94,6 +96,33 @@ export function useUpdatePricingRuleActive() {
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
     },
+  });
+}
+
+export function useBuyBoxWinRate(days = 7) {
+  return useQuery({
+    queryKey: ['pricing', 'win-rate', days],
+    queryFn: async (): Promise<BuyBoxWinRateStats> => {
+      const { data } = await api.get<BuyBoxWinRateStats>('/pricing/win-rate', {
+        params: { days },
+      });
+      return data;
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useBuyBoxListingAnalysis(listingId: string | null) {
+  return useQuery({
+    queryKey: ['pricing', 'buybox-analysis', listingId],
+    queryFn: async (): Promise<BuyBoxListingAnalysis> => {
+      const { data } = await api.get<BuyBoxListingAnalysis>(
+        `/pricing/buybox-analysis/${listingId}`,
+      );
+      return data;
+    },
+    enabled: listingId != null && listingId.length > 0,
+    staleTime: 15_000,
   });
 }
 

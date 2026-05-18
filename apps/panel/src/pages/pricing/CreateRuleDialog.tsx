@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { PricingStrategy } from '@/types/pricing';
+import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
 import { useCreateRule } from './hooks/usePricing';
 
@@ -39,6 +39,10 @@ const STRATEGY_LABELS: Record<PricingStrategy, string> = {
   BEAT_BUYBOX: "BuyBox'tan ucuz",
   FIXED_MARGIN: 'Sabit marj',
   DYNAMIC: 'Dinamik (AI)',
+  AGGRESSIVE_BUYBOX: 'Agresif BuyBox',
+  PROFIT_FOCUSED: 'Kâr odaklı',
+  TIME_BASED: 'Zaman bazlı',
+  STOCK_BASED: 'Stok bazlı',
 };
 
 const formSchema = z
@@ -50,6 +54,10 @@ const formSchema = z
       'BEAT_BUYBOX',
       'FIXED_MARGIN',
       'DYNAMIC',
+      'AGGRESSIVE_BUYBOX',
+      'PROFIT_FOCUSED',
+      'TIME_BASED',
+      'STOCK_BASED',
     ]),
     minMarginPct: z
       .string()
@@ -65,6 +73,16 @@ const formSchema = z
         const n = Number(s);
         return !Number.isNaN(n) && n >= 0 && n <= 100;
       }, '0–100 arası girin.'),
+    costPrice: z
+      .string()
+      .optional()
+      .refine((s) => {
+        if (s === undefined || s.trim() === '') {
+          return true;
+        }
+        const n = Number(s.replace(',', '.'));
+        return !Number.isNaN(n) && n >= 0;
+      }, 'Geçerli bir maliyet girin.'),
     applyToAll: z.boolean(),
     barcodesRaw: z.string().optional(),
   })
@@ -103,6 +121,7 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
       strategy: 'MATCH_BUYBOX',
       minMarginPct: '5',
       maxDiscountPct: '15',
+      costPrice: '',
       applyToAll: true,
       barcodesRaw: '',
     },
@@ -118,6 +137,7 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
         strategy: 'MATCH_BUYBOX',
         minMarginPct: '5',
         maxDiscountPct: '15',
+        costPrice: '',
         applyToAll: true,
         barcodesRaw: '',
       });
@@ -133,18 +153,24 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
             .map((l) => l.trim())
             .filter(Boolean);
 
+    const payload: Record<string, unknown> = {
+      name: values.name,
+      platform: values.platform,
+      strategy: values.strategy,
+      minMarginPct: String(Number(values.minMarginPct)),
+      maxDiscountPct: String(Number(values.maxDiscountPct)),
+      applyToAll: values.applyToAll,
+      barcodes,
+      isActive: true,
+      targetPosition: 1,
+    };
+    const costRaw = values.costPrice?.trim();
+    if (costRaw) {
+      payload.costPrice = Number(costRaw.replace(',', '.'));
+    }
+
     createMutation.mutate(
-      {
-        name: values.name,
-        platform: values.platform,
-        strategy: values.strategy,
-        minMarginPct: String(Number(values.minMarginPct)),
-        maxDiscountPct: String(Number(values.maxDiscountPct)),
-        applyToAll: values.applyToAll,
-        barcodes,
-        isActive: true,
-        targetPosition: 1,
-      },
+      payload as Partial<PricingRule>,
       {
         onSuccess: () => {
           onOpenChange(false);
@@ -260,6 +286,26 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="costPrice"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Maliyet fiyatı (TRY, isteğe bağlı)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="Örn. 120,50"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

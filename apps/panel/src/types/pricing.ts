@@ -2,7 +2,11 @@ export type PricingStrategy =
   | 'MATCH_BUYBOX'
   | 'BEAT_BUYBOX'
   | 'FIXED_MARGIN'
-  | 'DYNAMIC';
+  | 'DYNAMIC'
+  | 'AGGRESSIVE_BUYBOX'
+  | 'PROFIT_FOCUSED'
+  | 'TIME_BASED'
+  | 'STOCK_BASED';
 
 export interface PricingRule {
   id: string;
@@ -16,6 +20,32 @@ export interface PricingRule {
   applyToAll: boolean;
   barcodes: string[];
   createdAt: string;
+  costPrice?: number | null;
+  minMarginPercent?: number | null;
+  stepAmount?: number | null;
+  nightDiscountPercent?: number | null;
+  peakPremiumPercent?: number | null;
+  lowStockThreshold?: number | null;
+  highStockThreshold?: number | null;
+  maxPrice?: number | null;
+}
+
+export interface BuyBoxWinRateStats {
+  totalChecks: number;
+  winCount: number;
+  winRate: number;
+  avgPriceWhenWinning: number;
+  avgPriceWhenLosing: number;
+}
+
+export interface BuyBoxListingAnalysis {
+  currentPrice: number;
+  competitorPrices: number[];
+  hasBuyBox: boolean;
+  buyBoxPrice: number | null;
+  priceGap: number;
+  recommendation: string;
+  suggestedPrice: number;
 }
 
 export interface BuyBoxSummary {
