@@ -165,7 +165,7 @@ export function StockCountPage(): ReactElement {
       toast.success('Sayım satırı güncellendi');
       resetDraft();
     } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Kayıt eklenemedi'));
+      toast.error(getApiErrorMessage(e));
     }
   }, [draftBarcode, draftQty, resetDraft, upsertMut]);
 
@@ -185,7 +185,7 @@ export function StockCountPage(): ReactElement {
       setParams({ session: row.id });
       toast.success('Sayım oturumu başlatıldı');
     } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Oturum başlatılamadı'));
+      toast.error(getApiErrorMessage(e));
     }
   };
 
@@ -194,7 +194,7 @@ export function StockCountPage(): ReactElement {
     try {
       await upsertMut.mutateAsync({ barcode, countedQuantity: safe });
     } catch (e) {
-      toast.error(getApiErrorMessage(e, 'Güncellenemedi'));
+      toast.error(getApiErrorMessage(e));
     }
   };
 
@@ -460,7 +460,7 @@ export function StockCountPage(): ReactElement {
                               setParams({});
                             })
                             .catch((e) =>
-                              toast.error(getApiErrorMessage(e, 'İptal edilemedi')),
+                              toast.error(getApiErrorMessage(e)),
                             )
                         }
                       >
@@ -615,7 +615,7 @@ export function StockCountPage(): ReactElement {
                     void sessionQ.refetch();
                   })
                   .catch((err) =>
-                    toast.error(getApiErrorMessage(err, 'Uygulanamadı')),
+                    toast.error(getApiErrorMessage(err)),
                   );
               }}
             >

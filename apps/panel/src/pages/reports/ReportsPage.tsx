@@ -61,6 +61,8 @@ import {
   filterSalesByPlatform,
   summarizeSales,
 } from './reportAggregation';
+import { CustomReportBuilder } from './CustomReportBuilder';
+import { SavedReportsList } from './SavedReportsList';
 
 function defaultDateRange(): { start: string; end: string } {
   const end = new Date();
@@ -84,6 +86,8 @@ export function ReportsPage(): ReactElement {
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const hasProfitAccess = plan === 'PRO' || plan === 'KURUMSAL';
   const initialRange = useMemo(() => defaultDateRange(), []);
+  const [mainTab, setMainTab] = useState<'standard' | 'custom'>('standard');
+  const [customSubTab, setCustomSubTab] = useState<'builder' | 'saved'>('builder');
   const [activeTab, setActiveTab] = useState('overview');
 
   const [startDate, setStartDate] = useState(initialRange.start);
@@ -221,6 +225,28 @@ export function ReportsPage(): ReactElement {
         </div>
       ) : null}
 
+      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as 'standard' | 'custom')} className="space-y-4">
+        <TabsList className="flex h-auto flex-wrap gap-1">
+          <TabsTrigger value="standard">Standart raporlar</TabsTrigger>
+          <TabsTrigger value="custom">Özel raporlar</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="custom" className="space-y-4">
+          <Tabs value={customSubTab} onValueChange={(v) => setCustomSubTab(v as 'builder' | 'saved')} className="space-y-4">
+            <TabsList className="flex h-auto flex-wrap gap-1">
+              <TabsTrigger value="builder">Rapor oluşturucu</TabsTrigger>
+              <TabsTrigger value="saved">Kayıtlı raporlar</TabsTrigger>
+            </TabsList>
+            <TabsContent value="builder">
+              <CustomReportBuilder />
+            </TabsContent>
+            <TabsContent value="saved">
+              <SavedReportsList />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="standard" className="space-y-4">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex h-auto flex-wrap gap-1">
           <TabsTrigger value="overview">Satış özeti</TabsTrigger>
@@ -1068,6 +1094,8 @@ export function ReportsPage(): ReactElement {
             </CardContent>
           </Card>
         </div>
+        </TabsContent>
+      </Tabs>
         </TabsContent>
       </Tabs>
     </div>

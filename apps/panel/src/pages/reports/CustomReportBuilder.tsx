@@ -229,7 +229,7 @@ export function CustomReportBuilder(): ReactElement {
       });
       return o;
     });
-    exportToCsv(rows, 'ozel-rapor');
+    exportToCsv(rows as Record<string, unknown>[], 'ozel-rapor');
     toast.success('CSV indirildi.');
   }
 
