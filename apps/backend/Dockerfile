@@ -3,7 +3,7 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 WORKDIR /app
 
-# Dependencies
+# Tüm workspace bağımlılıkları (derleme için)
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/backend/package.json ./apps/backend/
@@ -11,32 +11,25 @@ COPY packages/shared/package.json ./packages/shared/
 COPY desktop/package.json ./desktop/
 RUN pnpm install --frozen-lockfile
 
-# Build shared
 FROM deps AS shared-build
 COPY packages/shared ./packages/shared
 RUN pnpm --filter @senkronize/shared build
 
-# Build backend
 FROM shared-build AS backend-build
 COPY apps/backend ./apps/backend
-RUN pnpm --filter backend exec prisma generate && pnpm --filter backend build
+RUN pnpm --filter backend exec prisma generate
+RUN pnpm --filter backend build
 
-# Production image
-FROM node:22-alpine AS production
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+# Üretim node_modules + dist: yalnızca prod bağımlılıkları
+FROM backend-build AS deploy
 WORKDIR /app
+RUN pnpm --filter backend deploy --prod /deploy/app
+WORKDIR /deploy/app
+RUN ./node_modules/.bin/prisma generate
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
-COPY --from=backend-build /app/apps/backend/dist ./apps/backend/dist
-COPY --from=backend-build /app/apps/backend/prisma ./apps/backend/prisma
-COPY --from=backend-build /app/packages/shared/dist ./packages/shared/dist
-COPY --from=backend-build /app/packages/shared/package.json ./packages/shared/package.json
-COPY package.json pnpm-workspace.yaml ./
-COPY apps/backend/package.json ./apps/backend/
-
-WORKDIR /app/apps/backend
+FROM node:22-alpine AS production
+WORKDIR /deploy/app
 ENV NODE_ENV=production
+COPY --from=deploy /deploy/app ./
 EXPOSE 3001
 CMD ["node", "dist/main.js"]
