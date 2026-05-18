@@ -1,17 +1,16 @@
-import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
+import { getMarketplaceFormFields } from '@/lib/connection-form-fields';
+import { getMarketplaceDisplay } from '@/lib/platform-display';
 
 export function getMarketplaceBranding(platform: string): {
   label: string;
   logo: string;
   accountFieldLabel: string;
 } {
-  const opt = MARKETPLACE_OPTIONS.find((o) => o.id === platform);
-  if (opt) {
-    return {
-      label: opt.label,
-      logo: opt.logo,
-      accountFieldLabel: opt.fields[0]?.label ?? 'Hesap',
-    };
-  }
-  return { label: platform, logo: '🔗', accountFieldLabel: 'Hesap' };
+  const d = getMarketplaceDisplay(platform);
+  const fields = getMarketplaceFormFields(platform);
+  return {
+    label: d.label,
+    logo: d.logo,
+    accountFieldLabel: fields[0]?.label ?? 'Hesap',
+  };
 }

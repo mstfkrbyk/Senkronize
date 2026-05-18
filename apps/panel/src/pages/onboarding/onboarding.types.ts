@@ -24,7 +24,7 @@ export type ErpOption = {
 export type CredentialField = {
   key: string;
   label: string;
-  type: 'text' | 'password';
+  type: 'text' | 'password' | 'url';
   placeholder?: string;
   required: boolean;
 };

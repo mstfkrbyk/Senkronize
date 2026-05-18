@@ -42,7 +42,17 @@ export type Marketplace =
   | 'EBAY'
   | 'ETSY'
   | 'TEMU'
-  | 'SAHIBINDEN';
+  | 'SAHIBINDEN'
+  | 'MIGROS'
+  | 'HEPSIEXPRESS'
+  | 'FLO'
+  | 'DEFACTO'
+  | 'LCWAIKIKI'
+  | 'VATAN'
+  | 'MEDIAMARKT'
+  | 'TEKNOSA'
+  | 'KOTON'
+  | 'MAVI';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

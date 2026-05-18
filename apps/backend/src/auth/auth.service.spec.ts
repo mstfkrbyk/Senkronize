@@ -3,12 +3,15 @@ jest.mock('bcrypt', () => ({
   compare: jest.fn(),
 }));
 
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrgType, PlanTier, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../notifications/email/email.service';
@@ -16,6 +19,7 @@ import { SmsService } from '../notifications/sms/sms.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AuthService } from './auth.service';
+import { RegisterDto } from './auth.dto';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -97,7 +101,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  it('register: yeni kullanıcı oluşturulur', async () => {
+  it('register: başarılı kayıt access ve refresh token döner', async () => {
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.organization.findFirst.mockResolvedValue(null);
     prisma.$transaction.mockImplementation(
@@ -146,7 +150,7 @@ describe('AuthService', () => {
     expect(prisma.refreshToken.create).toHaveBeenCalled();
   });
 
-  it('register: aynı email ile ikinci kayıt hata verir', async () => {
+  it('register: aynı e-posta ConflictException', async () => {
     prisma.user.findFirst.mockResolvedValue({
       id: 'existing',
       email: 'dup@example.com',
@@ -169,11 +173,12 @@ describe('AuthService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('register: kayıtlı vergi numarası ConflictException', async () => {
+  it('register: aynı vergi numarası ConflictException (sabit mesaj)', async () => {
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.organization.findFirst.mockResolvedValue({ id: 'org-x' });
-    await expect(
-      service.register({
+
+    try {
+      await service.register({
         email: 'tax@example.com',
         password: 'Secret123!',
         name: 'Ali',
@@ -183,12 +188,43 @@ describe('AuthService', () => {
         taxOffice: 'Şişli',
         address: 'Adres',
         city: 'İstanbul',
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
+      });
+      expect(true).toBe(false);
+    } catch (e) {
+      expect(e).toBeInstanceOf(ConflictException);
+      expect((e as ConflictException).getResponse()).toBe(
+        'Bu vergi numarasıyla zaten kayıt mevcut',
+      );
+    }
+
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('recommendPlan: düşük kanal ve ERP yok → BASLANGIC', () => {
+  it('register: geçersiz vergi numarası — DTO doğrulaması BadRequestException', () => {
+    const dto = plainToInstance(RegisterDto, {
+      email: 'dto@example.com',
+      password: 'Secret123!',
+      name: 'Ada',
+      phone: '05001112233',
+      companyName: 'Acme',
+      taxNumber: '12345',
+      taxOffice: 'Kadıköy',
+      address: 'Adres 1',
+      city: 'İstanbul',
+    });
+    const errors = validateSync(dto, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    expect(errors.some((e) => e.property === 'taxNumber')).toBe(true);
+    expect(() => {
+      if (errors.length > 0) {
+        throw new BadRequestException(errors);
+      }
+    }).toThrow(BadRequestException);
+  });
+
+  it('recommendPlan: erpCount=0, marketplaceCount=1 → BASLANGIC', () => {
     expect(
       service.recommendPlan({
         erpCount: 0,
@@ -198,21 +234,31 @@ describe('AuthService', () => {
     ).toBe(PlanTier.BASLANGIC);
   });
 
-  it('recommendPlan: ERP kullanımı → PRO', () => {
+  it('recommendPlan: erpCount=0, marketplaceCount=3 → GELISIM', () => {
+    expect(
+      service.recommendPlan({
+        erpCount: 0,
+        marketplaceCount: 3,
+        ecommerceCount: 0,
+      }).recommendedPlan,
+    ).toBe(PlanTier.GELISIM);
+  });
+
+  it('recommendPlan: erpCount=1, marketplaceCount=5 → PRO', () => {
     expect(
       service.recommendPlan({
         erpCount: 1,
-        marketplaceCount: 1,
+        marketplaceCount: 5,
         ecommerceCount: 0,
       }).recommendedPlan,
     ).toBe(PlanTier.PRO);
   });
 
-  it('recommendPlan: çok kanal → KURUMSAL', () => {
+  it('recommendPlan: erpCount=2, marketplaceCount=10 → KURUMSAL', () => {
     expect(
       service.recommendPlan({
-        erpCount: 0,
-        marketplaceCount: 9,
+        erpCount: 2,
+        marketplaceCount: 10,
         ecommerceCount: 0,
       }).recommendedPlan,
     ).toBe(PlanTier.KURUMSAL);

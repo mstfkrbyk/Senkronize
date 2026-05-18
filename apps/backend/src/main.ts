@@ -76,8 +76,8 @@ async function bootstrap(): Promise<void> {
     ],
   });
 
-  app.useBodyParser('json', { limit: '10mb' });
-  app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
+  app.useBodyParser('json', { limit: '50mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '50mb' });
 
   app.setGlobalPrefix('api/v1', {
     exclude: [{ path: 'health', method: RequestMethod.GET }],
@@ -114,7 +114,9 @@ async function bootstrap(): Promise<void> {
     .addTag('webhooks', 'Webhook işleme')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = process.env.BACKEND_PORT ?? 3001;
   await app.listen(port);

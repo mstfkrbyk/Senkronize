@@ -1,0 +1,11 @@
+-- AlterEnum (2. tur pazaryeri adaptörleri)
+ALTER TYPE "Marketplace" ADD VALUE 'MIGROS';
+ALTER TYPE "Marketplace" ADD VALUE 'HEPSIEXPRESS';
+ALTER TYPE "Marketplace" ADD VALUE 'FLO';
+ALTER TYPE "Marketplace" ADD VALUE 'DEFACTO';
+ALTER TYPE "Marketplace" ADD VALUE 'LCWAIKIKI';
+ALTER TYPE "Marketplace" ADD VALUE 'VATAN';
+ALTER TYPE "Marketplace" ADD VALUE 'MEDIAMARKT';
+ALTER TYPE "Marketplace" ADD VALUE 'TEKNOSA';
+ALTER TYPE "Marketplace" ADD VALUE 'KOTON';
+ALTER TYPE "Marketplace" ADD VALUE 'MAVI';

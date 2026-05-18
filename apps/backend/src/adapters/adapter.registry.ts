@@ -5,28 +5,38 @@ import { AmazonAdapter } from './amazon/amazon.adapter';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { BoynerAdapter } from './boyner/boyner.adapter';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
+import { DefactoAdapter } from './defacto/defacto.adapter';
 import { DolapAdapter } from './dolap/dolap.adapter';
 import { EbayAdapter } from './ebay/ebay.adapter';
 import { EtsyAdapter } from './etsy/etsy.adapter';
+import { FloAdapter } from './flo/flo.adapter';
 import { GetirAdapter } from './getir/getir.adapter';
 import { GratisAdapter } from './gratis/gratis.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
+import { HepsiexpressAdapter } from './hepsiexpress/hepsiexpress.adapter';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
-import { LucaAdapter } from './luca/luca.adapter';
+import { KotonAdapter } from './koton/koton.adapter';
+import { LcwaikikiAdapter } from './lcwaikiki/lcwaikiki.adapter';
 import { LogoAdapter } from './logo/logo.adapter';
+import { LucaAdapter } from './luca/luca.adapter';
+import { MaviAdapter } from './mavi/mavi.adapter';
+import { MediamarktAdapter } from './mediamarkt/mediamarkt.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
+import { MigrosAdapter } from './migros/migros.adapter';
 import { MorhipoAdapter } from './morhipo/morhipo.adapter';
 import { N11Adapter } from './n11/n11.adapter';
 import { NetsisAdapter } from './netsis/netsis.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
+import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { SahibindenAdapter } from './sahibinden/sahibinden.adapter';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
-import { PttavmAdapter } from './pttavm/pttavm.adapter';
+import { TeknosaAdapter } from './teknosa/teknosa.adapter';
 import { TemuAdapter } from './temu/temu.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
+import { VatanAdapter } from './vatan/vatan.adapter';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 
 @Injectable()
@@ -62,6 +72,16 @@ export class AdapterRegistry {
     private readonly etsy: EtsyAdapter,
     private readonly temu: TemuAdapter,
     private readonly sahibinden: SahibindenAdapter,
+    private readonly migros: MigrosAdapter,
+    private readonly hepsiexpress: HepsiexpressAdapter,
+    private readonly flo: FloAdapter,
+    private readonly defacto: DefactoAdapter,
+    private readonly lcwaikiki: LcwaikikiAdapter,
+    private readonly vatan: VatanAdapter,
+    private readonly mediamarkt: MediamarktAdapter,
+    private readonly teknosa: TeknosaAdapter,
+    private readonly koton: KotonAdapter,
+    private readonly mavi: MaviAdapter,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
@@ -85,6 +105,16 @@ export class AdapterRegistry {
       ['ETSY', etsy],
       ['TEMU', temu],
       ['SAHIBINDEN', sahibinden],
+      ['MIGROS', migros],
+      ['HEPSIEXPRESS', hepsiexpress],
+      ['FLO', flo],
+      ['DEFACTO', defacto],
+      ['LCWAIKIKI', lcwaikiki],
+      ['VATAN', vatan],
+      ['MEDIAMARKT', mediamarkt],
+      ['TEKNOSA', teknosa],
+      ['KOTON', koton],
+      ['MAVI', mavi],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],

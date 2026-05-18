@@ -3,6 +3,8 @@ import { randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -11,6 +13,7 @@ import { Marketplace, type MarketplaceConnection } from '@prisma/client';
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 import type {
   CreateConnectionDto,
@@ -29,6 +32,7 @@ export class MarketplaceConnectionService {
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
     private readonly adapterRegistry: AdapterRegistry,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   private parseCredentialsRecord(
@@ -120,6 +124,21 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.SAHIBINDEN) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
+    if (platform === Marketplace.MIGROS) {
+      return creds.merchantId ?? null;
+    }
+    if (platform === Marketplace.HEPSIEXPRESS || platform === Marketplace.DEFACTO) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.FLO || platform === Marketplace.KOTON) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.LCWAIKIKI || platform === Marketplace.MEDIAMARKT) {
+      return creds.clientId ?? creds.accessToken?.slice(0, 6) ?? null;
+    }
+    if (platform === Marketplace.VATAN || platform === Marketplace.TEKNOSA || platform === Marketplace.MAVI) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
     return null;
   }
 
@@ -150,6 +169,17 @@ export class MarketplaceConnectionService {
     return rows.map((r) => this.toPublic(r));
   }
 
+  /** Yalnızca aktif ve silinmemiş pazaryeri bağlantıları */
+  async getActiveConnections(
+    organizationId: string,
+  ): Promise<PublicMarketplaceConnection[]> {
+    const rows = await this.prisma.marketplaceConnection.findMany({
+      where: { organizationId, deletedAt: null, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => this.toPublic(r));
+  }
+
   async findOne(
     organizationId: string,
     id: string,
@@ -175,6 +205,29 @@ export class MarketplaceConnectionService {
         'Bu pazaryeri için zaten aktif bir bağlantı mevcut',
       );
     }
+
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!subscription) {
+      throw new HttpException(
+        'Aktif abonelik bulunamadı',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+    const marketplaceLimit =
+      this.subscriptionService.effectiveMarketplaceLimit(subscription);
+    const activeCount = await this.prisma.marketplaceConnection.count({
+      where: { organizationId, deletedAt: null, isActive: true },
+    });
+    const willConsumeSlot = !existing || existing.deletedAt !== null;
+    if (willConsumeSlot && activeCount >= marketplaceLimit) {
+      throw new HttpException(
+        'Paketinizin pazaryeri bağlantı limitine ulaştınız. Paketi yükseltin.',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
     const credentialsEnc = this.encryptionService.encrypt(
       JSON.stringify(dto.credentials),
     );

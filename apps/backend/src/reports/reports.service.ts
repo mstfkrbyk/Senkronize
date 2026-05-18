@@ -65,6 +65,16 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.ETSY]: 'Etsy',
   [Marketplace.TEMU]: 'Temu',
   [Marketplace.SAHIBINDEN]: 'Sahibinden',
+  [Marketplace.MIGROS]: 'Migros Sanal Market',
+  [Marketplace.HEPSIEXPRESS]: 'Hepsiexpress',
+  [Marketplace.FLO]: 'Flo',
+  [Marketplace.DEFACTO]: 'Defacto',
+  [Marketplace.LCWAIKIKI]: 'LC Waikiki',
+  [Marketplace.VATAN]: 'Vatan Bilgisayar',
+  [Marketplace.MEDIAMARKT]: 'MediaMarkt TR',
+  [Marketplace.TEKNOSA]: 'Teknosa',
+  [Marketplace.KOTON]: 'Koton',
+  [Marketplace.MAVI]: 'Mavi',
 };
 
 @Injectable()

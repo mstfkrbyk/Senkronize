@@ -65,6 +65,16 @@ enum Marketplace {
   ETSY
   TEMU
   SAHIBINDEN
+  MIGROS
+  HEPSIEXPRESS
+  FLO
+  DEFACTO
+  LCWAIKIKI
+  VATAN
+  MEDIAMARKT
+  TEKNOSA
+  KOTON
+  MAVI
 }
 
 enum PricingStrategy {

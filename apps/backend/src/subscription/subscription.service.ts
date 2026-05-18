@@ -9,6 +9,7 @@ import {
   PlanTier,
   SubStatus,
   UserRole,
+  type Subscription,
 } from '@prisma/client';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
@@ -84,6 +85,14 @@ export class SubscriptionService {
     private readonly emailService: EmailService,
     private readonly partnerService: PartnerService,
   ) {}
+
+  /** DB'de limit null ise paket varsayılanı */
+  effectiveMarketplaceLimit(subscription: Subscription): number {
+    return (
+      subscription.marketplaceLimit ??
+      PLAN_LIMITS[subscription.plan].marketplaceLimit
+    );
+  }
 
   async getSubscription(organizationId: string): Promise<unknown> {
     const sub = await this.prisma.subscription.findUnique({
