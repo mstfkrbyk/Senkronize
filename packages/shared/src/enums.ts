@@ -59,7 +59,17 @@ export type Marketplace =
   | 'NOON'
   | 'AMAZON_EU'
   | 'CDISCOUNT'
-  | 'KAUFLAND';
+  | 'KAUFLAND'
+  | 'TRENDYOL_GO'
+  | 'BANABI'
+  | 'A101'
+  | 'ELEKTRA'
+  | 'ARCELIK'
+  | 'VESTEL'
+  | 'BIMAKILLI'
+  | 'MIGROSHEMEN'
+  | 'ROBOMARKT'
+  | 'SHOPIGO';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

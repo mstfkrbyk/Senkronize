@@ -82,6 +82,16 @@ enum Marketplace {
   AMAZON_EU
   CDISCOUNT
   KAUFLAND
+  TRENDYOL_GO
+  BANABI
+  A101
+  ELEKTRA
+  ARCELIK
+  VESTEL
+  BIMAKILLI
+  MIGROSHEMEN
+  ROBOMARKT
+  SHOPIGO
 }
 
 enum PricingStrategy {

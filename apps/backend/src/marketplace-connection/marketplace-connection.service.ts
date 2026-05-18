@@ -157,6 +157,30 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.KAUFLAND) {
       return creds.accessKey ?? creds.clientId ?? null;
     }
+    if (platform === Marketplace.TRENDYOL_GO) {
+      return creds.supplierId ?? creds.merchantId ?? null;
+    }
+    if (
+      platform === Marketplace.BANABI ||
+      platform === Marketplace.VESTEL ||
+      platform === Marketplace.BIMAKILLI ||
+      platform === Marketplace.ROBOMARKT
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.A101) {
+      return creds.merchantId ?? null;
+    }
+    if (
+      platform === Marketplace.ELEKTRA ||
+      platform === Marketplace.MIGROSHEMEN ||
+      platform === Marketplace.SHOPIGO
+    ) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.ARCELIK) {
+      return creds.clientId ?? null;
+    }
     return null;
   }
 

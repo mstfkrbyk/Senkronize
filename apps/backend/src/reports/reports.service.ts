@@ -83,6 +83,16 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.AMAZON_EU]: 'Amazon Avrupa',
   [Marketplace.CDISCOUNT]: 'Cdiscount',
   [Marketplace.KAUFLAND]: 'Kaufland',
+  [Marketplace.TRENDYOL_GO]: 'Trendyol GO',
+  [Marketplace.BANABI]: 'Banabi',
+  [Marketplace.A101]: 'A101 Online',
+  [Marketplace.ELEKTRA]: 'Elektra',
+  [Marketplace.ARCELIK]: 'Arçelik D2C',
+  [Marketplace.VESTEL]: 'Vestel D2C',
+  [Marketplace.BIMAKILLI]: 'Bim Akıllı',
+  [Marketplace.MIGROSHEMEN]: 'Migros Hemen',
+  [Marketplace.ROBOMARKT]: 'Robomarkt',
+  [Marketplace.SHOPIGO]: 'Shopigo',
 };
 
 @Injectable()

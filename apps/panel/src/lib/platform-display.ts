@@ -34,6 +34,16 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   ETSY: { label: 'Etsy', logo: '🧵', color: 'orange' },
   TEMU: { label: 'Temu', logo: '📦', color: 'red' },
   SAHIBINDEN: { label: 'Sahibinden', logo: '🏷️', color: 'yellow' },
+  TRENDYOL_GO: { label: 'Trendyol GO', logo: '⚡', color: 'orange' },
+  BANABI: { label: 'Banabi', logo: '🛒', color: 'red' },
+  A101: { label: 'A101 Online', logo: '🏷️', color: 'red' },
+  ELEKTRA: { label: 'Elektra', logo: '🔌', color: 'blue' },
+  ARCELIK: { label: 'Arçelik D2C', logo: '🏠', color: 'sky' },
+  VESTEL: { label: 'Vestel D2C', logo: '📺', color: 'slate' },
+  BIMAKILLI: { label: 'Bim Akıllı', logo: '🥬', color: 'green' },
+  MIGROSHEMEN: { label: 'Migros Hemen', logo: '🚀', color: 'orange' },
+  ROBOMARKT: { label: 'Robomarkt', logo: '🤖', color: 'cyan' },
+  SHOPIGO: { label: 'Shopigo', logo: '🛍️', color: 'violet' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

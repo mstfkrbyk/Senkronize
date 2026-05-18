@@ -325,6 +325,77 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  TRENDYOL_GO: [
+    {
+      key: 'supplierId',
+      label: 'Tedarikçi / Mağaza ID',
+      type: 'text',
+      required: false,
+      hint: 'Aynı SKU için farklı kanal ayırımı varsa doldurun.',
+    },
+    { key: 'apiKey', label: 'API Key (Basic kullanıcı)', type: 'text', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret (Basic şifre)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'channelId',
+      label: 'Satış kanalı ID (opsiyonel)',
+      type: 'text',
+      required: false,
+      hint: 'Aynı SKU, farklı kanal stokları için platform dokümantasyonuna göre.',
+    },
+  ],
+  BANABI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  A101: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
+  ],
+  ELEKTRA: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  ARCELIK: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel, sabit token)',
+      type: 'password',
+      required: false,
+      hint: 'Doluysa client credentials yerine doğrudan kullanılır.',
+    },
+  ],
+  VESTEL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  BIMAKILLI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MIGROSHEMEN: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  ROBOMARKT: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SHOPIGO: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -530,6 +601,16 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'ETSY',
   'TEMU',
   'SAHIBINDEN',
+  'TRENDYOL_GO',
+  'BANABI',
+  'A101',
+  'ELEKTRA',
+  'ARCELIK',
+  'VESTEL',
+  'BIMAKILLI',
+  'MIGROSHEMEN',
+  'ROBOMARKT',
+  'SHOPIGO',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [
