@@ -1,0 +1,13 @@
+-- AlterEnum (5. tur — B2B, niş Türk, Güneydoğu Asya)
+ALTER TYPE "Marketplace" ADD VALUE 'ALIBABA';
+ALTER TYPE "Marketplace" ADD VALUE 'MADEINCHINA';
+ALTER TYPE "Marketplace" ADD VALUE 'EXPORTIFY';
+ALTER TYPE "Marketplace" ADD VALUE 'GITTIGIDIYOR';
+ALTER TYPE "Marketplace" ADD VALUE 'KITAPYURDU';
+ALTER TYPE "Marketplace" ADD VALUE 'DR';
+ALTER TYPE "Marketplace" ADD VALUE 'SPORTIVE';
+ALTER TYPE "Marketplace" ADD VALUE 'ENPARA';
+ALTER TYPE "Marketplace" ADD VALUE 'LAZADA';
+ALTER TYPE "Marketplace" ADD VALUE 'SHOPEE';
+ALTER TYPE "Marketplace" ADD VALUE 'TOKOPEDIA';
+ALTER TYPE "Marketplace" ADD VALUE 'MEESHO';

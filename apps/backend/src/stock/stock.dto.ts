@@ -1,4 +1,8 @@
-import { Marketplace, StockMovementType } from '@prisma/client';
+import {
+  Marketplace,
+  StockCountMode,
+  StockMovementType,
+} from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -123,4 +127,35 @@ export class BulkStockUpdateDto {
   @ValidateNested({ each: true })
   @Type(() => BulkStockUpdateItemDto)
   updates!: BulkStockUpdateItemDto[];
+}
+
+export class CreateStockCountSessionDto {
+  @IsString()
+  @IsNotEmpty()
+  warehouseId!: string;
+
+  @IsEnum(StockCountMode)
+  countMode!: StockCountMode;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  filterBrand?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  filterCategory?: string;
+}
+
+export class UpsertStockCountItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  barcode!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  countedQuantity!: number;
 }

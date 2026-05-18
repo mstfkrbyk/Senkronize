@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { StockMovementType, Prisma, type StockMovement } from '@prisma/client';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, StockMovementType, type StockMovement } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
@@ -162,28 +162,58 @@ export class StockMovementService {
     newQuantity: number,
     note?: string,
   ): Promise<void> {
-    const trimmed = barcode.trim();
     const main = await this.warehouseService.getOrCreateMainWarehouse(
       organizationId,
     );
-    const product = await this.prisma.product.findFirst({
+    await this.adjustStockAtWarehouse(
+      organizationId,
+      main.id,
+      barcode,
+      newQuantity,
+      note,
+    );
+  }
+
+  /**
+   * Merkezi stok (platform=null) satırını günceller ve ADJUSTMENT hareketi yazar.
+   * @param tx — dışarıdan açılmış bir transaction içinde çağrılabilir.
+   */
+  async adjustStockAtWarehouse(
+    organizationId: string,
+    warehouseId: string,
+    barcode: string,
+    newQuantity: number,
+    note?: string | null,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const trimmed = barcode.trim();
+    const client = tx ?? this.prisma;
+
+    const warehouse = await client.warehouse.findFirst({
+      where: { id: warehouseId, organizationId },
+    });
+    if (!warehouse) {
+      throw new NotFoundException('Depo bulunamadı.');
+    }
+
+    const product = await client.product.findFirst({
       where: { organizationId, barcode: trimmed, deletedAt: null },
       select: { id: true },
     });
 
-    await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.stockEntry.findFirst({
+    const run = async (db: Prisma.TransactionClient): Promise<void> => {
+      const existing = await db.stockEntry.findFirst({
         where: {
           organizationId,
           barcode: trimmed,
           platform: null,
-          warehouseId: main.id,
+          warehouseId,
         },
       });
       const before = existing?.quantity ?? 0;
       const after = newQuantity;
       if (existing) {
-        await tx.stockEntry.update({
+        await db.stockEntry.update({
           where: { id: existing.id },
           data: {
             quantity: after,
@@ -191,10 +221,10 @@ export class StockMovementService {
           },
         });
       } else {
-        await tx.stockEntry.create({
+        await db.stockEntry.create({
           data: {
             organizationId,
-            warehouseId: main.id,
+            warehouseId,
             barcode: trimmed,
             platform: null,
             quantity: after,
@@ -205,15 +235,24 @@ export class StockMovementService {
       await this.record({
         organizationId,
         barcode: trimmed,
-        warehouseId: main.id,
+        warehouseId,
         platform: null,
         movementType: StockMovementType.ADJUSTMENT,
         quantity: after - before,
         beforeQuantity: before,
         afterQuantity: after,
         note: note?.trim() || null,
-        tx,
+        tx: db,
       });
+    };
+
+    if (tx) {
+      await run(tx);
+      return;
+    }
+
+    await this.prisma.$transaction(async (inner) => {
+      await run(inner);
     });
   }
 }

@@ -3,6 +3,7 @@ import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
 
 import { A101Adapter } from './a101/a101.adapter';
 import { AddaxAdapter } from './addax/addax.adapter';
+import { AlibabaAdapter } from './alibaba/alibaba.adapter';
 import { AkinonAdapter } from './akinon/akinon.adapter';
 import { AllegroAdapter } from './allegro/allegro.adapter';
 import { AmazonAdapter } from './amazon/amazon.adapter';
@@ -17,33 +18,41 @@ import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { CiceksepetiEvAdapter } from './ciceksepeti-ev/ciceksepeti-ev.adapter';
 import { DefactoAdapter } from './defacto/defacto.adapter';
 import { DolapAdapter } from './dolap/dolap.adapter';
+import { DrAdapter } from './dr/dr.adapter';
 import { EbayAdapter } from './ebay/ebay.adapter';
 import { ElektraAdapter } from './elektra/elektra.adapter';
+import { EnparaAdapter } from './enpara/enpara.adapter';
 import { EtsyAdapter } from './etsy/etsy.adapter';
 import { EvideaAdapter } from './evidea/evidea.adapter';
+import { ExportifyAdapter } from './exportify/exportify.adapter';
 import { FaprikaAdapter } from './faprika/faprika.adapter';
 import { FloAdapter } from './flo/flo.adapter';
 import { FuudyAdapter } from './fuudy/fuudy.adapter';
 import { GetirFoodAdapter } from './getir-food/getir-food.adapter';
 import { GetirAdapter } from './getir/getir.adapter';
+import { GittigidiyorAdapter } from './gittigidiyor/gittigidiyor.adapter';
 import { GratisAdapter } from './gratis/gratis.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
 import { HepsiexpressAdapter } from './hepsiexpress/hepsiexpress.adapter';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IkasAdapter } from './ikas/ikas.adapter';
 import { KauflandAdapter } from './kaufland/kaufland.adapter';
+import { KitapyurduAdapter } from './kitapyurdu/kitapyurdu.adapter';
 import { KotonAdapter } from './koton/koton.adapter';
 import { LcwaikikiAdapter } from './lcwaikiki/lcwaikiki.adapter';
 import { LidyanaAdapter } from './lidyana/lidyana.adapter';
 import { LogoAdapter } from './logo/logo.adapter';
+import { LazadaAdapter } from './lazada/lazada.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
+import { MadeinchinaAdapter } from './madeinchina/madeinchina.adapter';
 import { MagentoAdapter } from './magento/magento.adapter';
 import { MaviAdapter } from './mavi/mavi.adapter';
 import { MediamarktAdapter } from './mediamarkt/mediamarkt.adapter';
+import { MeeshoAdapter } from './meesho/meesho.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
-import { ModanisaAdapter } from './modanisa/modanisa.adapter';
 import { MigrosAdapter } from './migros/migros.adapter';
 import { MigroshemenAdapter } from './migroshemen/migroshemen.adapter';
+import { ModanisaAdapter } from './modanisa/modanisa.adapter';
 import { MorhipoAdapter } from './morhipo/morhipo.adapter';
 import { N11Adapter } from './n11/n11.adapter';
 import { NetsisAdapter } from './netsis/netsis.adapter';
@@ -58,8 +67,10 @@ import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { RobomarktAdapter } from './robomarkt/robomarkt.adapter';
 import { SahibindenAdapter } from './sahibinden/sahibinden.adapter';
 import { SefamerveAdapter } from './sefamerve/sefamerve.adapter';
+import { ShopeeAdapter } from './shopee/shopee.adapter';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { ShopigoAdapter } from './shopigo/shopigo.adapter';
+import { SportiveAdapter } from './sportive/sportive.adapter';
 import { TeknosaAdapter } from './teknosa/teknosa.adapter';
 import { TemuAdapter } from './temu/temu.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
@@ -67,6 +78,7 @@ import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TrendyolGoAdapter } from './trendyol-go/trendyol-go.adapter';
 import { TrendyolYemekAdapter } from './trendyol-yemek/trendyol-yemek.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
+import { TokopediaAdapter } from './tokopedia/tokopedia.adapter';
 import { UniposAdapter } from './unipos/unipos.adapter';
 import { VatanAdapter } from './vatan/vatan.adapter';
 import { VestelAdapter } from './vestel/vestel.adapter';
@@ -149,6 +161,18 @@ export class AdapterRegistry {
     private readonly getirFood: GetirFoodAdapter,
     private readonly lidyana: LidyanaAdapter,
     private readonly modanisa: ModanisaAdapter,
+    private readonly alibaba: AlibabaAdapter,
+    private readonly madeinchina: MadeinchinaAdapter,
+    private readonly exportify: ExportifyAdapter,
+    private readonly gittigidiyor: GittigidiyorAdapter,
+    private readonly kitapyurdu: KitapyurduAdapter,
+    private readonly dr: DrAdapter,
+    private readonly sportive: SportiveAdapter,
+    private readonly enpara: EnparaAdapter,
+    private readonly lazada: LazadaAdapter,
+    private readonly shopee: ShopeeAdapter,
+    private readonly tokopedia: TokopediaAdapter,
+    private readonly meesho: MeeshoAdapter,
     private readonly porland: PorlandAdapter,
     private readonly sefamerve: SefamerveAdapter,
     private readonly trendyolYemek: TrendyolYemekAdapter,
@@ -164,6 +188,7 @@ export class AdapterRegistry {
       ['NOON', noon],
       ['CDISCOUNT', cdiscount],
       ['KAUFLAND', kaufland],
+      ['KITAPYURDU', kitapyurdu],
       ['TRENDYOL', trendyol],
       ['HEPSIBURADA', hepsiburada],
       ['N11', n11],
@@ -182,15 +207,21 @@ export class AdapterRegistry {
       ['DOLAP', dolap],
       ['EBAY', ebay],
       ['ETSY', etsy],
+      ['EXPORTIFY', exportify],
       ['TEMU', temu],
       ['SAHIBINDEN', sahibinden],
       ['MIGROS', migros],
+      ['MADEINCHINA', madeinchina],
       ['HEPSIEXPRESS', hepsiexpress],
       ['FLO', flo],
       ['DEFACTO', defacto],
+      ['DR', dr],
+      ['ENPARA', enpara],
       ['LCWAIKIKI', lcwaikiki],
+      ['LAZADA', lazada],
       ['VATAN', vatan],
       ['MEDIAMARKT', mediamarkt],
+      ['MEESHO', meesho],
       ['TEKNOSA', teknosa],
       ['KOTON', koton],
       ['MAVI', mavi],
@@ -209,18 +240,23 @@ export class AdapterRegistry {
       ['MIGROSHEMEN', migroshemen],
       ['ROBOMARKT', robomarkt],
       ['SHOPIGO', shopigo],
+      ['SPORTIVE', sportive],
       ['TRENDYOL_GO', trendyolGo],
       ['VESTEL', vestel],
       ['ADDAX', addax],
+      ['ALIBABA', alibaba],
       ['CICEKSEPETI_EV', ciceksepetiEv],
       ['EVIDEA', evidea],
       ['FUUDY', fuudy],
       ['GETIR_FOOD', getirFood],
+      ['GITTIGIDIYOR', gittigidiyor],
       ['LIDYANA', lidyana],
       ['MODANISA', modanisa],
       ['PORLAND', porland],
       ['SEFAMERVE', sefamerve],
+      ['SHOPEE', shopee],
       ['TRENDYOL_YEMEK', trendyolYemek],
+      ['TOKOPEDIA', tokopedia],
       ['VIVENSE', vivense],
       ['YEMEKSEPETI', yemeksepeti],
     ]);

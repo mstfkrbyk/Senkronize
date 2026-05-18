@@ -1,4 +1,15 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -7,8 +18,18 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+import {
+  ExportFormatQueryDto,
+  RunReportBodyDto,
+  SaveReportBodyDto,
+  UpdateScheduleBodyDto,
+} from './custom-report.dto';
+import { CustomReportService } from './custom-report.service';
+import type { ReportConfig, ReportResult, SavedReportListItem } from './custom-report.types';
 import {
   DashboardSummaryQueryDto,
   DateRangeReportQueryDto,
@@ -36,7 +57,10 @@ import type {
 @ApiBearerAuth()
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) {}
+  constructor(
+    private readonly reportsService: ReportsService,
+    private readonly customReportService: CustomReportService,
+  ) {}
 
   @Get('dashboard-summary')
   @UseGuards(JwtAuthGuard)
@@ -186,5 +210,94 @@ export class ReportsController {
     const to = new Date(query.endDate);
     to.setHours(23, 59, 59, 999);
     return this.reportsService.getPlatformComparison(org.id, { from, to });
+  }
+
+  @Post('run')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Özel rapor yapılandırması ile anlık çalıştır' })
+  @ApiResponse({ status: 200, description: 'Rapor sonucu' })
+  @ApiResponse({ status: 400, description: 'Geçersiz yapılandırma' })
+  async runCustomReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() body: RunReportBodyDto,
+  ): Promise<ReportResult> {
+    return this.customReportService.runReport(
+      org.id,
+      body.config as unknown as ReportConfig,
+      { preview: body.preview === true },
+    );
+  }
+
+  @Get('saved')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kayıtlı özel raporlar' })
+  async listSavedReports(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<SavedReportListItem[]> {
+    return this.customReportService.listSavedReports(org.id);
+  }
+
+  @Post('saved')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Özel raporu kaydet' })
+  async saveReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: SaveReportBodyDto,
+  ): Promise<SavedReportListItem> {
+    return this.customReportService.saveReport(org.id, user.id, body);
+  }
+
+  @Delete('saved/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kayıtlı raporu sil' })
+  @ApiResponse({ status: 200, description: 'Silindi' })
+  async deleteSavedReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.customReportService.deleteSavedReport(org.id, id);
+    return { ok: true };
+  }
+
+  @Patch('saved/:id/schedule')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kayıtlı rapor zamanlaması (e-posta boşsa kaldırılır)' })
+  async updateSavedReportSchedule(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() body: UpdateScheduleBodyDto,
+  ): Promise<SavedReportListItem> {
+    return this.customReportService.updateSchedule(org.id, id, body);
+  }
+
+  @Get('saved/:id/export')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kayıtlı raporu CSV veya JSON indir' })
+  async exportSavedReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Query() query: ExportFormatQueryDto,
+  ): Promise<StreamableFile> {
+    const content = await this.customReportService.exportReport(org.id, id, query.format);
+    const buf = Buffer.from(content, 'utf-8');
+    const mime =
+      query.format === 'csv'
+        ? 'text/csv; charset=utf-8'
+        : 'application/json; charset=utf-8';
+    return new StreamableFile(buf, {
+      type: mime,
+      disposition: `attachment; filename="rapor.${query.format}"`,
+    });
+  }
+
+  @Post('saved/:id/run')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kayıtlı raporu sunucuda çalıştır' })
+  async runSavedReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<ReportResult> {
+    return this.customReportService.runSavedReport(org.id, id);
   }
 }

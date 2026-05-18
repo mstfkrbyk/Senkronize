@@ -1,9 +1,16 @@
 export type NotificationChannel = 'email' | 'sms' | 'inapp';
 
+export interface EmailAttachmentPayload {
+  filename: string;
+  /** Base64 (UTF-8 dosya içeriği) */
+  contentBase64: string;
+}
+
 export interface EmailPayload {
   to: string;
   subject: string;
   html: string;
+  attachments?: EmailAttachmentPayload[];
 }
 
 export interface SmsPayload {

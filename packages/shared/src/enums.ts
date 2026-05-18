@@ -81,7 +81,19 @@ export type Marketplace =
   | 'VIVENSE'
   | 'CICEKSEPETI_EV'
   | 'EVIDEA'
-  | 'PORLAND';
+  | 'PORLAND'
+  | 'ALIBABA'
+  | 'MADEINCHINA'
+  | 'EXPORTIFY'
+  | 'GITTIGIDIYOR'
+  | 'KITAPYURDU'
+  | 'DR'
+  | 'SPORTIVE'
+  | 'ENPARA'
+  | 'LAZADA'
+  | 'SHOPEE'
+  | 'TOKOPEDIA'
+  | 'MEESHO';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

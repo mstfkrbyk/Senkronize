@@ -104,6 +104,18 @@ enum Marketplace {
   CICEKSEPETI_EV
   EVIDEA
   PORLAND
+  ALIBABA
+  MADEINCHINA
+  EXPORTIFY
+  GITTIGIDIYOR
+  KITAPYURDU
+  DR
+  SPORTIVE
+  ENPARA
+  LAZADA
+  SHOPEE
+  TOKOPEDIA
+  MEESHO
 }
 
 enum PricingStrategy {
@@ -196,6 +208,16 @@ enum OrderStatus {
   RETURNED
 }
 
+enum ReportType {
+  ORDERS
+  PRODUCTS
+  LISTINGS
+  STOCK
+  PROFIT
+  PLATFORM_COMPARISON
+  CUSTOM
+}
+
 enum StockMovementType {
   SALE // satış
   RETURN // iade
@@ -205,6 +227,17 @@ enum StockMovementType {
   RESERVATION // rezervasyon oluşturma
   RESERVATION_RELEASE // rezervasyon serbest bırakma
   SYNC // platform senkronizasyonu
+}
+
+enum StockCountSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum StockCountMode {
+  FULL
+  PARTIAL
 }
 
 enum NotificationType {
@@ -285,6 +318,8 @@ model Organization {
   stockEntries              StockEntry[]
   warehouses                Warehouse[]
   stockMovements            StockMovement[]
+  stockCountSessions        StockCountSession[]
+  stockCountItems           StockCountItem[]
   orders                    Order[]
   reservations              Reservation[]
   partnerRelationships      PartnerRelationship[]    @relation("PartnerOrg")
@@ -306,6 +341,7 @@ model Organization {
   inAppNotifications        InAppNotification[]
   apiKeys                   ApiKey[]
   userInvites               UserInvite[]
+  savedReports              SavedReport[]
 }
 
 model ApiKey {
@@ -386,6 +422,8 @@ model User {
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
   inAppNotifications       InAppNotification[]
+  savedReports             SavedReport[]
+  stockCountSessionsStarted StockCountSession[] @relation("StockCountSessionCreatedBy")
 }
 
 model InAppNotification {
@@ -581,6 +619,7 @@ model Product {
   listings       Listing[]
   stockEntries   StockEntry[]
   reservations   Reservation[]
+  stockCountItems StockCountItem[]
 
   @@unique([organizationId, barcode])
   @@index([organizationId])
@@ -674,6 +713,7 @@ model Warehouse {
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stockEntries StockEntry[]
   movements    StockMovement[]
+  stockCountSessions StockCountSession[]
 
   @@unique([organizationId, code])
   @@index([organizationId])
@@ -698,6 +738,52 @@ model StockMovement {
 
   @@index([organizationId, barcode, createdAt])
   @@index([organizationId, movementType, createdAt])
+}
+
+model StockCountSession {
+  id             String                  @id @default(cuid())
+  organizationId String
+  warehouseId    String
+  status         StockCountSessionStatus @default(IN_PROGRESS)
+  countMode      StockCountMode
+  filterBrand    String?
+  filterCategory String?
+  startedAt      DateTime                @default(now())
+  completedAt    DateTime?
+  createdBy      String
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  warehouse    Warehouse    @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  creator      User         @relation("StockCountSessionCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  items        StockCountItem[]
+
+  @@index([organizationId, status])
+}
+
+model StockCountItem {
+  id              String   @id @default(cuid())
+  organizationId  String
+  sessionId       String
+  barcode         String
+  productId       String?
+  productName     String?
+  platformLabel   String?
+  systemQuantity  Int
+  countedQuantity Int
+  difference      Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session      StockCountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  product      Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, barcode])
+  @@index([sessionId])
+  @@index([organizationId])
 }
 
 model Order {
@@ -960,4 +1046,23 @@ model BuyBoxSnapshot {
 
   @@index([organizationId, barcode, platform])
   @@index([organizationId, platform, capturedAt])
+}
+
+model SavedReport {
+  id             String     @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  reportType     ReportType
+  config         Json
+  schedule       Json?
+  lastRunAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  createdBy      String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator      User         @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
 }

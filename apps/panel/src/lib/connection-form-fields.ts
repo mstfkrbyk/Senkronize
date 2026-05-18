@@ -467,6 +467,114 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
     { key: 'password', label: 'Şifre', type: 'password', required: true },
   ],
+  ALIBABA: [
+    { key: 'appKey', label: 'App Key', type: 'text', required: true },
+    { key: 'appSecret', label: 'App Secret', type: 'password', required: true },
+    {
+      key: 'sessionKey',
+      label: 'Session Key (OAuth2)',
+      type: 'password',
+      required: true,
+    },
+  ],
+  MADEINCHINA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  EXPORTIFY: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  GITTIGIDIYOR: [
+    { key: 'clientId', label: 'Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'refreshToken',
+      label: 'Refresh Token',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+  ],
+  KITAPYURDU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  DR: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  SPORTIVE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ENPARA: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (Bearer)',
+      type: 'password',
+      required: true,
+      hint: 'Client credentials veya yetkilendirme akışıyla alınan token.',
+    },
+  ],
+  LAZADA: [
+    { key: 'appKey', label: 'App Key', type: 'text', required: true },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  SHOPEE: [
+    { key: 'partnerId', label: 'Partner ID', type: 'text', required: true },
+    {
+      key: 'partnerKey',
+      label: 'Partner Key (gizli)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: true,
+    },
+    { key: 'shopId', label: 'Shop ID', type: 'text', required: true },
+  ],
+  TOKOPEDIA: [
+    { key: 'clientId', label: 'Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (Bearer)',
+      type: 'password',
+      required: true,
+      hint: 'OAuth2 client credentials ile alınan token.',
+    },
+  ],
+  MEESHO: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -694,6 +802,18 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'CICEKSEPETI_EV',
   'EVIDEA',
   'PORLAND',
+  'ALIBABA',
+  'MADEINCHINA',
+  'EXPORTIFY',
+  'GITTIGIDIYOR',
+  'KITAPYURDU',
+  'DR',
+  'SPORTIVE',
+  'ENPARA',
+  'LAZADA',
+  'SHOPEE',
+  'TOKOPEDIA',
+  'MEESHO',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

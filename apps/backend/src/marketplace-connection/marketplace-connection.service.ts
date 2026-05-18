@@ -207,6 +207,32 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.ARCELIK) {
       return creds.clientId ?? null;
     }
+    if (
+      platform === Marketplace.ALIBABA ||
+      platform === Marketplace.LAZADA
+    ) {
+      return creds.appKey ?? null;
+    }
+    if (platform === Marketplace.SHOPEE) {
+      return creds.partnerId ?? null;
+    }
+    if (
+      platform === Marketplace.MADEINCHINA ||
+      platform === Marketplace.KITAPYURDU ||
+      platform === Marketplace.SPORTIVE ||
+      platform === Marketplace.MEESHO
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.EXPORTIFY || platform === Marketplace.DR) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.ENPARA || platform === Marketplace.TOKOPEDIA) {
+      return creds.clientId ?? (creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null);
+    }
+    if (platform === Marketplace.GITTIGIDIYOR) {
+      return creds.clientId ?? creds.sellerId ?? null;
+    }
     return null;
   }
 

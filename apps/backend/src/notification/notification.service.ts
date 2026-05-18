@@ -54,11 +54,17 @@ export class NotificationService {
       return;
     }
 
+    const attachments = payload.attachments?.map((a) => ({
+      filename: a.filename,
+      content: Buffer.from(a.contentBase64, 'base64'),
+    }));
+
     const result = await this.resend.emails.send({
       from: this.fromEmail,
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
+      ...(attachments && attachments.length > 0 ? { attachments } : {}),
     });
     if (result.error) {
       this.logger.error('Resend e-posta hatası', {

@@ -17,16 +17,25 @@ import {
 } from '@nestjs/swagger';
 import type { StockMovement } from '@prisma/client';
 
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
   BulkStockUpdateDto,
+  CreateStockCountSessionDto,
   StockAdjustDto,
   StockHistoryQueryDto,
   StockQueryDto,
   StockSummaryQueryDto,
+  UpsertStockCountItemDto,
 } from './stock.dto';
+import {
+  StockCountService,
+  type StockCountItemRowDto,
+  type StockCountSessionDetailDto,
+} from './stock-count.service';
 import {
   StockMovementService,
   type MovementSummary,
@@ -45,6 +54,7 @@ export class StockController {
   constructor(
     private readonly stockService: StockService,
     private readonly stockMovementService: StockMovementService,
+    private readonly stockCountService: StockCountService,
   ) {}
 
   @Get('overview')
@@ -160,5 +170,62 @@ export class StockController {
     @Body() dto: BulkStockUpdateDto,
   ): Promise<{ jobIds: string[] }> {
     return this.stockService.bulkUpdate(org.id, dto);
+  }
+
+  @Post('count-sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Yeni stok sayım oturumu başlat' })
+  @ApiResponse({ status: 201 })
+  async createStockCountSession(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateStockCountSessionDto,
+  ): Promise<{ data: { id: string } }> {
+    return this.stockCountService.createSession(org.id, user.id, dto);
+  }
+
+  @Get('count-sessions/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok sayım oturumu detayı' })
+  @ApiResponse({ status: 200 })
+  async getStockCountSession(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: StockCountSessionDetailDto }> {
+    return this.stockCountService.getSession(org.id, id);
+  }
+
+  @Post('count-sessions/:id/items')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sayım kalemi ekle veya güncelle' })
+  @ApiResponse({ status: 200 })
+  async upsertStockCountItem(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpsertStockCountItemDto,
+  ): Promise<{ data: StockCountItemRowDto }> {
+    return this.stockCountService.upsertItem(org.id, id, dto);
+  }
+
+  @Post('count-sessions/:id/apply')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sayım farklarını merkezi stoğa uygula' })
+  @ApiResponse({ status: 200 })
+  async applyStockCountSession(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ success: true; applied: number }> {
+    return this.stockCountService.applySession(org.id, id);
+  }
+
+  @Post('count-sessions/:id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok sayım oturumunu iptal et' })
+  @ApiResponse({ status: 200 })
+  async cancelStockCountSession(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ success: true }> {
+    return this.stockCountService.cancelSession(org.id, id);
   }
 }

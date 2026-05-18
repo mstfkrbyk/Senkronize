@@ -56,6 +56,18 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   CICEKSEPETI_EV: { label: 'Çiçeksepeti Ev', logo: '🏠', color: 'pink' },
   EVIDEA: { label: 'Evidea', logo: '🏡', color: 'cyan' },
   PORLAND: { label: 'Porland', logo: '🍽️', color: 'stone' },
+  ALIBABA: { label: 'Alibaba.com', logo: '🌏', color: 'orange' },
+  MADEINCHINA: { label: 'Made-in-China', logo: '🏭', color: 'red' },
+  EXPORTIFY: { label: 'Exportify', logo: '📤', color: 'sky' },
+  GITTIGIDIYOR: { label: 'GittiGidiyor (arşiv)', logo: '📜', color: 'yellow' },
+  KITAPYURDU: { label: 'Kitapyurdu', logo: '📚', color: 'amber' },
+  DR: { label: 'D&R', logo: '🎵', color: 'rose' },
+  SPORTIVE: { label: 'Sportive', logo: '⚽', color: 'emerald' },
+  ENPARA: { label: 'Enpara Çarşı', logo: '🏦', color: 'cyan' },
+  LAZADA: { label: 'Lazada', logo: '🛒', color: 'blue' },
+  SHOPEE: { label: 'Shopee', logo: '🧡', color: 'orange' },
+  TOKOPEDIA: { label: 'Tokopedia', logo: '🇮🇩', color: 'green' },
+  MEESHO: { label: 'Meesho', logo: '🇮🇳', color: 'fuchsia' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

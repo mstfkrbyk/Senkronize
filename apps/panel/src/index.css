@@ -84,3 +84,21 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
+
+@layer utilities {
+  @keyframes barcode-scan-line {
+    0% {
+      top: 6%;
+    }
+    50% {
+      top: 86%;
+    }
+    100% {
+      top: 6%;
+    }
+  }
+
+  .animate-barcode-scan-line {
+    animation: barcode-scan-line 2.2s ease-in-out infinite;
+  }
+}

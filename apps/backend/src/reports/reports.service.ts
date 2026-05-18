@@ -44,7 +44,7 @@ function periodKeyUtc(
   return `${mon.getUTCFullYear()}-${pad2(mon.getUTCMonth() + 1)}-${pad2(mon.getUTCDate())}`;
 }
 
-const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
+export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.TRENDYOL]: 'Trendyol',
   [Marketplace.HEPSIBURADA]: 'Hepsiburada',
   [Marketplace.N11]: 'n11',
@@ -105,6 +105,18 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.CICEKSEPETI_EV]: 'Çiçeksepeti Ev',
   [Marketplace.EVIDEA]: 'Evidea',
   [Marketplace.PORLAND]: 'Porland',
+  [Marketplace.ALIBABA]: 'Alibaba.com',
+  [Marketplace.MADEINCHINA]: 'Made-in-China',
+  [Marketplace.EXPORTIFY]: 'Exportify',
+  [Marketplace.GITTIGIDIYOR]: 'GittiGidiyor (arşiv)',
+  [Marketplace.KITAPYURDU]: 'Kitapyurdu',
+  [Marketplace.DR]: 'D&R',
+  [Marketplace.SPORTIVE]: 'Sportive',
+  [Marketplace.ENPARA]: 'Enpara Çarşı',
+  [Marketplace.LAZADA]: 'Lazada',
+  [Marketplace.SHOPEE]: 'Shopee',
+  [Marketplace.TOKOPEDIA]: 'Tokopedia',
+  [Marketplace.MEESHO]: 'Meesho',
 };
 
 @Injectable()

@@ -14,6 +14,7 @@ export interface StubRestOrderLine {
 export interface StubRestOrder {
   id?: string | number;
   order_id?: string | number;
+  order_sn?: string | number;
   status?: string;
   customer_name?: string;
   buyer_username?: string;
@@ -21,6 +22,7 @@ export interface StubRestOrder {
   total?: number;
   currency?: string;
   created_at?: string;
+  create_time?: string | number;
   lines?: StubRestOrderLine[];
   items?: StubRestOrderLine[];
   tracking_number?: string;
