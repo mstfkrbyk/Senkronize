@@ -76,6 +76,62 @@ export const MARKETPLACE_OPTIONS: MarketplaceOption[] = [
       { key: 'password', label: 'Şifre', type: 'password', required: true },
     ],
   },
+  {
+    id: 'AMAZON_TR',
+    label: 'Amazon.com.tr',
+    logo: '📦',
+    fields: [
+      { key: 'clientId', label: 'Client ID (LWA)', type: 'text', required: true },
+      { key: 'clientSecret', label: 'Client Secret', type: 'password', required: true },
+      { key: 'refreshToken', label: 'Refresh Token', type: 'password', required: true },
+      { key: 'sellerId', label: 'Seller ID', type: 'text', required: true },
+    ],
+  },
+  {
+    id: 'PTTAVM',
+    label: 'PTT AVM',
+    logo: '📬',
+    fields: [
+      { key: 'storeId', label: 'Mağaza ID', type: 'text', required: true },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'WOOCOMMERCE',
+    label: 'WooCommerce',
+    logo: '🛒',
+    fields: [
+      {
+        key: 'storeUrl',
+        label: 'Mağaza URL',
+        type: 'text',
+        placeholder: 'https://magaza.com',
+        required: true,
+      },
+      { key: 'consumerKey', label: 'Consumer Key', type: 'text', required: true },
+      {
+        key: 'consumerSecret',
+        label: 'Consumer Secret',
+        type: 'password',
+        required: true,
+      },
+    ],
+  },
+  {
+    id: 'SHOPIFY',
+    label: 'Shopify',
+    logo: '🛍️',
+    fields: [
+      {
+        key: 'shopDomain',
+        label: 'Shop Domain',
+        type: 'text',
+        placeholder: 'mystore.myshopify.com',
+        required: true,
+      },
+      { key: 'accessToken', label: 'Access Token', type: 'password', required: true },
+    ],
+  },
 ];
 
 export const ERP_OPTIONS: ErpOption[] = [

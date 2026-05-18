@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
 
+import { AmazonAdapter } from './amazon/amazon.adapter';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
@@ -10,9 +11,12 @@ import { LogoAdapter } from './logo/logo.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { N11Adapter } from './n11/n11.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
+import { ShopifyAdapter } from './shopify/shopify.adapter';
+import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
+import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 
 @Injectable()
 export class AdapterRegistry {
@@ -20,6 +24,7 @@ export class AdapterRegistry {
   private readonly erpAdapters: Map<string, IErpAdapter>;
 
   constructor(
+    private readonly amazon: AmazonAdapter,
     private readonly trendyol: TrendyolAdapter,
     private readonly hepsiburada: HepsiburadaAdapter,
     private readonly n11: N11Adapter,
@@ -32,8 +37,12 @@ export class AdapterRegistry {
     private readonly luca: LucaAdapter,
     private readonly tsoft: TsoftAdapter,
     private readonly ticimax: TicimaxAdapter,
+    private readonly pttavm: PttavmAdapter,
+    private readonly woocommerce: WoocommerceAdapter,
+    private readonly shopify: ShopifyAdapter,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
+      ['AMAZON_TR', amazon],
       ['TRENDYOL', trendyol],
       ['HEPSIBURADA', hepsiburada],
       ['N11', n11],
@@ -41,6 +50,9 @@ export class AdapterRegistry {
       ['IDEASOFT', ideasoft],
       ['TSOFT', tsoft],
       ['TICIMAX', ticimax],
+      ['PTTAVM', pttavm],
+      ['WOOCOMMERCE', woocommerce],
+      ['SHOPIFY', shopify],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],

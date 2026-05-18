@@ -84,6 +84,12 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.IDEASOFT) {
       return creds.storeUrl ?? null;
     }
+    if (platform === Marketplace.AMAZON_TR) {
+      return creds.sellerId ?? null;
+    }
+    if (platform === Marketplace.PTTAVM) {
+      return creds.storeId ?? null;
+    }
     return null;
   }
 
