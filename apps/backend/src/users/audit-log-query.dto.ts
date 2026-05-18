@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class AuditLogQueryDto {
   @IsOptional()
@@ -8,4 +8,10 @@ export class AuditLogQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  /** Örn. `sync_*` → `sync_` ile başlayan kayıtlar */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  action?: string;
 }

@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AdapterModule } from './adapters/adapter.module';
+import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
 import { CommonModule } from './common/common.module';
 import { EventModule } from './event/event.module';
@@ -73,6 +74,7 @@ import { WebhookModule } from './webhook/webhook.module';
     QueueModule,
     EventModule,
     AuthModule,
+    ApiKeyModule,
     OrganizationModule,
     OrderModule,
     ListingModule,

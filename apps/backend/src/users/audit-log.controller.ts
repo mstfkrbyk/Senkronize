@@ -28,6 +28,6 @@ export class AuditLogController {
     @Query() query: AuditLogQueryDto,
   ): Promise<AuditLogListItem[]> {
     const limit = query.limit ?? 50;
-    return this.usersService.getAuditLog(org.id, limit);
+    return this.usersService.getAuditLog(org.id, limit, query.action);
   }
 }

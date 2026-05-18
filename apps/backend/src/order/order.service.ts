@@ -10,7 +10,7 @@ import type { MarketplaceOrder } from '@senkronize/shared';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { OrderQueryDto, OrderSummaryDto } from './order.dto';
+import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
 
 export type SerializedOrderItem = Omit<OrderItem, 'unitPrice'> & {
   unitPrice: string;
@@ -89,6 +89,37 @@ export class OrderService {
       throw new NotFoundException('Sipariş bulunamadı');
     }
     return this.serializeOrder(order);
+  }
+
+  async updateStatus(
+    organizationId: string,
+    id: string,
+    dto: UpdateOrderStatusDto,
+  ): Promise<SerializedOrder> {
+    const existing = await this.prisma.order.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+
+    const data: Prisma.OrderUpdateInput = {
+      status: dto.status,
+      ...(dto.cargoTrackingNumber !== undefined && {
+        cargoTrackingNumber: dto.cargoTrackingNumber || null,
+      }),
+      ...(dto.cargoProvider !== undefined && {
+        cargoProvider: dto.cargoProvider || null,
+      }),
+    };
+
+    const updated = await this.prisma.order.update({
+      where: { id },
+      data,
+      include: { items: true },
+    });
+    return this.serializeOrder(updated);
   }
 
   async upsertFromPlatform(

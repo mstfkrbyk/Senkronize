@@ -86,14 +86,25 @@ export class UsersService {
   async getAuditLog(
     organizationId: string,
     limit: number,
+    actionFilter?: string,
   ): Promise<AuditLogListItem[]> {
     const take = Math.min(Math.max(limit, 1), 100);
+    const rawAction =
+      typeof actionFilter === 'string' ? actionFilter.trim() : '';
+    const actionWhere =
+      rawAction.length > 0
+        ? rawAction.endsWith('*')
+          ? { startsWith: rawAction.slice(0, -1) }
+          : { equals: rawAction }
+        : undefined;
+
     const logs = await this.prisma.auditLog.findMany({
       where: {
         OR: [
           { actorOrgId: organizationId },
           { impersonatedOrgId: organizationId },
         ],
+        ...(actionWhere ? { action: actionWhere } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take,

@@ -121,37 +121,54 @@ enum OrderStatus {
 }
 
 model Organization {
-  id        String    @id @default(cuid())
-  slug      String    @unique
-  name      String
-  onboardingCompleted Boolean @default(false)
-  type      OrgType
-  logoUrl   String?
-  createdAt DateTime  @default(now())
-  deletedAt DateTime?
+  id                  String    @id @default(cuid())
+  slug                String    @unique
+  name                String
+  onboardingCompleted Boolean   @default(false)
+  type                OrgType
+  logoUrl             String?
+  createdAt           DateTime  @default(now())
+  deletedAt           DateTime?
 
-  users                    User[]
-  subscription             Subscription?
-  marketplaceConnections   MarketplaceConnection[]
-  erpConnections           ErpConnection[]
-  ecommerceConnections     EcommerceConnection[]
-  cargoConnections         CargoConnection[]
-  products                 Product[]
-  listings                 Listing[]
-  stockEntries             StockEntry[]
-  orders                   Order[]
-  reservations             Reservation[]
-  partnerRelationships     PartnerRelationship[] @relation("PartnerOrg")
-  clientRelationships      PartnerRelationship[] @relation("ClientOrg")
-  commissionLedgerAsPartner CommissionLedger[]   @relation("LedgerPartnerOrg")
-  commissionLedgerAsClient  CommissionLedger[]   @relation("LedgerClientOrg")
-  paytrSubscription        PaytrSubscription?
-  payments                 Payment[]
-  pricingRules             PricingRule[]
-  priceHistories           PriceHistory[]
-  buyBoxSnapshots          BuyBoxSnapshot[]
-  webhookEvents            WebhookEvent[]
-  notificationPreferences  NotificationPreference[]
+  users                     User[]
+  subscription              Subscription?
+  marketplaceConnections    MarketplaceConnection[]
+  erpConnections            ErpConnection[]
+  ecommerceConnections      EcommerceConnection[]
+  cargoConnections          CargoConnection[]
+  products                  Product[]
+  listings                  Listing[]
+  stockEntries              StockEntry[]
+  orders                    Order[]
+  reservations              Reservation[]
+  partnerRelationships      PartnerRelationship[]    @relation("PartnerOrg")
+  clientRelationships       PartnerRelationship[]    @relation("ClientOrg")
+  commissionLedgerAsPartner CommissionLedger[]       @relation("LedgerPartnerOrg")
+  commissionLedgerAsClient  CommissionLedger[]       @relation("LedgerClientOrg")
+  paytrSubscription         PaytrSubscription?
+  payments                  Payment[]
+  pricingRules              PricingRule[]
+  priceHistories            PriceHistory[]
+  buyBoxSnapshots           BuyBoxSnapshot[]
+  webhookEvents             WebhookEvent[]
+  notificationPreferences   NotificationPreference[]
+  apiKeys                   ApiKey[]
+}
+
+model ApiKey {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  keyHash        String       @unique
+  keyPrefix      String
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model WebhookEvent {
@@ -171,18 +188,18 @@ model WebhookEvent {
 }
 
 model User {
-  id             String    @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String    @unique
+  email          String       @unique
   passwordHash   String
   name           String
   phone          String?
   role           UserRole
-  permissions    Json      @default("{}")
+  permissions    Json         @default("{}")
   lastLoginAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   deletedAt      DateTime?
 
   refreshTokens RefreshToken[]
@@ -208,8 +225,8 @@ model NotificationPreference {
 }
 
 model Subscription {
-  id                  String    @id @default(cuid())
-  organizationId      String    @unique
+  id                  String       @id @default(cuid())
+  organizationId      String       @unique
   organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan                PlanTier
   status              SubStatus
@@ -223,9 +240,9 @@ model Subscription {
   ecommerceLimit      Int?
   erpLimit            Int?
   userLimit           Int?
-  addons              Json      @default("[]")
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  addons              Json         @default("[]")
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
 }
 
 model PaytrSubscription {
@@ -240,39 +257,39 @@ model PaytrSubscription {
 }
 
 model Payment {
-  id               String        @id @default(cuid())
-  organizationId   String
-  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  amount           Int
-  currency         String        @default("TRY")
-  status           PaymentStatus
-  paytrOrderId     String        @unique
-  paytrPaymentId   String?
-  plan             PlanTier
-  periodStart      DateTime?
-  periodEnd        DateTime?
-  failReason       String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  amount         Int
+  currency       String        @default("TRY")
+  status         PaymentStatus
+  paytrOrderId   String        @unique
+  paytrPaymentId String?
+  plan           PlanTier
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  failReason     String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@index([organizationId])
 }
 
 model MarketplaceConnection {
-  id                String       @id @default(cuid())
-  organizationId    String
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  platform          Marketplace
-  credentialsEnc    String // AES-256-GCM ile şifrelenmiş JSON
-  isActive          Boolean      @default(true)
-  lastSyncAt        DateTime?
-  syncErrorCount    Int          @default(0)
-  lastErrorAt       DateTime?
-  lastErrorMessage  String?
-  webhookSecret     String? // platform'dan gelen webhook doğrulaması için
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
-  deletedAt         DateTime?
+  id               String       @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform         Marketplace
+  credentialsEnc   String // AES-256-GCM ile şifrelenmiş JSON
+  isActive         Boolean      @default(true)
+  lastSyncAt       DateTime?
+  syncErrorCount   Int          @default(0)
+  lastErrorAt      DateTime?
+  lastErrorMessage String?
+  webhookSecret    String? // platform'dan gelen webhook doğrulaması için
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
 
   @@unique([organizationId, platform])
   @@index([organizationId])
@@ -298,38 +315,38 @@ model ErpConnection {
 }
 
 model EcommerceConnection {
-  id              String         @id @default(cuid())
-  organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  platform        EcommerceType
-  credentialsEnc  String
-  isActive        Boolean        @default(true)
-  lastSyncAt      DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  platform       EcommerceType
+  credentialsEnc String
+  isActive       Boolean       @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([organizationId, platform])
 }
 
 model CargoConnection {
-  id              String         @id @default(cuid())
-  organizationId  String
-  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  provider        CargoProvider
-  credentialsEnc  String?
-  isActive        Boolean        @default(true)
-  lastSyncAt      DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  provider       CargoProvider
+  credentialsEnc String?
+  isActive       Boolean       @default(true)
+  lastSyncAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   @@unique([organizationId, provider])
 }
 
 // Merkezi ürün kataloğu (ERP veya manuel)
 model Product {
-  id             String    @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   barcode        String
   sku            String?
   name           String
@@ -337,9 +354,9 @@ model Product {
   brand          String?
   category       String?
   imageUrls      String[]
-  isActive       Boolean   @default(true)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
   listings       Listing[]
   stockEntries   StockEntry[]
@@ -377,17 +394,17 @@ model Listing {
 
 // Stok takibi (platform bazlı veya merkezi)
 model StockEntry {
-  id             String        @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   productId      String?
-  product        Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
   barcode        String
   platform       Marketplace? // null = merkezi stok
   quantity       Int
-  reservedQty    Int           @default(0)
-  updatedAt      DateTime      @updatedAt
-  createdAt      DateTime      @default(now())
+  reservedQty    Int          @default(0)
+  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime     @default(now())
 
   @@unique([organizationId, barcode, platform])
   @@index([organizationId])
@@ -395,8 +412,8 @@ model StockEntry {
 
 model Order {
   id                  String       @id @default(cuid())
-  organizationId    String
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   platform            Marketplace
   platformOrderId     String
   status              OrderStatus
@@ -439,32 +456,32 @@ model OrderItem {
 }
 
 model Reservation {
-  id             String    @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   productId      String
-  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity       Int
   sourceOrderId  String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model PartnerRelationship {
-  id              String         @id @default(cuid())
+  id              String        @id @default(cuid())
   partnerOrgId    String
-  partnerOrg      Organization   @relation("PartnerOrg", fields: [partnerOrgId], references: [id], onDelete: Cascade)
+  partnerOrg      Organization  @relation("PartnerOrg", fields: [partnerOrgId], references: [id], onDelete: Cascade)
   clientOrgId     String?
-  clientOrg       Organization?  @relation("ClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
+  clientOrg       Organization? @relation("ClientOrg", fields: [clientOrgId], references: [id], onDelete: Cascade)
   invitedEmail    String?
-  status          PartnerStatus  @default(PENDING)
-  commissionPct   Decimal        @db.Decimal(5, 2) @default(10)
-  canImpersonate  Boolean        @default(true)
-  inviteToken     String?        @unique
+  status          PartnerStatus @default(PENDING)
+  commissionPct   Decimal       @default(10) @db.Decimal(5, 2)
+  canImpersonate  Boolean       @default(true)
+  inviteToken     String?       @unique
   inviteExpiresAt DateTime?
   acceptedAt      DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@unique([partnerOrgId, clientOrgId])
   @@index([partnerOrgId])
@@ -492,15 +509,15 @@ model CommissionLedger {
 }
 
 model AuditLog {
-  id                 String   @id @default(cuid())
-  actorUserId        String
-  actorOrgId         String
-  impersonatedOrgId  String?
-  action             String
-  resourceType       String
-  resourceId         String?
-  metadata           Json     @default("{}")
-  createdAt          DateTime @default(now())
+  id                String   @id @default(cuid())
+  actorUserId       String
+  actorOrgId        String
+  impersonatedOrgId String?
+  action            String
+  resourceType      String
+  resourceId        String?
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now())
 }
 
 model RefreshToken {
@@ -514,22 +531,22 @@ model RefreshToken {
 
 // Fiyatlandırma kuralları (Pro+)
 model PricingRule {
-  id               String           @id @default(cuid())
-  organizationId   String
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  name             String
-  platform         Marketplace
-  strategy         PricingStrategy
-  minMarginPct     Decimal          @db.Decimal(5, 2) @default(10)
-  maxDiscountPct   Decimal          @db.Decimal(5, 2) @default(20)
-  targetPosition   Int              @default(1)
-  isActive         Boolean          @default(true)
-  applyToAll       Boolean          @default(false)
-  barcodes         String[]
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  deletedAt        DateTime?
-  priceHistories   PriceHistory[]
+  id             String          @id @default(cuid())
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  platform       Marketplace
+  strategy       PricingStrategy
+  minMarginPct   Decimal         @default(10) @db.Decimal(5, 2)
+  maxDiscountPct Decimal         @default(20) @db.Decimal(5, 2)
+  targetPosition Int             @default(1)
+  isActive       Boolean         @default(true)
+  applyToAll     Boolean         @default(false)
+  barcodes       String[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+  priceHistories PriceHistory[]
 
   @@index([organizationId])
   @@index([organizationId, platform])
@@ -537,17 +554,17 @@ model PricingRule {
 
 // Fiyat değişim geçmişi
 model PriceHistory {
-  id             String        @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   barcode        String
   platform       Marketplace
   pricingRuleId  String?
-  pricingRule    PricingRule?  @relation(fields: [pricingRuleId], references: [id], onDelete: SetNull)
-  oldPrice       Decimal       @db.Decimal(10, 2)
-  newPrice       Decimal       @db.Decimal(10, 2)
+  pricingRule    PricingRule? @relation(fields: [pricingRuleId], references: [id], onDelete: SetNull)
+  oldPrice       Decimal      @db.Decimal(10, 2)
+  newPrice       Decimal      @db.Decimal(10, 2)
   reason         String?
-  appliedAt      DateTime      @default(now())
+  appliedAt      DateTime     @default(now())
 
   @@index([organizationId, barcode])
   @@index([organizationId, platform])
@@ -555,16 +572,16 @@ model PriceHistory {
 
 // BuyBox anlık veri (rakip fiyat takibi)
 model BuyBoxSnapshot {
-  id               String       @id @default(cuid())
-  organizationId   String
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  barcode          String
-  platform         Marketplace
-  buyBoxPrice      Decimal      @db.Decimal(10, 2)
-  ourPrice         Decimal      @db.Decimal(10, 2)
-  isWinner         Boolean      @default(false)
-  competitorCount  Int          @default(0)
-  capturedAt       DateTime     @default(now())
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  barcode         String
+  platform        Marketplace
+  buyBoxPrice     Decimal      @db.Decimal(10, 2)
+  ourPrice        Decimal      @db.Decimal(10, 2)
+  isWinner        Boolean      @default(false)
+  competitorCount Int          @default(0)
+  capturedAt      DateTime     @default(now())
 
   @@index([organizationId, barcode, platform])
   @@index([organizationId, platform, capturedAt])

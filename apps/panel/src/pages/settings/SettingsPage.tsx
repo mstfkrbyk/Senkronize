@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth.store';
 
+import { ApiKeysTab } from './tabs/ApiKeysTab';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
 import { PartnersTab } from './tabs/PartnersTab';
@@ -38,6 +39,7 @@ export function SettingsPage(): ReactElement {
           <TabsTrigger value="subscription">Abonelik</TabsTrigger>
           <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
           <TabsTrigger value="security">{'Güvenlik & KVKK'}</TabsTrigger>
+          <TabsTrigger value="api-keys">API anahtarları</TabsTrigger>
           {showPartnersTab ? (
             <TabsTrigger value="partners">Partnerler</TabsTrigger>
           ) : null}
@@ -59,6 +61,9 @@ export function SettingsPage(): ReactElement {
         </TabsContent>
         <TabsContent value="security" className="mt-6">
           <SecurityTab />
+        </TabsContent>
+        <TabsContent value="api-keys" className="mt-6">
+          <ApiKeysTab />
         </TabsContent>
         {showPartnersTab ? (
           <TabsContent value="partners" className="mt-6">

@@ -27,6 +27,7 @@ import { PricingPage } from '@/pages/pricing/PricingPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { StockPage } from '@/pages/stock/StockPage';
+import { SyncLogsPage } from '@/pages/sync-logs/SyncLogsPage';
 
 export default function App(): ReactElement {
   return (
@@ -51,6 +52,7 @@ export default function App(): ReactElement {
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
+                <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/partner" element={<PartnerPage />} />
                 <Route path="/settings/subscription" element={<SettingsPage />} />

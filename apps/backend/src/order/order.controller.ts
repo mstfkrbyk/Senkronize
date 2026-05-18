@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,7 +9,7 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { OrderQueryDto, type OrderSummaryDto } from './order.dto';
+import { OrderQueryDto, type OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
 
 @ApiTags('Siparişler')
@@ -39,6 +39,20 @@ export class OrderController {
     @Query() query: OrderQueryDto,
   ): Promise<{ items: SerializedOrder[]; total: number }> {
     return this.orderService.findAll(org.id, query);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş durumu güncelle (kargo bilgisi dahil)' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async updateOrderStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ): Promise<SerializedOrder> {
+    return this.orderService.updateStatus(org.id, id, dto);
   }
 
   @Get(':id')

@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  Activity,
   BarChart2,
   LayoutDashboard,
   Package,
@@ -26,6 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Stok', icon: Warehouse, path: '/stock' },
   { label: 'Fiyatlandırma', icon: Tag, path: '/pricing', badge: 'PRO' },
   { label: 'Entegrasyonlar', icon: Plug, path: '/connections' },
+  { label: 'Sync Durumu', icon: Activity, path: '/sync-logs' },
   { label: 'Raporlar', icon: BarChart2, path: '/reports' },
   {
     label: 'Partner Paneli',

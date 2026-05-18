@@ -64,7 +64,12 @@ async function bootstrap(): Promise<void> {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-Api-Key',
+    ],
   });
 
   app.useBodyParser('json', { limit: '10mb' });
