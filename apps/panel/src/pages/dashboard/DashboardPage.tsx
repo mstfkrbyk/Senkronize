@@ -10,7 +10,8 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { ActivityFeed } from '@/components/ActivityFeed';
 import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,6 +46,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useTriggerManualSync } from '@/hooks/useConnections';
+import { useSocket } from '@/hooks/useSocket';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -161,6 +164,8 @@ function pendingOrdersTone(count: number): string {
 
 export function DashboardPage(): ReactElement {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { socket } = useSocket();
   const triggerSyncMutation = useTriggerManualSync();
 
   const dashboardSummaryQuery = useQuery({
@@ -215,6 +220,62 @@ export function DashboardPage(): ReactElement {
   const recentOrders = recentOrdersQuery.data ?? [];
   const dash = dashboardSummaryQuery.data;
   const kpiLoading = dashboardSummaryQuery.isPending;
+
+  useEffect(() => {
+    if (!socket) {
+      return undefined;
+    }
+    const onOrderNew = (data: unknown): void => {
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
+      void queryClient.invalidateQueries({ queryKey: ['orders', 'recent'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'sales', 'weekly'],
+      });
+      let description = 'Yeni sipariş alındı.';
+      if (typeof data === 'object' && data !== null) {
+        const d = data as Record<string, unknown>;
+        const buyer =
+          typeof d.buyerName === 'string' ? d.buyerName : 'Müşteri';
+        const platform =
+          typeof d.platform === 'string' ? d.platform : 'Pazaryeri';
+        const amt = d.totalAmount;
+        const amountStr =
+          typeof amt === 'string' || typeof amt === 'number'
+            ? new Intl.NumberFormat('tr-TR', {
+                style: 'currency',
+                currency: 'TRY',
+              }).format(Number(amt))
+            : '—';
+        description = `${buyer} · ${amountStr}`;
+        toast.success(`Yeni sipariş — ${getMarketplaceBranding(platform).label}`, {
+          description,
+          duration: 5000,
+        });
+        return;
+      }
+      toast.success('Yeni sipariş', { description, duration: 5000 });
+    };
+    const onSyncCompleted = (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['marketplace-connections'],
+      });
+    };
+    const onStockUpdated = (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['stock'] });
+    };
+    socket.on('order:new', onOrderNew);
+    socket.on('sync:completed', onSyncCompleted);
+    socket.on('stock:updated', onStockUpdated);
+    return (): void => {
+      socket.off('order:new', onOrderNew);
+      socket.off('sync:completed', onSyncCompleted);
+      socket.off('stock:updated', onStockUpdated);
+    };
+  }, [socket, queryClient]);
 
   return (
     <div className="space-y-8">
@@ -636,6 +697,8 @@ export function DashboardPage(): ReactElement {
           </CardContent>
         </Card>
       </div>
+
+      <ActivityFeed />
     </div>
   );
 }

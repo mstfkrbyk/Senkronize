@@ -133,3 +133,28 @@ export function useUpdateErpConnection(): UseMutationResult<
     },
   });
 }
+
+export function useSyncOrderToErp(): UseMutationResult<
+  { invoiceNo: string },
+  Error,
+  { connectionId: string; orderId: string }
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      connectionId,
+      orderId,
+    }: {
+      connectionId: string;
+      orderId: string;
+    }): Promise<{ invoiceNo: string }> => {
+      const { data } = await api.post<{ invoiceNo: string }>(
+        `/erp-connections/${connectionId}/sync-order/${orderId}`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+}

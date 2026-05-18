@@ -308,4 +308,72 @@ export class ErpConnectionService {
       },
     });
   }
+
+  async syncOrderToErp(
+    connectionId: string,
+    orderId: string,
+    organizationId: string,
+    actorUserId: string,
+    actorOrgId: string,
+    isImpersonating: boolean,
+    impersonatedOrgId: string | null,
+  ): Promise<{ invoiceNo: string }> {
+    const connection = await this.prisma.erpConnection.findFirst({
+      where: { id: connectionId, organizationId, deletedAt: null },
+    });
+    if (!connection) {
+      throw new NotFoundException('ERP bağlantısı bulunamadı');
+    }
+    if (!this.adapterRegistry.hasErpAdapter(connection.erpType)) {
+      throw new BadRequestException(
+        'Bu ERP türü için fatura gönderimi desteklenmiyor.',
+      );
+    }
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+    const creds = this.parseCredentialsRecord(connection.credentialsEnc);
+    if (!creds) {
+      throw new BadRequestException('ERP kimlik bilgileri çözülemedi.');
+    }
+    const adapter = this.adapterRegistry.getErp(connection.erpType);
+    const lines = order.items.map((item) => {
+      const unit = Number(item.unitPrice);
+      const qty = item.quantity;
+      const lineTotal = Math.round(unit * qty * 100) / 100;
+      return {
+        description: item.productName ?? item.sku,
+        quantity: qty,
+        unitPrice: unit,
+        taxRate: 0,
+        total: lineTotal,
+      };
+    });
+    const invoice = await adapter.createInvoice(creds, {
+      orderRef: order.platformOrderId,
+      totalAmount: Number(order.totalAmount),
+      currency: order.currency,
+      lines,
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId,
+        actorOrgId,
+        impersonatedOrgId: isImpersonating ? impersonatedOrgId : null,
+        action: 'erp.invoice_created',
+        resourceType: 'Order',
+        resourceId: orderId,
+        metadata: {
+          invoiceNo: invoice.invoiceNumber,
+          connectionId,
+          erpType: connection.erpType,
+        },
+      },
+    });
+    return { invoiceNo: invoice.invoiceNumber };
+  }
 }

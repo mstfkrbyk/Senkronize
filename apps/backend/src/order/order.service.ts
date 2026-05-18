@@ -15,6 +15,7 @@ import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './ord
 
 export type SerializedOrderItem = Omit<OrderItem, 'unitPrice'> & {
   unitPrice: string;
+  thumbnailUrl?: string | null;
 };
 
 export type SerializedOrder = Omit<Order, 'totalAmount'> & {
@@ -84,6 +85,38 @@ export class OrderService {
     };
   }
 
+  private async loadItemThumbnails(
+    organizationId: string,
+    platform: Marketplace,
+    items: OrderItem[],
+  ): Promise<Map<string, string | null>> {
+    const barcodes = [
+      ...new Set(
+        items
+          .map((i) => i.barcode)
+          .filter((b): b is string => typeof b === 'string' && b.length > 0),
+      ),
+    ];
+    if (barcodes.length === 0) {
+      return new Map();
+    }
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        organizationId,
+        platform,
+        deletedAt: null,
+        barcode: { in: barcodes },
+      },
+      select: { barcode: true, imageUrls: true },
+    });
+    const map = new Map<string, string | null>();
+    for (const row of listings) {
+      const first = row.imageUrls?.[0];
+      map.set(row.barcode, typeof first === 'string' ? first : null);
+    }
+    return map;
+  }
+
   async findOne(organizationId: string, id: string): Promise<SerializedOrder> {
     const order = await this.prisma.order.findFirst({
       where: { id, organizationId, deletedAt: null },
@@ -92,7 +125,12 @@ export class OrderService {
     if (!order) {
       throw new NotFoundException('Sipariş bulunamadı');
     }
-    return this.serializeOrder(order);
+    const thumbnails = await this.loadItemThumbnails(
+      organizationId,
+      order.platform,
+      order.items,
+    );
+    return this.serializeOrder(order, thumbnails);
   }
 
   async updateStatus(
@@ -123,16 +161,31 @@ export class OrderService {
       data,
       include: { items: true },
     });
-    return this.serializeOrder(updated);
+    const thumbnails = await this.loadItemThumbnails(
+      organizationId,
+      updated.platform,
+      updated.items,
+    );
+    return this.serializeOrder(updated, thumbnails);
   }
 
   async upsertFromPlatform(
     organizationId: string,
     platform: Marketplace,
     orders: MarketplaceOrder[],
-  ): Promise<void> {
+  ): Promise<{ createdOrders: Order[] }> {
+    const createdOrders: Order[] = [];
     for (const o of orders) {
-      await this.prisma.order.upsert({
+      const existing = await this.prisma.order.findUnique({
+        where: {
+          organizationId_platform_platformOrderId: {
+            organizationId,
+            platform,
+            platformOrderId: o.platformOrderId,
+          },
+        },
+      });
+      const row = await this.prisma.order.upsert({
         where: {
           organizationId_platform_platformOrderId: {
             organizationId,
@@ -170,10 +223,14 @@ export class OrderService {
           syncedAt: new Date(),
         },
       });
+      if (!existing) {
+        createdOrders.push(row);
+      }
     }
     if (orders.length > 0) {
       await this.cache.invalidateReportsForOrg(organizationId);
     }
+    return { createdOrders };
   }
 
   /**
@@ -272,6 +329,7 @@ export class OrderService {
 
   private serializeOrder(
     order: Order & { items: OrderItem[] },
+    thumbnailByBarcode?: Map<string, string | null>,
   ): SerializedOrder {
     return {
       ...order,
@@ -279,6 +337,11 @@ export class OrderService {
       items: order.items.map((item) => ({
         ...item,
         unitPrice: item.unitPrice.toString(),
+        ...(thumbnailByBarcode?.has(item.barcode)
+          ? {
+              thumbnailUrl: thumbnailByBarcode.get(item.barcode) ?? null,
+            }
+          : {}),
       })),
     };
   }

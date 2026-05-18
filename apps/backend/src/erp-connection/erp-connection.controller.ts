@@ -18,7 +18,9 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { AuthenticatedUser } from '../auth/auth.types';
 
 import {
   CreateErpConnectionDto,
@@ -88,6 +90,31 @@ export class ErpConnectionController {
     @Body() dto: UpdateErpConnectionDto,
   ) {
     return this.erpConnectionService.update(org.id, id, dto);
+  }
+
+  @Post(':id/sync-order/:orderId')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Siparişi ERP üzerinde fatura olarak oluştur' })
+  @ApiResponse({ status: 200, description: 'Fatura oluşturuldu' })
+  @ApiResponse({ status: 400, description: 'Geçersiz istek' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Kayıt bulunamadı' })
+  async syncOrderToErp(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') connectionId: string,
+    @Param('orderId') orderId: string,
+  ): Promise<{ invoiceNo: string }> {
+    return this.erpConnectionService.syncOrderToErp(
+      connectionId,
+      orderId,
+      org.id,
+      user.id,
+      user.organizationId,
+      user.isImpersonating,
+      user.isImpersonating ? user.currentOrgId : null,
+    );
   }
 
   @Delete(':id')

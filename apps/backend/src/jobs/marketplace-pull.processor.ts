@@ -11,6 +11,7 @@ import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { OrderService } from '../order/order.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_IMAGE, QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
 import type {
@@ -30,6 +31,7 @@ export class MarketplacePullProcessor {
     private readonly listingService: ListingService,
     private readonly syncStatusService: SyncStatusService,
     private readonly eventService: EventService,
+    private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @InjectQueue(QUEUE_IMAGE)
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
@@ -42,7 +44,19 @@ export class MarketplacePullProcessor {
       organizationId,
       platform,
     });
+    let connectionId: string | null = null;
     try {
+      const connectionRow = await this.prisma.marketplaceConnection.findFirst({
+        where: {
+          organizationId,
+          platform: platform as Marketplace,
+          deletedAt: null,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      connectionId = connectionRow?.id ?? null;
+
       const credentials =
         await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
           organizationId,
@@ -63,18 +77,30 @@ export class MarketplacePullProcessor {
         platform,
         count: orders.length,
       });
-      await this.orderService.upsertFromPlatform(
+      const { createdOrders } = await this.orderService.upsertFromPlatform(
         organizationId,
         platform as Marketplace,
         orders,
       );
+      for (const order of createdOrders) {
+        this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
+          orderId: order.id,
+          platform,
+          buyerName: order.customerName,
+          totalAmount: order.totalAmount.toString(),
+          createdAt: order.createdAt.toISOString(),
+        });
+      }
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,
         { ordersProcessed: orders.length },
       );
-      this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
-        count: orders.length,
+      this.eventService.emit(organizationId, WS_EVENTS.SYNC_COMPLETED, {
+        platform,
+        connectionId: connectionId ?? undefined,
+        ordersProcessed: orders.length,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       const message =
@@ -83,6 +109,12 @@ export class MarketplacePullProcessor {
         organizationId,
         platform,
         error: message,
+      });
+      this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
+        platform,
+        connectionId: connectionId ?? undefined,
+        message: message.slice(0, 500),
+        timestamp: new Date().toISOString(),
       });
       await this.syncStatusService.recordError(
         organizationId,
@@ -100,7 +132,19 @@ export class MarketplacePullProcessor {
       organizationId,
       platform,
     });
+    let connectionId: string | null = null;
     try {
+      const connectionRow = await this.prisma.marketplaceConnection.findFirst({
+        where: {
+          organizationId,
+          platform: platform as Marketplace,
+          deletedAt: null,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      connectionId = connectionRow?.id ?? null;
+
       const credentials =
         await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
           organizationId,
@@ -130,11 +174,52 @@ export class MarketplacePullProcessor {
           page += 1;
         }
       }
+      const platformProductIds = all.map((l) => l.platformProductId);
+      const existingRows =
+        platformProductIds.length > 0
+          ? await this.prisma.listing.findMany({
+              where: {
+                organizationId,
+                platform: platform as Marketplace,
+                deletedAt: null,
+                platformProductId: { in: platformProductIds },
+              },
+              select: {
+                platformProductId: true,
+                quantity: true,
+                barcode: true,
+              },
+            })
+          : [];
+      const prevByProductId = new Map(
+        existingRows.map((r) => [
+          r.platformProductId,
+          { quantity: r.quantity, barcode: r.barcode },
+        ]),
+      );
       await this.listingService.upsertFromPlatform(
         organizationId,
         platform as Marketplace,
         all,
       );
+      for (const listing of all) {
+        const prev = prevByProductId.get(listing.platformProductId);
+        if (!prev || prev.quantity === listing.quantity) {
+          continue;
+        }
+        const barcode =
+          typeof listing.barcode === 'string' && listing.barcode.length > 0
+            ? listing.barcode
+            : prev.barcode;
+        if (!barcode) {
+          continue;
+        }
+        this.eventService.emit(organizationId, WS_EVENTS.STOCK_UPDATED, {
+          barcode,
+          newQuantity: listing.quantity,
+          platform,
+        });
+      }
       const r2PublicUrl = (this.configService.get<string>('R2_PUBLIC_URL') ?? '')
         .trim()
         .replace(/\/+$/, '');
@@ -173,6 +258,12 @@ export class MarketplacePullProcessor {
       this.eventService.emit(organizationId, WS_EVENTS.LISTING_SYNCED, {
         count: all.length,
       });
+      this.eventService.emit(organizationId, WS_EVENTS.SYNC_COMPLETED, {
+        platform,
+        connectionId: connectionId ?? undefined,
+        listingsProcessed: all.length,
+        timestamp: new Date().toISOString(),
+      });
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';
@@ -180,6 +271,12 @@ export class MarketplacePullProcessor {
         organizationId,
         platform,
         error: message,
+      });
+      this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
+        platform,
+        connectionId: connectionId ?? undefined,
+        message: message.slice(0, 500),
+        timestamp: new Date().toISOString(),
       });
       await this.syncStatusService.recordError(
         organizationId,
