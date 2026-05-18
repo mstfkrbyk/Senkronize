@@ -83,6 +83,59 @@ export const ERP_OPTIONS: ErpOption[] = [
       },
     ],
   },
+  {
+    id: 'LOGO',
+    label: 'Logo Tiger/Go',
+    logo: '🐯',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'Sunucu URL',
+        type: 'text',
+        placeholder: 'http://192.168.1.100:8181',
+        required: true,
+      },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      {
+        key: 'password',
+        label: 'Şifre',
+        type: 'password',
+        required: true,
+      },
+      { key: 'firmNo', label: 'Firma No', type: 'text', required: true },
+      { key: 'periodNo', label: 'Dönem No', type: 'text', required: true },
+    ],
+  },
+  {
+    id: 'MIKRO',
+    label: 'Mikro ERP',
+    logo: '⚙️',
+    fields: [
+      { key: 'baseUrl', label: 'Sunucu URL', type: 'text', required: true },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      {
+        key: 'password',
+        label: 'Şifre',
+        type: 'password',
+        required: true,
+      },
+      { key: 'dbName', label: 'Veritabanı Adı', type: 'text', required: true },
+    ],
+  },
+  {
+    id: 'LUCA',
+    label: 'Luca Muhasebe',
+    logo: '☁️',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key',
+        type: 'password',
+        required: true,
+      },
+      { key: 'companyId', label: 'Firma ID', type: 'text', required: true },
+    ],
+  },
 ];
 
 export function getErpBranding(erpType: string): {

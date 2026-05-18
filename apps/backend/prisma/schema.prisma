@@ -49,6 +49,9 @@ enum Marketplace {
   N11
   AMAZON_TR
   CICEKSEPETI
+  IDEASOFT
+  PTTAVM
+  PAZARAMA
   TSOFT
   TICIMAX
 }
@@ -66,6 +69,8 @@ enum ErpType {
   TSOFT
   TICIMAX
   LOGO
+  MIKRO
+  LUCA
 }
 
 enum EcommerceType {

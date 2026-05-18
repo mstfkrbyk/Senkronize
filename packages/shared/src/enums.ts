@@ -27,6 +27,9 @@ export type Marketplace =
   | 'N11'
   | 'AMAZON_TR'
   | 'CICEKSEPETI'
+  | 'IDEASOFT'
+  | 'PTTAVM'
+  | 'PAZARAMA'
   | 'TSOFT'
   | 'TICIMAX';
 
@@ -36,7 +39,9 @@ export type ErpType =
   | 'PARASUT'
   | 'TSOFT'
   | 'TICIMAX'
-  | 'LOGO';
+  | 'LOGO'
+  | 'MIKRO'
+  | 'LUCA';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType = 'TICIMAX' | 'TSOFT';
