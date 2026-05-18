@@ -3,6 +3,8 @@
     "dashboard": "Dashboard",
     "orders": "Orders",
     "products": "Products",
+    "categories": "Categories",
+    "productMatching": "Product matching",
     "listings": "Listings",
     "stock": "Inventory",
     "stockForecast": "Stock forecast",
@@ -86,7 +88,9 @@
     "recentOrders": "Recent orders",
     "recentOrdersDesc": "Last 5 orders",
     "syncStatus": "Sync status",
-    "syncStatusDesc": "Live integration health"
+    "syncStatusDesc": "Live integration health",
+    "stockForecastCriticalTitle": "Critical stock (forecast)",
+    "stockForecastCriticalHint": "Fewer than 7 days of cover at current sales velocity — click to open the forecast"
   },
   "settings": {
     "appearanceTitle": "Appearance",

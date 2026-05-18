@@ -124,6 +124,18 @@ function resolveActorFromContext(): {
   };
 }
 
+type LegacyPrismaMiddlewareParams = {
+  model?: string | null;
+  action: string;
+  args?: unknown;
+};
+
+type LegacyPrismaNext = (params: LegacyPrismaMiddlewareParams) => Promise<unknown>;
+
+type PrismaClientWithOptionalUse = PrismaClient & {
+  $use?: (fn: (params: LegacyPrismaMiddlewareParams, next: LegacyPrismaNext) => Promise<unknown>) => void;
+};
+
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
@@ -131,11 +143,19 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Prisma `$use` middleware: kritik modellerdeki yazma işlemlerini denetim kaydına düşürür.
+   * Prisma `$use` middleware (Prisma 5 ve öncesi): kritik modellerdeki yazma işlemlerini denetim kaydına düşürür.
+   * Prisma 6+ istemcisinde `$use` yoksa bu adım atlanır.
    * HTTP bağlamı yoksa (kuyruk, cron) kayıt atlanır.
    */
   registerPrismaMiddleware(client: PrismaClient): void {
-    client.$use(async (params, next) => {
+    const extended = client as unknown as PrismaClientWithOptionalUse;
+    if (typeof extended.$use !== 'function') {
+      this.logger.warn(
+        'Prisma istemcisi $use middleware desteklemiyor; otomatik yazma denetimi devre dışı.',
+      );
+      return;
+    }
+    extended.$use(async (params: LegacyPrismaMiddlewareParams, next: LegacyPrismaNext) => {
       const result = await next(params);
       if (params.model === 'AuditLog' || !params.model) {
         return result;

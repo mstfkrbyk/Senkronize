@@ -6,6 +6,7 @@ import type { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../../queue/queue.constants';
 import type { MarketplacePushJobData } from '../../queue/queue.types';
+import { OutboundWebhookService } from '../../webhook/outbound-webhook.service';
 import { StockService } from '../stock.service';
 
 describe('StockService', () => {
@@ -16,8 +17,10 @@ describe('StockService', () => {
     stockEntry: { findMany: jest.Mock; count: jest.Mock };
   };
   let queueAdd: jest.Mock;
+  let outboundDispatch: jest.Mock;
 
   beforeEach(async () => {
+    outboundDispatch = jest.fn().mockResolvedValue(undefined);
     queueAdd = jest.fn().mockResolvedValue({ id: 'job-1' });
     const marketplacePushQueue = {
       add: queueAdd,
@@ -33,6 +36,10 @@ describe('StockService', () => {
       providers: [
         StockService,
         { provide: PrismaService, useValue: prisma },
+        {
+          provide: OutboundWebhookService,
+          useValue: { dispatch: outboundDispatch },
+        },
         {
           provide: getQueueToken(QUEUE_MARKETPLACE_PUSH),
           useValue: marketplacePushQueue,
@@ -55,6 +62,11 @@ describe('StockService', () => {
       });
 
       expect(result.jobIds).toHaveLength(2);
+      expect(outboundDispatch).toHaveBeenCalledWith(
+        'org-1',
+        'stock.updated',
+        expect.objectContaining({ barcode: '8690000001', newQty: 12 }),
+      );
       expect(queueAdd).toHaveBeenCalledTimes(2);
       expect(queueAdd).toHaveBeenCalledWith(
         'push-stock',

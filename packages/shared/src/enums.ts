@@ -117,7 +117,11 @@ export type Marketplace =
   | 'RAKUTEN'
   | 'QOO10'
   | 'LAZADA_PH'
-  | 'MERCADOLIBRE';
+  | 'MERCADOLIBRE'
+  | 'GETIR_YEMEK'
+  | 'LETGO'
+  | 'SAHIBINDEN_PRO'
+  | 'SHOPIVERSE';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -135,7 +139,11 @@ export type ErpType =
   | 'NEBIM'
   | 'EBA'
   | 'SAP_B1'
-  | 'ISNET';
+  | 'ISNET'
+  | 'MYSOFT'
+  | 'PROTEL'
+  | 'SIMPRA'
+  | 'LOGO_COMMERCE';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =
@@ -147,7 +155,8 @@ export type EcommerceType =
   | 'FAPRIKA'
   | 'UNIPOS'
   | 'AKINON'
-  | 'IKAS';
+  | 'IKAS'
+  | 'SHOPIVERSE';
 
 /** Prisma `CargoProvider` ile uyumlu */
 export type CargoProvider =

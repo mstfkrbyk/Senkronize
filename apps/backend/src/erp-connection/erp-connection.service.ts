@@ -93,6 +93,18 @@ export class ErpConnectionService {
     if (erpType === ErpType.EBA) {
       return creds.clientId ?? null;
     }
+    if (erpType === ErpType.MYSOFT) {
+      return creds.username ?? creds.baseUrl ?? null;
+    }
+    if (erpType === ErpType.PROTEL) {
+      return creds.baseUrl ?? (creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null);
+    }
+    if (erpType === ErpType.SIMPRA) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (erpType === ErpType.LOGO_COMMERCE) {
+      return creds.baseUrl ?? creds.firmNo ?? null;
+    }
     return null;
   }
 

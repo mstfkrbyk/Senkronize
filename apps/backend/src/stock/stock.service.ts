@@ -9,6 +9,7 @@ import {
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 
 import type { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
 
@@ -66,6 +67,7 @@ export type LowStockEntryRow = Prisma.StockEntryGetPayload<{
 export class StockService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly outboundWebhookService: OutboundWebhookService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -177,6 +179,12 @@ export class StockService {
       barcode: u.barcode,
       quantity: u.quantity,
     }));
+    for (const u of dto.updates) {
+      void this.outboundWebhookService.dispatch(organizationId, 'stock.updated', {
+        barcode: u.barcode,
+        newQty: u.quantity,
+      });
+    }
     for (const conn of connections) {
       const job = await this.marketplacePushQueue.add(
         'push-stock',

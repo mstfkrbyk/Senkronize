@@ -14,6 +14,7 @@ import { SecurityTab } from './tabs/SecurityTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { SubscriptionTab } from './tabs/SubscriptionTab';
 import { TeamTab } from './tabs/TeamTab';
+import { WebhooksTab } from './tabs/WebhooksTab';
 
 export function SettingsPage(): ReactElement {
   const location = useLocation();
@@ -44,6 +45,7 @@ export function SettingsPage(): ReactElement {
           <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
           <TabsTrigger value="security">{'Güvenlik & KVKK'}</TabsTrigger>
           <TabsTrigger value="api-keys">API anahtarları</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhook&apos;lar</TabsTrigger>
           {showPartnersTab ? (
             <TabsTrigger value="partners">Partnerler</TabsTrigger>
           ) : null}
@@ -74,6 +76,9 @@ export function SettingsPage(): ReactElement {
         </TabsContent>
         <TabsContent value="api-keys" className="mt-6">
           <ApiKeysTab />
+        </TabsContent>
+        <TabsContent value="webhooks" className="mt-6">
+          <WebhooksTab />
         </TabsContent>
         {showPartnersTab ? (
           <TabsContent value="partners" className="mt-6">

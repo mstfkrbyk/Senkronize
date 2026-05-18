@@ -5,6 +5,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtOrApiKeyGuard } from '../api-key/jwt-or-api-key.guard';
 import { SyncStatusService } from './sync-status.service';
@@ -28,6 +30,7 @@ export class SyncStatusController {
   }
 
   @Post(':connectionId/trigger')
+  @Throttle({ default: { limit: 10 } })
   @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Bağlantı için manuel senkron kuyruğa al' })
   @ApiResponse({ status: 200, description: 'İşler kuyruğa eklendi' })

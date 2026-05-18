@@ -198,5 +198,9 @@ export const PLATFORM_RATE_LIMITS: Record<string, number> = {
   QOO10: 40,
   LAZADA_PH: 40,
   MERCADOLIBRE: 50,
+  GETIR_YEMEK: 45,
+  LETGO: 40,
+  SAHIBINDEN_PRO: 35,
+  SHOPIVERSE: 40,
   DEFAULT: 30,
 };

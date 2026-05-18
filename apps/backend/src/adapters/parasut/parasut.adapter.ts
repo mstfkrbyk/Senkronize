@@ -83,22 +83,29 @@ export class ParasutAdapter implements IErpAdapter {
     const out: ErpProduct[] = [];
     let page = 1;
     let totalPages = 1;
-    do {
-      const { data } = await client.get<ParasutProductsResponse>('/products', {
-        params: { 'page[size]': 250, 'page[number]': page },
-      });
-      for (const p of data.data) {
-        out.push({
-          erpProductId: p.id,
-          barcode: p.attributes.code,
-          name: p.attributes.name,
-          stockQuantity: 0,
-          purchasePrice: p.attributes.purchase_price,
+    try {
+      do {
+        const { data } = await client.get<ParasutProductsResponse>('/products', {
+          params: { 'page[size]': 250, 'page[number]': page },
         });
-      }
-      totalPages = data.meta?.total_pages ?? 1;
-      page += 1;
-    } while (page <= totalPages);
+        const rows = data.data ?? [];
+        for (const p of rows) {
+          out.push({
+            erpProductId: p.id,
+            barcode: p.attributes.code,
+            name: p.attributes.name,
+            stockQuantity: 0,
+            purchasePrice: p.attributes.purchase_price,
+          });
+        }
+        totalPages = data.meta?.total_pages ?? 1;
+        page += 1;
+      } while (page <= totalPages && page <= 100);
+    } catch (error) {
+      this.logger.warn('Paraşüt ürün listesi sayfalanamadı', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+    }
     return out;
   }
 

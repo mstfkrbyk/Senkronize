@@ -68,14 +68,14 @@ export default function TrendyolEntegrasyonRehberi2025Page(): ReactElement {
           bir satış motoru kurmaktır.
         </p>
 
-        <h2>Trendyol'a nasıl satıcı olunur? (Özet yol haritası)</h2>
+        <h2>Trendyol&apos;a nasıl satıcı olunur? (Özet yol haritası)</h2>
         <p>
           Satıcı olma süreci genellikle şirket bilgilerinin doğrulanması, ürün ve marka
           politikalarına uygunluk, sözleşme ve komisyon çerçevesinin netleşmesi ve mağaza
           vitrininin açılması adımlarından oluşur. Başvuru aşamasında eksiksiz evrak,
           doğru iletişim bilgileri ve net bir ürün kategorisi seçimi süreci hızlandırır.
           Onboarding sonrası ise asıl iş yükü başlar: katalog yükleme, barkod ve GTIN
-          doğruluğu, görsellerin platform kurallarına uygunluğu, iade ve kargo SLA'larına
+          doğruluğu, görsellerin platform kurallarına uygunluğu, iade ve kargo SLA&apos;larına
           uyum ve müşteri mesajlarına hızlı dönüş. Bu aşamada ekipler çoğu zaman Excel ve
           panel arasında mekik dokur; entegrasyon olmadan her yeni SKU ve kampanya dalgası
           operasyon maliyetini katlayarak artırır.
@@ -89,7 +89,7 @@ export default function TrendyolEntegrasyonRehberi2025Page(): ReactElement {
           belirsiz kaldığında hatalar birikir ve hesap sağlığı riskleri doğar.
         </p>
         <p>
-          Ürün gamınızı fazlalıkla başlatmak yerine, talep gören çekirdek SKU'larla pilot
+          Ürün gamınızı fazlalıkla başlatmak yerine, talep gören çekirdek SKU&apos;larla pilot
           açmak daha güvenlidir. İlk haftalarda iade oranı, kargo gecikmeleri ve stok
           sapmaları gibi sinyalleri yakından izleyin; erken müdahale, ileride oluşabilecek
           ceza ve görünürlük kayıplarını azaltır. Kampanya dönemlerinde kapasite planı
@@ -121,13 +121,13 @@ export default function TrendyolEntegrasyonRehberi2025Page(): ReactElement {
           Altıncı avantaj müşteri deneyimidir; doğru stok ve doğru teslimat vaadi, puan ve
           yorum tarafında olumlu etki yaratır. Yedinci avantaj ise maliyet kontrolüdür:
           entegrasyon ilk yatırım gerektirse de uzun vadede operasyon saatleri ve hata
-          bedeli ciddi şekilde azalır. Son olarak API, veri zenginliği sağlar; hangi SKU'nun
+          bedeli ciddi şekilde azalır. Son olarak API, veri zenginliği sağlar; hangi SKU&apos;nun
           hangi hızda döndüğünü ölçerek reklam ve stok yatırımını daha isabetli yaparsınız.
         </p>
 
         <h2>Stok yönetimi: tek doğruluk kaynağı ve güvenli tampon</h2>
         <p>
-          Çok kanallı satışta stok, aynı anda birden fazla yerden tüketilir. ERP'deki stok
+          Çok kanallı satışta stok, aynı anda birden fazla yerden tüketilir. ERP&apos;deki stok
           ile pazaryerinde görünen stok arasında gecikme varsa oversell kaçınılmazdır. Bu
           yüzden stok için tek doğruluk kaynağı tanımlanmalı ve diğer sistemler bu kaynağa
           bağlı kalmalıdır. Pazaryerine gönderilen miktar, çoğu zaman brüt stoktan güvenli
@@ -198,13 +198,13 @@ export default function TrendyolEntegrasyonRehberi2025Page(): ReactElement {
           ortamlarını ayırın ve temel senkron politikalarını tanımlayın. 30–60 gün: hata
           loglarını sınıflandırın, limitlere uygun kuyruk parametrelerini ayarlayın, iade
           ve sevkiyat entegrasyonlarını tamamlayın. 60–90 gün: fiyat kurallarını genişletin,
-          kampanya playbook'unuzu otomasyona bağlayın ve performans raporlarıyla kanal
+          kampanya playbook&apos;unuzu otomasyona bağlayın ve performans raporlarıyla kanal
           kârlılığını gözden geçirin.
         </p>
 
         <h2>API limitleri, idempotency ve kuyruk tasarımı</h2>
         <p>
-          Pazaryeri API'leri yoğun dönemlerde geçici olarak yavaşlayabilir veya hata
+          Pazaryeri API&apos;leri yoğun dönemlerde geçici olarak yavaşlayabilir veya hata
           döndürebilir. Bu yüzden istemci tarafında sabit veya üstel geri çekilme ile
           yeniden deneme, aynı işin iki kez uygulanmaması için idempotency anahtarları ve
           iş paketlerinin önceliklendirilmesi gerekir. Kritik olaylar (yeni sipariş, stok
@@ -229,7 +229,7 @@ export default function TrendyolEntegrasyonRehberi2025Page(): ReactElement {
 
         <h2>Sonuç</h2>
         <p>
-          Trendyol'da sürdürülebilir başarı; doğru onboarding, disiplinli stok-fiyat
+          Trendyol&apos;da sürdürülebilir başarı; doğru onboarding, disiplinli stok-fiyat
           yönetimi ve API tabanlı otomasyonla mümkündür. Bu rehberdeki başlıkları kendi
           operasyonunuzun olgunluk seviyesine göre uyarlayın; ölçek büyüdükçe entegrasyon
           katmanını güçlendirmek, rekabet avantajınızı korumanın en güvenilir yoludur.

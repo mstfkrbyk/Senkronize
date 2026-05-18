@@ -183,7 +183,11 @@ export class MarketplaceConnectionService {
       return creds.merchantId ?? null;
     }
     if (platform === Marketplace.YEMEKSEPETI) {
-      return creds.merchantId ?? null;
+      return (
+        creds.merchantId ??
+        creds.clientId ??
+        (creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null)
+      );
     }
     if (platform === Marketplace.TRENDYOL_YEMEK) {
       return creds.supplierId ?? creds.apiKey ?? null;
@@ -285,6 +289,15 @@ export class MarketplaceConnectionService {
       platform === Marketplace.DECATHLON
     ) {
       return creds.clientId ?? creds.username ?? creds.apiKey ?? null;
+    }
+    if (platform === Marketplace.GETIR_YEMEK || platform === Marketplace.SHOPIVERSE) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.LETGO) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.SAHIBINDEN_PRO) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
     return null;
   }

@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import { badgeVariants } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { exportToCsv } from '@/lib/csv-export';
 import { printReport } from '@/lib/pdf-export';
 import { useAuthStore } from '@/store/auth.store';
@@ -871,7 +872,9 @@ export function ReportsPage(): ReactElement {
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
               <CardTitle className="text-base">Platform bazlı stok değeri</CardTitle>
-              <Badge variant="secondary">SKU: {stockQuery.data?.totalSkus ?? '—'}</Badge>
+              <div className={cn(badgeVariants({ variant: 'secondary' }))}>
+                SKU: {stockQuery.data?.totalSkus ?? '—'}
+              </div>
             </CardHeader>
             <CardContent>
               {stockQuery.isLoading ? (

@@ -186,6 +186,8 @@ export class AuthService {
       });
     }
 
+    await this.handleSuccessfulLogin(email);
+
     return this.generateTokens(
       newUser.id,
       newUser.organizationId!,
@@ -202,7 +204,7 @@ export class AuthService {
     const normalized = email.toLowerCase();
     const key = CacheService.key('login_fails', normalized);
     const n = await this.cache.incrWithExpire(key, 900);
-    if (n === null || n < 5) {
+    if (n === null || n !== 5) {
       return;
     }
     const user = await this.prisma.user.findFirst({
@@ -285,18 +287,34 @@ export class AuthService {
     | IssueTokenResult
     | { requiresTwoFactor: true; tempToken: string }
   > {
+    const emailLower = dto.email.toLowerCase();
     const user = await this.prisma.user.findFirst({
-      where: { email: dto.email.toLowerCase(), deletedAt: null },
+      where: { email: emailLower, deletedAt: null },
       include: { organization: true },
     });
+
+    if (user?.lockedUntil && user.lockedUntil > new Date()) {
+      throw new UnauthorizedException(
+        'Hesabınız geçici olarak kilitlendi. Lütfen daha sonra tekrar deneyin.',
+      );
+    }
 
     if (
       !user ||
       !user.organizationId ||
       !user.organization ||
-      user.organization.deletedAt != null ||
-      !(await this.comparePasswords(dto.password, user.passwordHash))
+      user.organization.deletedAt != null
     ) {
+      await this.handleFailedLogin(emailLower);
+      throw new UnauthorizedException('E-posta veya şifre hatalı.');
+    }
+
+    const passwordOk = await this.comparePasswords(
+      dto.password,
+      user.passwordHash,
+    );
+    if (!passwordOk) {
+      await this.handleFailedLogin(emailLower);
       throw new UnauthorizedException('E-posta veya şifre hatalı.');
     }
 
@@ -310,6 +328,7 @@ export class AuthService {
     }
 
     if (user.twoFactorEnabled) {
+      await this.handleSuccessfulLogin(user.email);
       const tempToken = await this.jwtService.signAsync(
         { sub: user.id, type: 'two-factor-pending' },
         {
@@ -320,10 +339,16 @@ export class AuthService {
       return { requiresTwoFactor: true, tempToken };
     }
 
+    await this.handleSuccessfulLogin(user.email);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), lockedUntil: null },
     });
+
+    void this.anomalyDetectionService.checkNewIpLogin(
+      user.id,
+      sessionMeta?.ipAddress,
+    );
 
     return this.generateTokens(
       user.id,
@@ -377,10 +402,16 @@ export class AuthService {
       throw new UnauthorizedException('Oturum açılamadı.');
     }
 
+    await this.handleSuccessfulLogin(user.email);
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), lockedUntil: null },
     });
+
+    void this.anomalyDetectionService.checkNewIpLogin(
+      user.id,
+      sessionMeta?.ipAddress,
+    );
 
     return this.generateTokens(
       user.id,

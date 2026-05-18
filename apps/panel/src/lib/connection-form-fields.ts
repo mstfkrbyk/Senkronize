@@ -139,6 +139,10 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   SAHIBINDEN: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
   ],
+  SAHIBINDEN_PRO: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+  ],
   TSOFT: [
     {
       key: 'storeUrl',
@@ -206,6 +210,7 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  SHOPIVERSE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   IDEASOFT: [
     {
       key: 'storeUrl',
@@ -397,9 +402,35 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
   ],
   YEMEKSEPETI: [
-    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-    { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
+    {
+      key: 'clientId',
+      label: 'OAuth2 Client ID',
+      type: 'text',
+      required: false,
+      hint: 'Access Token yoksa client credentials ile zorunludur.',
+    },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: false,
+      hint: 'Access Token yoksa client credentials ile zorunludur.',
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel, sabit token)',
+      type: 'password',
+      required: false,
+      hint: 'Doluysa client credentials yerine doğrudan kullanılır.',
+    },
+    {
+      key: 'merchantId',
+      label: 'Merchant ID (opsiyonel)',
+      type: 'text',
+      required: false,
+    },
   ],
+  GETIR_YEMEK: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   GETIR_FOOD: [
     {
       key: 'accessToken',
@@ -423,9 +454,10 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
     {
       key: 'supplierId',
-      label: 'Tedarikçi ID (opsiyonel)',
+      label: 'Tedarikçi ID',
       type: 'text',
-      required: false,
+      required: true,
+      hint: 'Trendyol Food API yolu için zorunlu.',
     },
   ],
   FUUDY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
@@ -538,6 +570,14 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     {
       key: 'accessToken',
       label: 'Access Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  LETGO: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
       type: 'password',
       required: true,
     },
@@ -1111,6 +1151,45 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         hint: 'XML servis yerine özel JSON köprü kullanıyorsanız doldurun.',
       },
     ],
+    MYSOFT: [
+      {
+        key: 'baseUrl',
+        label: 'API kök URL (opsiyonel)',
+        type: 'url',
+        placeholder: 'https://api.mysoft.com.tr',
+        required: false,
+        hint: 'Boşsa https://api.mysoft.com.tr kullanılır.',
+      },
+      { key: 'username', label: 'Kullanıcı adı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+      { key: 'licenseKey', label: 'Lisans anahtarı', type: 'password', required: true },
+    ],
+    PROTEL: [
+      {
+        key: 'baseUrl',
+        label: 'PMS API kök URL (opsiyonel)',
+        type: 'url',
+        placeholder: 'https://api.protel.com.tr',
+        required: false,
+        hint: 'Boşsa https://api.protel.com.tr kullanılır.',
+      },
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    ],
+    SIMPRA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+    LOGO_COMMERCE: [
+      {
+        key: 'baseUrl',
+        label: 'Logo Go kök URL',
+        type: 'url',
+        placeholder: 'https://api.logo.com.tr',
+        required: false,
+        hint: 'Boşsa https://api.logo.com.tr kullanılır.',
+      },
+      { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+      { key: 'firmNo', label: 'Firma No', type: 'text', required: true },
+      { key: 'periodNo', label: 'Dönem No', type: 'text', required: true },
+    ],
     TSOFT: [
       {
         key: 'storeUrl',
@@ -1178,6 +1257,7 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'SHOPIGO',
   'YEMEKSEPETI',
   'GETIR_FOOD',
+  'GETIR_YEMEK',
   'TRENDYOL_YEMEK',
   'FUUDY',
   'MODANISA',
@@ -1223,7 +1303,10 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'RAKUTEN',
   'QOO10',
   'LAZADA_PH',
+  'LETGO',
   'MERCADOLIBRE',
+  'SAHIBINDEN_PRO',
+  'SHOPIVERSE',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [
@@ -1232,6 +1315,7 @@ export const ECOMMERCE_MARKETPLACE_IDS: string[] = [
   'WOOCOMMERCE',
   'SHOPIFY',
   'IDEASOFT',
+  'SHOPIVERSE',
 ];
 
 export const ERP_TYPE_IDS: string[] = [
@@ -1248,6 +1332,10 @@ export const ERP_TYPE_IDS: string[] = [
   'EBA',
   'SAP_B1',
   'ISNET',
+  'MYSOFT',
+  'PROTEL',
+  'SIMPRA',
+  'LOGO_COMMERCE',
   'TSOFT',
   'TICIMAX',
 ];

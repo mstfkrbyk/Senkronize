@@ -17,7 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { AuthService, type IssueTokenResult } from './auth.service';
 import {
   AcceptInviteDto,
@@ -44,6 +44,7 @@ import { UserInviteService } from '../users/user-invite.service';
 
 @ApiTags('auth')
 @Controller('auth')
+@Throttle({ default: { limit: 5 } })
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -51,7 +52,6 @@ export class AuthController {
     private readonly userInviteService: UserInviteService,
   ) {}
 
-  @Throttle({ short: { limit: 5 }, medium: { limit: 5 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Yeni hesap ve organizasyon oluştur' })
@@ -63,7 +63,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  @Throttle({ short: { limit: 30 }, medium: { limit: 60 } })
+  @Throttle({ default: { limit: 30 } })
   @Get('invite-preview')
   @ApiOperation({ summary: 'Organizasyon daveti önizleme (herkese açık)' })
   @ApiResponse({ status: 200, description: 'Davet bilgisi' })
@@ -72,7 +72,7 @@ export class AuthController {
     return this.userInviteService.getInvitePreview(token ?? '');
   }
 
-  @Throttle({ short: { limit: 10 }, medium: { limit: 20 } })
+  @Throttle({ default: { limit: 20 } })
   @Post('accept-invite')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Organizasyon davetini kabul et' })
@@ -94,6 +94,7 @@ export class AuthController {
     });
   }
 
+  @Throttle({ default: { limit: 20 } })
   @Post('recommend-plan')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'İş yapısına göre paket önerisi' })
@@ -104,7 +105,6 @@ export class AuthController {
     return this.authService.recommendPlan(dto);
   }
 
-  @Throttle({ short: { limit: 10 }, medium: { limit: 10 } })
   @Post('login')
   @ApiOperation({ summary: 'Giriş' })
   @ApiResponse({ status: 200, description: 'Token çifti veya 2FA gerekli' })
@@ -124,7 +124,7 @@ export class AuthController {
     return this.authService.login(dto, { ipAddress, userAgent });
   }
 
-  @Throttle({ short: { limit: 15 }, medium: { limit: 30 } })
+  @Throttle({ default: { limit: 30 } })
   @Post('2fa/verify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'İki adımlı doğrulama ile girişi tamamla' })
@@ -146,6 +146,7 @@ export class AuthController {
     );
   }
 
+  @SkipThrottle()
   @Post('2fa/setup')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -156,6 +157,7 @@ export class AuthController {
     return this.twoFactorService.setupTwoFactor(user.id);
   }
 
+  @SkipThrottle()
   @Post('2fa/enable')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -172,6 +174,7 @@ export class AuthController {
     return { ok: true };
   }
 
+  @SkipThrottle()
   @Post('2fa/disable')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -187,6 +190,7 @@ export class AuthController {
     return { ok: true };
   }
 
+  @SkipThrottle()
   @Post('2fa/regenerate-backup-codes')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -205,7 +209,7 @@ export class AuthController {
     return { backupCodes };
   }
 
-  @Throttle({ short: { limit: 20 }, medium: { limit: 60 } })
+  @Throttle({ default: { limit: 20 } })
   @Post('refresh')
   @UseGuards(JwtRefreshAuthGuard)
   @ApiOperation({ summary: 'Access token yenile' })
@@ -226,6 +230,7 @@ export class AuthController {
     });
   }
 
+  @SkipThrottle()
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -240,6 +245,7 @@ export class AuthController {
     return { ok: true };
   }
 
+  @SkipThrottle()
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -266,6 +272,7 @@ export class AuthController {
     };
   }
 
+  @SkipThrottle()
   @Patch('change-password')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -280,6 +287,7 @@ export class AuthController {
     return { message: 'Şifre güncellendi' };
   }
 
+  @SkipThrottle()
   @Patch('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()

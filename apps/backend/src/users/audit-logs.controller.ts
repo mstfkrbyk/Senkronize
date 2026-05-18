@@ -1,4 +1,11 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Header,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -28,5 +35,23 @@ export class AuditLogsController {
     @Query() query: AuditLogsQueryDto,
   ): Promise<AuditLogsPageResult> {
     return this.usersService.getAuditLogsPage(org.id, query);
+  }
+
+  @Get('export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="audit-logs.csv"')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Denetim kayıtları CSV dışa aktarım' })
+  @ApiResponse({ status: 200, description: 'CSV' })
+  @ApiResponse({ status: 400, description: 'Desteklenmeyen format' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async exportCsv(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: AuditLogsQueryDto,
+  ): Promise<string> {
+    if (query.format !== 'csv') {
+      throw new BadRequestException('Yalnızca format=csv desteklenir');
+    }
+    return this.usersService.exportAuditLogsCsv(org.id, query);
   }
 }

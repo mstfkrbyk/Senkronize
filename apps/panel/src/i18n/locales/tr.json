@@ -3,6 +3,8 @@
     "dashboard": "Gösterge Paneli",
     "orders": "Siparişler",
     "products": "Ürünler",
+    "categories": "Kategoriler",
+    "productMatching": "Ürün Eşleştirme",
     "listings": "İlanlar",
     "stock": "Stok",
     "stockForecast": "Stok tahmini",
@@ -86,7 +88,9 @@
     "recentOrders": "Son siparişler",
     "recentOrdersDesc": "Son 5 sipariş",
     "syncStatus": "Senkron durumu",
-    "syncStatusDesc": "Canlı entegrasyon sağlığı"
+    "syncStatusDesc": "Canlı entegrasyon sağlığı",
+    "stockForecastCriticalTitle": "Kritik stok (tahmin)",
+    "stockForecastCriticalHint": "Satış hızına göre 7 günden az ömür — tahmine gitmek için tıklayın"
   },
   "settings": {
     "appearanceTitle": "Görünüm",

@@ -92,6 +92,10 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   QOO10: { label: 'Qoo10', logo: '🌏', color: 'violet' },
   LAZADA_PH: { label: 'Lazada Philippines', logo: '🇵🇭', color: 'blue' },
   MERCADOLIBRE: { label: 'Mercado Libre', logo: '🌎', color: 'yellow' },
+  GETIR_YEMEK: { label: 'Getir Yemek (Partner API)', logo: '🍔', color: 'purple' },
+  LETGO: { label: 'Letgo / OLX TR', logo: '♻️', color: 'emerald' },
+  SAHIBINDEN_PRO: { label: 'Sahibinden Pro', logo: '🏢', color: 'yellow' },
+  SHOPIVERSE: { label: 'Shopiverse', logo: '🛒', color: 'sky' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
@@ -108,6 +112,10 @@ export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
   EBA: { label: 'eBA', logo: '📄', color: 'blue' },
   SAP_B1: { label: 'SAP Business One', logo: '🏢', color: 'blue' },
   ISNET: { label: 'İşnet', logo: '🔗', color: 'indigo' },
+  MYSOFT: { label: 'Mysoft', logo: '☁️', color: 'blue' },
+  PROTEL: { label: 'Protel PMS', logo: '🏨', color: 'cyan' },
+  SIMPRA: { label: 'Simpra', logo: '🍽️', color: 'orange' },
+  LOGO_COMMERCE: { label: 'Logo Commerce (Go!)', logo: '🐯', color: 'orange' },
   TSOFT: { label: 'T-Soft (ERP)', logo: '🏬', color: 'cyan' },
   TICIMAX: { label: 'Ticimax (ERP)', logo: '🛒', color: 'teal' },
 };

@@ -540,10 +540,15 @@ export function StockForecastPage(): ReactElement {
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip
-                    formatter={(v: unknown) => [
-                      typeof v === 'number' ? v.toFixed(0) : String(v ?? ''),
-                      '',
-                    ]}
+                    formatter={(value) => {
+                      const v =
+                        value === null || value === undefined
+                          ? ''
+                          : typeof value === 'number'
+                            ? value.toFixed(0)
+                            : String(value);
+                      return [v, ''];
+                    }}
                   />
                   <Legend />
                   <Line

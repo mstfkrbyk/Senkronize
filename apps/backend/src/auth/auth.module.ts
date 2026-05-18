@@ -7,6 +7,7 @@ import { CommonModule } from '../common/common.module';
 import { NotificationModule } from '../notification/notification.module';
 import { PartnerModule } from '../partner/partner.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SecurityModule } from '../security/security.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
@@ -20,6 +21,7 @@ import { TwoFactorService } from './two-factor.service';
   imports: [
     PrismaModule,
     CommonModule,
+    SecurityModule,
     NotificationModule,
     PartnerModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),

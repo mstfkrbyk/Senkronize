@@ -16,7 +16,7 @@ const STEPS: readonly { path: string; title: string; description: string }[] = [
   {
     path: '/connections',
     title: 'Bağlantılar',
-    description: 'Burada pazaryerlerinizi bağlayın.',
+    description: 'Pazaryeri hesaplarınızı burada bağlayın.',
   },
   {
     path: '/products',

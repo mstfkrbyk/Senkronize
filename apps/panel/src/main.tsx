@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import App from './App';
 import '@/i18n';
+import App from './App';
 import 'react-day-picker/style.css';
 import './index.css';
 import { initAnalytics } from './lib/analytics';

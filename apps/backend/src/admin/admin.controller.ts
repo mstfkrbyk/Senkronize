@@ -3,6 +3,8 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
+  Header,
+  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
@@ -22,9 +24,13 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { IpBlockService } from '../security/ip-block.service';
+import { AuditLogsQueryDto } from '../users/audit-logs-query.dto';
+import { UsersService } from '../users/users.service';
 import {
   AdminOrganizationsQueryDto,
   AdminSubscriptionsQueryDto,
+  BlockedIpMutationDto,
   ChangeOrganizationPlanDto,
   SuspendOrganizationDto,
 } from './admin.dto';
@@ -56,6 +62,8 @@ export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adminService: AdminService,
+    private readonly usersService: UsersService,
+    private readonly ipBlockService: IpBlockService,
   ) {}
 
   @Get('stats/platform')
@@ -176,5 +184,70 @@ export class AdminController {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+  }
+
+  @Post('blocked-ips')
+  @ApiOperation({ summary: 'Engellenen IP ekle veya kaldır' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async mutateBlockedIp(
+    @Body() dto: BlockedIpMutationDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.ipBlockService.setBlocked(dto.ip, dto.blocked);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: dto.blocked ? 'admin.ip_block_add' : 'admin.ip_block_remove',
+        resourceType: 'Security',
+        resourceId: dto.ip,
+        metadata: {},
+      },
+    });
+    return { ok: true };
+  }
+
+  @Get('blocked-ips')
+  @ApiOperation({ summary: 'Engellenen IP listesi' })
+  @ApiResponse({ status: 200, description: 'Liste' })
+  async listBlockedIps(): Promise<{ ips: string[] }> {
+    const ips = await this.ipBlockService.listBlocked();
+    return { ips };
+  }
+
+  @Get('organizations/:organizationId/audit-logs')
+  @ApiOperation({ summary: 'Organizasyon denetim kayıtları (yönetici)' })
+  @ApiResponse({ status: 200, description: 'Sayfalı kayıtlar' })
+  @ApiResponse({ status: 404, description: 'Organizasyon bulunamadı' })
+  async getOrganizationAuditLogs(
+    @Param('organizationId') organizationId: string,
+    @Query() query: AuditLogsQueryDto,
+  ) {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı');
+    }
+    return this.usersService.getAuditLogsPage(organizationId, query);
+  }
+
+  @Get('organizations/:organizationId/audit-logs/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="audit-logs.csv"')
+  @ApiOperation({ summary: 'Organizasyon denetim kayıtları CSV (yönetici)' })
+  @ApiResponse({ status: 200, description: 'CSV' })
+  async exportOrganizationAuditLogs(
+    @Param('organizationId') organizationId: string,
+    @Query() query: AuditLogsQueryDto,
+  ): Promise<string> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı');
+    }
+    return this.usersService.exportAuditLogsCsv(organizationId, query);
   }
 }

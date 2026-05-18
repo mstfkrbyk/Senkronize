@@ -190,6 +190,9 @@ export interface IMarketplaceAdapter {
   ): Promise<void>;
 }
 
+/** E-ticaret altyapısı adaptörü — `IMarketplaceAdapter` ile aynı sözleşme (örn. Shopiverse). */
+export type IEcommerceAdapter = IMarketplaceAdapter;
+
 export interface ErpInvoice {
   erpInvoiceId: string;
   /** Pazaryeri / platform sipariş kimliği */

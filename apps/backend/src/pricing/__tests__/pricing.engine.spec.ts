@@ -183,6 +183,21 @@ describe('PricingEngine', () => {
     });
   });
 
+  describe('calculateDemandBasedPrice / calculateStockBasedPrice', () => {
+    it('talep hızına göre fiyat kademeleri', () => {
+      expect(engine.calculateDemandBasedPrice(100, 11)).toBe(105);
+      expect(engine.calculateDemandBasedPrice(100, 6)).toBe(102);
+      expect(engine.calculateDemandBasedPrice(100, 0.5)).toBe(97);
+      expect(engine.calculateDemandBasedPrice(100, 3)).toBe(100);
+    });
+
+    it('stok eşiğine göre prim ve eritme', () => {
+      expect(engine.calculateStockBasedPrice(100, 2, 5)).toBe(110);
+      expect(engine.calculateStockBasedPrice(100, 20, 5)).toBe(95);
+      expect(engine.calculateStockBasedPrice(100, 8, 5)).toBe(100);
+    });
+  });
+
   describe('ruleAppliesToListing', () => {
     it('kategori filtresine göre eşleşmeli', () => {
       const rule = makeRule({

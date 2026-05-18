@@ -6,6 +6,7 @@ import {
   Get,
   Headers,
   HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -64,6 +65,7 @@ export class WebhookController {
 
   @Post('endpoints')
   @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Giden webhook uç noktası oluştur' })
   @ApiResponse({ status: 201, description: 'Oluşturuldu' })

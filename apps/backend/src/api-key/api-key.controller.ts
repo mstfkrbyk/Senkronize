@@ -15,6 +15,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,6 +30,7 @@ import { ApiKeyService } from './api-key.service';
 @ApiTags('API Anahtarları')
 @ApiBearerAuth()
 @Controller('api-keys')
+@Throttle({ default: { limit: 60 } })
 export class ApiKeyController {
   constructor(private readonly apiKeyService: ApiKeyService) {}
 

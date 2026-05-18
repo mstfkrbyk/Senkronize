@@ -1,8 +1,10 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AuditContextInterceptor } from './audit/audit-context.interceptor';
+import { AuditModule } from './audit/audit.module';
 import { AdminModule } from './admin/admin.module';
 import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
@@ -10,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './common/cache/cache.module';
 import { CommonModule } from './common/common.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { IpBlockGuard } from './common/guards/ip-block.guard';
 import { CategoryModule } from './category/category.module';
 import { CargoModule } from './cargo/cargo.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
@@ -39,6 +42,8 @@ import { ProductModule } from './product/product.module';
 import { PurchaseOrderModule } from './purchase-order/purchase-order.module';
 import { QueueModule } from './queue/queue.module';
 import { ReportsModule } from './reports/reports.module';
+import { SecurityModule } from './security/security.module';
+import { SecurityRequestInterceptor } from './security/security-request.interceptor';
 import { ReturnModule } from './return/return.module';
 import { StockModule } from './stock/stock.module';
 import { SupplierModule } from './supplier/supplier.module';
@@ -56,11 +61,14 @@ import { WebhookModule } from './webhook/webhook.module';
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 100 },
       { name: 'short', ttl: 1000, limit: 10 },
       { name: 'medium', ttl: 60_000, limit: 100 },
       { name: 'long', ttl: 3_600_000, limit: 1000 },
     ]),
     PrismaModule,
+    AuditModule,
+    SecurityModule,
     EmailModule,
     SmsModule,
     PushModule,
@@ -104,7 +112,10 @@ import { WebhookModule } from './webhook/webhook.module';
     CurrencyModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: IpBlockGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: AuditContextInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: SecurityRequestInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })

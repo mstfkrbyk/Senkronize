@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -41,4 +42,8 @@ export class AuditLogsQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+
+  @IsOptional()
+  @IsIn(['csv'])
+  format?: 'csv';
 }

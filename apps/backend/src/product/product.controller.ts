@@ -22,6 +22,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import type { Product } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
@@ -95,6 +96,7 @@ export class ProductController {
   }
 
   @Post('sync-all-platforms')
+  @Throttle({ default: { limit: 10 } })
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Tüm aktif pazaryeri bağlantılarında stok/fiyat kuyruğa' })
   @ApiResponse({ status: 200, description: 'Kuyruğa eklenen bağlantı sayısı' })

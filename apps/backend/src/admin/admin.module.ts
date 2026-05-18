@@ -8,10 +8,13 @@ import { AdminController } from './admin.controller';
 import { SuperAdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 
+import { UsersModule } from '../users/users.module';
+
 @Module({
   imports: [
     AuthModule,
     PrismaModule,
+    UsersModule,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

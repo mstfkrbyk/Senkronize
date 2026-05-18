@@ -37,6 +37,7 @@ import { FaprikaModule } from './faprika/faprika.module';
 import { FloModule } from './flo/flo.module';
 import { FuudyModule } from './fuudy/fuudy.module';
 import { GetirFoodModule } from './getir-food/getir-food.module';
+import { GetirYemekModule } from './getir-yemek/getir-yemek.module';
 import { GetirModule } from './getir/getir.module';
 import { GittigidiyorModule } from './gittigidiyor/gittigidiyor.module';
 import { GratisModule } from './gratis/gratis.module';
@@ -55,7 +56,9 @@ import { KotonModule } from './koton/koton.module';
 import { LazadaModule } from './lazada/lazada.module';
 import { LazadaPhModule } from './lazada-ph/lazada-ph.module';
 import { LcwaikikiModule } from './lcwaikiki/lcwaikiki.module';
+import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
+import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoAdapter } from './logo/logo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
@@ -69,6 +72,7 @@ import { MigrosModule } from './migros/migros.module';
 import { MigroshemenModule } from './migroshemen/migroshemen.module';
 import { ModanisaModule } from './modanisa/modanisa.module';
 import { MorhipoModule } from './morhipo/morhipo.module';
+import { MysoftModule } from './mysoft/mysoft.module';
 import { MyntraModule } from './myntra/myntra.module';
 import { N11Adapter } from './n11/n11.adapter';
 import { N11ProModule } from './n11-pro/n11-pro.module';
@@ -84,17 +88,21 @@ import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { PorlandModule } from './porland/porland.module';
 import { PrestashopModule } from './prestashop/prestashop.module';
+import { ProtelModule } from './protel/protel.module';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { Qoo10Module } from './qoo10/qoo10.module';
 import { RakutenModule } from './rakuten/rakuten.module';
 import { RealdeModule } from './realde/realde.module';
 import { RobomarktModule } from './robomarkt/robomarkt.module';
+import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
 import { SahibindenModule } from './sahibinden/sahibinden.module';
 import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SefamerveModule } from './sefamerve/sefamerve.module';
 import { ShopeeModule } from './shopee/shopee.module';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
+import { ShopiverseModule } from './shopiverse/shopiverse.module';
 import { ShopigoModule } from './shopigo/shopigo.module';
+import { SimpraModule } from './simpra/simpra.module';
 import { SnapdealModule } from './snapdeal/snapdeal.module';
 import { SportiveModule } from './sportive/sportive.module';
 import { TeknosaModule } from './teknosa/teknosa.module';
@@ -153,6 +161,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FuudyModule,
     GetirModule,
     GetirFoodModule,
+    GetirYemekModule,
     GittigidiyorModule,
     GratisModule,
     HepsiburadaPremiumModule,
@@ -165,8 +174,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     KotonModule,
     LazadaModule,
     LazadaPhModule,
+    LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LogoCommerceModule,
     MadeinchinaModule,
     MagentoModule,
     MaviModule,
@@ -177,6 +188,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MigroshemenModule,
     ModanisaModule,
     MorhipoModule,
+    MysoftModule,
     MyntraModule,
     N11ProModule,
     NamshiModule,
@@ -187,14 +199,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaPremiumModule,
     PorlandModule,
     PrestashopModule,
+    ProtelModule,
     Qoo10Module,
     RakutenModule,
     RealdeModule,
     RobomarktModule,
     SahibindenModule,
+    SahibindenProModule,
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopiverseModule,
+    SimpraModule,
     SnapdealModule,
     SportiveModule,
     TeknosaModule,
@@ -298,6 +314,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FuudyModule,
     GetirModule,
     GetirFoodModule,
+    GetirYemekModule,
     GittigidiyorModule,
     GratisModule,
     HepsiburadaPremiumModule,
@@ -310,8 +327,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     KotonModule,
     LazadaModule,
     LazadaPhModule,
+    LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LogoCommerceModule,
     MadeinchinaModule,
     MagentoModule,
     MaviModule,
@@ -322,6 +341,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MigroshemenModule,
     ModanisaModule,
     MorhipoModule,
+    MysoftModule,
     MyntraModule,
     N11ProModule,
     NamshiModule,
@@ -332,14 +352,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaPremiumModule,
     PorlandModule,
     PrestashopModule,
+    ProtelModule,
     Qoo10Module,
     RakutenModule,
     RealdeModule,
     RobomarktModule,
     SahibindenModule,
+    SahibindenProModule,
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopiverseModule,
+    SimpraModule,
     SnapdealModule,
     SportiveModule,
     TeknosaModule,

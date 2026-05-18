@@ -73,6 +73,7 @@ const ECOMMERCE_CHOICES: { id: string; label: string }[] = [
   { id: 'WOOCOMMERCE', label: 'WooCommerce' },
   { id: 'SHOPIFY', label: 'Shopify' },
   { id: 'IDEASOFT', label: 'İdeasoft' },
+  { id: 'SHOPIVERSE', label: 'Shopiverse' },
   { id: 'DIGER_EC', label: 'Diğer' },
 ];
 

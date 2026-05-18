@@ -14,12 +14,14 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { track } from '@/lib/analytics';
 import { getApiErrorMessage } from '@/lib/api';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import { useAuthStore } from '@/store/auth.store';
 
+import { BuyBoxAnalysisTab } from './BuyBoxAnalysisTab';
 import { BuyBoxDashboard } from './BuyBoxDashboard';
 import { CreateRuleDialog } from './CreateRuleDialog';
 import { PriceHistoryTable } from './PriceHistoryTable';
@@ -109,24 +111,31 @@ export function PricingPage(): ReactElement {
         </Button>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-primary">BuyBox özeti</h2>
-        {!proAccess ? (
-          <UpgradePrompt
-            feature="BuyBox takibi ve analiz"
-            requiredPlan="PRO"
-            currentPlan={plan}
-            description="BuyBox özeti, kazanma oranı ve listeleme analizi PRO ve Kurumsal paketlerde açıktır."
-          />
-        ) : (
-          <BuyBoxDashboard summaryQuery={buyBoxQuery} />
-        )}
-      </section>
+      <Tabs defaultValue="general" className="space-y-8">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="general">Genel</TabsTrigger>
+          <TabsTrigger value="buybox">BuyBox analizi</TabsTrigger>
+        </TabsList>
 
-      {proAccess ? (
-        <>
-      <section className="space-y-3">
-        <h2 className="text-lg font-medium text-primary">Win rate (son 7 gün)</h2>
+        <TabsContent value="general" className="mt-6 space-y-8">
+          <section className="space-y-3">
+            <h2 className="text-lg font-medium text-primary">BuyBox özeti</h2>
+            {!proAccess ? (
+              <UpgradePrompt
+                feature="BuyBox takibi ve analiz"
+                requiredPlan="PRO"
+                currentPlan={plan}
+                description="BuyBox özeti, kazanma oranı ve listeleme analizi PRO ve Kurumsal paketlerde açıktır."
+              />
+            ) : (
+              <BuyBoxDashboard summaryQuery={buyBoxQuery} />
+            )}
+          </section>
+
+          {proAccess ? (
+            <>
+              <section className="space-y-3">
+                <h2 className="text-lg font-medium text-primary">Win rate (son 7 gün)</h2>
         <p className="text-sm text-muted-foreground">
           Tüm platformlardaki BuyBox anlık görüntülerine göre kazanma oranı.
         </p>
@@ -360,8 +369,20 @@ export function PricingPage(): ReactElement {
         <PriceHistoryTable query={historyQuery} />
       </section>
 
-        </>
-      ) : null}
+            </>
+          ) : null}
+        </TabsContent>
+
+        <TabsContent value="buybox" className="mt-6 space-y-6">
+          <div>
+            <h2 className="text-lg font-medium text-primary">BuyBox analizi</h2>
+            <p className="text-sm text-muted-foreground">
+              Kazanma oranı, kaybeden ürünler, fiyat simülasyonu ve rakip trend grafiği.
+            </p>
+          </div>
+          <BuyBoxAnalysisTab proAccess={proAccess} />
+        </TabsContent>
+      </Tabs>
 
       <CreateRuleDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>

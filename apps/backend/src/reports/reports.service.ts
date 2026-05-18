@@ -143,6 +143,10 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.QOO10]: 'Qoo10',
   [Marketplace.LAZADA_PH]: 'Lazada PH',
   [Marketplace.MERCADOLIBRE]: 'Mercado Libre',
+  [Marketplace.GETIR_YEMEK]: 'Getir Yemek (Partner API)',
+  [Marketplace.LETGO]: 'Letgo / OLX TR',
+  [Marketplace.SAHIBINDEN_PRO]: 'Sahibinden Pro',
+  [Marketplace.SHOPIVERSE]: 'Shopiverse',
 };
 
 @Injectable()

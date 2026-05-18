@@ -248,7 +248,7 @@ export default function App(): ReactElement {
                 <Route path="/returns" element={<ReturnsPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
                 <Route path="/products/import" element={<ProductImportPage />} />
-                <Route path="/products/matching" element={<ProductMatchingPage />} />
+                <Route path="/product-matching" element={<ProductMatchingPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />

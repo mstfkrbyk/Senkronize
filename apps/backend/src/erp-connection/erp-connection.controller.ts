@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -93,6 +94,7 @@ export class ErpConnectionController {
   }
 
   @Post(':id/sync-order/:orderId')
+  @Throttle({ default: { limit: 10 } })
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Siparişi ERP üzerinde fatura olarak oluştur' })

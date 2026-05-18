@@ -17,6 +17,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtOrApiKeyGuard } from '../api-key/jwt-or-api-key.guard';
@@ -91,6 +92,7 @@ export class ListingController {
   }
 
   @Post('sync')
+  @Throttle({ default: { limit: 10 } })
   @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Pazaryeri listelemelerini kuyruğa senkronize et' })
   @ApiResponse({ status: 201, description: 'İşler kuyruğa eklendi' })

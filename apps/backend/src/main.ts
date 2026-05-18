@@ -4,6 +4,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as Sentry from '@sentry/node';
 import compression from 'compression';
+import { randomBytes } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 
@@ -17,19 +18,55 @@ async function bootstrap(): Promise<void> {
     bodyParser: false,
   });
 
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.locals.cspNonce = randomBytes(16).toString('base64');
+    next();
+  });
+
+  const isProd = process.env.NODE_ENV === 'production';
+
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'wss:', 'ws:'],
-          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+          scriptSrc: [
+            "'self'",
+            (req, res) => {
+              const nonce = (res as Response & { locals: { cspNonce?: string } })
+                .locals.cspNonce;
+              return `'nonce-${nonce ?? ''}'`;
+            },
+          ],
+          imgSrc: [
+            "'self'",
+            'data:',
+            'https://*.cloudflare.com',
+            'https://*.r2.cloudflarestorage.com',
+          ],
+          connectSrc: [
+            "'self'",
+            'wss:',
+            'ws:',
+            'https://api.sentry.io',
+            'https://app.posthog.com',
+          ],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          ...(isProd ? { upgradeInsecureRequests: [] as [] } : {}),
         },
       },
       crossOriginEmbedderPolicy: false,
+      ...(isProd
+        ? {
+            hsts: {
+              maxAge: 31_536_000,
+              includeSubDomains: true,
+              preload: true,
+            },
+          }
+        : {}),
     }),
   );
 
@@ -127,8 +164,10 @@ API, iki kimlik doğrulama yöntemini destekler:
 - **API Key**: Harici entegrasyonlar için (\`sk_live_\` öneki ile)
 
 ## Rate Limiting
-- Genel: Dakikada 100 istek
-- Auth endpoint'leri: Dakikada 5 istek
+- Varsayılan: Dakikada 100 istek (\`default\` profili)
+- Kimlik doğrulama: Dakikada 5 istek (JWT dışı uçlar; oturum açık uçlar \`SkipThrottle\`)
+- API anahtarları: Dakikada 60 istek
+- Manuel senkron tetikleri: Dakikada 10 istek
 - Webhook endpoint'leri: Sınırsız
 
 ## Sayfalama

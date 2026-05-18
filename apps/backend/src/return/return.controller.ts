@@ -14,6 +14,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -47,6 +48,7 @@ export class ReturnController {
   }
 
   @Post('sync')
+  @Throttle({ default: { limit: 10 } })
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Pazaryerinden iadeleri çek (kuyruk)' })
   @ApiResponse({ status: 201, description: 'İş oluşturuldu' })

@@ -108,10 +108,7 @@ export class OutboundWebhookService {
 
   async testEndpoint(orgId: string, id: string): Promise<WebhookDelivery> {
     const endpoint = await this.requireEndpoint(orgId, id);
-    const payload = {
-      event: 'test',
-      timestamp: new Date().toISOString(),
-    };
+    const payload = { timestamp: new Date().toISOString() };
     return this.deliverOnce(endpoint, 'test', payload, 1);
   }
 
