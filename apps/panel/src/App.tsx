@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { useSentryUser } from '@/hooks/useSentryUser';
 import { PageLoader } from '@/components/PageLoader';
 import { PrivateRoute } from '@/components/PrivateRoute';
@@ -121,6 +122,11 @@ function SentryUserSync(): null {
   return null;
 }
 
+function AnalyticsSync(): null {
+  useAnalytics();
+  return null;
+}
+
 function SystemThemeListener(): null {
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -141,6 +147,7 @@ export default function App(): ReactElement {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <SentryUserSync />
+        <AnalyticsSync />
         <SystemThemeListener />
         <Toaster position="top-center" richColors closeButton />
         <Suspense fallback={<PageLoader />}>

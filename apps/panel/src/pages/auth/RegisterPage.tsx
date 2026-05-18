@@ -7,7 +7,8 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
-import { getApiErrorMessage, api } from '@/lib/api';
+import { track } from '@/lib/analytics';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { TURKEY_PROVINCES } from '@/lib/turkey-provinces';
 import { useAuthStore } from '@/store/auth.store';
@@ -269,7 +270,13 @@ export function RegisterPage(): ReactElement {
         plan: me.organization.plan,
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, values) => {
+      track('user_registered', {
+        plan: values.selectedPlan,
+        marketplaceCount: marketplaceSelection.length,
+        erpCount,
+        referralCodePresent: Boolean(values.referralCode?.trim()),
+      });
       toast.success('Kayıt tamamlandı, hoş geldiniz.');
       const legacyInviteToken = searchParams.get('inviteToken');
       if (legacyInviteToken) {

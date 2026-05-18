@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import type { ErpConnectionDto } from '@/hooks/useErpConnections';
+import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { completeOnboarding } from '@/pages/onboarding/onboarding.api';
@@ -15,6 +17,7 @@ import { Step2Connections } from '@/pages/onboarding/steps/Step2Connections';
 import { Step3Ready } from '@/pages/onboarding/steps/Step3Ready';
 import { useAuthStore } from '@/store/auth.store';
 import type { MeResponse } from '@/types/auth';
+import type { MarketplaceConnectionDto } from '@/types/connection';
 
 const STEP_COUNT = 3;
 
@@ -28,6 +31,10 @@ export function OnboardingPage(): ReactElement {
 
   useEffect(() => {
     document.title = 'Kurulum — Senkronize';
+  }, []);
+
+  useEffect(() => {
+    track('onboarding_started');
   }, []);
 
   const progressPercent = useMemo(
@@ -60,7 +67,23 @@ export function OnboardingPage(): ReactElement {
         plan: fresh.organization.plan,
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      let connectedPlatforms: string[] = [];
+      try {
+        const [mpRes, erpRes] = await Promise.all([
+          api.get<MarketplaceConnectionDto[]>('/marketplace-connections'),
+          api.get<ErpConnectionDto[]>('/erp-connections'),
+        ]);
+        connectedPlatforms = [
+          ...new Set([
+            ...mpRes.data.map((c) => c.platform),
+            ...erpRes.data.map((c) => c.erpType),
+          ]),
+        ];
+      } catch {
+        connectedPlatforms = [];
+      }
+      track('onboarding_completed', { connectedPlatforms });
       toast.success('Kurulum tamamlandı.');
       navigate('/dashboard', { replace: true });
     },

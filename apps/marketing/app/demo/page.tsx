@@ -4,6 +4,7 @@ import type { FormEvent, ReactElement } from 'react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { track } from '@/lib/analytics';
 
 type MarketplaceCount = '1' | '2-5' | '5+';
 
@@ -60,6 +61,7 @@ export default function DemoPage(): ReactElement {
         setError(body.message ?? 'Gönderilemedi. Lütfen tekrar deneyin.');
         return;
       }
+      track('demo_requested', { marketplaceCount });
       setDone(true);
     } catch {
       setError('Bağlantı hatası. Lütfen tekrar deneyin.');

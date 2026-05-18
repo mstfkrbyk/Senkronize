@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
 
-import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { BlogPostListItem } from '@/lib/blog-data';
 import { getRelatedPosts } from '@/lib/blog-data';
-import { getPanelUrl } from '@/lib/panel-url';
 import { getSiteUrl } from '@/lib/site-url';
+import { BlogArticleRegisterCta } from '@/components/blog/BlogArticleRegisterCta';
+import { BlogPostReadTracker } from '@/components/blog/BlogPostReadTracker';
 
 export interface BlogArticleShellProps {
   title: string;
@@ -52,7 +52,6 @@ export function BlogArticleShell({
 }: BlogArticleShellProps): ReactElement {
   const site = getSiteUrl();
   const shareUrl = `${site}${canonicalPath}`;
-  const panel = getPanelUrl();
   const related = getRelatedPosts(currentSlug);
 
   const twitterHref = `https://twitter.com/intent/tweet?text=${encodeURIComponent(title)}&url=${encodeURIComponent(shareUrl)}`;
@@ -61,6 +60,7 @@ export function BlogArticleShell({
   return (
     <main className="bg-[#F9FAFB] pb-20 pt-10 sm:pt-14">
       <article className="mx-auto max-w-3xl px-4 sm:px-6 lg:max-w-3xl lg:px-8">
+        <BlogPostReadTracker slug={currentSlug} readMinutes={readMinutes} />
         <div className="overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/90 via-primary to-[#1e3a8a] shadow-lg">
           <div
             className="aspect-[21/9] min-h-[140px] w-full opacity-40"
@@ -129,9 +129,7 @@ export function BlogArticleShell({
             Stok, sipariş ve fiyat senkronunu otomatikleştirin; ekibiniz operasyona
             odaklansın.
           </p>
-          <Button asChild className="mt-6" size="lg">
-            <a href={`${panel}/register`}>Ücretsiz Deneyin</a>
-          </Button>
+          <BlogArticleRegisterCta />
         </div>
 
         <p className="mt-10 text-center text-sm text-muted-foreground">

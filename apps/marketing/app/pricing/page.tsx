@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
+import { Suspense } from 'react';
 
+import { PricingPageViewTracker } from '@/components/pricing/PricingPageViewTracker';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { PLANS, PRICING_FAQ } from '@/lib/site-content';
@@ -62,6 +64,9 @@ export default function PricingPage(): ReactElement {
   return (
     <>
       <JsonLd data={pricingProductsLd} />
+      <Suspense fallback={null}>
+        <PricingPageViewTracker />
+      </Suspense>
       <main>
         <PricingSection spacious showComparison />
         <section className="border-t border-border bg-[#F9FAFB] py-16 sm:py-20">

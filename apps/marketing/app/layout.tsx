@@ -4,6 +4,7 @@ import type { ReactElement, ReactNode } from 'react';
 
 import { Footer } from '@/components/Footer';
 import { Navbar } from '@/components/Navbar';
+import { AnalyticsProvider } from '@/app/providers';
 
 import './globals.css';
 
@@ -30,9 +31,11 @@ export default function RootLayout({
   return (
     <html lang="tr" className={inter.variable}>
       <body className={`${inter.className} min-h-screen flex flex-col`}>
-        <Navbar />
-        <div className="flex-1">{children}</div>
-        <Footer />
+        <AnalyticsProvider>
+          <Navbar />
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </AnalyticsProvider>
       </body>
     </html>
   );

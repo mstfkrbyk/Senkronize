@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
 import { Play } from 'lucide-react';
 import type { ReactElement } from 'react';
 
-import { getPanelUrl } from '@/lib/panel-url';
 import { Button } from '@/components/ui/button';
+import { track } from '@/lib/analytics';
+import { getPanelUrl } from '@/lib/panel-url';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -62,7 +63,14 @@ export function HeroSection(): ReactElement {
               transition={{ delay: 0.35, duration: 0.5 }}
             >
               <Button size="lg" className="h-12 px-8 text-base" asChild>
-                <a href={`${panel}/register`}>Ücretsiz Deneyin</a>
+                <a
+                  href={`${panel}/register`}
+                  onClick={() => {
+                    track('cta_clicked', { location: 'hero', plan: 'trial' });
+                  }}
+                >
+                  Ücretsiz Deneyin
+                </a>
               </Button>
               <Button size="lg" variant="ghost" className="h-12 gap-2" asChild>
                 <Link href="#demo">

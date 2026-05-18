@@ -4,13 +4,6 @@ import { motion } from 'framer-motion';
 import { Check, Minus } from 'lucide-react';
 import { useMemo, type ReactElement } from 'react';
 
-import { getPanelUrl } from '@/lib/panel-url';
-import {
-  PLANS,
-  PRICING_COMPARISON,
-  type ComparisonCell,
-  type PlanColumnKey,
-} from '@/lib/site-content';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +13,14 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { track } from '@/lib/analytics';
+import { getPanelUrl } from '@/lib/panel-url';
+import {
+  PLANS,
+  PRICING_COMPARISON,
+  type ComparisonCell,
+  type PlanColumnKey,
+} from '@/lib/site-content';
 
 function formatTry(amount: number): string {
   return amount.toLocaleString('tr-TR');
@@ -144,7 +145,17 @@ export function PricingSection({
                       variant={plan.highlighted ? 'default' : 'outline'}
                       asChild
                     >
-                      <a href={`${panel}/register`}>{plan.cta}</a>
+                      <a
+                        href={`${panel}/register`}
+                        onClick={() => {
+                          track('cta_clicked', {
+                            location: 'pricing_section',
+                            plan: plan.name,
+                          });
+                        }}
+                      >
+                        {plan.cta}
+                      </a>
                     </Button>
                   </CardFooter>
                 </Card>

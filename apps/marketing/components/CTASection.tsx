@@ -3,8 +3,9 @@
 import { motion } from 'framer-motion';
 import type { ReactElement } from 'react';
 
-import { getPanelUrl } from '@/lib/panel-url';
 import { Button } from '@/components/ui/button';
+import { track } from '@/lib/analytics';
+import { getPanelUrl } from '@/lib/panel-url';
 
 export function CTASection(): ReactElement {
   const panel = getPanelUrl();
@@ -44,7 +45,14 @@ export function CTASection(): ReactElement {
             className="h-14 bg-white px-10 text-base font-semibold text-indigo-700 shadow-lg hover:bg-indigo-50"
             asChild
           >
-            <a href={`${panel}/register`}>Ücretsiz Hesap Oluştur</a>
+            <a
+              href={`${panel}/register`}
+              onClick={() => {
+                track('cta_clicked', { location: 'homepage_cta', plan: 'trial' });
+              }}
+            >
+              Ücretsiz Hesap Oluştur
+            </a>
           </Button>
         </motion.div>
       </div>

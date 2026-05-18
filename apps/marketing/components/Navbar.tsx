@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState, type ReactElement } from 'react';
 import { Menu } from 'lucide-react';
 
-import { getPanelUrl } from '@/lib/panel-url';
 import { Button } from '@/components/ui/button';
+import { track } from '@/lib/analytics';
+import { getPanelUrl } from '@/lib/panel-url';
 import {
   Sheet,
   SheetContent,
@@ -69,7 +70,14 @@ export function Navbar(): ReactElement {
             <a href={`${panel}/login`}>Giriş Yap</a>
           </Button>
           <Button asChild>
-            <a href={`${panel}/register`}>Ücretsiz Dene</a>
+            <a
+              href={`${panel}/register`}
+              onClick={() => {
+                track('cta_clicked', { location: 'navbar_desktop', plan: 'trial' });
+              }}
+            >
+              Ücretsiz Dene
+            </a>
           </Button>
         </div>
 
@@ -102,7 +110,14 @@ export function Navbar(): ReactElement {
                   <a href={`${panel}/login`}>Giriş Yap</a>
                 </Button>
                 <Button asChild className="w-full">
-                  <a href={`${panel}/register`}>Ücretsiz Dene</a>
+                  <a
+                    href={`${panel}/register`}
+                    onClick={() => {
+                      track('cta_clicked', { location: 'navbar_mobile', plan: 'trial' });
+                    }}
+                  >
+                    Ücretsiz Dene
+                  </a>
                 </Button>
               </div>
             </SheetContent>

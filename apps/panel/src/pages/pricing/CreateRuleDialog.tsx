@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { track } from '@/lib/analytics';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
@@ -204,6 +205,7 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
       payload as Partial<PricingRule>,
       {
         onSuccess: () => {
+          track('pricing_rule_created', { strategy: values.strategy });
           onOpenChange(false);
         },
       },

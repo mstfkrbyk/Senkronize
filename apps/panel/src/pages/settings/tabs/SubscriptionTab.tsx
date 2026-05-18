@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/table';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useSubscriptionUsage } from '@/hooks/useSubscriptionUsage';
+import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type {
@@ -553,6 +554,10 @@ export function SubscriptionTab(): ReactElement {
                 disabled={checkoutMutation.isPending}
                 variant="secondary"
                 onClick={() => {
+                  track('plan_upgrade_clicked', {
+                    currentPlan: currentPlan ?? 'unknown',
+                    targetPlan: payPlan,
+                  });
                   checkoutMutation.mutate(payPlan);
                 }}
               >
@@ -728,6 +733,10 @@ export function SubscriptionTab(): ReactElement {
                       className="w-full"
                       disabled={isCurrent || changePlanMutation.isPending}
                       onClick={() => {
+                        track('plan_upgrade_clicked', {
+                          currentPlan: currentPlan ?? 'unknown',
+                          targetPlan: plan.id,
+                        });
                         changePlanMutation.mutate(plan.id);
                       }}
                     >

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { track } from '@/lib/analytics';
 import { getApiErrorMessage } from '@/lib/api';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import { useAuthStore } from '@/store/auth.store';
@@ -53,6 +54,34 @@ export function PricingPage(): ReactElement {
   const rulesQuery = usePricingRules(proAccess);
   const historyQuery = usePriceHistory(undefined, proAccess);
   const runMutation = useRunPricing();
+
+  const lastBuyBoxAnalysisTracked = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !proAccess ||
+      analysisListingId === '' ||
+      !listingAnalysisQuery.data
+    ) {
+      return;
+    }
+    if (lastBuyBoxAnalysisTracked.current === analysisListingId) {
+      return;
+    }
+    lastBuyBoxAnalysisTracked.current = analysisListingId;
+    const listingRow = listingsPickerQuery.data?.items.find(
+      (l) => l.id === analysisListingId,
+    );
+    track('buybox_analysis_viewed', {
+      listingId: analysisListingId,
+      platform: listingRow?.platform ?? 'unknown',
+    });
+  }, [
+    proAccess,
+    analysisListingId,
+    listingAnalysisQuery.data,
+    listingsPickerQuery.data?.items,
+  ]);
 
   return (
     <div className="space-y-8">

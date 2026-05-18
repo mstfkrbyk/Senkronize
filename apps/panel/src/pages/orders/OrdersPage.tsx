@@ -31,6 +31,7 @@ import {
 import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
 import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ORDER_STATUS_LABEL_TR } from '@/lib/order-status';
 import { useOrdersPageStore } from '@/store/tablePages.store';
@@ -368,6 +369,10 @@ export function OrdersPage(): ReactElement {
                     return;
                   }
                   downloadOrdersCsv(data.items.filter((o) => selectedIdSet.has(o.id)));
+                  track('orders_exported', {
+                    count: selectedRows.length,
+                    format: 'csv',
+                  });
                   toast.success('CSV indirildi');
                 }}
               >

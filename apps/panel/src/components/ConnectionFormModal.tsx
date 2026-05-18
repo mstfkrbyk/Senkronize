@@ -42,6 +42,7 @@ import {
   useUpdateErpConnection,
   type ErpConnectionDto,
 } from '@/hooks/useErpConnections';
+import { track } from '@/lib/analytics';
 import { getApiErrorMessage } from '@/lib/api';
 import {
   ECOMMERCE_MARKETPLACE_IDS,
@@ -76,6 +77,8 @@ interface Props {
 }
 
 type TestOutcome = 'idle' | 'success' | 'fail';
+
+const ECOMMERCE_PLATFORM_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
 function emptyValuesFromFields(fields: ConnectionFormFieldDef[]): Record<string, string> {
   return Object.fromEntries(
@@ -352,6 +355,12 @@ export function ConnectionFormModal({
           { platform: selectedMarketplaceId, credentials },
           {
             onSuccess: () => {
+              track('connection_added', {
+                platform: selectedMarketplaceId,
+                type: ECOMMERCE_PLATFORM_SET.has(selectedMarketplaceId)
+                  ? 'ecommerce'
+                  : 'marketplace',
+              });
               toast.success('Bağlantı kaydedildi.');
               onOpenChange(false);
             },
@@ -396,6 +405,10 @@ export function ConnectionFormModal({
         { erpType: selectedErpId, credentials },
         {
           onSuccess: () => {
+            track('connection_added', {
+              platform: selectedErpId,
+              type: 'erp',
+            });
             toast.success('ERP bağlantısı kaydedildi.');
             onOpenChange(false);
           },
