@@ -1,35 +1,226 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
-import { EmptyState } from '@/components/EmptyState';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Download, Loader2, Package, Truck } from 'lucide-react';
+import { toast } from 'sonner';
+
+import { DataTablePagination } from '@/components/DataTablePagination';
+import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
+import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { getApiErrorMessage } from '@/lib/api';
-import type { Order, OrderFilters as OrderFiltersState } from '@/types/order';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { ORDER_STATUS_LABEL_TR } from '@/lib/order-status';
+import { useOrdersPageStore } from '@/store/tablePages.store';
+import type { Order, OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
 
 import { OrderDetailSheet } from './OrderDetailSheet';
 import { OrderFilters } from './OrderFilters';
 import { OrdersTable } from './OrdersTable';
 import { useOrders } from './hooks/useOrders';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_DEFAULT = 20;
+
+const ERP_LABEL_TR: Record<string, string> = {
+  BIZIMHESAP: 'Bizim Hesap',
+  PARASUT: 'Paraşüt',
+  LOGO: 'Logo',
+  MIKRO: 'Mikro',
+  LUCA: 'Luca',
+  TSOFT: 'T-Soft',
+  TICIMAX: 'Ticimax',
+  NETSIS: 'Netsis',
+  ETA: 'ETA V8',
+  KOLAYBI: 'Kolaybi',
+  ZIRVE: 'Zirve',
+  NEBIM: 'Nebim V3',
+  EBA: 'eBA',
+  SAP_B1: 'SAP Business One',
+  ISNET: 'İşnet',
+};
+
+function escapeCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadOrdersCsv(rows: Order[]): void {
+  const headers = [
+    'platform',
+    'siparis_no',
+    'musteri',
+    'tutar',
+    'para_birimi',
+    'durum',
+    'kargo_firmasi',
+    'takip_no',
+    'tarih',
+  ];
+  const lines = [
+    headers.join(','),
+    ...rows.map((o) =>
+      [
+        escapeCsvCell(o.platform),
+        escapeCsvCell(o.platformOrderId),
+        escapeCsvCell(o.customerName),
+        escapeCsvCell(o.totalAmount),
+        escapeCsvCell(o.currency),
+        escapeCsvCell(o.status),
+        escapeCsvCell(o.cargoProvider ?? ''),
+        escapeCsvCell(o.cargoTrackingNumber ?? ''),
+        escapeCsvCell(o.platformCreatedAt),
+      ].join(','),
+    ),
+  ];
+  const blob = new Blob([`\ufeff${lines.join('\n')}`], {
+    type: 'text/csv;charset=utf-8;',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `siparisler-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const ALL_STATUSES = Object.keys(ORDER_STATUS_LABEL_TR) as OrderStatus[];
 
 export function OrdersPage(): ReactElement {
   usePageTitle('Siparişler');
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+
+  const selectedOrderIds = useOrdersPageStore((s) => s.selectedOrderIds);
+  const toggleOrderRow = useOrdersPageStore((s) => s.toggleOrderRow);
+  const toggleAllOrdersOnPage = useOrdersPageStore((s) => s.toggleAllOrdersOnPage);
+  const clearOrderSelection = useOrdersPageStore((s) => s.clearOrderSelection);
+
   const [filters, setFilters] = useState<OrderFiltersState>({
     page: 1,
-    limit: PAGE_SIZE,
+    limit: PAGE_SIZE_DEFAULT,
   });
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
+  const [cargoOpen, setCargoOpen] = useState(false);
+  const [cargoTracking, setCargoTracking] = useState('');
+  const [cargoProvider, setCargoProvider] = useState('');
+
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<OrderStatus>('PICKING');
+
+  const [erpOpen, setErpOpen] = useState(false);
+  const [erpConnectionId, setErpConnectionId] = useState('');
+
+  useEffect(() => {
+    const st = searchParams.get('statuses');
+    if (st?.trim()) {
+      setFilters((f) => ({ ...f, statuses: st, page: 1 }));
+    }
+  }, [searchParams]);
+
   const { data, isLoading, isError, error, refetch } = useOrders(filters);
+  const connectionsQuery = useMarketplaceConnections();
+  const erpConnectionsQuery = useErpConnections();
+  const syncToErpMutation = useSyncOrderToErp();
+  const triggerSyncMutation = useTriggerManualSync();
+
+  const patchStatusMutation = useMutation({
+    mutationFn: async (args: {
+      id: string;
+      status: OrderStatus;
+      cargoTrackingNumber?: string;
+      cargoProvider?: string;
+    }): Promise<Order> => {
+      const { data: res } = await api.patch<Order>(`/orders/${args.id}/status`, {
+        status: args.status,
+        cargoTrackingNumber: args.cargoTrackingNumber,
+        cargoProvider: args.cargoProvider,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
 
   const total = data?.total ?? 0;
-  const limit = filters.limit ?? PAGE_SIZE;
+  const limit = filters.limit ?? PAGE_SIZE_DEFAULT;
   const page = filters.page ?? 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const hasMarketplaceConnections =
+    connectionsQuery.data === undefined
+      ? null
+      : (connectionsQuery.data ?? []).some((c) => c.isActive);
+
+  const selectedIdSet = useMemo(
+    () => new Set(selectedOrderIds),
+    [selectedOrderIds],
+  );
+
+  const hasActiveOrderFilters = useMemo(() => {
+    return Boolean(
+      filters.platforms?.trim() ||
+        filters.platform ||
+        filters.statuses?.trim() ||
+        filters.status ||
+        filters.startDate?.trim() ||
+        filters.endDate?.trim() ||
+        filters.search?.trim() ||
+        filters.cargoProvider?.trim() ||
+        filters.minTotal !== undefined ||
+        filters.maxTotal !== undefined,
+    );
+  }, [filters]);
+
+  useEffect(() => {
+    clearOrderSelection();
+  }, [
+    clearOrderSelection,
+    filters.page,
+    filters.platform,
+    filters.platforms,
+    filters.status,
+    filters.statuses,
+    filters.startDate,
+    filters.endDate,
+    filters.search,
+    filters.cargoProvider,
+    filters.minTotal,
+    filters.maxTotal,
+  ]);
+
+  const activeErpConnections = useMemo(
+    () => (erpConnectionsQuery.data ?? []).filter((c) => c.isActive),
+    [erpConnectionsQuery.data],
+  );
+
+  useEffect(() => {
+    const first = activeErpConnections[0]?.id ?? '';
+    setErpConnectionId(first);
+  }, [activeErpConnections]);
 
   const handleRowClick = (order: Order): void => {
     setSelectedOrder(order);
@@ -43,8 +234,24 @@ export function OrdersPage(): ReactElement {
     }
   };
 
+  const selectedRows = data?.items.filter((o) => selectedIdSet.has(o.id)) ?? [];
+
+  const showSticky = selectedOrderIds.length > 0;
+
+  const pullOrdersForConnections = (): void => {
+    const conns = (connectionsQuery.data ?? []).filter((c) => c.isActive);
+    if (conns.length === 0) {
+      toast.error('Aktif pazaryeri bağlantısı yok.');
+      return;
+    }
+    for (const c of conns) {
+      triggerSyncMutation.mutate(c.id);
+    }
+    toast.info(`${String(conns.length)} bağlantı için senkron kuyruğa alındı.`);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${showSticky ? 'pb-24' : ''}`}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-primary">
           Siparişler
@@ -56,7 +263,7 @@ export function OrdersPage(): ReactElement {
 
       <OrderFilters filters={filters} onChange={setFilters} />
 
-      {isLoading ? <TableSkeleton rows={8} cols={5} /> : null}
+      {isLoading ? <TableSkeleton rows={8} cols={6} /> : null}
 
       {isError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -76,50 +283,115 @@ export function OrdersPage(): ReactElement {
       ) : null}
 
       {!isLoading && !isError && data && data.items.length === 0 ? (
-        <EmptyState
-          title="Henüz sipariş yok"
-          description="Filtrelere uygun kayıt bulunamadı veya henüz pazaryeri siparişi çekilmedi."
+        <TablePageEmptyState
+          hasMarketplaceConnections={hasMarketplaceConnections}
+          connectionsLoading={connectionsQuery.isLoading}
+          hasActiveFilters={hasActiveOrderFilters}
+          onStartSync={pullOrdersForConnections}
+          syncLabel="Senkronizasyonu başlat"
         />
       ) : null}
 
       {!isLoading && !isError && data && data.items.length > 0 ? (
-        <OrdersTable orders={data.items} onRowClick={handleRowClick} />
+        <OrdersTable
+          orders={data.items}
+          selectedIds={selectedIdSet}
+          onToggleRow={(id, selected) => {
+            toggleOrderRow(id, selected);
+          }}
+          onToggleAllOnPage={(selected) => {
+            toggleAllOrdersOnPage(
+              data.items.map((o) => o.id),
+              selected,
+            );
+          }}
+          onRowClick={handleRowClick}
+        />
       ) : null}
 
       {!isLoading && !isError && data && data.items.length > 0 ? (
-        <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
-            Toplam {total} kayıt · Sayfa {page} / {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => {
-                setFilters((f) => ({
-                  ...f,
-                  page: Math.max(1, (f.page ?? 1) - 1),
-                }));
-              }}
-            >
-              Önceki
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => {
-                setFilters((f) => ({
-                  ...f,
-                  page: Math.min(totalPages, (f.page ?? 1) + 1),
-                }));
-              }}
-            >
-              Sonraki
-            </Button>
+        <DataTablePagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          limit={limit}
+          onPageChange={(p) => {
+            setFilters((f) => ({ ...f, page: p }));
+          }}
+          onLimitChange={(nextLimit) => {
+            setFilters((f) => ({ ...f, limit: nextLimit, page: 1 }));
+          }}
+        />
+      ) : null}
+
+      {showSticky ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Badge variant="secondary" className="w-fit">
+              {selectedOrderIds.length} seçili
+            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={selectedRows.length === 0}
+                onClick={() => {
+                  setCargoTracking('');
+                  setCargoProvider('');
+                  setCargoOpen(true);
+                }}
+              >
+                <Truck className="h-3.5 w-3.5" aria-hidden />
+                Kargo bilgisi ekle
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={selectedRows.length === 0}
+                onClick={() => {
+                  setBulkStatus('PICKING');
+                  setStatusOpen(true);
+                }}
+              >
+                Durumu güncelle
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={selectedRows.length === 0 || !data}
+                onClick={() => {
+                  if (!data) {
+                    return;
+                  }
+                  downloadOrdersCsv(data.items.filter((o) => selectedIdSet.has(o.id)));
+                  toast.success('CSV indirildi');
+                }}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
+                CSV dışa aktar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedRows.length === 0 ||
+                  activeErpConnections.length === 0 ||
+                  syncToErpMutation.isPending
+                }
+                onClick={() => {
+                  setErpOpen(true);
+                }}
+              >
+                <Package className="h-3.5 w-3.5" aria-hidden />
+                ERP&apos;ye aktar
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -132,6 +404,197 @@ export function OrdersPage(): ReactElement {
           setSelectedOrder(o);
         }}
       />
+
+      <Dialog open={cargoOpen} onOpenChange={setCargoOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Toplu kargo bilgisi</DialogTitle>
+            <DialogDescription>
+              Seçili siparişler kargoya verildi olarak işaretlenir ve kargo alanları
+              güncellenir.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor="bulk-track">Takip numarası</Label>
+              <Input
+                id="bulk-track"
+                value={cargoTracking}
+                onChange={(e) => {
+                  setCargoTracking(e.target.value);
+                }}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="bulk-provider">Kargo firması</Label>
+              <Input
+                id="bulk-provider"
+                value={cargoProvider}
+                onChange={(e) => {
+                  setCargoProvider(e.target.value);
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCargoOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              type="button"
+              disabled={patchStatusMutation.isPending}
+              onClick={() => {
+                void (async (): Promise<void> => {
+                  try {
+                    for (const o of selectedRows) {
+                      await patchStatusMutation.mutateAsync({
+                        id: o.id,
+                        status: 'SHIPPED',
+                        cargoTrackingNumber: cargoTracking.trim() || undefined,
+                        cargoProvider: cargoProvider.trim() || undefined,
+                      });
+                    }
+                    toast.success('Kargo bilgileri güncellendi');
+                    setCargoOpen(false);
+                    clearOrderSelection();
+                  } catch (err: unknown) {
+                    toast.error(getApiErrorMessage(err));
+                  }
+                })();
+              }}
+            >
+              {patchStatusMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Uygula
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Toplu durum güncelle</DialogTitle>
+            <DialogDescription>
+              Seçili siparişlerin durumu aşağıdaki değere ayarlanır.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="bulk-order-status">Durum</Label>
+            <Select
+              value={bulkStatus}
+              onValueChange={(v) => {
+                setBulkStatus(v as OrderStatus);
+              }}
+            >
+              <SelectTrigger id="bulk-order-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ALL_STATUSES.map((st) => (
+                  <SelectItem key={st} value={st}>
+                    {ORDER_STATUS_LABEL_TR[st]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStatusOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              type="button"
+              disabled={patchStatusMutation.isPending}
+              onClick={() => {
+                void (async (): Promise<void> => {
+                  try {
+                    for (const o of selectedRows) {
+                      await patchStatusMutation.mutateAsync({
+                        id: o.id,
+                        status: bulkStatus,
+                      });
+                    }
+                    toast.success('Sipariş durumları güncellendi');
+                    setStatusOpen(false);
+                    clearOrderSelection();
+                  } catch (err: unknown) {
+                    toast.error(getApiErrorMessage(err));
+                  }
+                })();
+              }}
+            >
+              Uygula
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={erpOpen} onOpenChange={setErpOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>ERP&apos;ye aktar</DialogTitle>
+            <DialogDescription>
+              Seçili siparişler sırayla seçili ERP bağlantısına aktarılır.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="bulk-erp-conn">ERP bağlantısı</Label>
+            <Select
+              value={erpConnectionId}
+              onValueChange={setErpConnectionId}
+            >
+              <SelectTrigger id="bulk-erp-conn">
+                <SelectValue placeholder="Bağlantı seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeErpConnections.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {ERP_LABEL_TR[c.erpType] ?? c.erpType}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setErpOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              type="button"
+              disabled={!erpConnectionId || syncToErpMutation.isPending}
+              onClick={() => {
+                if (!erpConnectionId) {
+                  return;
+                }
+                void (async (): Promise<void> => {
+                  let ok = 0;
+                  for (const o of selectedRows) {
+                    try {
+                      await syncToErpMutation.mutateAsync({
+                        connectionId: erpConnectionId,
+                        orderId: o.id,
+                      });
+                      ok += 1;
+                    } catch {
+                      /* toast from mutation */
+                    }
+                  }
+                  toast.success(`${String(ok)} sipariş ERP kuyruğuna iletildi`);
+                  setErpOpen(false);
+                  clearOrderSelection();
+                })();
+              }}
+            >
+              {syncToErpMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Aktar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

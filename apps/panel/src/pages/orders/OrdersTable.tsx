@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -14,6 +15,9 @@ import type { Order, OrderStatus } from '@/types/order';
 
 interface Props {
   orders: Order[];
+  selectedIds: Set<string>;
+  onToggleRow: (id: string, selected: boolean) => void;
+  onToggleAllOnPage: (selected: boolean) => void;
   onRowClick: (order: Order) => void;
 }
 
@@ -81,64 +85,107 @@ function StatusBadge({ status }: { status: OrderStatus }): ReactElement {
   );
 }
 
-export function OrdersTable({ orders, onRowClick }: Props): ReactElement {
+export function OrdersTable({
+  orders,
+  selectedIds,
+  onToggleRow,
+  onToggleAllOnPage,
+  onRowClick,
+}: Props): ReactElement {
+  const pageIds = orders.map((o) => o.id);
+  const allSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const someSelected = pageIds.some((id) => selectedIds.has(id));
+
   return (
     <div className="overflow-x-auto -mx-4 sm:mx-0">
       <div className="inline-block min-w-[700px] w-full sm:min-w-0">
         <div className="rounded-md border">
           <Table className="min-w-[700px] sm:min-w-full">
-        <TableHeader>
-          <TableRow>
-            <TableHead>Platform</TableHead>
-            <TableHead>Sipariş No</TableHead>
-            <TableHead>Müşteri</TableHead>
-            <TableHead className="text-right">Tutar</TableHead>
-            <TableHead>Durum</TableHead>
-            <TableHead>Tarih</TableHead>
-            <TableHead className="w-[100px]">İşlemler</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((order) => (
-            <TableRow
-              key={order.id}
-              className="cursor-pointer"
-              onClick={() => {
-                onRowClick(order);
-              }}
-            >
-              <TableCell>
-                <PlatformBadge platform={order.platform} />
-              </TableCell>
-              <TableCell className="font-mono text-sm">
-                {order.platformOrderId}
-              </TableCell>
-              <TableCell>{order.customerName}</TableCell>
-              <TableCell className="text-right tabular-nums">
-                {formatTry(order.totalAmount, order.currency)}
-              </TableCell>
-              <TableCell>
-                <StatusBadge status={order.status} />
-              </TableCell>
-              <TableCell className="text-muted-foreground">
-                {formatDate(order.platformCreatedAt)}
-              </TableCell>
-              <TableCell>
-                <button
-                  type="button"
-                  className="text-sm font-medium text-accent underline-offset-4 hover:underline"
-                  onClick={(e) => {
-                    e.stopPropagation();
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[44px] p-2">
+                  <Checkbox
+                    checked={
+                      allSelected
+                        ? true
+                        : someSelected
+                          ? 'indeterminate'
+                          : false
+                    }
+                    onCheckedChange={(v) => {
+                      onToggleAllOnPage(v === true);
+                    }}
+                    aria-label="Bu sayfadaki tüm siparişleri seç"
+                  />
+                </TableHead>
+                <TableHead>Platform</TableHead>
+                <TableHead>Sipariş No</TableHead>
+                <TableHead>Müşteri</TableHead>
+                <TableHead className="text-right">Tutar</TableHead>
+                <TableHead>Durum</TableHead>
+                <TableHead>Tarih</TableHead>
+                <TableHead className="w-[100px]">İşlemler</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((order) => (
+                <TableRow
+                  key={order.id}
+                  className="cursor-pointer"
+                  onClick={() => {
                     onRowClick(order);
                   }}
                 >
-                  Detay
-                </button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+                  <TableCell
+                    className="w-[44px] p-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <Checkbox
+                      checked={selectedIds.has(order.id)}
+                      onCheckedChange={(v) => {
+                        onToggleRow(order.id, v === true);
+                      }}
+                      aria-label={`Seç: ${order.platformOrderId}`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <PlatformBadge platform={order.platform} />
+                  </TableCell>
+                  <TableCell className="font-mono text-sm">
+                    {order.platformOrderId}
+                  </TableCell>
+                  <TableCell>{order.customerName}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatTry(order.totalAmount, order.currency)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={order.status} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatDate(order.platformCreatedAt)}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-accent underline-offset-4 hover:underline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRowClick(order);
+                      }}
+                    >
+                      Detay
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>

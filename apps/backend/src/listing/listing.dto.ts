@@ -17,10 +17,22 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+export enum ListingStockTier {
+  IN_STOCK = 'IN_STOCK',
+  LOW = 'LOW',
+  OUT = 'OUT',
+}
+
 export class ListingQueryDto {
   @IsOptional()
   @IsEnum(Marketplace)
   platform?: Marketplace;
+
+  @IsOptional()
+  @Transform(({ value }) => parseMarketplaceCsv(value))
+  @IsArray()
+  @IsEnum(Marketplace, { each: true })
+  platforms?: Marketplace[];
 
   @IsOptional()
   @IsBoolean()
@@ -28,8 +40,32 @@ export class ListingQueryDto {
   approved?: boolean;
 
   @IsOptional()
+  @IsEnum(ListingStockTier)
+  stockTier?: ListingStockTier;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minSalePrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  maxSalePrice?: number;
+
+  @IsOptional()
   @IsDateString()
   lastSyncAtSince?: string;
+
+  @IsOptional()
+  @IsDateString()
+  lastSyncAtUntil?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @IsOptional()
   @IsString()
@@ -47,6 +83,22 @@ export class ListingQueryDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+}
+
+function parseMarketplaceCsv(value: unknown): Marketplace[] | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value.join(',') : String(value);
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  if (parts.length === 0) {
+    return undefined;
+  }
+  const allowed = new Set<string>(Object.values(Marketplace));
+  return parts.filter((p): p is Marketplace => allowed.has(p));
 }
 
 export class UpdatePriceDto {

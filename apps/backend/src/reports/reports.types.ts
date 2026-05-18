@@ -33,6 +33,12 @@ export interface DashboardSummaryDto {
   activeConnections: number;
   totalConnections: number;
   lowStockCount: number;
+  /** Seçilen zaman penceresindeki sipariş adedi (panel dönem filtresi). */
+  windowOrders: number;
+  /** Bir önceki eşit uzunluktaki penceredeki sipariş adedi. */
+  windowOrdersPrev: number;
+  /** Önceki pencereye göre yüzde fark (yaklaşık). */
+  windowOrdersDeltaPct: number;
 }
 
 export interface ProfitReportByPlatformRow {

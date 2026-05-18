@@ -20,7 +20,11 @@ import type {
   MarketplacePushJobData,
 } from '../queue/queue.types';
 
-import type { BulkUpdateItemDto, ListingQueryDto } from './listing.dto';
+import {
+  type BulkUpdateItemDto,
+  ListingQueryDto,
+  ListingStockTier,
+} from './listing.dto';
 
 function auditLogMetadata(
   meta: Prisma.JsonValue,
@@ -97,15 +101,72 @@ export class ListingService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
+    const platformWhere: Prisma.ListingWhereInput =
+      query.platforms && query.platforms.length > 0
+        ? { platform: { in: query.platforms } }
+        : query.platform !== undefined
+          ? { platform: query.platform }
+          : {};
+
+    const stockTierWhere: Prisma.ListingWhereInput =
+      query.stockTier === ListingStockTier.IN_STOCK
+        ? { quantity: { gt: 20 } }
+        : query.stockTier === ListingStockTier.LOW
+          ? { quantity: { gte: 1, lte: 20 } }
+          : query.stockTier === ListingStockTier.OUT
+            ? { quantity: 0 }
+            : {};
+
+    const salePriceWhere: Prisma.ListingWhereInput =
+      query.minSalePrice !== undefined || query.maxSalePrice !== undefined
+        ? {
+            salePrice: {
+              ...(query.minSalePrice !== undefined && {
+                gte: new Prisma.Decimal(query.minSalePrice),
+              }),
+              ...(query.maxSalePrice !== undefined && {
+                lte: new Prisma.Decimal(query.maxSalePrice),
+              }),
+            },
+          }
+        : {};
+
+    const lastSyncAtFilter: Prisma.DateTimeFilter = {};
+    if (query.lastSyncAtSince !== undefined && query.lastSyncAtSince.trim().length > 0) {
+      lastSyncAtFilter.gte = new Date(query.lastSyncAtSince);
+    }
+    if (query.lastSyncAtUntil !== undefined && query.lastSyncAtUntil.trim().length > 0) {
+      const u = new Date(query.lastSyncAtUntil);
+      u.setHours(23, 59, 59, 999);
+      lastSyncAtFilter.lte = u;
+    }
+    const lastSyncWhere: Prisma.ListingWhereInput =
+      Object.keys(lastSyncAtFilter).length > 0 ? { lastSyncAt: lastSyncAtFilter } : {};
+
+    const categoryWhere: Prisma.ListingWhereInput =
+      query.category !== undefined && query.category.trim().length > 0
+        ? {
+            product: {
+              is: {
+                deletedAt: null,
+                category: {
+                  contains: query.category.trim(),
+                  mode: Prisma.QueryMode.insensitive,
+                },
+              },
+            },
+          }
+        : {};
+
     const where: Prisma.ListingWhereInput = {
       organizationId,
       deletedAt: null,
-      ...(query.platform !== undefined && { platform: query.platform }),
+      ...platformWhere,
       ...(query.approved !== undefined && { approved: query.approved }),
-      ...(query.lastSyncAtSince !== undefined &&
-        query.lastSyncAtSince.trim().length > 0 && {
-          lastSyncAt: { gte: new Date(query.lastSyncAtSince) },
-        }),
+      ...stockTierWhere,
+      ...salePriceWhere,
+      ...lastSyncWhere,
+      ...categoryWhere,
       ...(query.search && {
         OR: [
           {
@@ -170,6 +231,19 @@ export class ListingService {
       throw new NotFoundException('Listeleme bulunamadı');
     }
     return this.serializeListing(row);
+  }
+
+  async softDelete(organizationId: string, id: string): Promise<void> {
+    const row = await this.prisma.listing.findFirst({
+      where: { id, organizationId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Listeleme bulunamadı');
+    }
+    await this.prisma.listing.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 
   async getListingDetail(

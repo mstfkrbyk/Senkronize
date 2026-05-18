@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -165,6 +166,21 @@ export class ListingController {
     @Body() dto: UpdateStockDto,
   ): Promise<{ ok: true }> {
     await this.listingService.updateStock(org.id, id, dto.quantity);
+    return { ok: true };
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtOrApiKeyGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Listelemeyi pasifleştir (soft delete)' })
+  @ApiResponse({ status: 200, description: 'Silindi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async remove(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.listingService.softDelete(org.id, id);
     return { ok: true };
   }
 }

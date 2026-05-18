@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Prisma, type Product } from '@prisma/client';
 import type { Queue } from 'bull';
@@ -245,36 +246,76 @@ export class ProductService {
       where: { organizationId, isActive: true, deletedAt: null },
     });
 
-    let queued = 0;
-    for (const conn of connections) {
-      await this.marketplacePushQueue.add(
-        'push-stock',
-        {
-          organizationId,
-          platform: conn.platform,
-          type: 'stock',
-          resourceIds: [dto.barcode],
-          payload: {
-            updates: [{ barcode: dto.barcode, quantity: dto.quantity }],
-          },
-        },
-        JOB_DEFAULT_OPTIONS,
-      );
+    if (connections.length === 0) {
+      return { queued: 0 };
+    }
 
-      if (dto.price !== undefined) {
+    const payloads: { barcode: string; quantity: number; price?: number }[] = [];
+
+    if (dto.listingIds && dto.listingIds.length > 0) {
+      const rows = await this.prisma.listing.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          id: { in: dto.listingIds },
+        },
+        select: { barcode: true, quantity: true },
+      });
+      const seen = new Set<string>();
+      for (const r of rows) {
+        if (seen.has(r.barcode)) {
+          continue;
+        }
+        seen.add(r.barcode);
+        payloads.push({
+          barcode: r.barcode,
+          quantity: r.quantity,
+          ...(dto.price !== undefined ? { price: dto.price } : {}),
+        });
+      }
+    } else {
+      if (!dto.barcode || dto.quantity === undefined) {
+        throw new BadRequestException('Barkod ve miktar gerekli');
+      }
+      payloads.push({
+        barcode: dto.barcode,
+        quantity: dto.quantity,
+        ...(dto.price !== undefined ? { price: dto.price } : {}),
+      });
+    }
+
+    let queued = 0;
+    for (const p of payloads) {
+      for (const conn of connections) {
         await this.marketplacePushQueue.add(
-          'push-price',
+          'push-stock',
           {
             organizationId,
             platform: conn.platform,
-            type: 'price',
-            resourceIds: [dto.barcode],
-            payload: { price: dto.price },
+            type: 'stock',
+            resourceIds: [p.barcode],
+            payload: {
+              updates: [{ barcode: p.barcode, quantity: p.quantity }],
+            },
           },
           JOB_DEFAULT_OPTIONS,
         );
+
+        if (p.price !== undefined) {
+          await this.marketplacePushQueue.add(
+            'push-price',
+            {
+              organizationId,
+              platform: conn.platform,
+              type: 'price',
+              resourceIds: [p.barcode],
+              payload: { price: p.price },
+            },
+            JOB_DEFAULT_OPTIONS,
+          );
+        }
+        queued += 1;
       }
-      queued += 1;
     }
 
     return { queued };

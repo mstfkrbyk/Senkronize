@@ -1,15 +1,33 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2, Percent, Upload } from 'lucide-react';
+import {
+  Download,
+  Loader2,
+  Percent,
+  Trash2,
+  Upload,
+  Zap,
+} from 'lucide-react';
 import Papa from 'papaparse';
 import { toast } from 'sonner';
 
-import { EmptyState } from '@/components/EmptyState';
+import { DataTablePagination } from '@/components/DataTablePagination';
+import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
@@ -22,10 +40,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
-import { getApiErrorMessage } from '@/lib/api';
-import type { Listing, ListingFilters as ListingFiltersState } from '@/types/listing';
+import { api, getApiErrorMessage } from '@/lib/api';
+import {
+  useListingsPageStore,
+} from '@/store/tablePages.store';
+import type { Listing, ListingFilters as ListingFiltersState, ListingStockTier } from '@/types/listing';
 
 import { ListingDetailSheet } from './ListingDetailSheet';
 import { ListingFilters } from './ListingFilters';
@@ -42,7 +64,7 @@ import {
   useUpdateStock,
 } from './hooks/useListings';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE_DEFAULT = 20;
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
@@ -81,15 +103,25 @@ function downloadListingsCsv(rows: Listing[]): void {
   URL.revokeObjectURL(url);
 }
 
+function isStockTierParam(v: string | null): v is ListingStockTier {
+  return v === 'IN_STOCK' || v === 'LOW' || v === 'OUT';
+}
+
 export function ListingsPage(): ReactElement {
   usePageTitle('Ürünler');
   const queryClient = useQueryClient();
   const { on } = useSocket();
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams] = useSearchParams();
+
+  const selectedListingIds = useListingsPageStore((s) => s.selectedListingIds);
+  const toggleListingRow = useListingsPageStore((s) => s.toggleListingRow);
+  const toggleAllOnPage = useListingsPageStore((s) => s.toggleAllOnPage);
+  const clearListingSelection = useListingsPageStore((s) => s.clearListingSelection);
 
   const [filters, setFilters] = useState<ListingFiltersState>({
     page: 1,
-    limit: PAGE_SIZE,
+    limit: PAGE_SIZE_DEFAULT,
   });
   const [searchDraft, setSearchDraft] = useState('');
   const debouncedSearch = useDebouncedValue(searchDraft, 300);
@@ -108,27 +140,50 @@ export function ListingsPage(): ReactElement {
       setFilters((f) => ({ ...f, page: 1 }));
     }
   }, [debouncedSearch]);
+
+  useEffect(() => {
+    const st = searchParams.get('stockTier');
+    if (isStockTierParam(st)) {
+      setFilters((f) => ({ ...f, stockTier: st, page: 1 }));
+    }
+  }, [searchParams]);
+
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
   const [priceOpen, setPriceOpen] = useState(false);
   const [stockTarget, setStockTarget] = useState<Listing | null>(null);
   const [stockOpen, setStockOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkPctOpen, setBulkPctOpen] = useState(false);
   const [bulkPctInput, setBulkPctInput] = useState('0');
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const listingsQuery = useListings(listingQueryFilters);
   const summaryQuery = useListingSummary();
-  const syncMutation = useSyncListings();
+  const connectionsQuery = useMarketplaceConnections();
+  const syncListingsMutation = useSyncListings();
   const updatePriceMutation = useUpdatePrice();
   const updateStockMutation = useUpdateStock();
   const bulkUpdateMutation = useBulkListingUpdate();
   const syncAllPlatformsMutation = useSyncAllPlatforms();
+  const [bulkDeletePending, setBulkDeletePending] = useState(false);
 
   useEffect(() => {
-    setSelectedIds(new Set());
-  }, [filters.page, filters.platform, filters.approved, debouncedSearch]);
+    clearListingSelection();
+  }, [
+    clearListingSelection,
+    filters.page,
+    filters.platform,
+    filters.platforms,
+    filters.approved,
+    filters.stockTier,
+    filters.minSalePrice,
+    filters.maxSalePrice,
+    filters.lastSyncAtSince,
+    filters.lastSyncAtUntil,
+    filters.category,
+    debouncedSearch,
+  ]);
 
   useEffect(() => {
     const unlisten = on('listing:synced', () => {
@@ -140,9 +195,37 @@ export function ListingsPage(): ReactElement {
 
   const data = listingsQuery.data;
   const total = data?.total ?? 0;
-  const limit = filters.limit ?? PAGE_SIZE;
+  const limit = filters.limit ?? PAGE_SIZE_DEFAULT;
   const page = filters.page ?? 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  const hasMarketplaceConnections =
+    connectionsQuery.data === undefined
+      ? null
+      : (connectionsQuery.data ?? []).some((c) => c.isActive);
+
+  const selectedIdSet = useMemo(
+    () => new Set(selectedListingIds),
+    [selectedListingIds],
+  );
+
+  const selectedRowsOnPage =
+    data?.items.filter((l) => selectedIdSet.has(l.id)) ?? [];
+
+  const hasActiveListingFilters = useMemo(() => {
+    return Boolean(
+      filters.platforms?.trim() ||
+        filters.platform ||
+        filters.approved !== undefined ||
+        filters.stockTier ||
+        filters.minSalePrice !== undefined ||
+        filters.maxSalePrice !== undefined ||
+        filters.lastSyncAtSince?.trim() ||
+        filters.lastSyncAtUntil?.trim() ||
+        filters.category?.trim() ||
+        debouncedSearch.trim(),
+    );
+  }, [filters, debouncedSearch]);
 
   const handleRowClick = (listing: Listing): void => {
     setSelectedListing(listing);
@@ -154,18 +237,6 @@ export function ListingsPage(): ReactElement {
     if (!open) {
       setSelectedListing(null);
     }
-  };
-
-  const selectedRowsOnPage =
-    data?.items.filter((l) => selectedIds.has(l.id)) ?? [];
-
-  const handleBulkResetStock = (): void => {
-    if (selectedRowsOnPage.length === 0) {
-      return;
-    }
-    bulkUpdateMutation.mutate(
-      selectedRowsOnPage.map((l) => ({ listingId: l.id, quantity: 0 })),
-    );
   };
 
   const handleBulkPctApply = (): void => {
@@ -196,6 +267,36 @@ export function ListingsPage(): ReactElement {
         },
       },
     );
+  };
+
+  const handleBulkDelete = (): void => {
+    const ids = [...selectedIdSet];
+    if (ids.length === 0) {
+      return;
+    }
+    setBulkDeletePending(true);
+    void (async (): Promise<void> => {
+      try {
+        let ok = 0;
+        for (const id of ids) {
+          try {
+            await api.delete(`/listings/${id}`);
+            ok += 1;
+          } catch {
+            /* ignore */
+          }
+        }
+        toast.success(`${String(ok)} listeleme arşivlendi`);
+        clearListingSelection();
+        setDeleteOpen(false);
+        void queryClient.invalidateQueries({ queryKey: ['listings'] });
+        void queryClient.invalidateQueries({
+          queryKey: ['reports', 'dashboard-summary'],
+        });
+      } finally {
+        setBulkDeletePending(false);
+      }
+    })();
   };
 
   const handleCsvFile = (file: File): void => {
@@ -252,8 +353,10 @@ export function ListingsPage(): ReactElement {
     });
   };
 
+  const showStickyBulk = selectedListingIds.length > 0;
+
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${showStickyBulk ? 'pb-24' : ''}`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3">
           <div>
@@ -298,19 +401,47 @@ export function ListingsPage(): ReactElement {
             ) : null}
           </div>
         </div>
-        <Button
-          type="button"
-          className="shrink-0 gap-2"
-          disabled={syncMutation.isPending}
-          onClick={() => {
-            syncMutation.mutate();
-          }}
-        >
-          {syncMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : null}
-          Senkronize et
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <input
+            ref={csvInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            aria-hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) {
+                handleCsvFile(f);
+              }
+            }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0 gap-2"
+            disabled={bulkUpdateMutation.isPending}
+            onClick={() => {
+              csvInputRef.current?.click();
+            }}
+          >
+            <Upload className="h-4 w-4" aria-hidden />
+            CSV içe aktar
+          </Button>
+          <Button
+            type="button"
+            className="shrink-0 gap-2"
+            disabled={syncListingsMutation.isPending}
+            onClick={() => {
+              syncListingsMutation.mutate();
+            }}
+          >
+            {syncListingsMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : null}
+            Senkronize et
+          </Button>
+        </div>
       </div>
 
       <ListingFilters
@@ -319,86 +450,6 @@ export function ListingsPage(): ReactElement {
         searchInput={searchDraft}
         onSearchInputChange={setSearchDraft}
       />
-
-      {!listingsQuery.isLoading &&
-      !listingsQuery.isError &&
-      data &&
-      data.items.length > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2">
-          <Badge variant="secondary" aria-live="polite">
-            {selectedIds.size} seçili
-          </Badge>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={
-                selectedIds.size === 0 || bulkUpdateMutation.isPending
-              }
-              onClick={() => {
-                handleBulkResetStock();
-              }}
-            >
-              Toplu stok sıfırla
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={selectedIds.size === 0}
-              onClick={() => {
-                setBulkPctInput('0');
-                setBulkPctOpen(true);
-              }}
-            >
-              <Percent className="mr-1 h-3.5 w-3.5" aria-hidden />
-              Toplu fiyat (%)
-            </Button>
-            <input
-              ref={csvInputRef}
-              type="file"
-              accept=".csv,text/csv"
-              className="sr-only"
-              aria-hidden
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = '';
-                if (f) {
-                  handleCsvFile(f);
-                }
-              }}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled={bulkUpdateMutation.isPending}
-              onClick={() => {
-                csvInputRef.current?.click();
-              }}
-            >
-              <Upload className="mr-1 h-3.5 w-3.5" aria-hidden />
-              CSV içe aktar
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              disabled={selectedIds.size === 0}
-              onClick={() => {
-                const rows = data.items.filter((l) => selectedIds.has(l.id));
-                downloadListingsCsv(rows);
-                toast.success('CSV indirildi');
-              }}
-            >
-              <Download className="h-4 w-4 shrink-0" aria-hidden />
-              Seçilenleri dışa aktar
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       {listingsQuery.isLoading ? (
         <TableSkeleton rows={8} cols={6} />
@@ -425,9 +476,15 @@ export function ListingsPage(): ReactElement {
       !listingsQuery.isError &&
       data &&
       data.items.length === 0 ? (
-        <EmptyState
-          title="Henüz listeleme yok"
-          description="Filtrelere uygun kayıt bulunamadı veya henüz pazaryeri listesi çekilmedi."
+        <TablePageEmptyState
+          hasMarketplaceConnections={hasMarketplaceConnections}
+          connectionsLoading={connectionsQuery.isLoading}
+          hasActiveFilters={hasActiveListingFilters}
+          onStartSync={() => {
+            syncListingsMutation.mutate();
+          }}
+          syncDisabled={syncListingsMutation.isPending}
+          syncLabel="Listelemeleri senkronize et"
         />
       ) : null}
 
@@ -437,31 +494,15 @@ export function ListingsPage(): ReactElement {
       data.items.length > 0 ? (
         <ListingsTable
           listings={data.items}
-          selectedIds={selectedIds}
+          selectedIds={selectedIdSet}
           onToggleRow={(id, selected) => {
-            setSelectedIds((prev) => {
-              const next = new Set(prev);
-              if (selected) {
-                next.add(id);
-              } else {
-                next.delete(id);
-              }
-              return next;
-            });
+            toggleListingRow(id, selected);
           }}
           onToggleAllOnPage={(selected) => {
-            const ids = data.items.map((l) => l.id);
-            setSelectedIds((prev) => {
-              const next = new Set(prev);
-              for (const id of ids) {
-                if (selected) {
-                  next.add(id);
-                } else {
-                  next.delete(id);
-                }
-              }
-              return next;
-            });
+            toggleAllOnPage(
+              data.items.map((l) => l.id),
+              selected,
+            );
           }}
           onRowClick={handleRowClick}
           onOpenPrice={(listing) => {
@@ -485,39 +526,95 @@ export function ListingsPage(): ReactElement {
       !listingsQuery.isError &&
       data &&
       data.items.length > 0 ? (
-        <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
-          <p className="text-sm text-muted-foreground">
-            Toplam {total} kayıt · Sayfa {page} / {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => {
-                setFilters((f) => ({
-                  ...f,
-                  page: Math.max(1, (f.page ?? 1) - 1),
-                }));
-              }}
-            >
-              Önceki
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => {
-                setFilters((f) => ({
-                  ...f,
-                  page: Math.min(totalPages, (f.page ?? 1) + 1),
-                }));
-              }}
-            >
-              Sonraki
-            </Button>
+        <DataTablePagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          limit={limit}
+          onPageChange={(p) => {
+            setFilters((f) => ({ ...f, page: p }));
+          }}
+          onLimitChange={(nextLimit) => {
+            setFilters((f) => ({ ...f, limit: nextLimit, page: 1 }));
+          }}
+        />
+      ) : null}
+
+      {showStickyBulk ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Badge variant="secondary" className="w-fit shrink-0" aria-live="polite">
+              {selectedListingIds.length} seçili
+            </Badge>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedListingIds.length === 0 || syncAllPlatformsMutation.isPending
+                }
+                onClick={() => {
+                  syncAllPlatformsMutation.mutate({
+                    listingIds: selectedListingIds,
+                  });
+                  clearListingSelection();
+                }}
+              >
+                {syncAllPlatformsMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Zap className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Seçili ürünleri senkronize et
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={selectedListingIds.length === 0 || !data}
+                onClick={() => {
+                  if (!data) {
+                    return;
+                  }
+                  const rows = data.items.filter((l) => selectedIdSet.has(l.id));
+                  downloadListingsCsv(rows);
+                  toast.success('CSV indirildi');
+                }}
+              >
+                <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
+                Seçili ürünleri dışa aktar
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={selectedListingIds.length === 0}
+                onClick={() => {
+                  setBulkPctInput('0');
+                  setBulkPctOpen(true);
+                }}
+              >
+                <Percent className="mr-1 h-3.5 w-3.5" aria-hidden />
+                Fiyatı güncelle (%)
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedListingIds.length === 0 || bulkDeletePending
+                }
+                onClick={() => {
+                  setDeleteOpen(true);
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                Seçili ürünleri sil
+              </Button>
+            </div>
           </div>
         </div>
       ) : null}
@@ -555,10 +652,10 @@ export function ListingsPage(): ReactElement {
       <Dialog open={bulkPctOpen} onOpenChange={setBulkPctOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Toplu fiyat güncelle</DialogTitle>
+            <DialogTitle>Seçili ürünlerin fiyatını güncelle</DialogTitle>
             <DialogDescription>
-              Seçili ürünlerin satış ve liste fiyatına yüzde uygulanır (ör. +10
-              veya -5).
+              Seçili ürünlerin satış ve liste fiyatına yüzde uygulanır (ör. +10 veya
+              -5).
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
@@ -597,6 +694,38 @@ export function ListingsPage(): ReactElement {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Seçili ürünleri sil?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedListingIds.length} listeleme arşivlenecek (geri alınamaz
+              işlem değildir; kayıtlar pasiflenir).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setDeleteOpen(false);
+              }}
+            >
+              İptal
+            </Button>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                handleBulkDelete();
+              }}
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

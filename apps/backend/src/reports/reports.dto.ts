@@ -10,6 +10,12 @@ import {
   Min,
 } from 'class-validator';
 
+export class DashboardSummaryQueryDto {
+  @IsOptional()
+  @IsIn(['default', '24h', '7d', 'month'])
+  period?: 'default' | '24h' | '7d' | 'month';
+}
+
 export class SalesReportQueryDto {
   @IsDateString()
   startDate!: string;

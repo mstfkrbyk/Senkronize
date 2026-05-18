@@ -86,8 +86,10 @@ export class ReportsService {
 
   async getDashboardSummary(
     organizationId: string,
+    period: 'default' | '24h' | '7d' | 'month' | undefined,
   ): Promise<DashboardSummaryDto> {
-    const cacheKey = CacheService.key('reports', organizationId, 'dashboard');
+    const p = period ?? 'default';
+    const cacheKey = CacheService.key('reports', organizationId, 'dashboard', p);
     const cached = await this.cache.get<DashboardSummaryDto>(cacheKey);
     if (cached) {
       return cached;
@@ -103,6 +105,31 @@ export class ReportsService {
       deletedAt: null,
     };
 
+    const now = new Date();
+
+    let windowStart = startOfToday;
+    let windowEnd = now;
+    let prevWindowStart = startOfYesterday;
+    let prevWindowEnd = startOfToday;
+
+    if (p === '24h') {
+      windowEnd = now;
+      windowStart = new Date(now.getTime() - 86_400_000);
+      prevWindowEnd = windowStart;
+      prevWindowStart = new Date(windowStart.getTime() - 86_400_000);
+    } else if (p === '7d') {
+      windowEnd = now;
+      windowStart = new Date(now.getTime() - 7 * 86_400_000);
+      prevWindowEnd = windowStart;
+      prevWindowStart = new Date(windowStart.getTime() - 7 * 86_400_000);
+    } else if (p === 'month') {
+      windowEnd = now;
+      windowStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      const lenMs = Math.max(86_400_000, windowEnd.getTime() - windowStart.getTime());
+      prevWindowEnd = new Date(windowStart.getTime());
+      prevWindowStart = new Date(windowStart.getTime() - lenMs);
+    }
+
     const [
       todayOrders,
       yesterdayOrders,
@@ -111,6 +138,8 @@ export class ReportsService {
       activeConnections,
       totalConnections,
       lowStockCount,
+      windowOrders,
+      windowOrdersPrev,
     ] = await Promise.all([
       this.prisma.order.count({
         where: {
@@ -155,6 +184,24 @@ export class ReportsService {
           quantity: { gt: 0, lte: 5 },
         },
       }),
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          platformCreatedAt: {
+            gte: windowStart,
+            lte: windowEnd,
+          },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          platformCreatedAt: {
+            gte: prevWindowStart,
+            lt: prevWindowEnd,
+          },
+        },
+      }),
     ]);
 
     let todayOrdersDelta = 0;
@@ -166,6 +213,15 @@ export class ReportsService {
       );
     }
 
+    let windowOrdersDeltaPct = 0;
+    if (windowOrdersPrev === 0) {
+      windowOrdersDeltaPct = windowOrders > 0 ? 100 : 0;
+    } else {
+      windowOrdersDeltaPct = Math.round(
+        ((windowOrders - windowOrdersPrev) / windowOrdersPrev) * 100,
+      );
+    }
+
     const summary: DashboardSummaryDto = {
       todayOrders,
       todayOrdersDelta,
@@ -174,6 +230,9 @@ export class ReportsService {
       activeConnections,
       totalConnections,
       lowStockCount,
+      windowOrders,
+      windowOrdersPrev,
+      windowOrdersDeltaPct,
     };
     await this.cache.set(cacheKey, summary, 60);
     return summary;

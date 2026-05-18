@@ -4,8 +4,10 @@ import { SkipThrottle } from '@nestjs/throttler';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+const APP_VERSION = '0.1.0';
+
 @ApiTags('Health')
-@Controller('health')
+@Controller()
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
@@ -29,7 +31,7 @@ export class HealthController {
     return {
       status: dbOk ? 'ok' : 'degraded',
       timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version ?? '1.0.0',
+      version: process.env.npm_package_version ?? APP_VERSION,
       services: {
         database: dbOk ? 'up' : 'down',
       },

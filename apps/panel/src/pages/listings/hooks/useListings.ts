@@ -63,11 +63,11 @@ export function useListingSummary() {
 export function useSyncAllPlatforms() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      barcode: string;
-      quantity: number;
-      price?: number;
-    }): Promise<{ queued: number }> => {
+    mutationFn: async (
+      payload:
+        | { barcode: string; quantity: number; price?: number }
+        | { listingIds: string[]; price?: number },
+    ): Promise<{ queued: number }> => {
       const { data } = await api.post<{ queued: number }>(
         '/products/sync-all-platforms',
         payload,
@@ -186,6 +186,25 @@ export function useBulkListingUpdate() {
     },
     onSuccess: (res) => {
       toast.success(`${String(res.updated)} listeleme güncellendi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', 'dashboard-summary'],
+      });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useDeleteListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (listingId: string): Promise<void> => {
+      await api.delete(`/listings/${listingId}`);
+    },
+    onSuccess: () => {
+      toast.success('Listeleme arşivlendi');
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
       void queryClient.invalidateQueries({
         queryKey: ['reports', 'dashboard-summary'],

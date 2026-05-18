@@ -10,6 +10,7 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  DashboardSummaryQueryDto,
   DateRangeReportQueryDto,
   OrderTrendQueryDto,
   PlatformReportQueryDto,
@@ -44,8 +45,9 @@ export class ReportsController {
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async getDashboardSummary(
     @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardSummaryQueryDto,
   ): Promise<DashboardSummaryDto> {
-    return this.reportsService.getDashboardSummary(org.id);
+    return this.reportsService.getDashboardSummary(org.id, query.period);
   }
 
   @Get('sales')

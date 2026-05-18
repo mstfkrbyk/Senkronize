@@ -6,4 +6,7 @@ export interface DashboardSummaryDto {
   activeConnections: number;
   totalConnections: number;
   lowStockCount: number;
+  windowOrders: number;
+  windowOrdersPrev: number;
+  windowOrdersDeltaPct: number;
 }

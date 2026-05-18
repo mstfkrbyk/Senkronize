@@ -12,6 +12,9 @@ export type ListingPlatform =
   | 'WOOCOMMERCE'
   | 'SHOPIFY';
 
+/** Backend `ListingStockTier` ile uyumlu */
+export type ListingStockTier = 'IN_STOCK' | 'LOW' | 'OUT';
+
 export interface Listing {
   id: string;
   platform: ListingPlatform;
@@ -41,7 +44,15 @@ export interface ListingSummary {
 
 export interface ListingFilters {
   platform?: string;
+  /** Virgülle birleştirilmiş çoklu platform (API `platforms`). */
+  platforms?: string;
   approved?: boolean;
+  stockTier?: ListingStockTier;
+  minSalePrice?: number;
+  maxSalePrice?: number;
+  lastSyncAtSince?: string;
+  lastSyncAtUntil?: string;
+  category?: string;
   search?: string;
   page?: number;
   limit?: number;

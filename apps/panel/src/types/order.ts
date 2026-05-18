@@ -47,10 +47,17 @@ export interface OrderSummaryDto {
 
 export interface OrderFilters {
   platform?: string;
+  /** Virgülle birleştirilmiş platform kodları */
+  platforms?: string;
   status?: string;
+  /** Virgülle birleştirilmiş durum kodları */
+  statuses?: string;
   startDate?: string;
   endDate?: string;
   search?: string;
+  cargoProvider?: string;
+  minTotal?: number;
+  maxTotal?: number;
   page?: number;
   limit?: number;
 }

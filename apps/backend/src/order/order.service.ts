@@ -47,11 +47,47 @@ export class OrderService {
       platformCreatedAt.lte = end;
     }
 
+    const platformFilter: Prisma.OrderWhereInput =
+      query.platforms && query.platforms.length > 0
+        ? { platform: { in: query.platforms } }
+        : query.platform
+          ? { platform: query.platform }
+          : {};
+
+    const statusFilter: Prisma.OrderWhereInput =
+      query.statuses && query.statuses.length > 0
+        ? { status: { in: query.statuses } }
+        : query.status
+          ? { status: query.status }
+          : {};
+
+    const cargoFilter: Prisma.OrderWhereInput =
+      query.cargoProvider && query.cargoProvider.trim().length > 0
+        ? {
+            cargoProvider: {
+              contains: query.cargoProvider.trim(),
+              mode: Prisma.QueryMode.insensitive,
+            },
+          }
+        : {};
+
+    const amountFilter: Prisma.DecimalFilter = {};
+    if (query.minTotal !== undefined) {
+      amountFilter.gte = new Prisma.Decimal(query.minTotal);
+    }
+    if (query.maxTotal !== undefined) {
+      amountFilter.lte = new Prisma.Decimal(query.maxTotal);
+    }
+    const totalAmountFilter: Prisma.OrderWhereInput =
+      Object.keys(amountFilter).length > 0 ? { totalAmount: amountFilter } : {};
+
     const where: Prisma.OrderWhereInput = {
       organizationId,
       deletedAt: null,
-      ...(query.platform && { platform: query.platform }),
-      ...(query.status && { status: query.status }),
+      ...platformFilter,
+      ...statusFilter,
+      ...cargoFilter,
+      ...totalAmountFilter,
       ...(Object.keys(platformCreatedAt).length > 0 && {
         platformCreatedAt,
       }),

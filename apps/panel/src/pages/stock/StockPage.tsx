@@ -20,7 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import {
+  useMarketplaceConnections,
+  useTriggerManualSync,
+} from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
@@ -55,6 +60,8 @@ export function StockPage(): ReactElement {
 
   const stockQuery = useStock(filters);
   const lowStockQuery = useLowStock(10);
+  const connectionsQuery = useMarketplaceConnections();
+  const triggerSyncMutation = useTriggerManualSync();
 
   useEffect(() => {
     const unlisten = on('stock:alert', (data: unknown) => {
@@ -212,9 +219,27 @@ export function StockPage(): ReactElement {
       {!stockQuery.isLoading &&
       !stockQuery.isError &&
       list.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Henüz stok kaydı yok veya filtrelere uygun sonuç bulunamadı.
-        </p>
+        <TablePageEmptyState
+          hasMarketplaceConnections={
+            connectionsQuery.data === undefined
+              ? null
+              : (connectionsQuery.data ?? []).some((c) => c.isActive)
+          }
+          connectionsLoading={connectionsQuery.isLoading}
+          hasActiveFilters={Boolean(filters.platform || filters.lowStock)}
+          onStartSync={() => {
+            const conns = (connectionsQuery.data ?? []).filter((c) => c.isActive);
+            if (conns.length === 0) {
+              toast.error('Aktif bağlantı yok');
+              return;
+            }
+            for (const c of conns) {
+              triggerSyncMutation.mutate(c.id);
+            }
+            toast.info(`${String(conns.length)} bağlantı için senkron kuyruğa alındı.`);
+          }}
+          syncDisabled={triggerSyncMutation.isPending}
+        />
       ) : null}
 
       {!stockQuery.isLoading && !stockQuery.isError && list.length > 0 ? (

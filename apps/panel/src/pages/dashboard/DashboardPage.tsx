@@ -10,7 +10,7 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -170,12 +170,16 @@ export function DashboardPage(): ReactElement {
   const queryClient = useQueryClient();
   const { socket } = useSocket();
   const triggerSyncMutation = useTriggerManualSync();
+  const [kpiPeriod, setKpiPeriod] = useState<
+    'default' | '24h' | '7d' | 'month'
+  >('default');
 
   const dashboardSummaryQuery = useQuery({
-    queryKey: ['reports', 'dashboard-summary'],
+    queryKey: ['reports', 'dashboard-summary', kpiPeriod],
     queryFn: async (): Promise<DashboardSummaryDto> => {
       const { data } = await api.get<DashboardSummaryDto>(
         '/reports/dashboard-summary',
+        { params: { period: kpiPeriod } },
       );
       return data;
     },
@@ -223,6 +227,22 @@ export function DashboardPage(): ReactElement {
   const recentOrders = recentOrdersQuery.data ?? [];
   const dash = dashboardSummaryQuery.data;
   const kpiLoading = dashboardSummaryQuery.isPending;
+
+  const ordersCardTitle =
+    kpiPeriod === 'default'
+      ? 'Bugünkü siparişler'
+      : kpiPeriod === '24h'
+        ? 'Son 24 saat — sipariş'
+        : kpiPeriod === '7d'
+          ? 'Son 7 gün — sipariş'
+          : 'Bu ay — sipariş';
+
+  const ordersCount =
+    kpiPeriod === 'default' ? dash?.todayOrders : dash?.windowOrders;
+  const ordersDeltaPct =
+    kpiPeriod === 'default' ? dash?.todayOrdersDelta : dash?.windowOrdersDeltaPct;
+  const ordersDeltaCaption =
+    kpiPeriod === 'default' ? 'düne göre' : 'önceki döneme göre';
 
   useEffect(() => {
     if (!socket) {
@@ -282,13 +302,37 @@ export function DashboardPage(): ReactElement {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Özet
-        </h1>
-        <p className="text-muted-foreground">
-          Günlük operasyonlarınızın genel görünümü.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">
+            Özet
+          </h1>
+          <p className="text-muted-foreground">
+            Günlük operasyonlarınızın genel görünümü.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { id: 'default' as const, label: 'Bugün' },
+              { id: '24h' as const, label: 'Son 24 Saat' },
+              { id: '7d' as const, label: 'Son 7 Gün' },
+              { id: 'month' as const, label: 'Bu Ay' },
+            ] as const
+          ).map((p) => (
+            <Button
+              key={p.id}
+              type="button"
+              size="sm"
+              variant={kpiPeriod === p.id ? 'default' : 'outline'}
+              onClick={() => {
+                setKpiPeriod(p.id);
+              }}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {!dashboardSummaryQuery.isPending &&
@@ -325,7 +369,7 @@ export function DashboardPage(): ReactElement {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Bugünkü siparişler
+              {ordersCardTitle}
             </CardTitle>
             <div
               className={`rounded-full p-2 ring-2 ${KPI_ICON.blue.ring} bg-background`}
@@ -342,11 +386,11 @@ export function DashboardPage(): ReactElement {
             ) : (
               <>
                 <p className="text-2xl font-bold tabular-nums">
-                  {dash?.todayOrders ?? '—'}
+                  {ordersCount ?? '—'}
                 </p>
                 {dash ? (
                   <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                    {dash.todayOrdersDelta >= 0 ? (
+                    {(ordersDeltaPct ?? 0) >= 0 ? (
                       <ArrowUpRight
                         className="h-3.5 w-3.5 text-green-600"
                         aria-hidden
@@ -359,15 +403,15 @@ export function DashboardPage(): ReactElement {
                     )}
                     <span
                       className={
-                        dash.todayOrdersDelta >= 0
+                        (ordersDeltaPct ?? 0) >= 0
                           ? 'text-green-600'
                           : 'text-red-600'
                       }
                     >
-                      {dash.todayOrdersDelta >= 0 ? '+' : ''}
-                      {String(dash.todayOrdersDelta)}%
+                      {(ordersDeltaPct ?? 0) >= 0 ? '+' : ''}
+                      {String(ordersDeltaPct ?? 0)}%
                     </span>
-                    <span>düne göre</span>
+                    <span>{ordersDeltaCaption}</span>
                   </p>
                 ) : null}
               </>
@@ -375,7 +419,20 @@ export function DashboardPage(): ReactElement {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => {
+            navigate('/orders?statuses=NEW,PICKING,INVOICED');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/orders?statuses=NEW,PICKING,INVOICED');
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Bekleyen siparişler
@@ -390,11 +447,16 @@ export function DashboardPage(): ReactElement {
             {kpiLoading ? (
               <Skeleton className="h-9 w-24" />
             ) : (
-              <p
-                className={`text-2xl font-bold tabular-nums ${pendingOrdersTone(dash?.pendingOrders ?? 0)}`}
-              >
-                {dash?.pendingOrders ?? '—'}
-              </p>
+              <>
+                <p
+                  className={`text-2xl font-bold tabular-nums ${pendingOrdersTone(dash?.pendingOrders ?? 0)}`}
+                >
+                  {dash?.pendingOrders ?? '—'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Siparişlere gitmek için tıklayın
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
@@ -443,7 +505,20 @@ export function DashboardPage(): ReactElement {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => {
+            navigate('/listings?stockTier=LOW');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/listings?stockTier=LOW');
+            }
+          }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Düşük stok</CardTitle>
             <div
@@ -464,7 +539,7 @@ export function DashboardPage(): ReactElement {
               </p>
             )}
             <p className="mt-1 text-xs text-muted-foreground">
-              Stok 1–5 arası listeleme
+              Stok 1–5 arası listeleme · listeye gitmek için tıklayın
             </p>
           </CardContent>
         </Card>

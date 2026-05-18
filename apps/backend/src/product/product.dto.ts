@@ -1,5 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsInt,
   IsNumber,
@@ -8,6 +10,7 @@ import {
   Max,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -97,10 +100,18 @@ export class ProductQueryDto {
 }
 
 export class SyncAllPlatformsDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  listingIds?: string[];
+
+  @ValidateIf((o: SyncAllPlatformsDto) => !o.listingIds?.length)
   @IsString()
   @MinLength(1)
   barcode!: string;
 
+  @ValidateIf((o: SyncAllPlatformsDto) => !o.listingIds?.length)
   @Type(() => Number)
   @IsNumber()
   @Min(0)
