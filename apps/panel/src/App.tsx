@@ -34,6 +34,9 @@ import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 import { OrdersPage } from '@/pages/orders/OrdersPage';
 import { PartnerPage } from '@/pages/partner/PartnerPage';
 import { PricingPage } from '@/pages/pricing/PricingPage';
+import { ProductDetailPage } from '@/pages/products/ProductDetailPage';
+import { ProductImportPage } from '@/pages/products/ProductImportPage';
+import { ProductsPage } from '@/pages/products/ProductsPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { StockPage } from '@/pages/stock/StockPage';
@@ -107,6 +110,9 @@ export default function App(): ReactElement {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
+                <Route path="/products/import" element={<ProductImportPage />} />
+                <Route path="/products/:id" element={<ProductDetailPage />} />
+                <Route path="/products" element={<ProductsPage />} />
                 <Route path="/stock" element={<StockPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />

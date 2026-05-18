@@ -5,7 +5,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
-import { Prisma, type Product } from '@prisma/client';
+import { Marketplace, Prisma, type Product, type ProductVariant } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { CacheService } from '../common/cache/cache.service';
@@ -29,6 +29,8 @@ const productListSelect = {
   description: true,
   brand: true,
   category: true,
+  costPrice: true,
+  tags: true,
   imageUrls: true,
   isActive: true,
   createdAt: true,
@@ -38,6 +40,33 @@ const productListSelect = {
 export type ProductListItem = Prisma.ProductGetPayload<{
   select: typeof productListSelect;
 }>;
+
+export interface ProductDetailListing {
+  id: string;
+  platform: Marketplace;
+  title: string;
+  salePrice: Prisma.Decimal;
+  listPrice: Prisma.Decimal;
+  quantity: number;
+  approved: boolean;
+  lastSyncAt: Date | null;
+}
+
+export interface ProductDetailStock {
+  id: string;
+  barcode: string;
+  platform: Marketplace | null;
+  quantity: number;
+  reservedQty: number;
+  updatedAt: Date;
+}
+
+export interface ProductDetailPayload {
+  product: Product;
+  variants: ProductVariant[];
+  listings: ProductDetailListing[];
+  stockMovements: ProductDetailStock[];
+}
 
 @Injectable()
 export class ProductService {
@@ -130,6 +159,47 @@ export class ProductService {
     return row;
   }
 
+  async getProductDetail(
+    organizationId: string,
+    id: string,
+  ): Promise<ProductDetailPayload> {
+    const product = await this.findOne(organizationId, id);
+    const [variants, listings, stockMovements] = await Promise.all([
+      this.prisma.productVariant.findMany({
+        where: { organizationId, productId: id, deletedAt: null },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.listing.findMany({
+        where: { organizationId, productId: id, deletedAt: null },
+        select: {
+          id: true,
+          platform: true,
+          title: true,
+          salePrice: true,
+          listPrice: true,
+          quantity: true,
+          approved: true,
+          lastSyncAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.stockEntry.findMany({
+        where: { organizationId, productId: id },
+        select: {
+          id: true,
+          barcode: true,
+          platform: true,
+          quantity: true,
+          reservedQty: true,
+          updatedAt: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      }),
+    ]);
+    return { product, variants, listings, stockMovements };
+  }
+
   async create(organizationId: string, dto: CreateProductDto): Promise<Product> {
     try {
       const created = await this.prisma.product.create({
@@ -141,6 +211,11 @@ export class ProductService {
           brand: dto.brand,
           category: dto.category,
           description: dto.description,
+          costPrice:
+            dto.costPrice !== undefined
+              ? new Prisma.Decimal(dto.costPrice)
+              : null,
+          tags: dto.tags ?? [],
           imageUrls: [],
         },
       });
@@ -176,6 +251,10 @@ export class ProductService {
           ...(dto.category !== undefined && { category: dto.category }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+          ...(dto.costPrice !== undefined && {
+            costPrice: new Prisma.Decimal(dto.costPrice),
+          }),
+          ...(dto.tags !== undefined && { tags: dto.tags }),
         },
       });
       await this.cache.invalidateProductsForOrg(organizationId);
@@ -195,10 +274,16 @@ export class ProductService {
 
   async softDelete(organizationId: string, id: string): Promise<void> {
     await this.findOne(organizationId, id);
-    await this.prisma.product.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.productVariant.updateMany({
+        where: { organizationId, productId: id, deletedAt: null },
+        data: { deletedAt: new Date() },
+      }),
+      this.prisma.product.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
+    ]);
     await this.cache.invalidateProductsForOrg(organizationId);
   }
 
