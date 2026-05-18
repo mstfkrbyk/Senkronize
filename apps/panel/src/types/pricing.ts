@@ -28,6 +28,49 @@ export interface PricingRule {
   lowStockThreshold?: number | null;
   highStockThreshold?: number | null;
   maxPrice?: number | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  daysOfWeek?: number[];
+  hoursStart?: number | null;
+  hoursEnd?: number | null;
+  categoryFilter?: string | null;
+  brandFilter?: string | null;
+  skuPattern?: string | null;
+}
+
+export interface CompetitorPriceRow {
+  id: string;
+  organizationId: string;
+  barcode: string;
+  platform: string;
+  competitorId: string;
+  competitorName: string | null;
+  price: string;
+  currency: string;
+  isBuyBox: boolean;
+  capturedAt: string;
+}
+
+export interface PriceGapPlatformRow {
+  platform: string;
+  ourSalePrice: number | null;
+  ourListPrice: number | null;
+  buyBoxPrice: number | null;
+  gapTry: number | null;
+  gapPct: number | null;
+  competitorCount: number;
+}
+
+export interface PriceGapAnalysis {
+  barcode: string;
+  platforms: PriceGapPlatformRow[];
+}
+
+export interface PriceTrendPoint {
+  date: string;
+  ourPrice: number | null;
+  buyBoxPrice: number | null;
+  avgCompetitorPrice: number | null;
 }
 
 export interface BuyBoxWinRateStats {

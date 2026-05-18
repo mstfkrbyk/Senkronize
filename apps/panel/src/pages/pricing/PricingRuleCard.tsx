@@ -80,6 +80,19 @@ export function PricingRuleCard({ rule }: Props): ReactElement {
           </p>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
+          {(rule.categoryFilter != null && rule.categoryFilter !== '') ||
+          (rule.brandFilter != null && rule.brandFilter !== '') ||
+          (rule.skuPattern != null && rule.skuPattern !== '') ? (
+            <div className="flex flex-wrap gap-1">
+              {rule.categoryFilter ? (
+                <Badge variant="outline">Kat: {rule.categoryFilter}</Badge>
+              ) : null}
+              {rule.brandFilter ? (
+                <Badge variant="outline">Mrk: {rule.brandFilter}</Badge>
+              ) : null}
+              {rule.skuPattern ? <Badge variant="outline">SKU</Badge> : null}
+            </div>
+          ) : null}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Min. marj</span>
             <span className="font-medium">%{rule.minMarginPct}</span>

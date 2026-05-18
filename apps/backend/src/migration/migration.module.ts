@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../prisma/prisma.module';
+import { WarehouseModule } from '../warehouse/warehouse.module';
 
 import { MigrationController } from './migration.controller';
 import { MigrationService } from './migration.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, WarehouseModule],
   controllers: [MigrationController],
   providers: [MigrationService],
 })

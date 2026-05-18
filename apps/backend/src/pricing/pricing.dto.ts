@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -15,6 +16,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreatePricingRuleDto {
@@ -129,6 +131,62 @@ export class CreatePricingRuleDto {
   @IsNumber()
   @Min(0)
   maxPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Zamanlanmış başlangıç (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  scheduledStart?: string;
+
+  @ApiPropertyOptional({ description: 'Zamanlanmış bitiş (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  scheduledEnd?: string;
+
+  @ApiPropertyOptional({
+    description: 'Haftanın günleri (0=Pazar … 6=Cumartesi); boş = tüm günler',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  daysOfWeek?: number[];
+
+  @ApiPropertyOptional({ description: 'Başlangıç saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursStart?: number;
+
+  @ApiPropertyOptional({ description: 'Bitiş saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursEnd?: number;
+
+  @ApiPropertyOptional({ description: 'Kategori içerir filtresi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  categoryFilter?: string;
+
+  @ApiPropertyOptional({ description: 'Marka içerir filtresi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  brandFilter?: string;
+
+  @ApiPropertyOptional({ description: 'SKU / barkod regex deseni' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  skuPattern?: string;
 }
 
 export class UpdatePricingRuleDto {
@@ -251,6 +309,106 @@ export class UpdatePricingRuleDto {
   @IsNumber()
   @Min(0)
   maxPrice?: number;
+
+  @ApiPropertyOptional({ description: 'Zamanlanmış başlangıç (ISO 8601)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  scheduledStart?: string | null;
+
+  @ApiPropertyOptional({ description: 'Zamanlanmış bitiş (ISO 8601)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  scheduledEnd?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Haftanın günleri (0=Pazar … 6=Cumartesi); boş dizi = tüm günler',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  daysOfWeek?: number[];
+
+  @ApiPropertyOptional({ description: 'Başlangıç saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursStart?: number | null;
+
+  @ApiPropertyOptional({ description: 'Bitiş saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursEnd?: number | null;
+
+  @ApiPropertyOptional({ description: 'Kategori içerir filtresi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  categoryFilter?: string | null;
+
+  @ApiPropertyOptional({ description: 'Marka içerir filtresi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  brandFilter?: string | null;
+
+  @ApiPropertyOptional({ description: 'SKU / barkod regex deseni' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  skuPattern?: string | null;
+}
+
+export class SchedulePricingRuleDto {
+  @ApiPropertyOptional({ description: 'Zamanlanmış başlangıç (ISO 8601)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  scheduledStart?: string | null;
+
+  @ApiPropertyOptional({ description: 'Zamanlanmış bitiş (ISO 8601)' })
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && v !== '')
+  @IsDateString()
+  scheduledEnd?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Haftanın günleri (0=Pazar … 6=Cumartesi)',
+    type: [Number],
+  })
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(6, { each: true })
+  daysOfWeek?: number[];
+
+  @ApiPropertyOptional({ description: 'Başlangıç saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursStart?: number | null;
+
+  @ApiPropertyOptional({ description: 'Bitiş saati İstanbul (0–23)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(23)
+  hoursEnd?: number | null;
 }
 
 export class SimulatePricingRuleDto {

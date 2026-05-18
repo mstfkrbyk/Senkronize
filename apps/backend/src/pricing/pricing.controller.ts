@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  ParseEnumPipe,
   ParseIntPipe,
   Patch,
   Post,
@@ -19,18 +20,20 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { PlanTier } from '@prisma/client';
+import { PlanTier, Marketplace } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequiresPlan, SubscriptionGuard } from '../common/guards/subscription.guard';
 
 import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
+import { CompetitorPriceService } from './competitor-price.service';
 import {
   CreatePricingRuleDto,
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
   PricingPlatformQueryDto,
+  SchedulePricingRuleDto,
   SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
@@ -43,7 +46,65 @@ import { PricingService } from './pricing.service';
 @UseGuards(JwtAuthGuard, SubscriptionGuard)
 @Controller('pricing')
 export class PricingController {
-  constructor(private readonly pricingService: PricingService) {}
+  constructor(
+    private readonly pricingService: PricingService,
+    private readonly competitorPriceService: CompetitorPriceService,
+  ) {}
+
+  @Get('scheduled-rules')
+  @ApiOperation({ summary: 'Zamanlanmış ama şu an aktif olmayan kurallar' })
+  @ApiResponse({ status: 200, description: 'Kurallar' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getScheduledRules(@CurrentOrg() org: CurrentOrgPayload) {
+    return this.pricingService.getScheduledRules(org.id);
+  }
+
+  @Get('competitor-prices/:barcode')
+  @ApiOperation({ summary: 'Barkod için son rakip fiyatları' })
+  @ApiResponse({ status: 200, description: 'Kayıtlar' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getCompetitorPrices(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ) {
+    return this.competitorPriceService.getLatestCompetitorPrices(org.id, barcode);
+  }
+
+  @Get('price-gap/:barcode')
+  @ApiOperation({ summary: 'Bizim fiyat vs BuyBox / rakip özeti' })
+  @ApiResponse({ status: 200, description: 'Analiz' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getPriceGap(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ) {
+    return this.competitorPriceService.getPriceGapAnalysis(org.id, barcode);
+  }
+
+  @Get('price-trend/:barcode')
+  @ApiOperation({ summary: 'Son 7 gün fiyat trendi (platform gerekli)' })
+  @ApiResponse({ status: 200, description: 'Trend noktaları' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getPriceTrend(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+    @Query('platform', new ParseEnumPipe(Marketplace)) platform: Marketplace,
+  ) {
+    return this.competitorPriceService.getPriceTrend(org.id, barcode, platform);
+  }
+
+  @Patch('rules/:id/schedule')
+  @ApiOperation({ summary: 'Kural zamanlaması (tarih, gün, saat)' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async scheduleRule(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: SchedulePricingRuleDto,
+  ) {
+    return this.pricingService.scheduleRule(org.id, id, dto);
+  }
 
   @Get('rules')
   @ApiOperation({ summary: 'Fiyat kuralları listesi' })

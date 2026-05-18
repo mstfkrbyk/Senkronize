@@ -569,6 +569,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
                   <TableHeader>
                     <TableRow>
                       <TableHead>Barkod</TableHead>
+                      <TableHead>Depo</TableHead>
                       <TableHead>Platform</TableHead>
                       <TableHead className="text-right">Miktar</TableHead>
                       <TableHead className="text-right">Rezerve</TableHead>
@@ -579,6 +580,9 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
                     {stockMovements.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
+                        <TableCell className="text-sm">
+                          {row.warehouseName} ({row.warehouseCode})
+                        </TableCell>
                         <TableCell>
                           {row.platform ? marketplaceLabel(row.platform) : 'Merkezi'}
                         </TableCell>

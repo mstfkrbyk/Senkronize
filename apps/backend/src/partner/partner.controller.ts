@@ -9,6 +9,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -24,11 +25,16 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/public.decorator';
 
 import {
   AcceptInviteDto,
   InviteClientDto,
+  PartnerOnboardingInviteDto,
+  PartnerPayoutRequestDto,
   UpdateRelationshipDto,
+  UpdateWhiteLabelDto,
+  ValidatePartnerInviteDto,
 } from './partner.dto';
 import { PartnerService } from './partner.service';
 
@@ -38,6 +44,118 @@ import { PartnerService } from './partner.service';
 @UseGuards(JwtAuthGuard)
 export class PartnerController {
   constructor(private readonly partnerService: PartnerService) {}
+
+  @Post('validate-invite')
+  @Public()
+  @ApiOperation({ summary: 'Müşteri davet kodunu doğrula (JWT gerekmez)' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 400 })
+  @ApiResponse({ status: 404 })
+  async validateInvite(
+    @Body() dto: ValidatePartnerInviteDto,
+  ): Promise<Awaited<ReturnType<PartnerService['validateInviteToken']>>> {
+    return this.partnerService.validateInviteToken(dto.token);
+  }
+
+  @Post('invite')
+  @ApiOperation({ summary: 'Müşteri onboarding daveti (kayıt bağlantısı)' })
+  @ApiResponse({ status: 201 })
+  async createOnboardingInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PartnerOnboardingInviteDto,
+  ): Promise<Awaited<ReturnType<PartnerService['inviteClient']>>> {
+    return this.partnerService.inviteClient(
+      user.organizationId,
+      dto.email,
+      dto.message,
+    );
+  }
+
+  @Get('invites')
+  @ApiOperation({ summary: 'Onboarding davet listesi' })
+  @ApiResponse({ status: 200 })
+  async listOnboardingInvites(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['getInvites']>>> {
+    return this.partnerService.getInvites(user.organizationId);
+  }
+
+  @Post('invites/:id/resend')
+  @ApiOperation({ summary: 'Onboarding davetini yeniden gönder' })
+  @ApiResponse({ status: 201 })
+  async resendOnboardingInvite(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ): Promise<{ inviteUrl: string }> {
+    return this.partnerService.resendClientInvite(user.organizationId, id);
+  }
+
+  @Get('commission-report')
+  @ApiOperation({ summary: 'Aylık komisyon raporu' })
+  @ApiResponse({ status: 200 })
+  async commissionReport(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('year', new DefaultValuePipe(new Date().getFullYear()), ParseIntPipe)
+    year: number,
+    @Query(
+      'month',
+      new DefaultValuePipe(new Date().getMonth() + 1),
+      ParseIntPipe,
+    )
+    month: number,
+  ): Promise<Awaited<ReturnType<PartnerService['getCommissionReport']>>> {
+    return this.partnerService.getCommissionReport(
+      user.organizationId,
+      year,
+      month,
+    );
+  }
+
+  @Get('performance')
+  @ApiOperation({ summary: 'Partner performans özeti' })
+  @ApiResponse({ status: 200 })
+  async partnerPerformance(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['getPartnerPerformance']>>> {
+    return this.partnerService.getPartnerPerformance(user.organizationId);
+  }
+
+  @Get('white-label')
+  @ApiOperation({ summary: 'Beyaz etiket ayarları' })
+  @ApiResponse({ status: 200 })
+  async getWhiteLabel(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['getWhiteLabelSettings']>>> {
+    return this.partnerService.getWhiteLabelSettings(user.organizationId);
+  }
+
+  @Put('white-label')
+  @ApiOperation({ summary: 'Beyaz etiket ayarlarını güncelle' })
+  @ApiResponse({ status: 200 })
+  async putWhiteLabel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateWhiteLabelDto,
+  ): Promise<Awaited<ReturnType<PartnerService['updateWhiteLabelSettings']>>> {
+    return this.partnerService.updateWhiteLabelSettings(
+      user.organizationId,
+      dto,
+    );
+  }
+
+  @Post('payout-request')
+  @ApiOperation({ summary: 'Ödeme talebi oluştur' })
+  @ApiResponse({ status: 201 })
+  async payoutRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: PartnerPayoutRequestDto,
+  ): Promise<{ success: true }> {
+    await this.partnerService.requestPayout(
+      user.organizationId,
+      user.id,
+      dto.amount,
+    );
+    return { success: true };
+  }
 
   @Get('clients')
   @ApiOperation({ summary: 'Partner müşteri listesi' })
@@ -52,11 +170,14 @@ export class PartnerController {
   @Post('clients/invite')
   @ApiOperation({ summary: 'Müşteri davet et' })
   @ApiResponse({ status: 201 })
-  async inviteClient(
+  async inviteClientRelationship(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: InviteClientDto,
   ): Promise<{ inviteUrl: string }> {
-    return this.partnerService.inviteClient(user.organizationId, dto);
+    return this.partnerService.inviteClientRelationship(
+      user.organizationId,
+      dto,
+    );
   }
 
   @Get('clients/:clientOrgId')

@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useValidatePartnerInvite } from '@/pages/partner/hooks/usePartner';
 
 const STEP_COUNT = 4;
 
@@ -180,6 +181,21 @@ export function RegisterPage(): ReactElement {
     },
   });
 
+  const inviteFromUrl = searchParams.get('invite');
+  const inviteValidation = useValidatePartnerInvite(inviteFromUrl);
+
+  useEffect(() => {
+    if (inviteValidation.data?.partnerOrgId) {
+      form.setValue('referralCode', inviteValidation.data.partnerOrgId);
+    }
+  }, [inviteValidation.data?.partnerOrgId, form]);
+
+  useEffect(() => {
+    if (inviteValidation.data?.email) {
+      form.setValue('email', inviteValidation.data.email);
+    }
+  }, [inviteValidation.data?.email, form]);
+
   const erpCount = usesErp ? Math.max(1, erpSelection.length) : 0;
   const marketplaceCount = marketplaceSelection.length;
   const ecommerceCount = hasEcommerceSite ? Math.max(1, ecommerceSelection.length) : 0;
@@ -232,6 +248,7 @@ export function RegisterPage(): ReactElement {
         city: values.city,
         website: values.website?.trim() || undefined,
         referralCode: values.referralCode?.trim() || undefined,
+        inviteToken: inviteFromUrl ?? undefined,
         plan: values.selectedPlan,
       });
       setTokens(tokens.accessToken, tokens.refreshToken);
@@ -254,9 +271,9 @@ export function RegisterPage(): ReactElement {
     },
     onSuccess: () => {
       toast.success('Kayıt tamamlandı, hoş geldiniz.');
-      const inviteToken = searchParams.get('inviteToken');
-      if (inviteToken) {
-        navigate(`/invite/${encodeURIComponent(inviteToken)}`, { replace: true });
+      const legacyInviteToken = searchParams.get('inviteToken');
+      if (legacyInviteToken) {
+        navigate(`/invite/${encodeURIComponent(legacyInviteToken)}`, { replace: true });
         return;
       }
       navigate('/dashboard', { replace: true });
@@ -307,17 +324,33 @@ export function RegisterPage(): ReactElement {
 
   const onFinalSubmit = useCallback(
     (values: RegisterFormValues): void => {
+      if (inviteFromUrl) {
+        if (
+          inviteValidation.isLoading ||
+          inviteValidation.isError ||
+          !inviteValidation.data
+        ) {
+          toast.error('Davet kodu geçerli değil veya doğrulanamadı.');
+          return;
+        }
+      }
       registerMutation.mutate(values);
     },
-    [registerMutation],
+    [
+      registerMutation,
+      inviteFromUrl,
+      inviteValidation.isLoading,
+      inviteValidation.isError,
+      inviteValidation.data,
+    ],
   );
 
   if (token) {
-    const inviteToken = searchParams.get('inviteToken');
-    if (inviteToken) {
+    const legacyInviteToken = searchParams.get('inviteToken');
+    if (legacyInviteToken) {
       return (
         <Navigate
-          to={`/invite/${encodeURIComponent(inviteToken)}`}
+          to={`/invite/${encodeURIComponent(legacyInviteToken)}`}
           replace
         />
       );
@@ -340,6 +373,24 @@ export function RegisterPage(): ReactElement {
         <CardDescription>
           14 günlük ücretsiz denemenizi başlatın. Kredi kartı gerekmez; ödeme daha sonra.
         </CardDescription>
+        {inviteFromUrl ? (
+          <div className="rounded-md border border-sky-400/50 bg-sky-50 p-3 text-sm text-sky-950 dark:bg-sky-950/30 dark:text-sky-50">
+            {inviteValidation.isLoading ? (
+              <p>Davet doğrulanıyor…</p>
+            ) : null}
+            {inviteValidation.isError ? (
+              <p className="text-destructive">
+                Davet doğrulanamadı: {getApiErrorMessage(inviteValidation.error)}
+              </p>
+            ) : null}
+            {inviteValidation.data ? (
+              <p>
+                <span className="font-medium">{inviteValidation.data.partnerName}</span> davetiyle
+                kayıt oluyorsunuz. Referans kodu otomatik uygulandı.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="space-y-2 pt-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
@@ -570,7 +621,16 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Referans kodu (isteğe bağlı)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Partner referans kodunuz varsa girin" {...field} />
+                        <Input
+                          placeholder="Partner referans kodunuz varsa girin"
+                          readOnly={Boolean(inviteFromUrl && inviteValidation.data)}
+                          className={cn(
+                            inviteFromUrl && inviteValidation.data
+                              ? 'cursor-not-allowed bg-muted'
+                              : undefined,
+                          )}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

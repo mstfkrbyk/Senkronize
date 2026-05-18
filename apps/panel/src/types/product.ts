@@ -54,6 +54,9 @@ export interface ProductDetailStock {
   id: string;
   barcode: string;
   platform: string | null;
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
   quantity: number;
   reservedQty: number;
   updatedAt: string;

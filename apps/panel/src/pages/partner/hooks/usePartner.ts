@@ -4,9 +4,12 @@ import { toast } from 'sonner';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import type {
+  ClientOnboardingRow,
+  CommissionReport,
   CommissionSummary,
   PartnerCommissionsPage,
   PartnerDashboard,
+  PartnerPerformance,
   PartnerRelationship,
 } from '@/types/partner';
 
@@ -53,6 +56,108 @@ export function useInviteClient() {
       void qc.invalidateQueries({ queryKey: ['partner', 'dashboard'] });
       void qc.invalidateQueries({ queryKey: ['partner', 'commissions'] });
     },
+  });
+}
+
+export function usePartnerOnboardingInvites() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  return useQuery({
+    queryKey: ['partner', 'invites'],
+    queryFn: async (): Promise<ClientOnboardingRow[]> => {
+      const { data } = await api.get<ClientOnboardingRow[]>('/partner/invites');
+      return data;
+    },
+    enabled: orgType === 'PARTNER',
+  });
+}
+
+export function useCreateOnboardingInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: {
+      email: string;
+      message?: string;
+    }): Promise<{ inviteUrl: string } & Record<string, unknown>> => {
+      const { data } = await api.post('/partner/invite', body);
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['partner', 'invites'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'dashboard'] });
+    },
+  });
+}
+
+export function useResendOnboardingInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<{ inviteUrl: string }> => {
+      const { data } = await api.post<{ inviteUrl: string }>(
+        `/partner/invites/${encodeURIComponent(id)}/resend`,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['partner', 'invites'] });
+    },
+  });
+}
+
+export function useCommissionReport(year: number, month: number) {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  return useQuery({
+    queryKey: ['partner', 'commission-report', year, month],
+    queryFn: async (): Promise<CommissionReport> => {
+      const { data } = await api.get<CommissionReport>('/partner/commission-report', {
+        params: { year, month },
+      });
+      return data;
+    },
+    enabled: orgType === 'PARTNER',
+  });
+}
+
+export function usePartnerPerformance() {
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  return useQuery({
+    queryKey: ['partner', 'performance'],
+    queryFn: async (): Promise<PartnerPerformance> => {
+      const { data } = await api.get<PartnerPerformance>('/partner/performance');
+      return data;
+    },
+    enabled: orgType === 'PARTNER',
+  });
+}
+
+export function usePayoutRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (amount: number): Promise<void> => {
+      await api.post('/partner/payout-request', { amount });
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['partner', 'commission'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'commission-report'] });
+    },
+  });
+}
+
+export function useValidatePartnerInvite(token: string | null) {
+  return useQuery({
+    queryKey: ['partner', 'validate-invite', token],
+    queryFn: async (): Promise<{
+      partnerOrgId: string;
+      email: string;
+      partnerName: string;
+    }> => {
+      const { data } = await api.post<{
+        partnerOrgId: string;
+        email: string;
+        partnerName: string;
+      }>('/partner/validate-invite', { token: token ?? '' });
+      return data;
+    },
+    enabled: Boolean(token && token.length >= 10),
   });
 }
 

@@ -6,7 +6,10 @@ import type {
   BuyBoxListingAnalysis,
   BuyBoxSummary,
   BuyBoxWinRateStats,
+  CompetitorPriceRow,
+  PriceGapAnalysis,
   PriceHistoryEntry,
+  PriceTrendPoint,
   PricingRule,
 } from '@/types/pricing';
 
@@ -147,5 +150,119 @@ export function usePriceHistory(
       return data;
     },
     enabled,
+  });
+}
+
+export function useScheduledRules(enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'scheduled-rules'],
+    queryFn: async (): Promise<PricingRule[]> => {
+      const { data } = await api.get<PricingRule[]>('/pricing/scheduled-rules');
+      return data;
+    },
+    enabled,
+  });
+}
+
+export function useScheduleRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      scheduledStart?: string | null;
+      scheduledEnd?: string | null;
+      daysOfWeek?: number[];
+      hoursStart?: number | null;
+      hoursEnd?: number | null;
+    }): Promise<PricingRule> => {
+      const { data } = await api.patch<PricingRule>(
+        `/pricing/rules/${input.id}/schedule`,
+        {
+          scheduledStart: input.scheduledStart,
+          scheduledEnd: input.scheduledEnd,
+          daysOfWeek: input.daysOfWeek,
+          hoursStart: input.hoursStart,
+          hoursEnd: input.hoursEnd,
+        },
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pricing'] });
+      toast.success('Zamanlama kaydedildi');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+}
+
+export function useCompetitorPrices(barcode: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'competitor-prices', barcode],
+    queryFn: async (): Promise<CompetitorPriceRow[]> => {
+      const { data } = await api.get<CompetitorPriceRow[]>(
+        `/pricing/competitor-prices/${encodeURIComponent(barcode!)}`,
+      );
+      return data;
+    },
+    enabled: enabled && barcode != null && barcode.length > 0,
+  });
+}
+
+export function usePriceGap(barcode: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'price-gap', barcode],
+    queryFn: async (): Promise<PriceGapAnalysis> => {
+      const { data } = await api.get<PriceGapAnalysis>(
+        `/pricing/price-gap/${encodeURIComponent(barcode!)}`,
+      );
+      return data;
+    },
+    enabled: enabled && barcode != null && barcode.length > 0,
+  });
+}
+
+export function usePriceTrend(
+  barcode: string | null,
+  platform: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['pricing', 'price-trend', barcode, platform],
+    queryFn: async (): Promise<PriceTrendPoint[]> => {
+      const { data } = await api.get<PriceTrendPoint[]>(
+        `/pricing/price-trend/${encodeURIComponent(barcode!)}`,
+        { params: { platform } },
+      );
+      return data;
+    },
+    enabled:
+      enabled &&
+      barcode != null &&
+      barcode.length > 0 &&
+      platform != null &&
+      platform.length > 0,
+  });
+}
+
+export function useManualPricingUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      barcode: string;
+      platform: string;
+      salePrice: number;
+      listPrice: number;
+    }): Promise<void> => {
+      await api.post('/pricing/manual', input);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pricing'] });
+      toast.success('Fiyat güncellendi');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
   });
 }

@@ -48,6 +48,7 @@ export function StockTable({ entries }: Props): ReactElement {
           <TableRow>
             <TableHead>Ürün adı</TableHead>
             <TableHead>Barkod</TableHead>
+            <TableHead>Depo</TableHead>
             <TableHead>Platform</TableHead>
             <TableHead className="text-right">Stok</TableHead>
             <TableHead className="text-right">Rezerve</TableHead>
@@ -69,6 +70,11 @@ export function StockTable({ entries }: Props): ReactElement {
                 ) : null}
               </TableCell>
               <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {row.warehouseName
+                  ? `${row.warehouseName} (${row.warehouseCode})`
+                  : '—'}
+              </TableCell>
               <TableCell>
                 {!row.platform || row.platform === 'null' ? (
                   <Badge variant="outline" className="border-slate-200 bg-slate-50">

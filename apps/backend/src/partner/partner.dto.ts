@@ -8,7 +8,9 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   Max,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
@@ -57,4 +59,73 @@ export class UpdateRelationshipDto {
   @IsOptional()
   @IsEnum(PartnerStatus)
   status?: PartnerStatus;
+}
+
+export class PartnerOnboardingInviteDto {
+  @ApiProperty({ description: 'Davet edilecek müşteri e-postası' })
+  @IsEmail()
+  email!: string;
+
+  @ApiPropertyOptional({ description: 'Davet e-postasına eklenecek kısa mesaj', maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  message?: string;
+}
+
+export class ValidatePartnerInviteDto {
+  @ApiProperty({ minLength: 10 })
+  @IsString()
+  @MinLength(10)
+  token!: string;
+}
+
+export class UpdateWhiteLabelDto {
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  brandName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl({ require_protocol: true }, { message: 'Geçerli bir logo URL’si girin' })
+  @MaxLength(2000)
+  logoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Örn. #0ea5e9' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  primaryColor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  supportEmail?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  supportPhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  customDomain?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  hideSenkronize?: boolean;
+}
+
+export class PartnerPayoutRequestDto {
+  @ApiProperty({ description: 'Talep edilen tutar (TRY)', minimum: 1 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  amount!: number;
 }

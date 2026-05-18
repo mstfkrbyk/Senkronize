@@ -1,5 +1,19 @@
 export type PartnerStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED';
 
+export interface ClientOnboardingRow {
+  id: string;
+  organizationId: string;
+  clientOrgId: string | null;
+  status: string;
+  inviteEmail: string;
+  inviteExpiresAt: string;
+  completedAt: string | null;
+  createdAt: string;
+  inviteUrl: string;
+  displayStatus: string;
+  expired: boolean;
+}
+
 export interface PartnerRelationship {
   id: string;
   partnerOrgId: string;
@@ -63,4 +77,49 @@ export interface PartnerCommissionsPage {
   page: number;
   limit: number;
   currentMonthTotal: number;
+}
+
+export interface CommissionReportRow {
+  clientOrgId: string;
+  clientName: string;
+  plan: string;
+  monthlyFeeTRY: number;
+  commissionPct: number;
+  commissionAmountTRY: number;
+}
+
+export interface CommissionReport {
+  year: number;
+  month: number;
+  rows: CommissionReportRow[];
+  monthTotal: number;
+  previousMonthTotal: number;
+  lifetimePending: number;
+  lifetimeSettled: number;
+  trendLast6Months: Array<{ year: number; month: number; label: string; total: number }>;
+}
+
+export interface PartnerPerformance {
+  totalActiveClients: number;
+  newClientsThisMonth: number;
+  avgCommissionPerClientTRY: number;
+  topProfitableClients: Array<{
+    clientOrgId: string;
+    name: string;
+    commissionThisMonthTRY: number;
+  }>;
+}
+
+export interface WhiteLabelSettingsDto {
+  id: string;
+  organizationId: string;
+  brandName: string | null;
+  logoUrl: string | null;
+  primaryColor: string | null;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  customDomain: string | null;
+  hideSenkronize: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

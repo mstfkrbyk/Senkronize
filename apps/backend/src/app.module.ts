@@ -34,6 +34,7 @@ import { ProductModule } from './product/product.module';
 import { QueueModule } from './queue/queue.module';
 import { ReportsModule } from './reports/reports.module';
 import { StockModule } from './stock/stock.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { UsersModule } from './users/users.module';
@@ -75,6 +76,7 @@ import { WebhookModule } from './webhook/webhook.module';
     ProductModule,
     PricingModule,
     StockModule,
+    WarehouseModule,
     UsersModule,
     HealthModule,
     SyncStatusModule,

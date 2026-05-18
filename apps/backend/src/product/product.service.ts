@@ -56,6 +56,9 @@ export interface ProductDetailStock {
   id: string;
   barcode: string;
   platform: Marketplace | null;
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
   quantity: number;
   reservedQty: number;
   updatedAt: Date;
@@ -164,7 +167,7 @@ export class ProductService {
     id: string,
   ): Promise<ProductDetailPayload> {
     const product = await this.findOne(organizationId, id);
-    const [variants, listings, stockMovements] = await Promise.all([
+    const [variants, listings, stockEntryRows] = await Promise.all([
       this.prisma.productVariant.findMany({
         where: { organizationId, productId: id, deletedAt: null },
         orderBy: { createdAt: 'asc' },
@@ -189,14 +192,27 @@ export class ProductService {
           id: true,
           barcode: true,
           platform: true,
+          warehouseId: true,
           quantity: true,
           reservedQty: true,
           updatedAt: true,
+          warehouse: { select: { code: true, name: true } },
         },
         orderBy: { updatedAt: 'desc' },
         take: 50,
       }),
     ]);
+    const stockMovements: ProductDetailStock[] = stockEntryRows.map((r) => ({
+      id: r.id,
+      barcode: r.barcode,
+      platform: r.platform,
+      warehouseId: r.warehouseId,
+      warehouseCode: r.warehouse.code,
+      warehouseName: r.warehouse.name,
+      quantity: r.quantity,
+      reservedQty: r.reservedQty,
+      updatedAt: r.updatedAt,
+    }));
     return { product, variants, listings, stockMovements };
   }
 

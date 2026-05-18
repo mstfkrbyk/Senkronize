@@ -8,12 +8,16 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  ClientOnboarding,
   CommissionLedger,
   CommissionType,
   LedgerStatus,
   PartnerRelationship,
   PartnerStatus,
+  PaymentStatus,
+  PlanTier,
   Prisma,
+  WhiteLabelSettings,
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
 
@@ -21,7 +25,13 @@ import { ImpersonationService } from '../impersonation/impersonation.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import type { AcceptInviteDto, InviteClientDto, UpdateRelationshipDto } from './partner.dto';
+import type {
+  AcceptInviteDto,
+  InviteClientDto,
+  UpdateRelationshipDto,
+  UpdateWhiteLabelDto,
+} from './partner.dto';
+import type { CommissionReport, PartnerPerformance } from './partner.types';
 
 @Injectable()
 export class PartnerService {
@@ -92,7 +102,7 @@ export class PartnerService {
     });
   }
 
-  async inviteClient(
+  async inviteClientRelationship(
     partnerOrgId: string,
     dto: InviteClientDto,
   ): Promise<{ inviteUrl: string }> {
@@ -718,5 +728,524 @@ export class PartnerService {
         error,
       });
     }
+  }
+
+  async inviteClient(
+    partnerOrgId: string,
+    email: string,
+    message?: string,
+  ): Promise<Omit<ClientOnboarding, 'inviteToken'> & { inviteUrl: string }> {
+    await this.assertPartnerOrg(partnerOrgId);
+    const partnerOrg = await this.prisma.organization.findFirstOrThrow({
+      where: { id: partnerOrgId, deletedAt: null },
+    });
+
+    const inviteEmail = email.toLowerCase().trim();
+    const inviteToken = randomBytes(32).toString('hex');
+    const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const existing = await this.prisma.clientOnboarding.findFirst({
+      where: {
+        organizationId: partnerOrgId,
+        inviteEmail,
+        status: 'INVITED',
+      },
+    });
+
+    const row = existing
+      ? await this.prisma.clientOnboarding.update({
+          where: { id: existing.id },
+          data: {
+            inviteToken,
+            inviteExpiresAt,
+            status: 'INVITED',
+            clientOrgId: null,
+            completedAt: null,
+          },
+        })
+      : await this.prisma.clientOnboarding.create({
+          data: {
+            organizationId: partnerOrgId,
+            inviteEmail,
+            inviteToken,
+            inviteExpiresAt,
+            status: 'INVITED',
+          },
+        });
+
+    const baseUrl =
+      this.config.get<string>('APP_URL')?.trim() || 'http://localhost:5173';
+    const registerUrl = `${baseUrl.replace(/\/$/, '')}/register?invite=${encodeURIComponent(inviteToken)}`;
+
+    await this.notificationService.dispatch({
+      organizationId: partnerOrgId,
+      channel: 'email',
+      template: 'invite_user',
+      payload: {
+        email: inviteEmail,
+        inviterName: partnerOrg.name,
+        orgName: partnerOrg.name,
+        inviteUrl: registerUrl,
+        customMessage: message?.trim() || '',
+      },
+    });
+
+    const { inviteToken: _t, ...rest } = row;
+    void _t;
+    return { ...rest, inviteUrl: registerUrl };
+  }
+
+  async getInvites(partnerOrgId: string  ): Promise<
+    Array<
+      Omit<ClientOnboarding, 'inviteToken'> & {
+        inviteUrl: string;
+        displayStatus: string;
+        expired: boolean;
+      }
+    >
+  > {
+    await this.assertPartnerOrg(partnerOrgId);
+    const rows = await this.prisma.clientOnboarding.findMany({
+      where: { organizationId: partnerOrgId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const baseUrl =
+      this.config.get<string>('APP_URL')?.trim() || 'http://localhost:5173';
+    const root = baseUrl.replace(/\/$/, '');
+    const now = new Date();
+    return rows.map((r) => {
+      const { inviteToken: _tok, ...rest } = r;
+      void _tok;
+      const expired = r.inviteExpiresAt < now && r.status === 'INVITED';
+      let displayStatus = r.status;
+      if (expired) {
+        displayStatus = 'EXPIRED';
+      } else if (r.status === 'INVITED') {
+        displayStatus = 'INVITED';
+      } else if (r.status === 'REGISTERED') {
+        displayStatus = 'REGISTERED';
+      } else if (r.status === 'ONBOARDED') {
+        displayStatus = 'ONBOARDED';
+      } else if (r.status === 'ACTIVE') {
+        displayStatus = 'ACTIVE';
+      }
+      return {
+        ...rest,
+        inviteUrl: `${root}/register?invite=${encodeURIComponent(r.inviteToken)}`,
+        displayStatus,
+        expired,
+      };
+    });
+  }
+
+  async validateInviteToken(
+    token: string,
+  ): Promise<{ partnerOrgId: string; email: string; partnerName: string }> {
+    const row = await this.prisma.clientOnboarding.findUnique({
+      where: { inviteToken: token },
+      include: { organization: { select: { name: true } } },
+    });
+    if (!row) {
+      throw new NotFoundException('Davet bulunamadı.');
+    }
+    if (row.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('Davet süresi dolmuş.');
+    }
+    if (row.status !== 'INVITED' && row.status !== 'REGISTERED') {
+      throw new BadRequestException('Bu davet artık kullanılamaz.');
+    }
+    return {
+      partnerOrgId: row.organizationId,
+      email: row.inviteEmail,
+      partnerName: row.organization.name,
+    };
+  }
+
+  async completeClientOnboarding(
+    token: string,
+    clientOrgId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const db = tx ?? this.prisma;
+    const row = await db.clientOnboarding.findUnique({
+      where: { inviteToken: token },
+    });
+    if (!row) {
+      throw new NotFoundException('Davet bulunamadı.');
+    }
+    if (row.inviteExpiresAt < new Date()) {
+      throw new BadRequestException('Davet süresi dolmuş.');
+    }
+    if (row.status === 'ACTIVE') {
+      return;
+    }
+    if (row.status !== 'INVITED' && row.status !== 'REGISTERED') {
+      throw new BadRequestException('Bu davet artık kullanılamaz.');
+    }
+
+    await db.clientOnboarding.update({
+      where: { id: row.id },
+      data: {
+        clientOrgId,
+        status: 'ACTIVE',
+        completedAt: new Date(),
+      },
+    });
+
+    await db.partnerRelationship.upsert({
+      where: {
+        partnerOrgId_clientOrgId: {
+          partnerOrgId: row.organizationId,
+          clientOrgId,
+        },
+      },
+      create: {
+        partnerOrgId: row.organizationId,
+        clientOrgId,
+        status: PartnerStatus.ACTIVE,
+        commissionPct: new Prisma.Decimal(10),
+        canImpersonate: true,
+        acceptedAt: new Date(),
+      },
+      update: {
+        status: PartnerStatus.ACTIVE,
+        acceptedAt: new Date(),
+        inviteToken: null,
+        invitedEmail: null,
+      },
+    });
+  }
+
+  async resendClientInvite(
+    partnerOrgId: string,
+    onboardingId: string,
+  ): Promise<{ inviteUrl: string }> {
+    await this.assertPartnerOrg(partnerOrgId);
+    const row = await this.prisma.clientOnboarding.findFirst({
+      where: { id: onboardingId, organizationId: partnerOrgId },
+    });
+    if (!row) {
+      throw new NotFoundException('Davet bulunamadı.');
+    }
+    if (row.status !== 'INVITED') {
+      throw new BadRequestException('Yalnızca bekleyen davetler yeniden gönderilebilir.');
+    }
+    const inviteToken = randomBytes(32).toString('hex');
+    const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    await this.prisma.clientOnboarding.update({
+      where: { id: row.id },
+      data: { inviteToken, inviteExpiresAt },
+    });
+    const partnerOrg = await this.prisma.organization.findFirstOrThrow({
+      where: { id: partnerOrgId, deletedAt: null },
+    });
+    const baseUrl =
+      this.config.get<string>('APP_URL')?.trim() || 'http://localhost:5173';
+    const registerUrl = `${baseUrl.replace(/\/$/, '')}/register?invite=${encodeURIComponent(inviteToken)}`;
+    await this.notificationService.dispatch({
+      organizationId: partnerOrgId,
+      channel: 'email',
+      template: 'invite_user',
+      payload: {
+        email: row.inviteEmail,
+        inviterName: partnerOrg.name,
+        orgName: partnerOrg.name,
+        inviteUrl: registerUrl,
+      },
+    });
+    return { inviteUrl: registerUrl };
+  }
+
+  async getCommissionReport(
+    partnerOrgId: string,
+    year: number,
+    month: number,
+  ): Promise<CommissionReport> {
+    await this.assertPartnerOrg(partnerOrgId);
+
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month, 1);
+    const prevStart = new Date(year, month - 2, 1);
+    const prevEnd = new Date(year, month - 1, 1);
+
+    const relationships = await this.prisma.partnerRelationship.findMany({
+      where: { partnerOrgId, status: PartnerStatus.ACTIVE, clientOrgId: { not: null } },
+      include: {
+        clientOrg: {
+          select: { id: true, name: true, deletedAt: true },
+        },
+      },
+    });
+
+    const clientIds = relationships
+      .filter((r) => r.clientOrgId && r.clientOrg?.deletedAt == null)
+      .map((r) => r.clientOrgId as string);
+
+    const [ledgerMonth, ledgerPrev, pendingAgg, settledAgg, paymentsMonth] =
+      await Promise.all([
+        this.prisma.commissionLedger.groupBy({
+          by: ['clientOrgId'],
+          where: {
+            partnerOrgId,
+            createdAt: { gte: start, lt: end },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.commissionLedger.groupBy({
+          by: ['clientOrgId'],
+          where: {
+            partnerOrgId,
+            createdAt: { gte: prevStart, lt: prevEnd },
+          },
+          _sum: { amount: true },
+        }),
+        this.prisma.commissionLedger.aggregate({
+          where: { partnerOrgId, status: LedgerStatus.PENDING },
+          _sum: { amount: true },
+        }),
+        this.prisma.commissionLedger.aggregate({
+          where: { partnerOrgId, status: LedgerStatus.SETTLED },
+          _sum: { amount: true },
+        }),
+        clientIds.length
+          ? this.prisma.payment.groupBy({
+              by: ['organizationId'],
+              where: {
+                organizationId: { in: clientIds },
+                status: PaymentStatus.SUCCESS,
+                createdAt: { gte: start, lt: end },
+              },
+              _sum: { amount: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+    const ledgerMap = new Map(
+      ledgerMonth.map((g) => [g.clientOrgId, Number(g._sum.amount ?? 0)]),
+    );
+    const paymentMap = new Map(
+      paymentsMonth.map((p) => [
+        p.organizationId,
+        Number(p._sum.amount ?? 0) / 100,
+      ]),
+    );
+
+    const subs = clientIds.length
+      ? await this.prisma.subscription.findMany({
+          where: { organizationId: { in: clientIds } },
+          select: { organizationId: true, plan: true },
+        })
+      : [];
+    const planByOrg = new Map(subs.map((s) => [s.organizationId, s.plan]));
+
+    const rows: CommissionReport['rows'] = relationships
+      .filter((r) => r.clientOrgId && r.clientOrg)
+      .map((r) => {
+        const cid = r.clientOrgId as string;
+        const commissionAmountTRY = ledgerMap.get(cid) ?? 0;
+        const monthlyFeeTRY = paymentMap.get(cid) ?? 0;
+        const commissionPct = Number(r.commissionPct);
+        return {
+          clientOrgId: cid,
+          clientName: r.clientOrg!.name,
+          plan: planByOrg.get(cid) ?? PlanTier.GELISIM,
+          monthlyFeeTRY,
+          commissionPct,
+          commissionAmountTRY,
+        };
+      });
+
+    const monthTotal = [...ledgerMap.values()].reduce((a, b) => a + b, 0);
+    const previousMonthTotal = ledgerPrev.reduce(
+      (acc, g) => acc + Number(g._sum.amount ?? 0),
+      0,
+    );
+
+    const trendLast6Months: CommissionReport['trendLast6Months'] = await Promise.all(
+      Array.from({ length: 6 }, async (_, idx) => {
+        const i = 5 - idx;
+        const d = new Date(year, month - 1 - i, 1);
+        const ys = d.getFullYear();
+        const ms = d.getMonth() + 1;
+        const s = new Date(ys, ms - 1, 1);
+        const e = new Date(ys, ms, 1);
+        const agg = await this.prisma.commissionLedger.aggregate({
+          where: {
+            partnerOrgId,
+            createdAt: { gte: s, lt: e },
+          },
+          _sum: { amount: true },
+        });
+        return {
+          year: ys,
+          month: ms,
+          label: `${ms.toString().padStart(2, '0')}/${ys}`,
+          total: Number(agg._sum.amount ?? 0),
+        };
+      }),
+    );
+
+    return {
+      year,
+      month,
+      rows,
+      monthTotal,
+      previousMonthTotal,
+      lifetimePending: Number(pendingAgg._sum.amount ?? 0),
+      lifetimeSettled: Number(settledAgg._sum.amount ?? 0),
+      trendLast6Months,
+    };
+  }
+
+  async getWhiteLabelSettings(
+    orgId: string,
+  ): Promise<WhiteLabelSettings | null> {
+    await this.assertPartnerOrg(orgId);
+    return this.prisma.whiteLabelSettings.findUnique({
+      where: { organizationId: orgId },
+    });
+  }
+
+  async updateWhiteLabelSettings(
+    orgId: string,
+    dto: UpdateWhiteLabelDto,
+  ): Promise<WhiteLabelSettings> {
+    await this.assertPartnerOrg(orgId);
+    const data: Prisma.WhiteLabelSettingsUncheckedUpdateInput = {};
+    if (dto.brandName !== undefined) {
+      data.brandName = dto.brandName.trim() || null;
+    }
+    if (dto.logoUrl !== undefined) {
+      data.logoUrl = dto.logoUrl.trim() || null;
+    }
+    if (dto.primaryColor !== undefined) {
+      data.primaryColor = dto.primaryColor.trim() || null;
+    }
+    if (dto.supportEmail !== undefined) {
+      data.supportEmail = dto.supportEmail.trim() || null;
+    }
+    if (dto.supportPhone !== undefined) {
+      data.supportPhone = dto.supportPhone.trim() || null;
+    }
+    if (dto.customDomain !== undefined) {
+      data.customDomain = dto.customDomain.trim() || null;
+    }
+    if (dto.hideSenkronize !== undefined) {
+      data.hideSenkronize = dto.hideSenkronize;
+    }
+    return this.prisma.whiteLabelSettings.upsert({
+      where: { organizationId: orgId },
+      create: {
+        organizationId: orgId,
+        brandName: dto.brandName?.trim() ?? null,
+        logoUrl: dto.logoUrl?.trim() ?? null,
+        primaryColor: dto.primaryColor?.trim() ?? null,
+        supportEmail: dto.supportEmail?.trim() ?? null,
+        supportPhone: dto.supportPhone?.trim() ?? null,
+        customDomain: dto.customDomain?.trim() ?? null,
+        hideSenkronize: dto.hideSenkronize ?? false,
+      },
+      update: data,
+    });
+  }
+
+  async requestPayout(
+    partnerOrgId: string,
+    actorUserId: string,
+    amount: number,
+  ): Promise<void> {
+    await this.assertPartnerOrg(partnerOrgId);
+    if (!Number.isFinite(amount) || amount < 1) {
+      throw new BadRequestException('Geçersiz tutar.');
+    }
+    const pending = await this.prisma.commissionLedger.aggregate({
+      where: { partnerOrgId, status: LedgerStatus.PENDING },
+      _sum: { amount: true },
+    });
+    const pendingAmount = Number(pending._sum.amount ?? 0);
+    if (amount > pendingAmount) {
+      throw new BadRequestException(
+        'Talep tutarı bekleyen komisyon bakiyesinden fazla olamaz.',
+      );
+    }
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId,
+        actorOrgId: partnerOrgId,
+        action: 'partner.payout_request',
+        resourceType: 'Partner',
+        resourceId: partnerOrgId,
+        metadata: {
+          amountTRY: amount,
+        },
+      },
+    });
+  }
+
+  async getPartnerPerformance(partnerOrgId: string): Promise<PartnerPerformance> {
+    await this.assertPartnerOrg(partnerOrgId);
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const relationships = await this.prisma.partnerRelationship.findMany({
+      where: { partnerOrgId, status: PartnerStatus.ACTIVE, clientOrgId: { not: null } },
+      include: { clientOrg: { select: { id: true, name: true } } },
+    });
+
+    const clientIds = relationships
+      .map((r) => r.clientOrgId)
+      .filter((id): id is string => id != null);
+
+    const [newOnboardings, ledgerMonth, ledgerByClient] = await Promise.all([
+      this.prisma.clientOnboarding.count({
+        where: {
+          organizationId: partnerOrgId,
+          status: 'ACTIVE',
+          completedAt: { gte: startOfMonth },
+        },
+      }),
+      this.prisma.commissionLedger.aggregate({
+        where: { partnerOrgId, createdAt: { gte: startOfMonth } },
+        _sum: { amount: true },
+      }),
+      clientIds.length
+        ? this.prisma.commissionLedger.groupBy({
+            by: ['clientOrgId'],
+            where: {
+              partnerOrgId,
+              createdAt: { gte: startOfMonth },
+            },
+            _sum: { amount: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const totalActiveClients = clientIds.length;
+    const monthTotal = Number(ledgerMonth._sum.amount ?? 0);
+    const avgCommissionPerClientTRY =
+      totalActiveClients > 0 ? monthTotal / totalActiveClients : 0;
+
+    const nameById = new Map(
+      relationships
+        .filter((r) => r.clientOrg)
+        .map((r) => [r.clientOrgId as string, r.clientOrg!.name]),
+    );
+
+    const topProfitableClients = [...ledgerByClient]
+      .map((g) => ({
+        clientOrgId: g.clientOrgId,
+        name: nameById.get(g.clientOrgId) ?? 'Müşteri',
+        commissionThisMonthTRY: Number(g._sum.amount ?? 0),
+      }))
+      .sort((a, b) => b.commissionThisMonthTRY - a.commissionThisMonthTRY)
+      .slice(0, 8);
+
+    return {
+      totalActiveClients,
+      newClientsThisMonth: newOnboardings,
+      avgCommissionPerClientTRY,
+      topProfitableClients,
+    };
   }
 }

@@ -27,12 +27,33 @@ export interface SerializedStockEntry {
   productId: string | null;
   barcode: string;
   platform: Marketplace | null;
+  warehouseId: string;
+  warehouseCode: string;
+  warehouseName: string;
   quantity: number;
   reservedQty: number;
   availableQty: number;
   updatedAt: string;
   createdAt: string;
   product: SerializedStockProduct | null;
+}
+
+export interface StockOverviewRow {
+  barcode: string;
+  productName: string | null;
+  sku: string | null;
+  totalQuantity: number;
+  totalReserved: number;
+  available: number;
+  lowStock: boolean;
+  byPlatform: { platform: string | null; quantity: number }[];
+  byWarehouse: {
+    warehouseId: string;
+    code: string;
+    name: string;
+    quantity: number;
+    reservedQty: number;
+  }[];
 }
 
 export type LowStockEntryRow = Prisma.StockEntryGetPayload<{
@@ -60,6 +81,7 @@ export class StockService {
 
     const where: Prisma.StockEntryWhereInput = {
       organizationId,
+      ...(query.warehouseId ? { warehouseId: query.warehouseId } : {}),
       ...(query.platform !== undefined ? { platform: query.platform } : {}),
       ...(query.lowStock === true
         ? { quantity: { lt: LOW_STOCK_THRESHOLD } }
@@ -92,6 +114,7 @@ export class StockService {
             where: { deletedAt: null },
             select: { id: true, name: true, sku: true },
           },
+          warehouse: { select: { id: true, code: true, name: true } },
         },
         orderBy: [{ barcode: 'asc' }, { platform: 'asc' }],
         skip,
@@ -101,7 +124,7 @@ export class StockService {
     ]);
 
     const items: SerializedStockEntry[] = rows.map((row) => {
-      const { product, ...rest } = row;
+      const { product, warehouse, ...rest } = row;
       const availableQty = rest.quantity - rest.reservedQty;
       return {
         id: rest.id,
@@ -109,6 +132,9 @@ export class StockService {
         productId: rest.productId,
         barcode: rest.barcode,
         platform: rest.platform,
+        warehouseId: rest.warehouseId,
+        warehouseCode: warehouse.code,
+        warehouseName: warehouse.name,
         quantity: rest.quantity,
         reservedQty: rest.reservedQty,
         availableQty,
@@ -166,5 +192,98 @@ export class StockService {
       jobIds.push(String(job.id));
     }
     return { jobIds };
+  }
+
+  async getManagementOverview(
+    organizationId: string,
+  ): Promise<{ rows: StockOverviewRow[] }> {
+    const rows = await this.prisma.stockEntry.findMany({
+      where: { organizationId },
+      include: {
+        product: {
+          where: { deletedAt: null },
+          select: { name: true, sku: true },
+        },
+        warehouse: { select: { id: true, code: true, name: true } },
+      },
+    });
+
+    type Agg = {
+      barcode: string;
+      productName: string | null;
+      sku: string | null;
+      totalQuantity: number;
+      totalReserved: number;
+      byPlatform: Map<string | null, number>;
+      byWarehouse: Map<
+        string,
+        {
+          warehouseId: string;
+          code: string;
+          name: string;
+          quantity: number;
+          reservedQty: number;
+        }
+      >;
+    };
+
+    const map = new Map<string, Agg>();
+
+    for (const r of rows) {
+      const key = r.barcode;
+      let agg = map.get(key);
+      if (!agg) {
+        agg = {
+          barcode: r.barcode,
+          productName: r.product?.name ?? null,
+          sku: r.product?.sku ?? null,
+          totalQuantity: 0,
+          totalReserved: 0,
+          byPlatform: new Map(),
+          byWarehouse: new Map(),
+        };
+        map.set(key, agg);
+      }
+      agg.totalQuantity += r.quantity;
+      agg.totalReserved += r.reservedQty;
+      const platKey = r.platform ?? null;
+      agg.byPlatform.set(
+        platKey,
+        (agg.byPlatform.get(platKey) ?? 0) + r.quantity,
+      );
+      const whId = r.warehouseId;
+      const whRow = agg.byWarehouse.get(whId) ?? {
+        warehouseId: r.warehouse.id,
+        code: r.warehouse.code,
+        name: r.warehouse.name,
+        quantity: 0,
+        reservedQty: 0,
+      };
+      whRow.quantity += r.quantity;
+      whRow.reservedQty += r.reservedQty;
+      agg.byWarehouse.set(whId, whRow);
+    }
+
+    const out: StockOverviewRow[] = [];
+    for (const agg of map.values()) {
+      const available = agg.totalQuantity - agg.totalReserved;
+      out.push({
+        barcode: agg.barcode,
+        productName: agg.productName,
+        sku: agg.sku,
+        totalQuantity: agg.totalQuantity,
+        totalReserved: agg.totalReserved,
+        available,
+        lowStock: agg.totalQuantity < LOW_STOCK_THRESHOLD,
+        byPlatform: [...agg.byPlatform.entries()].map(([platform, quantity]) => ({
+          platform,
+          quantity,
+        })),
+        byWarehouse: [...agg.byWarehouse.values()],
+      });
+    }
+
+    out.sort((a, b) => a.barcode.localeCompare(b.barcode));
+    return { rows: out };
   }
 }

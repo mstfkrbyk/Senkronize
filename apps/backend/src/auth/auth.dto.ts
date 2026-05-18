@@ -82,6 +82,12 @@ export class RegisterDto {
   @MaxLength(50)
   referralCode?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(10)
+  inviteToken?: string;
+
   @ApiPropertyOptional({ enum: OrgType, enumName: 'OrgType' })
   @IsOptional()
   @IsEnum(OrgType)

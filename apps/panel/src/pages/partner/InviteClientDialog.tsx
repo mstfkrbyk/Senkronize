@@ -24,23 +24,15 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 
-import { useInviteClient } from './hooks/usePartner';
+import { useCreateOnboardingInvite } from './hooks/usePartner';
 
 const inviteSchema = z.object({
-  clientEmail: z
-    .string()
-    .min(1, FORM_MESSAGES.required)
-    .email(FORM_MESSAGES.email),
-  commissionPct: z
-    .number()
-    .refine((n) => Number.isFinite(n), { message: FORM_MESSAGES.required })
-    .min(0, 'Komisyon oranı 0 ile 100 arasında olmalıdır.')
-    .max(100, 'Komisyon oranı 0 ile 100 arasında olmalıdır.'),
-  canImpersonate: z.boolean(),
+  email: z.string().min(1, FORM_MESSAGES.required).email(FORM_MESSAGES.email),
+  message: z.string().max(2000).optional().or(z.literal('')),
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
@@ -52,14 +44,13 @@ interface Props {
 export function InviteClientDialog({ trigger }: Props): ReactElement {
   const [open, setOpen] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
-  const invite = useInviteClient();
+  const invite = useCreateOnboardingInvite();
 
   const form = useForm<InviteFormValues>({
     resolver: zodResolver(inviteSchema),
     defaultValues: {
-      clientEmail: '',
-      commissionPct: 10,
-      canImpersonate: true,
+      email: '',
+      message: '',
     },
   });
 
@@ -67,19 +58,16 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
     setLastInviteUrl(null);
     invite.mutate(
       {
-        clientEmail: values.clientEmail,
-        commissionPct: values.commissionPct,
-        canImpersonate: values.canImpersonate,
+        email: values.email,
+        message: values.message?.trim() || undefined,
       },
       {
         onSuccess: (data) => {
-          setLastInviteUrl(data.inviteUrl);
+          const url =
+            typeof data.inviteUrl === 'string' ? data.inviteUrl : null;
+          setLastInviteUrl(url);
           toast.success('Davet gönderildi.');
-          form.reset({
-            clientEmail: '',
-            commissionPct: 10,
-            canImpersonate: true,
-          });
+          form.reset({ email: '', message: '' });
         },
         onError: (error: unknown) => {
           toast.error(getApiErrorMessage(error));
@@ -107,11 +95,7 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
         setOpen(next);
         if (!next) {
           setLastInviteUrl(null);
-          form.reset({
-            clientEmail: '',
-            commissionPct: 10,
-            canImpersonate: true,
-          });
+          form.reset({ email: '', message: '' });
         }
       }}
     >
@@ -120,16 +104,17 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Müşteri daveti</DialogTitle>
+          <DialogTitle>Müşteri davet et</DialogTitle>
           <DialogDescription>
-            Müşterinize e-posta ile davet gönderin veya bağlantıyı paylaşın.
+            Müşterinize kayıt bağlantısı içeren bir e-posta gönderilir. İsterseniz kısa bir mesaj
+            ekleyebilirsiniz.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="clientEmail"
+              name="email"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Müşteri e-postası</FormLabel>
@@ -147,44 +132,19 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
             />
             <FormField
               control={form.control}
-              name="commissionPct"
+              name="message"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Komisyon oranı (%)</FormLabel>
+                  <FormLabel>Özel mesaj (isteğe bağlı)</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      name={field.name}
-                      ref={field.ref}
-                      value={Number.isFinite(field.value) ? String(field.value) : ''}
-                      onBlur={field.onBlur}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        field.onChange(v === '' ? 10 : Number(v));
-                      }}
+                    <Textarea
+                      placeholder="Kısa bir not ekleyin…"
+                      rows={3}
+                      className="resize-none"
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="canImpersonate"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Hesaba erişim izni</FormLabel>
-                    <p className="text-xs text-muted-foreground">
-                      Müşteri adına panele geçiş yapılabilsin
-                    </p>
-                  </div>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
                 </FormItem>
               )}
             />

@@ -1,0 +1,219 @@
+import { Injectable } from '@nestjs/common';
+import { StockMovementType, Prisma, type StockMovement } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { WarehouseService } from '../warehouse/warehouse.service';
+
+export interface StockMovementRecordParams {
+  organizationId: string;
+  barcode: string;
+  warehouseId?: string | null;
+  platform?: string | null;
+  movementType: StockMovementType;
+  quantity: number;
+  beforeQuantity: number;
+  afterQuantity: number;
+  orderId?: string | null;
+  note?: string | null;
+  tx?: Prisma.TransactionClient;
+}
+
+export interface StockMovementHistoryOptions {
+  from?: Date;
+  to?: Date;
+  movementType?: StockMovementType;
+  barcode?: string;
+  platform?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface MovementSummary {
+  from: string;
+  to: string;
+  byType: Record<string, number>;
+}
+
+@Injectable()
+export class StockMovementService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly warehouseService: WarehouseService,
+  ) {}
+
+  async record(params: StockMovementRecordParams): Promise<StockMovement> {
+    const client = params.tx ?? this.prisma;
+    return client.stockMovement.create({
+      data: {
+        organizationId: params.organizationId,
+        barcode: params.barcode,
+        warehouseId: params.warehouseId ?? null,
+        platform: params.platform ?? null,
+        movementType: params.movementType,
+        quantity: params.quantity,
+        beforeQuantity: params.beforeQuantity,
+        afterQuantity: params.afterQuantity,
+        orderId: params.orderId ?? null,
+        note: params.note ?? null,
+      },
+    });
+  }
+
+  async getHistory(
+    organizationId: string,
+    barcode: string,
+    options: StockMovementHistoryOptions,
+  ): Promise<StockMovement[]> {
+    const where: Prisma.StockMovementWhereInput = {
+      organizationId,
+      barcode,
+      ...(options.from || options.to
+        ? {
+            createdAt: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lte: options.to } : {}),
+            },
+          }
+        : {}),
+      ...(options.movementType
+        ? { movementType: options.movementType }
+        : {}),
+      ...(options.platform !== undefined && options.platform !== ''
+        ? { platform: options.platform }
+        : {}),
+    };
+    return this.prisma.stockMovement.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: options.limit ?? 200,
+    });
+  }
+
+  async getOrgHistory(
+    organizationId: string,
+    options: StockMovementHistoryOptions,
+  ): Promise<{ data: StockMovement[]; total: number }> {
+    const page = options.page ?? 1;
+    const limit = Math.min(options.limit ?? 20, 100);
+    const skip = (page - 1) * limit;
+    const search = options.barcode?.trim();
+
+    const where: Prisma.StockMovementWhereInput = {
+      organizationId,
+      ...(options.from || options.to
+        ? {
+            createdAt: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lte: options.to } : {}),
+            },
+          }
+        : {}),
+      ...(options.movementType
+        ? { movementType: options.movementType }
+        : {}),
+      ...(options.platform !== undefined && options.platform !== ''
+        ? { platform: options.platform }
+        : {}),
+      ...(search && search.length > 0
+        ? { barcode: { contains: search, mode: 'insensitive' } }
+        : {}),
+    };
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.stockMovement.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+
+    return { data, total };
+  }
+
+  async getMovementSummary(
+    organizationId: string,
+    from: Date,
+    to: Date,
+  ): Promise<MovementSummary> {
+    const rows = await this.prisma.stockMovement.groupBy({
+      by: ['movementType'],
+      where: {
+        organizationId,
+        createdAt: { gte: from, lte: to },
+      },
+      _sum: { quantity: true },
+    });
+    const byType: Record<string, number> = {};
+    for (const r of rows) {
+      byType[r.movementType] = r._sum.quantity ?? 0;
+    }
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      byType,
+    };
+  }
+
+  async adjustStock(
+    organizationId: string,
+    barcode: string,
+    newQuantity: number,
+    note?: string,
+  ): Promise<void> {
+    const trimmed = barcode.trim();
+    const main = await this.warehouseService.getOrCreateMainWarehouse(
+      organizationId,
+    );
+    const product = await this.prisma.product.findFirst({
+      where: { organizationId, barcode: trimmed, deletedAt: null },
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.stockEntry.findFirst({
+        where: {
+          organizationId,
+          barcode: trimmed,
+          platform: null,
+          warehouseId: main.id,
+        },
+      });
+      const before = existing?.quantity ?? 0;
+      const after = newQuantity;
+      if (existing) {
+        await tx.stockEntry.update({
+          where: { id: existing.id },
+          data: {
+            quantity: after,
+            ...(product ? { productId: product.id } : {}),
+          },
+        });
+      } else {
+        await tx.stockEntry.create({
+          data: {
+            organizationId,
+            warehouseId: main.id,
+            barcode: trimmed,
+            platform: null,
+            quantity: after,
+            productId: product?.id ?? null,
+          },
+        });
+      }
+      await this.record({
+        organizationId,
+        barcode: trimmed,
+        warehouseId: main.id,
+        platform: null,
+        movementType: StockMovementType.ADJUSTMENT,
+        quantity: after - before,
+        beforeQuantity: before,
+        afterQuantity: after,
+        note: note?.trim() || null,
+        tx,
+      });
+    });
+  }
+}

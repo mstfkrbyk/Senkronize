@@ -5,8 +5,11 @@ import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { useAuthStore } from '@/store/auth.store';
 
 import { PartnerCommissionHistoryTab } from './PartnerCommissionHistoryTab';
+import { PartnerCommissionReportTab } from './PartnerCommissionReportTab';
 import { PartnerDashboardTab } from './PartnerDashboardTab';
-import { PartnerInviteTab } from './PartnerInviteTab';
+import { PartnerOnboardingTab } from './PartnerOnboardingTab';
+import { PartnerPerformanceTab } from './PartnerPerformanceTab';
+import { PartnerWhiteLabelTab } from './PartnerWhiteLabelTab';
 
 export function PartnerPage(): ReactElement {
   const orgType = useAuthStore((s) => s.currentOrg?.type);
@@ -42,19 +45,31 @@ export function PartnerPage(): ReactElement {
       ) : null}
 
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList>
+        <TabsList className="flex h-auto flex-wrap gap-1">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="invite">Müşteri Davet</TabsTrigger>
-          <TabsTrigger value="commissions">Komisyon Geçmişi</TabsTrigger>
+          <TabsTrigger value="onboarding">Müşteri onboarding</TabsTrigger>
+          <TabsTrigger value="commission-report">Komisyon raporu</TabsTrigger>
+          <TabsTrigger value="commissions">Komisyon geçmişi</TabsTrigger>
+          <TabsTrigger value="white-label">Beyaz etiket</TabsTrigger>
+          <TabsTrigger value="performance">Performans</TabsTrigger>
         </TabsList>
         <TabsContent value="dashboard" className="mt-6">
           <PartnerDashboardTab />
         </TabsContent>
-        <TabsContent value="invite" className="mt-6">
-          <PartnerInviteTab />
+        <TabsContent value="onboarding" className="mt-6">
+          <PartnerOnboardingTab />
+        </TabsContent>
+        <TabsContent value="commission-report" className="mt-6">
+          <PartnerCommissionReportTab />
         </TabsContent>
         <TabsContent value="commissions" className="mt-6">
           <PartnerCommissionHistoryTab />
+        </TabsContent>
+        <TabsContent value="white-label" className="mt-6">
+          <PartnerWhiteLabelTab />
+        </TabsContent>
+        <TabsContent value="performance" className="mt-6">
+          <PartnerPerformanceTab />
         </TabsContent>
       </Tabs>
     </div>

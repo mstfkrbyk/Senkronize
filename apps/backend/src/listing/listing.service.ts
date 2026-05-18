@@ -7,13 +7,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Marketplace, Prisma, type Listing } from '@prisma/client';
+import { Marketplace, Prisma, StockMovementType, type Listing } from '@prisma/client';
 import type { Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
 import { readThroughCache } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { StockMovementService } from '../stock/stock-movement.service';
 import {
   JOB_DEFAULT_OPTIONS,
   QUEUE_MARKETPLACE_PULL,
@@ -23,6 +24,7 @@ import type {
   MarketplacePullJobData,
   MarketplacePushJobData,
 } from '../queue/queue.types';
+import { WarehouseService } from '../warehouse/warehouse.service';
 
 import {
   type BulkUpdateItemDto,
@@ -112,6 +114,8 @@ export class ListingService {
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     @InjectQueue(QUEUE_MARKETPLACE_PULL)
     private readonly marketplacePullQueue: Queue<MarketplacePullJobData>,
+    private readonly warehouseService: WarehouseService,
+    private readonly stockMovementService: StockMovementService,
   ) {}
 
   private serializeListing(row: Listing | ListingFindAllRow): SerializedListing {
@@ -524,27 +528,58 @@ export class ListingService {
       },
       JOB_DEFAULT_OPTIONS,
     );
+    const mainWh = await this.warehouseService.getOrCreateMainWarehouse(
+      organizationId,
+    );
     await this.prisma.$transaction(async (tx) => {
       await tx.listing.update({
         where: { id: listing.id },
         data: { quantity },
       });
-      await tx.stockEntry.upsert({
+      const existing = await tx.stockEntry.findUnique({
         where: {
-          organizationId_barcode_platform: {
+          organizationId_barcode_platform_warehouseId: {
             organizationId,
             barcode: listing.barcode,
             platform: listing.platform,
+            warehouseId: mainWh.id,
+          },
+        },
+      });
+      const before = existing?.quantity ?? 0;
+      await tx.stockEntry.upsert({
+        where: {
+          organizationId_barcode_platform_warehouseId: {
+            organizationId,
+            barcode: listing.barcode,
+            platform: listing.platform,
+            warehouseId: mainWh.id,
           },
         },
         create: {
           organizationId,
+          warehouseId: mainWh.id,
           barcode: listing.barcode,
           platform: listing.platform,
           quantity,
         },
         update: { quantity },
       });
+      const after = quantity;
+      if (before !== after) {
+        await this.stockMovementService.record({
+          organizationId,
+          barcode: listing.barcode,
+          warehouseId: mainWh.id,
+          platform: String(listing.platform),
+          movementType: StockMovementType.SYNC,
+          quantity: after - before,
+          beforeQuantity: before,
+          afterQuantity: after,
+          note: 'Listeleme stok güncellemesi',
+          tx,
+        });
+      }
     });
     await this.cache.invalidateListingsForOrg(organizationId);
   }

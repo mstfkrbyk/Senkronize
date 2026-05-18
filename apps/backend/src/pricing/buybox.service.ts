@@ -129,6 +129,11 @@ export class BuyBoxService {
   ): Promise<BuyBoxAnalysisResult> {
     const listing = await this.prisma.listing.findFirst({
       where: { id: listingId, organizationId, deletedAt: null },
+      include: {
+        product: {
+          select: { category: true, brand: true, sku: true },
+        },
+      },
     });
     if (!listing) {
       throw new NotFoundException('Listeleme bulunamadı');
@@ -162,7 +167,13 @@ export class BuyBoxService {
       orderBy: { updatedAt: 'desc' },
     });
     const rule = rules.find(
-      (r) => r.applyToAll || r.barcodes.includes(listing.barcode),
+      (r) =>
+        (r.applyToAll || r.barcodes.includes(listing.barcode)) &&
+        this.pricingEngine.isRuleActiveNow(r) &&
+        this.pricingEngine.ruleAppliesToListing(r, {
+          barcode: listing.barcode,
+          product: listing.product,
+        }),
     );
 
     const engineCtx: PricingEngineContext = {

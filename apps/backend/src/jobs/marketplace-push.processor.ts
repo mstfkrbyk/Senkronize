@@ -1,6 +1,6 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
-import { Marketplace } from '@prisma/client';
+import { Marketplace, StockMovementType } from '@prisma/client';
 import type { Job } from 'bull';
 import type { PriceUpdatePayload, StockUpdatePayload } from '@senkronize/shared';
 
@@ -11,7 +11,9 @@ import { MarketplaceConnectionService } from '../marketplace-connection/marketpl
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { StockMovementService } from '../stock/stock-movement.service';
 import { SyncStatusService } from '../sync-status/sync-status.service';
+import { WarehouseService } from '../warehouse/warehouse.service';
 
 function isStockUpdateRow(
   value: unknown,
@@ -94,6 +96,8 @@ export class MarketplacePushProcessor {
     private readonly prisma: PrismaService,
     private readonly syncStatusService: SyncStatusService,
     private readonly eventService: EventService,
+    private readonly warehouseService: WarehouseService,
+    private readonly stockMovementService: StockMovementService,
   ) {}
 
   @Process('push-stock')
@@ -123,22 +127,55 @@ export class MarketplacePushProcessor {
         return;
       }
       await adapter.updateStock(credentials, updates);
+      const mainWh = await this.warehouseService.getOrCreateMainWarehouse(
+        organizationId,
+      );
       for (const u of updates) {
-        await this.prisma.stockEntry.upsert({
-          where: {
-            organizationId_barcode_platform: {
+        await this.prisma.$transaction(async (tx) => {
+          const existing = await tx.stockEntry.findUnique({
+            where: {
+              organizationId_barcode_platform_warehouseId: {
+                organizationId,
+                barcode: u.barcode,
+                platform: platform as Marketplace,
+                warehouseId: mainWh.id,
+              },
+            },
+          });
+          const before = existing?.quantity ?? 0;
+          await tx.stockEntry.upsert({
+            where: {
+              organizationId_barcode_platform_warehouseId: {
+                organizationId,
+                barcode: u.barcode,
+                platform: platform as Marketplace,
+                warehouseId: mainWh.id,
+              },
+            },
+            create: {
               organizationId,
+              warehouseId: mainWh.id,
               barcode: u.barcode,
               platform: platform as Marketplace,
+              quantity: u.quantity,
             },
-          },
-          create: {
-            organizationId,
-            barcode: u.barcode,
-            platform: platform as Marketplace,
-            quantity: u.quantity,
-          },
-          update: { quantity: u.quantity },
+            update: { quantity: u.quantity },
+          });
+          const after = u.quantity;
+          if (before !== after) {
+            await this.stockMovementService.record({
+              organizationId,
+              barcode: u.barcode,
+              warehouseId: mainWh.id,
+              platform: String(platform),
+              movementType: StockMovementType.SYNC,
+              quantity: after - before,
+              beforeQuantity: before,
+              afterQuantity: after,
+              note: 'Pazaryeri stok senkronu',
+              tx,
+            });
+          }
         });
       }
       await this.syncStatusService.recordSuccess(

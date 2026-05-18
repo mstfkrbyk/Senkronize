@@ -4,6 +4,7 @@ import type { JwtSignOptions } from '@nestjs/jwt';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { NotificationModule } from '../notification/notification.module';
+import { PartnerModule } from '../partner/partner.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -16,6 +17,7 @@ import { JwtStrategy } from './jwt.strategy';
   imports: [
     PrismaModule,
     NotificationModule,
+    PartnerModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

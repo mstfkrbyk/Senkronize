@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { MigrationImportResult, MigrationRow } from './migration.types';
 
@@ -9,7 +10,10 @@ import type { MigrationImportResult, MigrationRow } from './migration.types';
 export class MigrationService {
   private readonly logger = new Logger(MigrationService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly warehouseService: WarehouseService,
+  ) {}
 
   async importProducts(
     rows: MigrationRow[],
@@ -19,6 +23,9 @@ export class MigrationService {
     let updated = 0;
     let skipped = 0;
     const errors: string[] = [];
+    const mainWh = await this.warehouseService.getOrCreateMainWarehouse(
+      organizationId,
+    );
 
     for (const row of rows) {
       try {
@@ -78,6 +85,7 @@ export class MigrationService {
               organizationId,
               barcode: row.barcode,
               platform: null,
+              warehouseId: mainWh.id,
             },
           });
           if (stockRow) {
@@ -89,6 +97,7 @@ export class MigrationService {
             await tx.stockEntry.create({
               data: {
                 organizationId,
+                warehouseId: mainWh.id,
                 barcode: row.barcode,
                 platform: null,
                 quantity: qty,

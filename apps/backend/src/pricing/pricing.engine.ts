@@ -1,6 +1,47 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { PricingRule } from '@prisma/client';
+import type { Listing, PricingRule, Product } from '@prisma/client';
 import { PricingStrategy } from '@prisma/client';
+
+const ISTANBUL_TZ = 'Europe/Istanbul';
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** Listing + ürün alanları (kural filtreleri için) */
+export type PricingListingFilterInput = Pick<Listing, 'barcode'> & {
+  product: Pick<Product, 'category' | 'brand' | 'sku'> | null;
+};
+
+function istanbulWeekdayIndex0Sun(reference: Date): number {
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: ISTANBUL_TZ,
+    weekday: 'short',
+  }).format(reference);
+  const idx = WEEKDAY_SHORT.indexOf(weekday as (typeof WEEKDAY_SHORT)[number]);
+  return idx >= 0 ? idx : 0;
+}
+
+function istanbulHour0To23(reference: Date): number {
+  const hourStr = new Intl.DateTimeFormat('en-GB', {
+    timeZone: ISTANBUL_TZ,
+    hour: '2-digit',
+    hour12: false,
+  }).format(reference);
+  const hour = Number.parseInt(hourStr, 10);
+  return Number.isFinite(hour) ? hour : 0;
+}
+
+function hourInRange(
+  hour: number,
+  start: number,
+  end: number,
+): boolean {
+  if (start === end) {
+    return true;
+  }
+  if (start < end) {
+    return hour >= start && hour <= end;
+  }
+  return hour >= start || hour <= end;
+}
 
 /** Rakibin fiyatından bir adım düşük, minimum kâr marjını korur */
 function aggressiveBuyBox(
@@ -39,7 +80,7 @@ function profitFocused(
 
 /** Gece 00–06 indirim; öğle 12–14 peak prim */
 function timeBased(basePrice: number, rule: PricingRule): number {
-  const hour = new Date().getHours();
+  const hour = istanbulHour0To23(new Date());
   const night = rule.nightDiscountPercent ?? 0.05;
   const peak = rule.peakPremiumPercent ?? 0.03;
   if (hour >= 0 && hour < 6) {
@@ -74,6 +115,14 @@ function marginFraction(rule: PricingRule): number {
   return Number(rule.minMarginPct) / 100;
 }
 
+function normalizeContainsFilter(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  const t = value.trim();
+  return t.length > 0 ? t.toLowerCase() : null;
+}
+
 export interface PricingEngineContext {
   /** Listing stok adedi */
   stock: number;
@@ -85,6 +134,76 @@ export interface PricingEngineContext {
 export class PricingEngine {
   private readonly logger = new Logger(PricingEngine.name);
 
+  /** Kuralın şu an (İstanbul saati) aktif olup olmadığı */
+  isRuleActiveNow(rule: PricingRule, reference: Date = new Date()): boolean {
+    if (rule.scheduledStart != null && reference < rule.scheduledStart) {
+      return false;
+    }
+    if (rule.scheduledEnd != null && reference > rule.scheduledEnd) {
+      return false;
+    }
+
+    const days = rule.daysOfWeek ?? [];
+    if (days.length > 0) {
+      const dow = istanbulWeekdayIndex0Sun(reference);
+      if (!days.includes(dow)) {
+        return false;
+      }
+    }
+
+    if (rule.hoursStart != null && rule.hoursEnd != null) {
+      const hour = istanbulHour0To23(reference);
+      if (
+        !hourInRange(hour, rule.hoursStart, rule.hoursEnd)
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /** Kategori, marka ve SKU deseni eşleşmesi */
+  ruleAppliesToListing(
+    rule: PricingRule,
+    listing: PricingListingFilterInput,
+  ): boolean {
+    const catFilter = normalizeContainsFilter(rule.categoryFilter);
+    const brandFilter = normalizeContainsFilter(rule.brandFilter);
+    const skuPattern = rule.skuPattern?.trim() ?? null;
+
+    const product = listing.product;
+    const category = product?.category?.trim().toLowerCase() ?? '';
+    const brand = product?.brand?.trim().toLowerCase() ?? '';
+    const sku = (product?.sku?.trim() ?? '').toLowerCase();
+    const barcode = listing.barcode.trim().toLowerCase();
+
+    if (catFilter !== null) {
+      if (!category.includes(catFilter)) {
+        return false;
+      }
+    }
+    if (brandFilter !== null) {
+      if (!brand.includes(brandFilter)) {
+        return false;
+      }
+    }
+    if (skuPattern !== null && skuPattern.length > 0) {
+      try {
+        const re = new RegExp(skuPattern, 'i');
+        const haystack = sku.length > 0 ? sku : barcode;
+        if (!re.test(haystack)) {
+          return false;
+        }
+      } catch {
+        this.logger.warn('Geçersiz skuPattern; kural atlanıyor', { ruleId: rule.id });
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   calculateOptimalPrice(
     rule: PricingRule,
     currentOurPrice: number,
@@ -92,6 +211,10 @@ export class PricingEngine {
     costPriceOverride: number | null,
     context?: PricingEngineContext,
   ): number | null {
+    if (!this.isRuleActiveNow(rule)) {
+      return null;
+    }
+
     const minMarginPct = Number(rule.minMarginPct);
     const maxDiscountPct = Number(rule.maxDiscountPct);
 
@@ -99,10 +222,6 @@ export class PricingEngine {
       rule.costPrice != null && !Number.isNaN(rule.costPrice)
         ? rule.costPrice
         : (costPriceOverride ?? 0);
-
-    const minPriceFromLegacyMargin = resolvedCost
-      ? resolvedCost * (1 + minMarginPct / 100)
-      : currentOurPrice * 0.8;
 
     const stock = context?.stock ?? 0;
     const hasBuyBox = context?.hasBuyBox ?? false;
@@ -167,6 +286,10 @@ export class PricingEngine {
         return null;
     }
 
+    const minPriceFromLegacyMargin = resolvedCost
+      ? resolvedCost * (1 + minMarginPct / 100)
+      : currentOurPrice * 0.8;
+
     const maxDiscountFloor = currentOurPrice * (1 - maxDiscountPct / 100);
     targetPrice = Math.max(targetPrice, minPriceFromLegacyMargin, maxDiscountFloor);
 
@@ -182,5 +305,15 @@ export class PricingEngine {
       return newPrice > 0;
     }
     return Math.abs(currentPrice - newPrice) / currentPrice > threshold;
+  }
+
+  hasScheduleConfiguration(rule: PricingRule): boolean {
+    return (
+      rule.scheduledStart != null ||
+      rule.scheduledEnd != null ||
+      (rule.daysOfWeek?.length ?? 0) > 0 ||
+      rule.hoursStart != null ||
+      rule.hoursEnd != null
+    );
   }
 }

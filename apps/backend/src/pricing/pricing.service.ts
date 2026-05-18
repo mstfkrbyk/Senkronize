@@ -32,6 +32,7 @@ import type {
   CreatePricingRuleDto,
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
+  SchedulePricingRuleDto,
   SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
@@ -78,6 +79,33 @@ export class PricingService {
     private readonly pushQueue: Queue<MarketplacePushJobData>,
   ) {}
 
+  private assertValidSkuPattern(pattern: string | null | undefined): void {
+    if (pattern === null || pattern === undefined) {
+      return;
+    }
+    const t = pattern.trim();
+    if (t.length === 0) {
+      return;
+    }
+    try {
+      // eslint-disable-next-line no-new -- deseni doğrulamak için
+      new RegExp(t);
+    } catch {
+      throw new BadRequestException('Geçersiz SKU deseni');
+    }
+  }
+
+  private parseOptionalIsoDate(value: string | undefined): Date | undefined {
+    if (value === undefined || value === '') {
+      return undefined;
+    }
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException('Geçersiz tarih/saat');
+    }
+    return d;
+  }
+
   async createRule(
     organizationId: string,
     dto: CreatePricingRuleDto,
@@ -89,6 +117,8 @@ export class PricingService {
         'applyToAll false ise en az bir barkod gerekir',
       );
     }
+
+    this.assertValidSkuPattern(dto.skuPattern);
 
     return this.prisma.pricingRule.create({
       data: {
@@ -119,6 +149,22 @@ export class PricingService {
           ? { highStockThreshold: dto.highStockThreshold }
           : {}),
         ...(dto.maxPrice !== undefined ? { maxPrice: dto.maxPrice } : {}),
+        ...(dto.scheduledStart != null &&
+          dto.scheduledStart !== '' && {
+            scheduledStart: this.parseOptionalIsoDate(dto.scheduledStart) as Date,
+          }),
+        ...(dto.scheduledEnd != null &&
+          dto.scheduledEnd !== '' && {
+            scheduledEnd: this.parseOptionalIsoDate(dto.scheduledEnd) as Date,
+          }),
+        ...(dto.daysOfWeek !== undefined ? { daysOfWeek: dto.daysOfWeek } : {}),
+        ...(dto.hoursStart !== undefined ? { hoursStart: dto.hoursStart } : {}),
+        ...(dto.hoursEnd !== undefined ? { hoursEnd: dto.hoursEnd } : {}),
+        ...(dto.categoryFilter !== undefined
+          ? { categoryFilter: dto.categoryFilter }
+          : {}),
+        ...(dto.brandFilter !== undefined ? { brandFilter: dto.brandFilter } : {}),
+        ...(dto.skuPattern !== undefined ? { skuPattern: dto.skuPattern } : {}),
       },
     });
   }
@@ -153,6 +199,8 @@ export class PricingService {
         'applyToAll false ise en az bir barkod gerekir',
       );
     }
+
+    this.assertValidSkuPattern(dto.skuPattern);
 
     return this.prisma.pricingRule.update({
       where: { id },
@@ -190,8 +238,99 @@ export class PricingService {
         ...(dto.maxPrice !== undefined && { maxPrice: dto.maxPrice }),
         applyToAll: nextApplyToAll,
         barcodes: nextBarcodes,
+        ...(dto.scheduledStart !== undefined && {
+          scheduledStart:
+            dto.scheduledStart === null || dto.scheduledStart === ''
+              ? null
+              : this.parseOptionalIsoDate(dto.scheduledStart),
+        }),
+        ...(dto.scheduledEnd !== undefined && {
+          scheduledEnd:
+            dto.scheduledEnd === null || dto.scheduledEnd === ''
+              ? null
+              : this.parseOptionalIsoDate(dto.scheduledEnd),
+        }),
+        ...(dto.daysOfWeek !== undefined && { daysOfWeek: dto.daysOfWeek }),
+        ...(dto.hoursStart !== undefined && { hoursStart: dto.hoursStart }),
+        ...(dto.hoursEnd !== undefined && { hoursEnd: dto.hoursEnd }),
+        ...(dto.categoryFilter !== undefined && {
+          categoryFilter: dto.categoryFilter,
+        }),
+        ...(dto.brandFilter !== undefined && { brandFilter: dto.brandFilter }),
+        ...(dto.skuPattern !== undefined && { skuPattern: dto.skuPattern }),
       },
     });
+  }
+
+  async scheduleRule(
+    organizationId: string,
+    ruleId: string,
+    dto: SchedulePricingRuleDto,
+  ): Promise<PricingRule> {
+    const existing = await this.prisma.pricingRule.findFirst({
+      where: { id: ruleId, organizationId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new NotFoundException('Fiyat kuralı bulunamadı');
+    }
+
+    if (
+      (dto.hoursStart !== undefined && dto.hoursEnd === undefined) ||
+      (dto.hoursEnd !== undefined && dto.hoursStart === undefined)
+    ) {
+      throw new BadRequestException(
+        'Saat aralığı için başlangıç ve bitiş birlikte gönderilmelidir',
+      );
+    }
+
+    const nextStart =
+      dto.scheduledStart !== undefined
+        ? dto.scheduledStart === null || dto.scheduledStart === ''
+          ? null
+          : this.parseOptionalIsoDate(dto.scheduledStart)
+        : undefined;
+    const nextEnd =
+      dto.scheduledEnd !== undefined
+        ? dto.scheduledEnd === null || dto.scheduledEnd === ''
+          ? null
+          : this.parseOptionalIsoDate(dto.scheduledEnd)
+        : undefined;
+
+    if (nextStart != null && nextEnd != null && nextStart > nextEnd) {
+      throw new BadRequestException('Başlangıç zamanı bitişten sonra olamaz');
+    }
+
+    return this.prisma.pricingRule.update({
+      where: { id: ruleId },
+      data: {
+        ...(dto.scheduledStart !== undefined && { scheduledStart: nextStart }),
+        ...(dto.scheduledEnd !== undefined && { scheduledEnd: nextEnd }),
+        ...(dto.daysOfWeek !== undefined && { daysOfWeek: dto.daysOfWeek }),
+        ...(dto.hoursStart !== undefined && { hoursStart: dto.hoursStart }),
+        ...(dto.hoursEnd !== undefined && { hoursEnd: dto.hoursEnd }),
+      },
+    });
+  }
+
+  async getScheduledRules(organizationId: string): Promise<PricingRule[]> {
+    const rows = await this.prisma.pricingRule.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        OR: [
+          { scheduledStart: { not: null } },
+          { scheduledEnd: { not: null } },
+          { daysOfWeek: { isEmpty: false } },
+          { hoursStart: { not: null } },
+          { hoursEnd: { not: null } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return rows.filter(
+      (r) =>
+        this.engine.hasScheduleConfiguration(r) && !this.engine.isRuleActiveNow(r),
+    );
   }
 
   async deleteRule(organizationId: string, id: string): Promise<void> {

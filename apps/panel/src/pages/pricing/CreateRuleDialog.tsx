@@ -95,6 +95,9 @@ const formSchema = z
       }, FORM_MESSAGES.pricePositive),
     applyToAll: z.boolean(),
     barcodesRaw: z.string().optional(),
+    categoryFilter: z.string().optional(),
+    brandFilter: z.string().optional(),
+    skuPattern: z.string().optional(),
   })
   .superRefine((val, ctx) => {
     if (!val.applyToAll) {
@@ -134,6 +137,9 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
       costPrice: '',
       applyToAll: true,
       barcodesRaw: '',
+      categoryFilter: '',
+      brandFilter: '',
+      skuPattern: '',
     },
   });
 
@@ -150,6 +156,9 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
         costPrice: '',
         applyToAll: true,
         barcodesRaw: '',
+        categoryFilter: '',
+        brandFilter: '',
+        skuPattern: '',
       });
     }
   }, [open, form]);
@@ -177,6 +186,18 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
     const costRaw = values.costPrice?.trim();
     if (costRaw) {
       payload.costPrice = Number(costRaw.replace(',', '.'));
+    }
+    const cat = values.categoryFilter?.trim();
+    const brand = values.brandFilter?.trim();
+    const sku = values.skuPattern?.trim();
+    if (cat) {
+      payload.categoryFilter = cat;
+    }
+    if (brand) {
+      payload.brandFilter = brand;
+    }
+    if (sku) {
+      payload.skuPattern = sku;
     }
 
     createMutation.mutate(
@@ -351,6 +372,49 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
                 )}
               />
             ) : null}
+
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">Kategori / marka / SKU (isteğe bağlı)</p>
+              <FormField
+                control={form.control}
+                name="categoryFilter"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Kategori içerir</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Örn. Ayakkabı" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="brandFilter"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Marka içerir</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Örn. Nike" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="skuPattern"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>SKU deseni (regex)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Örn. ^ABC" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

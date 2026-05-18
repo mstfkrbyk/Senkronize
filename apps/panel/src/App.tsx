@@ -39,7 +39,7 @@ import { ProductImportPage } from '@/pages/products/ProductImportPage';
 import { ProductsPage } from '@/pages/products/ProductsPage';
 import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
-import { StockPage } from '@/pages/stock/StockPage';
+import { StockManagementPage } from '@/pages/stock/StockManagementPage';
 import { SyncLogsPage } from '@/pages/sync-logs/SyncLogsPage';
 import { useThemeStore } from '@/store/theme.store';
 
@@ -113,7 +113,7 @@ export default function App(): ReactElement {
                 <Route path="/products/import" element={<ProductImportPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products" element={<ProductsPage />} />
-                <Route path="/stock" element={<StockPage />} />
+                <Route path="/stock" element={<StockManagementPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />

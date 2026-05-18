@@ -24,6 +24,14 @@ function makeRule(
     isActive: true,
     applyToAll: false,
     barcodes: [],
+    scheduledStart: null,
+    scheduledEnd: null,
+    daysOfWeek: [],
+    hoursStart: null,
+    hoursEnd: null,
+    categoryFilter: null,
+    brandFilter: null,
+    skuPattern: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
@@ -105,5 +113,33 @@ describe('PricingEngine', () => {
     expect(base).not.toBeNull();
     expect(low).not.toBeNull();
     expect(low!).toBeGreaterThan(base!);
+  });
+
+  it('isRuleActiveNow: gün filtresi dışındaysa false', () => {
+    const rule = makeRule({
+      strategy: PricingStrategy.MATCH_BUYBOX,
+      daysOfWeek: [2],
+    });
+    const monday = new Date('2026-05-18T12:00:00.000Z');
+    expect(engine.isRuleActiveNow(rule, monday)).toBe(false);
+  });
+
+  it('ruleAppliesToListing: kategori filtresi', () => {
+    const rule = makeRule({
+      strategy: PricingStrategy.MATCH_BUYBOX,
+      categoryFilter: 'Ayakkabı',
+    });
+    expect(
+      engine.ruleAppliesToListing(rule, {
+        barcode: 'x',
+        product: { category: 'Spor Ayakkabı', brand: 'X', sku: 'SKU1' },
+      }),
+    ).toBe(true);
+    expect(
+      engine.ruleAppliesToListing(rule, {
+        barcode: 'x',
+        product: { category: 'Giyim', brand: 'X', sku: 'SKU1' },
+      }),
+    ).toBe(false);
   });
 });

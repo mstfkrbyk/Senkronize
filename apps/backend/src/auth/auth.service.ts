@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
@@ -20,6 +21,7 @@ import { randomBytes } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../notifications/email/email.service';
 import { SmsService } from '../notifications/sms/sms.service';
+import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangePasswordDto,
@@ -44,6 +46,7 @@ export class AuthService {
     private readonly notificationService: NotificationService,
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
+    private readonly partnerService: PartnerService,
   ) {}
 
   async register(
@@ -63,6 +66,20 @@ export class AuthService {
     });
     if (existingTaxOrg) {
       throw new ConflictException('Bu vergi numarasıyla zaten kayıt mevcut');
+    }
+
+    let partnerOnboardingToken: string | null = null;
+    let partnerOrgIdFromInvite: string | null = null;
+    const rawInviteToken = dto.inviteToken?.trim();
+    if (rawInviteToken) {
+      const invite = await this.partnerService.validateInviteToken(rawInviteToken);
+      if (invite.email.toLowerCase() !== email) {
+        throw new BadRequestException(
+          'Davet e-postası ile kayıt e-postası eşleşmiyor.',
+        );
+      }
+      partnerOnboardingToken = rawInviteToken;
+      partnerOrgIdFromInvite = invite.partnerOrgId;
     }
 
     const passwordHash = await this.hashPassword(dto.password);
@@ -85,9 +102,18 @@ export class AuthService {
           address: dto.address.trim(),
           city: dto.city.trim(),
           website: dto.website?.trim() || null,
-          referralCode: dto.referralCode?.trim() || null,
+          referralCode:
+            (partnerOrgIdFromInvite ?? dto.referralCode?.trim()) || null,
         },
       });
+
+      if (partnerOnboardingToken) {
+        await this.partnerService.completeClientOnboarding(
+          partnerOnboardingToken,
+          organization.id,
+          tx,
+        );
+      }
 
       const user = await tx.user.create({
         data: {

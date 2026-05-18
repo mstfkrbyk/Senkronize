@@ -40,15 +40,33 @@ export class PricingProcessor {
     });
 
     for (const rule of rules) {
+      if (!this.engine.isRuleActiveNow(rule)) {
+        continue;
+      }
       const where = {
         organizationId,
         platform: rule.platform,
         deletedAt: null,
         ...(rule.applyToAll ? {} : { barcode: { in: rule.barcodes } }),
       };
-      const listings = await this.prisma.listing.findMany({ where });
+      const listings = await this.prisma.listing.findMany({
+        where,
+        include: {
+          product: {
+            select: { category: true, brand: true, sku: true },
+          },
+        },
+      });
 
       for (const listing of listings) {
+        if (
+          !this.engine.ruleAppliesToListing(rule, {
+            barcode: listing.barcode,
+            product: listing.product,
+          })
+        ) {
+          continue;
+        }
         const snapshot = await this.buyboxService.getLatestSnapshotForBarcode(
           organizationId,
           rule.platform,

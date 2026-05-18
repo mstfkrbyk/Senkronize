@@ -10,6 +10,7 @@ import { OrderModule } from '../order/order.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ProductModule } from '../product/product.module';
+import { StockModule } from '../stock/stock.module';
 import { SyncStatusModule } from '../sync-status/sync-status.module';
 
 import { BuyBoxFetchTask } from './buybox-fetch.task';
@@ -38,6 +39,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     ImageModule,
     ProductModule,
     InAppNotificationModule,
+    StockModule,
   ],
   providers: [
     MarketplaceJobFailureHandler,
