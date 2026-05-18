@@ -31,7 +31,9 @@ export type Marketplace =
   | 'PTTAVM'
   | 'PAZARAMA'
   | 'TSOFT'
-  | 'TICIMAX';
+  | 'TICIMAX'
+  | 'WOOCOMMERCE'
+  | 'SHOPIFY';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

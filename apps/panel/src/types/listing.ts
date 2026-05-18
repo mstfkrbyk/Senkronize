@@ -8,7 +8,9 @@ export type ListingPlatform =
   | 'PTTAVM'
   | 'PAZARAMA'
   | 'TSOFT'
-  | 'TICIMAX';
+  | 'TICIMAX'
+  | 'WOOCOMMERCE'
+  | 'SHOPIFY';
 
 export interface Listing {
   id: string;

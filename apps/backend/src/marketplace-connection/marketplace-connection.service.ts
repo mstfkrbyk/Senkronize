@@ -90,6 +90,12 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.PTTAVM) {
       return creds.storeId ?? null;
     }
+    if (platform === Marketplace.WOOCOMMERCE) {
+      return creds.storeUrl ?? null;
+    }
+    if (platform === Marketplace.SHOPIFY) {
+      return creds.shopDomain ?? null;
+    }
     return null;
   }
 

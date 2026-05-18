@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "Marketplace" ADD VALUE 'WOOCOMMERCE';
+ALTER TYPE "Marketplace" ADD VALUE 'SHOPIFY';
