@@ -24,6 +24,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangePasswordDto,
   LoginDto,
+  RecommendPlanDto,
   RegisterDto,
   UpdateProfileDto,
 } from './auth.dto';
@@ -56,13 +57,22 @@ export class AuthService {
       throw new ConflictException('Bu e-posta adresi zaten kayıtlı.');
     }
 
+    const normalizedTax = dto.taxNumber.trim();
+    const existingTaxOrg = await this.prisma.organization.findFirst({
+      where: { taxNumber: normalizedTax, deletedAt: null },
+    });
+    if (existingTaxOrg) {
+      throw new ConflictException('Bu vergi numarasıyla zaten kayıt mevcut');
+    }
+
     const passwordHash = await this.hashPassword(dto.password);
-    const orgName = dto.companyName?.trim() || dto.name;
+    const orgName = dto.companyName.trim();
     const slug = await this.generateUniqueOrgSlug(dto.email);
 
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
     const now = new Date();
+    const selectedPlan = dto.plan ?? PlanTier.GELISIM;
 
     const newUser = await this.prisma.$transaction(async (tx) => {
       const organization = await tx.organization.create({
@@ -70,6 +80,12 @@ export class AuthService {
           slug,
           name: orgName,
           type: dto.orgType ?? OrgType.DIRECT,
+          taxNumber: normalizedTax,
+          taxOffice: dto.taxOffice.trim(),
+          address: dto.address.trim(),
+          city: dto.city.trim(),
+          website: dto.website?.trim() || null,
+          referralCode: dto.referralCode?.trim() || null,
         },
       });
 
@@ -79,7 +95,7 @@ export class AuthService {
           email,
           passwordHash,
           name: dto.name,
-          phone: dto.phone?.trim() || null,
+          phone: dto.phone.trim(),
           role: UserRole.OWNER,
         },
       });
@@ -87,7 +103,7 @@ export class AuthService {
       await tx.subscription.create({
         data: {
           organizationId: organization.id,
-          plan: PlanTier.GELISIM,
+          plan: selectedPlan,
           status: SubStatus.TRIAL,
           trialEndsAt,
           currentPeriodStart: now,
@@ -137,6 +153,55 @@ export class AuthService {
       newUser.organizationId,
       UserRole.OWNER,
     );
+  }
+
+  recommendPlan(dto: RecommendPlanDto): {
+    recommendedPlan: PlanTier;
+    reason: string;
+  } {
+    const totalChannels = dto.marketplaceCount + dto.ecommerceCount;
+    const { erpCount } = dto;
+
+    if (totalChannels > 8 || erpCount > 1) {
+      return {
+        recommendedPlan: PlanTier.KURUMSAL,
+        reason:
+          'Çok sayıda satış kanalı veya birden fazla ERP ihtiyacı Kurumsal paketin sunduğu kapasite ve destek ile uyumludur.',
+      };
+    }
+    if (erpCount > 0) {
+      return {
+        recommendedPlan: PlanTier.PRO,
+        reason:
+          'ERP kullanımı sipariş ve stok akışında daha derin entegrasyon gerektirir; Pro paket bu senaryo için önerilir.',
+      };
+    }
+    if (totalChannels <= 2 && erpCount === 0) {
+      return {
+        recommendedPlan: PlanTier.BASLANGIC,
+        reason:
+          'Az sayıda satış kanalı ve ERP kullanmıyorsanız Başlangıç paketi işletmeniz için yeterlidir.',
+      };
+    }
+    if (totalChannels <= 4) {
+      return {
+        recommendedPlan: PlanTier.GELISIM,
+        reason:
+          'Birden fazla pazaryeri veya e-ticaret kanalı için Gelişim paketi dengeli özellik ve limitler sunar.',
+      };
+    }
+    if (totalChannels <= 8) {
+      return {
+        recommendedPlan: PlanTier.PRO,
+        reason:
+          'Daha fazla kanal ve iş hacmi için Pro paketin limitleri ve gelişmiş özellikleri daha uygundur.',
+      };
+    }
+    return {
+      recommendedPlan: PlanTier.KURUMSAL,
+      reason:
+        'Yüksek kanal sayısı veya özel ihtiyaçlar için Kurumsal paket ile sınırları genişletebilirsiniz.',
+    };
   }
 
   async login(

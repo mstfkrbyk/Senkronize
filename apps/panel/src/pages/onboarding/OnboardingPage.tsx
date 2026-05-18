@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, ChevronLeft, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -9,32 +9,14 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import {
-  completeOnboarding,
-  saveErpConnection,
-  saveMarketplaceConnection,
-} from '@/pages/onboarding/onboarding.api';
-import { ERP_OPTIONS } from '@/pages/onboarding/onboarding.options';
-import type { OnboardingState } from '@/pages/onboarding/onboarding.types';
+import { completeOnboarding } from '@/pages/onboarding/onboarding.api';
 import { Step1Welcome } from '@/pages/onboarding/steps/Step1Welcome';
-import { Step2Marketplace } from '@/pages/onboarding/steps/Step2Marketplace';
-import { Step3Erp } from '@/pages/onboarding/steps/Step3Erp';
-import { Step4Done } from '@/pages/onboarding/steps/Step4Done';
+import { Step2Connections } from '@/pages/onboarding/steps/Step2Connections';
+import { Step3Ready } from '@/pages/onboarding/steps/Step3Ready';
 import { useAuthStore } from '@/store/auth.store';
 import type { MeResponse } from '@/types/auth';
 
-const STEP_COUNT = 4;
-
-function initialState(orgName: string): OnboardingState {
-  return {
-    currentStep: 1,
-    orgName,
-    selectedMarketplace: null,
-    marketplaceCredentials: {},
-    selectedErp: null,
-    erpCredentials: {},
-  };
-}
+const STEP_COUNT = 3;
 
 export function OnboardingPage(): ReactElement {
   const navigate = useNavigate();
@@ -42,41 +24,24 @@ export function OnboardingPage(): ReactElement {
   const { data: me } = useAuth();
   const setOrg = useAuthStore((s) => s.setOrg);
 
-  const [state, setState] = useState<OnboardingState | null>(null);
-  const [marketplaceTestOk, setMarketplaceTestOk] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   useEffect(() => {
     document.title = 'Kurulum — Senkronize';
   }, []);
 
-  useEffect(() => {
-    if (!me) {
-      return;
-    }
-    setState((prev) => {
-      if (prev) {
-        return prev;
-      }
-      return initialState(me.organization.name);
-    });
-  }, [me]);
-
-  const progressPercent = useMemo(() => {
-    if (!state) {
-      return 0;
-    }
-    return Math.round((state.currentStep / STEP_COUNT) * 100);
-  }, [state]);
+  const progressPercent = useMemo(
+    () => Math.round((currentStep / STEP_COUNT) * 100),
+    [currentStep],
+  );
 
   const finishMutation = useMutation({
     mutationFn: async (): Promise<void> => {
-      if (!me || !state) {
+      if (!me) {
         return;
       }
-      const nameChanged = state.orgName.trim() !== me.organization.name;
       await completeOnboarding({
         onboardingCompleted: true,
-        ...(nameChanged ? { name: state.orgName.trim() } : {}),
       });
       const fresh = await queryClient.fetchQuery({
         queryKey: ['auth', 'me'],
@@ -96,7 +61,7 @@ export function OnboardingPage(): ReactElement {
       });
     },
     onSuccess: () => {
-      toast.success('Kurulum kaydedildi.');
+      toast.success('Kurulum tamamlandı.');
       navigate('/dashboard', { replace: true });
     },
     onError: (error: unknown) => {
@@ -104,7 +69,7 @@ export function OnboardingPage(): ReactElement {
     },
   });
 
-  if (!me || !state) {
+  if (!me) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
@@ -113,148 +78,25 @@ export function OnboardingPage(): ReactElement {
   }
 
   function goNext(): void {
-    setState((s) => {
-      if (!s) {
-        return s;
-      }
-      return { ...s, currentStep: Math.min(STEP_COUNT, s.currentStep + 1) };
-    });
+    setCurrentStep((s) => Math.min(STEP_COUNT, s + 1));
   }
 
   function goBack(): void {
-    setState((s) => {
-      if (!s) {
-        return s;
-      }
-      if (s.currentStep === 2) {
-        queueMicrotask(() => {
-          setMarketplaceTestOk(false);
-        });
-      }
-      return { ...s, currentStep: Math.max(1, s.currentStep - 1) };
-    });
-  }
-
-  async function handlePrimaryNext(): Promise<void> {
-    if (!state) {
-      return;
-    }
-    if (state.currentStep === 2) {
-      if (!state.selectedMarketplace) {
-        toast.error('Bir pazaryeri seçin.');
-        return;
-      }
-      await saveMarketplaceConnection(
-        state.selectedMarketplace,
-        state.marketplaceCredentials,
-      );
-    }
-    if (state.currentStep === 3) {
-      if (state.selectedErp) {
-        const valid = ERP_OPTIONS.find((e) => e.id === state.selectedErp)?.fields.every(
-          (f) => !f.required || Boolean(state.erpCredentials[f.key]?.trim()),
-        );
-        if (!valid) {
-          toast.error('ERP alanlarını doldurun veya atlayın.');
-          return;
-        }
-        await saveErpConnection(state.selectedErp, state.erpCredentials);
-      }
-    }
-    goNext();
+    setCurrentStep((s) => Math.max(1, s - 1));
   }
 
   const stepContent = (() => {
-    switch (state.currentStep) {
+    switch (currentStep) {
       case 1:
         return (
-          <Step1Welcome
-            orgName={state.orgName}
-            onOrgNameChange={(orgName) =>
-              setState((s) => (s ? { ...s, orgName } : s))
-            }
-            onNext={goNext}
-          />
+          <Step1Welcome organizationName={me.organization.name} onNext={goNext} />
         );
       case 2:
-        return (
-          <Step2Marketplace
-            selectedMarketplace={state.selectedMarketplace}
-            credentials={state.marketplaceCredentials}
-            onSelectMarketplace={(id) =>
-              setState((s) =>
-                s
-                  ? {
-                      ...s,
-                      selectedMarketplace: id,
-                      marketplaceCredentials: {},
-                    }
-                  : s,
-              )
-            }
-            onCredentialChange={(key, value) =>
-              setState((s) =>
-                s
-                  ? {
-                      ...s,
-                      marketplaceCredentials: {
-                        ...s.marketplaceCredentials,
-                        [key]: value,
-                      },
-                    }
-                  : s,
-              )
-            }
-            onTestSuccess={() => setMarketplaceTestOk(true)}
-            testPassed={marketplaceTestOk}
-            onResetTest={() => setMarketplaceTestOk(false)}
-          />
-        );
+        return <Step2Connections onNext={goNext} />;
       case 3:
         return (
-          <Step3Erp
-            selectedErp={state.selectedErp}
-            credentials={state.erpCredentials}
-            onSelectErp={(id) =>
-              setState((s) =>
-                s
-                  ? {
-                      ...s,
-                      selectedErp: id,
-                      erpCredentials: id ? s.erpCredentials : {},
-                    }
-                  : s,
-              )
-            }
-            onCredentialChange={(key, value) =>
-              setState((s) =>
-                s
-                  ? {
-                      ...s,
-                      erpCredentials: { ...s.erpCredentials, [key]: value },
-                    }
-                  : s,
-              )
-            }
-            onSkip={() =>
-              setState((s) =>
-                s
-                  ? {
-                      ...s,
-                      currentStep: 4,
-                      selectedErp: null,
-                      erpCredentials: {},
-                    }
-                  : s,
-              )
-            }
-          />
-        );
-      case 4:
-        return (
-          <Step4Done
-            selectedMarketplace={state.selectedMarketplace}
-            selectedErp={state.selectedErp}
+          <Step3Ready
+            organizationName={me.organization.name}
             isSubmitting={finishMutation.isPending}
             onGoDashboard={() => finishMutation.mutate()}
           />
@@ -277,7 +119,7 @@ export function OnboardingPage(): ReactElement {
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
-              Adım {state.currentStep} / {STEP_COUNT}
+              Adım {currentStep} / {STEP_COUNT}
             </span>
             <span>{progressPercent}%</span>
           </div>
@@ -305,8 +147,8 @@ export function OnboardingPage(): ReactElement {
 
         <ol className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
           {Array.from({ length: STEP_COUNT }, (_, i) => i + 1).map((step) => {
-            const done = state.currentStep > step;
-            const active = state.currentStep === step;
+            const done = currentStep > step;
+            const active = currentStep === step;
             return (
               <li key={step} className="flex items-center gap-2">
                 <span
@@ -329,22 +171,11 @@ export function OnboardingPage(): ReactElement {
 
         <div>{stepContent}</div>
 
-        {state.currentStep > 1 && state.currentStep < 4 ? (
+        {currentStep > 1 && currentStep < 3 ? (
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
             <Button type="button" variant="outline" onClick={goBack}>
               <ChevronLeft className="mr-1 h-4 w-4" aria-hidden />
               Geri
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handlePrimaryNext()}
-              disabled={
-                (state.currentStep === 2 && !state.selectedMarketplace) ||
-                finishMutation.isPending
-              }
-            >
-              İleri
-              <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
             </Button>
           </div>
         ) : null}

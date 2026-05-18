@@ -1,16 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrgType } from '@prisma/client';
+import { OrgType, PlanTier } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
 export class RegisterDto {
+  // Kişisel bilgiler
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
@@ -26,22 +32,88 @@ export class RegisterDto {
   @MinLength(8)
   password: string;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  @MaxLength(100)
-  companyName?: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsString()
+  @IsNotEmpty()
   @MaxLength(20)
-  phone?: string;
+  phone: string;
+
+  // Firma bilgileri — tümü ZORUNLU (çoklu deneme engeli)
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  companyName: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d{10}$/, { message: 'Vergi numarası 10 haneli olmalıdır' })
+  taxNumber: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  taxOffice: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  address: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  city: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  website?: string;
+
+  // İsteğe bağlı
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  referralCode?: string;
 
   @ApiPropertyOptional({ enum: OrgType, enumName: 'OrgType' })
   @IsOptional()
   @IsEnum(OrgType)
   orgType?: OrgType;
+
+  @ApiPropertyOptional({ enum: PlanTier, enumName: 'PlanTier' })
+  @IsOptional()
+  @IsEnum(PlanTier)
+  plan?: PlanTier;
+}
+
+export class RecommendPlanDto {
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  erpCount: number;
+
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  marketplaceCount: number;
+
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  ecommerceCount: number;
 }
 
 export class LoginDto {

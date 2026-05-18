@@ -5,7 +5,7 @@ import { PricingSection } from '@/components/PricingSection';
 import { PRICING_FAQ } from '@/lib/site-content';
 
 const ogDescription =
-  'Başlangıç, Büyüme ve Pro planlarıyla şeffaf fiyatlandırma. Yıllık ödemede %20 indirim, 14 gün ücretsiz deneme, karşılaştırma tablosu ve SSS.';
+  'Başlangıç, Gelişim, Pro ve Kurumsal planlarıyla şeffaf yıllık fiyatlandırma, 14 gün ücretsiz deneme, karşılaştırma tablosu ve SSS.';
 
 export const metadata: Metadata = {
   title: 'Fiyatlandırma — Paketler ve Karşılaştırma',

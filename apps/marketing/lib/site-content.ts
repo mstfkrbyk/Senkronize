@@ -92,62 +92,83 @@ export const FEATURE_PAGE_SECTIONS: {
 
 export interface Plan {
   name: string;
-  /** Aylık liste fiyatı (KDV hariç) */
-  monthlyPrice: number;
-  period: string;
+  /** Yıllık fiyat (KDV hariç), TRY */
+  yearlyPrice: number;
+  /** Aylık eşdeğer gösterimi için (yıllık / 12, yuvarlanmış) */
+  monthlyEquivalent: number;
   features: string[];
   cta: string;
   highlighted: boolean;
   badge?: string;
 }
 
+function monthlyEq(yearly: number): number {
+  return Math.round(yearly / 12);
+}
+
 export const PLANS: Plan[] = [
   {
     name: 'Başlangıç',
-    monthlyPrice: 799,
-    period: '/ay',
+    yearlyPrice: 2900,
+    monthlyEquivalent: monthlyEq(2900),
     features: [
       '1 pazaryeri bağlantısı',
       '500 sipariş / ay',
       'Temel stok senkronizasyonu',
-      '1 kullanıcı',
+      '2 kullanıcı',
       'E-posta desteği',
     ],
-    cta: 'Ücretsiz Deneyin',
+    cta: '14 Gün Ücretsiz Dene',
     highlighted: false,
   },
   {
-    name: 'Büyüme',
-    monthlyPrice: 1499,
-    period: '/ay',
+    name: 'Gelişim',
+    yearlyPrice: 5900,
+    monthlyEquivalent: monthlyEq(5900),
     features: [
-      '5 pazaryeri bağlantısı',
-      '5.000 sipariş / ay',
+      '3 pazaryeri bağlantısı',
+      '2.000 sipariş / ay',
       'Gerçek zamanlı webhook senkronizasyonu',
-      '1 ERP bağlantısı',
+      '2 ERP bağlantısı',
       '5 kullanıcı',
       'Öncelikli destek',
       'Raporlama',
     ],
-    cta: 'Ücretsiz Deneyin',
+    cta: '14 Gün Ücretsiz Dene',
     highlighted: true,
     badge: 'En Popüler',
   },
   {
     name: 'Pro',
-    monthlyPrice: 2999,
-    period: '/ay',
+    yearlyPrice: 9900,
+    monthlyEquivalent: monthlyEq(9900),
     features: [
-      'Sınırsız pazaryeri bağlantısı',
-      'Sınırsız sipariş',
+      '10 pazaryeri bağlantısı',
+      '10.000 sipariş / ay',
       'AI BuyBox optimizasyonu',
-      'Sınırsız ERP bağlantısı',
-      'Sınırsız kullanıcı',
+      '3 ERP bağlantısı',
+      '15 kullanıcı',
       'Partner / bayi sistemi',
       'API erişimi',
       '7/24 öncelikli destek',
     ],
-    cta: 'Ücretsiz Deneyin',
+    cta: '14 Gün Ücretsiz Dene',
+    highlighted: false,
+  },
+  {
+    name: 'Kurumsal',
+    yearlyPrice: 19_900,
+    monthlyEquivalent: monthlyEq(19_900),
+    features: [
+      '50 pazaryeri bağlantısı',
+      '100.000 sipariş / ay',
+      'Gelişmiş güvenlik ve SLA',
+      '10 ERP bağlantısı',
+      '100 kullanıcı',
+      'Özel entegrasyon danışmanlığı',
+      'Sözleşmeli kurulum ve e-fatura',
+    ],
+    cta: '14 Gün Ücretsiz Dene',
     highlighted: false,
   },
 ];
@@ -155,73 +176,86 @@ export const PLANS: Plan[] = [
 /** Fiyat karşılaştırma tablosu hücre tipleri */
 export type ComparisonCell = 'check' | 'dash' | string;
 
+export type PlanColumnKey = 'baslangic' | 'gelisim' | 'pro' | 'kurumsal';
+
 export interface PricingComparisonRow {
   label: string;
   baslangic: ComparisonCell;
-  buyume: ComparisonCell;
+  gelisim: ComparisonCell;
   pro: ComparisonCell;
+  kurumsal: ComparisonCell;
 }
 
 export const PRICING_COMPARISON: PricingComparisonRow[] = [
   {
     label: 'Pazaryeri bağlantısı',
     baslangic: '1',
-    buyume: '5',
-    pro: 'Sınırsız',
+    gelisim: '3',
+    pro: '10',
+    kurumsal: '50',
   },
   {
     label: 'Sipariş / ay',
     baslangic: '500',
-    buyume: '5.000',
-    pro: 'Sınırsız',
+    gelisim: '2.000',
+    pro: '10.000',
+    kurumsal: '100.000',
   },
   {
     label: 'Gerçek zamanlı webhook senk.',
     baslangic: 'dash',
-    buyume: 'check',
+    gelisim: 'check',
     pro: 'check',
+    kurumsal: 'check',
   },
   {
     label: 'ERP bağlantısı',
-    baslangic: 'dash',
-    buyume: '1',
-    pro: 'Sınırsız',
+    baslangic: '1',
+    gelisim: '2',
+    pro: '3',
+    kurumsal: '10',
   },
   {
     label: 'Kullanıcı',
-    baslangic: '1',
-    buyume: '5',
-    pro: 'Sınırsız',
+    baslangic: '2',
+    gelisim: '5',
+    pro: '15',
+    kurumsal: '100',
   },
   {
     label: 'Raporlama',
     baslangic: 'dash',
-    buyume: 'check',
+    gelisim: 'check',
     pro: 'check',
+    kurumsal: 'check',
   },
   {
     label: 'AI BuyBox optimizasyonu',
     baslangic: 'dash',
-    buyume: 'dash',
+    gelisim: 'dash',
     pro: 'check',
+    kurumsal: 'check',
   },
   {
     label: 'Partner / bayi sistemi',
     baslangic: 'dash',
-    buyume: 'dash',
+    gelisim: 'dash',
     pro: 'check',
+    kurumsal: 'check',
   },
   {
     label: 'API erişimi',
     baslangic: 'dash',
-    buyume: 'dash',
+    gelisim: 'dash',
     pro: 'check',
+    kurumsal: 'check',
   },
   {
     label: 'Destek',
     baslangic: 'E-posta',
-    buyume: 'Öncelikli',
+    gelisim: 'Öncelikli',
     pro: '7/24 öncelikli',
+    kurumsal: 'Dedicated',
   },
 ];
 
@@ -257,8 +291,8 @@ export const PRICING_FAQ: { q: string; a: string }[] = [
     a: 'Kayıt sonrası 14 gün boyunca seçtiğiniz planın özelliklerini deneyebilirsiniz. Kredi kartı gerekmez; süre bitiminde ücretlendirme için sizden onay alınır.',
   },
   {
-    q: 'Yıllık faturalamada %20 indirim nasıl uygulanır?',
-    a: 'Yıllık ödeme seçildiğinde aylık liste fiyatına göre %20 indirimli eşdeğer aylık tutar gösterilir; toplam tutar yıllık faturalanır. Fiyatlar KDV hariçtir.',
+    q: 'Fiyatlar nasıl faturalanıyor?',
+    a: 'Tüm paketler yıllık faturalama ile sunulur; gösterilen tutar yıllık ücrettir (KDV hariç). Aylık eşdeğer tutarlar yalnızca karşılaştırma amaçlıdır.',
   },
   {
     q: 'Hangi pazaryeri ve ERP’ler destekleniyor?',
@@ -270,11 +304,10 @@ export const PRICING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'AI BuyBox hangi planda?',
-    a: 'AI destekli BuyBox optimizasyonu Pro planda sunulur. Büyüme planında gelişmiş webhook senkronizasyonu ve raporlama yer alır.',
+    a: 'AI destekli BuyBox optimizasyonu Pro ve Kurumsal planlarda sunulur.',
   },
   {
     q: 'Kurumsal faturalama yapılıyor mu?',
     a: 'Kurumsal müşterilerimize e-fatura ve sözleşmeli kurulum seçenekleri sunulmaktadır.',
   },
 ];
-

@@ -21,6 +21,7 @@ import { AuthService } from './auth.service';
 import {
   ChangePasswordDto,
   LoginDto,
+  RecommendPlanDto,
   RefreshTokenDto,
   RegisterDto,
   UpdateProfileDto,
@@ -46,6 +47,16 @@ export class AuthController {
     @Body() dto: RegisterDto,
   ): Promise<{ accessToken: string; refreshToken: string }> {
     return this.authService.register(dto);
+  }
+
+  @Post('recommend-plan')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'İş yapısına göre paket önerisi' })
+  @ApiResponse({ status: 200, description: 'Önerilen plan' })
+  recommendPlan(
+    @Body() dto: RecommendPlanDto,
+  ): { recommendedPlan: 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL'; reason: string } {
+    return this.authService.recommendPlan(dto);
   }
 
   @Throttle({ short: { limit: 10 }, medium: { limit: 10 } })

@@ -19,10 +19,10 @@ import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
 
 const PLAN_PRICES_KURUS: Record<PlanTier, number> = {
-  BASLANGIC: 49_900,
-  GELISIM: 99_900,
-  PRO: 199_900,
-  KURUMSAL: 499_900,
+  BASLANGIC: 290_000,
+  GELISIM: 590_000,
+  PRO: 990_000,
+  KURUMSAL: 1_990_000,
 };
 
 const PLAN_LABEL_TR: Record<PlanTier, string> = {
@@ -233,7 +233,7 @@ export class SubscriptionService {
       }
       const periodStart = new Date();
       const periodEnd = new Date(periodStart);
-      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
       const nextBilling = new Date(periodEnd);
       const limits = PLAN_LIMITS[payment.plan];
 

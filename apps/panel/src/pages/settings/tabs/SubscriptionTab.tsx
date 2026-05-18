@@ -48,23 +48,23 @@ const PAYTR_IFRAME_BASE = 'https://www.paytr.com/odeme/guvenli/';
 const PLANS: Array<{
   id: PlanTier;
   name: string;
-  price: number;
+  priceYear: number;
   features: string[];
   highlighted?: boolean;
 }> = [
   {
     id: 'BASLANGIC',
     name: 'Başlangıç',
-    price: 499,
-    features: ['2 pazaryeri', '500 ürün', 'Manuel sync'],
+    priceYear: 2900,
+    features: ['2 pazaryeri', '500 sipariş / ay', 'Manuel sync'],
   },
   {
     id: 'GELISIM',
     name: 'Gelişim',
-    price: 999,
+    priceYear: 5900,
     features: [
       '5 pazaryeri',
-      '2.000 ürün',
+      '2.000 sipariş / ay',
       'Otomatik sync',
       'ERP entegrasyonu',
     ],
@@ -72,7 +72,7 @@ const PLANS: Array<{
   {
     id: 'PRO',
     name: 'Pro',
-    price: 1999,
+    priceYear: 9900,
     features: [
       'Sınırsız pazaryeri',
       'Sınırsız ürün',
@@ -82,13 +82,21 @@ const PLANS: Array<{
     ],
     highlighted: true,
   },
+  {
+    id: 'KURUMSAL',
+    name: 'Kurumsal',
+    priceYear: 19_900,
+    features: [
+      'Yüksek limitler',
+      'Özel SLA',
+      'Dedicated destek',
+      'Özel entegrasyon',
+    ],
+  },
 ];
 
 function planLabel(id: PlanTier): string {
-  const map: Partial<Record<PlanTier, string>> = {
-    KURUMSAL: 'Kurumsal',
-  };
-  return PLANS.find((p) => p.id === id)?.name ?? map[id] ?? id;
+  return PLANS.find((p) => p.id === id)?.name ?? id;
 }
 
 function statusLabel(status: SubscriptionStatus): string {
@@ -335,7 +343,7 @@ export function SubscriptionTab(): ReactElement {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {planCards.map((plan) => {
           const isCurrent = currentPlan === plan.id;
           return (
@@ -354,8 +362,11 @@ export function SubscriptionTab(): ReactElement {
                   ) : null}
                 </div>
                 <p className="text-2xl font-semibold text-primary">
-                  ₺{plan.price}
-                  <span className="text-sm font-normal text-muted-foreground"> / ay</span>
+                  ₺{plan.priceYear.toLocaleString('tr-TR')}
+                  <span className="text-sm font-normal text-muted-foreground"> / yıl</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Aylık {Math.round(plan.priceYear / 12).toLocaleString('tr-TR')} ₺&apos;ye eşdeğer
                 </p>
               </CardHeader>
               <CardContent className="flex-1 space-y-2 text-sm text-muted-foreground">

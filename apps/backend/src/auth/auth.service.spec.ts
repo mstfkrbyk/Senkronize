@@ -7,7 +7,7 @@ import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrgType, UserRole } from '@prisma/client';
+import { OrgType, PlanTier, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { NotificationService } from '../notification/notification.service';
@@ -21,7 +21,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let prisma: {
     user: { findFirst: jest.Mock; update: jest.Mock };
-    organization: { findUnique: jest.Mock };
+    organization: { findUnique: jest.Mock; findFirst: jest.Mock };
     subscription: { create: jest.Mock };
     refreshToken: { create: jest.Mock; findMany: jest.Mock; delete: jest.Mock };
     $transaction: jest.Mock;
@@ -37,7 +37,7 @@ describe('AuthService', () => {
         findFirst: jest.fn(),
         update: jest.fn().mockResolvedValue(undefined),
       },
-      organization: { findUnique: jest.fn() },
+      organization: { findUnique: jest.fn(), findFirst: jest.fn() },
       subscription: { create: jest.fn().mockResolvedValue({}) },
       refreshToken: {
         create: jest.fn().mockResolvedValue({ id: 'rt1' }),
@@ -99,6 +99,7 @@ describe('AuthService', () => {
 
   it('register: yeni kullanıcı oluşturulur', async () => {
     prisma.user.findFirst.mockResolvedValue(null);
+    prisma.organization.findFirst.mockResolvedValue(null);
     prisma.$transaction.mockImplementation(
       async (cb: (tx: typeof prisma) => Promise<unknown>) => {
         const tx = {
@@ -126,7 +127,12 @@ describe('AuthService', () => {
       email: 'New@Example.com',
       password: 'Secret123!',
       name: 'Ada',
+      phone: '05001112233',
       companyName: 'Acme',
+      taxNumber: '1234567890',
+      taxOffice: 'Kadıköy',
+      address: 'Adres 1',
+      city: 'İstanbul',
       orgType: OrgType.DIRECT,
     });
 
@@ -151,10 +157,65 @@ describe('AuthService', () => {
         email: 'dup@example.com',
         password: 'Secret123!',
         name: 'Bob',
+        phone: '05001112233',
+        companyName: 'Bob Ltd.',
+        taxNumber: '0987654321',
+        taxOffice: 'Merkez',
+        address: 'Adres',
+        city: 'Ankara',
       }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('register: kayıtlı vergi numarası ConflictException', async () => {
+    prisma.user.findFirst.mockResolvedValue(null);
+    prisma.organization.findFirst.mockResolvedValue({ id: 'org-x' });
+    await expect(
+      service.register({
+        email: 'tax@example.com',
+        password: 'Secret123!',
+        name: 'Ali',
+        phone: '05001112233',
+        companyName: 'Firma A.Ş.',
+        taxNumber: '5555555555',
+        taxOffice: 'Şişli',
+        address: 'Adres',
+        city: 'İstanbul',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('recommendPlan: düşük kanal ve ERP yok → BASLANGIC', () => {
+    expect(
+      service.recommendPlan({
+        erpCount: 0,
+        marketplaceCount: 1,
+        ecommerceCount: 0,
+      }).recommendedPlan,
+    ).toBe(PlanTier.BASLANGIC);
+  });
+
+  it('recommendPlan: ERP kullanımı → PRO', () => {
+    expect(
+      service.recommendPlan({
+        erpCount: 1,
+        marketplaceCount: 1,
+        ecommerceCount: 0,
+      }).recommendedPlan,
+    ).toBe(PlanTier.PRO);
+  });
+
+  it('recommendPlan: çok kanal → KURUMSAL', () => {
+    expect(
+      service.recommendPlan({
+        erpCount: 0,
+        marketplaceCount: 9,
+        ecommerceCount: 0,
+      }).recommendedPlan,
+    ).toBe(PlanTier.KURUMSAL);
   });
 
   it('login: geçersiz şifre UnauthorizedException fırlatır', async () => {
