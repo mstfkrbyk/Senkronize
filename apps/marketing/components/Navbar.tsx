@@ -18,6 +18,8 @@ const navLinks = [
   { href: '/features', label: 'Özellikler' },
   { href: '/pricing', label: 'Fiyatlandırma' },
   { href: '/blog', label: 'Blog' },
+  { href: '/faq', label: 'SSS' },
+  { href: '/contact', label: 'İletişim' },
 ] as const;
 
 export function Navbar(): ReactElement {

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 
-import { BLOG_POSTS } from '@/lib/site-content';
+import { BLOG_POSTS } from '@/lib/blog-data';
 import { Card, CardContent } from '@/components/ui/card';
 
 const ogDescription =
@@ -34,8 +34,8 @@ export default function BlogPage(): ReactElement {
           Blog
         </h1>
         <p className="mx-auto mt-4 max-w-2xl text-center text-muted-foreground">
-          Pazaryeri operasyonları, ERP ve büyüme stratejileri hakkında
-          seçilmiş yazılar. İçerikler genişletilmektedir.
+          Pazaryeri operasyonları, ERP ve büyüme stratejileri hakkında seçilmiş
+          yazılar.
         </p>
         <ul className="mt-12 space-y-6">
           {BLOG_POSTS.map((post) => (
@@ -47,17 +47,25 @@ export default function BlogPage(): ReactElement {
                   </p>
                   <h2 className="mt-2 text-xl font-semibold text-foreground sm:text-2xl">
                     <Link
-                      href={`/blog#${post.slug}`}
+                      href={`/blog/${post.slug}`}
                       className="hover:text-primary hover:underline"
                     >
                       {post.title}
                     </Link>
                   </h2>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {post.readMinutes} dk okuma · {post.author}
+                  </p>
                   <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
                     {post.excerpt}
                   </p>
-                  <p className="mt-4 text-xs text-muted-foreground">
-                    Yakında tam metin yayında.
+                  <p className="mt-4">
+                    <Link
+                      href={`/blog/${post.slug}`}
+                      className="text-sm font-medium text-primary hover:underline"
+                    >
+                      Yazıyı oku →
+                    </Link>
                   </p>
                 </CardContent>
               </Card>

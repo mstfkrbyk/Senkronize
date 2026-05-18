@@ -278,31 +278,3 @@ export const PRICING_FAQ: { q: string; a: string }[] = [
   },
 ];
 
-export const BLOG_POSTS: {
-  slug: string;
-  title: string;
-  date: string;
-  excerpt: string;
-}[] = [
-  {
-    slug: 'trendyol-buybox',
-    title: "Trendyol'da BuyBox Nasıl Kazanılır?",
-    date: 'Mayıs 2026',
-    excerpt:
-      'Rekabetçi fiyatlama, teslimat performansı ve stok doğruluğunun BuyBox kazanmak için nasıl bir araya geldiğini özetliyoruz.',
-  },
-  {
-    slug: 'erp-entegrasyon-onemi',
-    title: 'E-ticaret ERP Entegrasyonu: Neden Önemli?',
-    date: 'Nisan 2026',
-    excerpt:
-      'Çok kanallı satışta muhasebe hatalarını azaltmak ve operasyonu ölçeklemek için ERP bağlantısının rolü.',
-  },
-  {
-    slug: 'cok-kanalli-satis',
-    title: 'Çok Kanallı Satış Stratejisi',
-    date: 'Mart 2026',
-    excerpt:
-      'Pazaryeri dağılımı, stok tekilleştirme ve senkron politikalarıyla sürdürülebilir büyüme ipuçları.',
-  },
-];

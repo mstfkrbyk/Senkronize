@@ -18,7 +18,8 @@ const footerColumns: {
     links: [
       { href: '#', label: 'Hakkımızda' },
       { href: '#', label: 'Kariyer' },
-      { href: '#', label: 'İletişim' },
+      { href: '/faq', label: 'SSS' },
+      { href: '/contact', label: 'İletişim' },
     ],
   },
   {
