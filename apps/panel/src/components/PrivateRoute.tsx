@@ -31,7 +31,8 @@ export function PrivateRoute(): ReactElement {
     return <Navigate to="/login" replace />;
   }
 
-  const onboardingDone = me.organization.onboardingCompleted;
+  const onboardingDone =
+    me.organization.onboardingCompleted || me.user.role === 'SUPER_ADMIN';
   if (!onboardingDone && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />;
   }

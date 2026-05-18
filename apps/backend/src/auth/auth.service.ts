@@ -144,6 +144,15 @@ export class AuthService {
       throw new UnauthorizedException('E-posta veya şifre hatalı.');
     }
 
+    if (
+      user.organization.suspended &&
+      user.role !== UserRole.SUPER_ADMIN
+    ) {
+      throw new UnauthorizedException(
+        'Hesabınız askıya alındı. Destek ile iletişime geçin.',
+      );
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -163,8 +172,16 @@ export class AuthService {
 
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
+      include: { organization: true },
     });
     if (!user) {
+      throw new UnauthorizedException('Oturum yenilenemedi.');
+    }
+
+    if (
+      user.organization.suspended &&
+      user.role !== UserRole.SUPER_ADMIN
+    ) {
       throw new UnauthorizedException('Oturum yenilenemedi.');
     }
 

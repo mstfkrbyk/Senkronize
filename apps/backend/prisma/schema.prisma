@@ -136,6 +136,7 @@ model Organization {
   id                  String    @id @default(cuid())
   slug                String    @unique
   name                String
+  suspended           Boolean   @default(false)
   onboardingCompleted Boolean   @default(false)
   type                OrgType
   logoUrl             String?

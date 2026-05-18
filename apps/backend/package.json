@@ -10,7 +10,8 @@
     "type-check": "pnpm --filter @senkronize/shared run build && tsc --noEmit -p tsconfig.build.json",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1048.0",
@@ -48,6 +49,9 @@
     "socket.io": "^4.8.3",
     "swagger-ui-express": "^5.0.1",
     "xml2js": "^0.6.2"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

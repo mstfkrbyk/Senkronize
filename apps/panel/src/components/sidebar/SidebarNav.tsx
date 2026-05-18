@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
+
+import { BarChart3 } from 'lucide-react';
 
 import { NAV_ITEMS } from '@/constants/navigation';
 import {
@@ -10,6 +12,7 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/store/auth.store';
@@ -17,6 +20,7 @@ import { useAuthStore } from '@/store/auth.store';
 export function SidebarNav(): ReactElement {
   const location = useLocation();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const userRole = useAuthStore((s) => s.user?.role);
   const { isMobile, setOpenMobile } = useSidebar();
 
   const visibleItems = NAV_ITEMS.filter(
@@ -70,6 +74,28 @@ export function SidebarNav(): ReactElement {
             );
           })}
         </SidebarMenu>
+        {userRole === 'SUPER_ADMIN' ? (
+          <>
+            <SidebarSeparator className="my-2 bg-sidebar-border" />
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Admin Panel">
+                  <Link
+                    to="/admin"
+                    onClick={() => {
+                      if (isMobile) {
+                        setOpenMobile(false);
+                      }
+                    }}
+                  >
+                    <BarChart3 className="size-4 shrink-0" />
+                    <span className="truncate">Admin Panel →</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </>
+        ) : null}
       </SidebarGroupContent>
     </SidebarGroup>
   );

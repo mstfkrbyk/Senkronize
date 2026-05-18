@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PartnerStatus } from '@prisma/client';
+import { PartnerStatus, UserRole } from '@prisma/client';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,6 +24,13 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       include: { organization: true },
     });
     if (!user || user.organization.deletedAt != null) {
+      throw new UnauthorizedException();
+    }
+
+    if (
+      user.organization.suspended &&
+      user.role !== UserRole.SUPER_ADMIN
+    ) {
       throw new UnauthorizedException();
     }
 

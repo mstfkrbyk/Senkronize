@@ -9,10 +9,15 @@ import {
 } from 'react-router-dom';
 
 import { PrivateRoute } from '@/components/PrivateRoute';
+import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
+import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
+import { AdminLayout } from '@/pages/admin/AdminLayout';
+import { AdminOrgsPage } from '@/pages/admin/AdminOrgsPage';
+import { AdminSubscriptionsPage } from '@/pages/admin/AdminSubscriptionsPage';
 import { AuditLogPage } from '@/pages/audit/AuditLogPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
@@ -46,6 +51,18 @@ export default function App(): ReactElement {
             <Route element={<PrivateRoute />}>
               <Route path="/onboarding" element={<OnboardingPage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/admin"
+                element={
+                  <SuperAdminRoute>
+                    <AdminLayout />
+                  </SuperAdminRoute>
+                }
+              >
+                <Route index element={<AdminDashboardPage />} />
+                <Route path="organizations" element={<AdminOrgsPage />} />
+                <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+              </Route>
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
