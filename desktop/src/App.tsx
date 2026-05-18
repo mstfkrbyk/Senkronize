@@ -2,7 +2,8 @@ import { listen } from '@tauri-apps/api/event';
 import { Activity, Link2, ScrollText, Settings } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 
-import { tauriApi } from '@/lib/tauri';
+import { runFullPlatformSync } from '@/lib/run-platform-sync';
+import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
 import { ErpBridgePage } from '@/pages/ErpBridgePage';
 import { LogsPage } from '@/pages/LogsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -15,9 +16,12 @@ type Page = 'status' | 'settings' | 'logs' | 'erpBridge';
 export default function App(): ReactElement {
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
+  const pendingSidebarNav = useAppStore((s) => s.pendingSidebarNav);
+  const setPendingSidebarNav = useAppStore((s) => s.setPendingSidebarNav);
 
   const [page, setPage] = useState<Page>('status');
   const [bootReady, setBootReady] = useState(false);
+  const [updateToast, setUpdateToast] = useState<UpdateCheckResponse | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -33,36 +37,51 @@ export default function App(): ReactElement {
   }, [setToken]);
 
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    if (pendingSidebarNav === 'settings') {
+      setPage('settings');
+      setPendingSidebarNav(null);
+    }
+  }, [pendingSidebarNav, setPendingSidebarNav]);
+
+  useEffect(() => {
+    if (!bootReady) {
+      return;
+    }
 
     void (async () => {
-      unlisten = await listen('tray-sync-request', async () => {
-        const state = useAppStore.getState();
-        if (!state.token) return;
-
-        const platforms = [
-          { id: 'TRENDYOL', label: 'Trendyol' },
-          { id: 'HEPSIBURADA', label: 'Hepsiburada' },
-        ] as const;
-
-        for (const p of platforms) {
-          try {
-            const res = await tauriApi.triggerSync(state.apiUrl, state.token.token, p.id);
-            state.addSyncLog({ ...res, message: `${p.label}: ${res.message}` });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            state.addSyncLog({
-              success: false,
-              message: `${p.label}: ${message}`,
-              syncedAt: new Date().toISOString(),
-            });
-          }
+      try {
+        const res = await tauriApi.checkForUpdates();
+        if (res.hasUpdate) {
+          setUpdateToast(res);
         }
+      } catch (err) {
+        void err;
+        /* Sürüm servisi yoksa veya ağ hatası: sessiz geç */
+      }
+    })();
+  }, [bootReady]);
+
+  useEffect(() => {
+    let unlistenTray: (() => void) | undefined;
+    let unlistenAuto: (() => void) | undefined;
+    let unlistenSettings: (() => void) | undefined;
+
+    void (async () => {
+      unlistenTray = await listen('tray-sync-request', () => {
+        void runFullPlatformSync();
+      });
+      unlistenAuto = await listen('auto-sync-tick', () => {
+        void runFullPlatformSync();
+      });
+      unlistenSettings = await listen('open-settings', () => {
+        useAppStore.getState().setPendingSidebarNav('settings');
       });
     })();
 
     return () => {
-      unlisten?.();
+      unlistenTray?.();
+      unlistenAuto?.();
+      unlistenSettings?.();
     };
   }, []);
 
@@ -87,6 +106,64 @@ export default function App(): ReactElement {
 
   return (
     <div className="appShell">
+      {updateToast ? (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            top: 16,
+            right: 16,
+            zIndex: 50,
+            maxWidth: 360,
+            padding: '12px 14px',
+            borderRadius: 10,
+            background: '#0f172a',
+            color: '#f8fafc',
+            boxShadow: '0 10px 30px rgba(15,23,42,0.25)',
+            fontSize: 13,
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 650 }}>Yeni sürüm mevcut</p>
+          <p style={{ margin: '8px 0 0', opacity: 0.92 }}>
+            {updateToast.currentVersion} → {updateToast.latestVersion}
+          </p>
+          {updateToast.releaseNotes ? (
+            <p style={{ margin: '8px 0 0', opacity: 0.85, whiteSpace: 'pre-wrap' }}>
+              {updateToast.releaseNotes}
+            </p>
+          ) : null}
+          <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {updateToast.downloadUrl ? (
+              <button
+                type="button"
+                className="btn btnAccent"
+                style={{ fontSize: 12, padding: '6px 10px' }}
+                onClick={() =>
+                  void (async () => {
+                    try {
+                      const { open } = await import('@tauri-apps/plugin-shell');
+                      await open(updateToast.downloadUrl ?? '');
+                    } catch {
+                      window.open(updateToast.downloadUrl ?? '', '_blank', 'noopener,noreferrer');
+                    }
+                  })()
+                }
+              >
+                İndirme bağlantısı
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="btn btnGhost"
+              style={{ fontSize: 12, padding: '6px 10px', color: '#e2e8f0', borderColor: '#334155' }}
+              onClick={() => setUpdateToast(null)}
+            >
+              Kapat
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <aside className="sidebar">
         <div className="sidebarBrand">
           <div className="sidebarTitle">Senkronize</div>

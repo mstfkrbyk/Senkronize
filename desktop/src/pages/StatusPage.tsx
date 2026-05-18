@@ -82,6 +82,7 @@ export function StatusPage(): ReactElement {
     try {
       const res = await tauriApi.triggerSync(apiUrl, token.token, platform);
       addSyncLog({ ...res, message: `${label}: ${res.message}` });
+      await tauriApi.recordLastSync(res.syncedAt);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);

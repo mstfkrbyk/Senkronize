@@ -2,7 +2,7 @@ mod commands;
 mod services;
 mod tray;
 
-use commands::{auth, erp, health, local_sync, sync};
+use commands::{auth, auto_sync, erp, health, local_sync, sync, updater};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -10,10 +10,8 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .setup(|app| {
-            tray::setup_tray(app)?;
-            Ok(())
-        })
+        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .manage(auto_sync::AutoSyncState::default())
         .invoke_handler(tauri::generate_handler![
             auth::save_token,
             auth::load_token,
@@ -23,7 +21,22 @@ pub fn run() {
             erp::test_local_erp_connection,
             erp::test_erp_connection,
             local_sync::sync_erp_to_cloud,
+            auto_sync::start_auto_sync,
+            auto_sync::stop_auto_sync,
+            auto_sync::get_sync_status,
+            auto_sync::record_last_sync,
+            updater::check_for_updates,
         ])
+        .setup(|app| {
+            tray::setup_tray(app)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
+            }
+        })
         .run(tauri::generate_context!())
         .expect("Tauri uygulaması başlatılamadı");
 }

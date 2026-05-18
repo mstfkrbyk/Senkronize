@@ -1,9 +1,8 @@
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 
-import { tauriApi } from '@/lib/tauri';
+import { TraySettings } from '@/components/TraySettings';
+import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
 import { useAppStore } from '@/store/app.store';
-
-type SyncInterval = 'manual' | '15m' | '30m' | '1h';
 
 export interface SettingsPageProps {
   onResetSession: () => void;
@@ -16,19 +15,33 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
   const setLocalErpBaseUrl = useAppStore((s) => s.setLocalErpBaseUrl);
 
   const [launchOnStartup, setLaunchOnStartup] = useState(false);
-  const [syncInterval, setSyncInterval] = useState<SyncInterval>('manual');
-  const [erpTestMessage, setErpTestMessage] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResponse | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { isEnabled } = await import('@tauri-apps/plugin-autostart');
+        const on = await isEnabled();
+        setLaunchOnStartup(on);
+      } catch {
+        /* Otomatik başlatma API kullanılamıyorsa sessiz */
+      }
+    })();
+  }, []);
 
   async function onTestErp(): Promise<void> {
     setBusy(true);
-    setErpTestMessage(null);
+    setFeedbackMessage(null);
     try {
       const res = await tauriApi.testLocalErpConnection(localErpBaseUrl.trim());
-      setErpTestMessage(res.message);
+      setFeedbackMessage(res.message);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      setErpTestMessage(message);
+      setFeedbackMessage(message);
     } finally {
       setBusy(false);
     }
@@ -44,16 +57,58 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
     }
   }
 
+  async function onToggleAutostart(next: boolean): Promise<void> {
+    setBusy(true);
+    try {
+      const { disable, enable } = await import('@tauri-apps/plugin-autostart');
+      if (next) {
+        await enable();
+      } else {
+        await disable();
+      }
+      setLaunchOnStartup(next);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setFeedbackMessage(message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCheckUpdates(): Promise<void> {
+    setUpdateBusy(true);
+    setUpdateError(null);
+    setUpdateResult(null);
+    try {
+      const res = await tauriApi.checkForUpdates();
+      setUpdateResult(res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setUpdateError(message);
+    } finally {
+      setUpdateBusy(false);
+    }
+  }
+
+  async function openDownload(url: string): Promise<void> {
+    try {
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(url);
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  }
+
   return (
     <div className="stackLg">
       <div>
         <h1 className="h2">Ayarlar</h1>
-        <p className="muted">Bağlantı ve yerel çalışma tercihleri.</p>
+        <p className="muted">Bağlantı, tray, güncelleme ve yerel çalışma tercihleri.</p>
       </div>
 
       <div className="panel">
         <label className="fieldLabel" htmlFor="settingsApiUrl">
-          API URL
+          Bulut API tabanı (cloud backend URL)
         </label>
         <input
           id="settingsApiUrl"
@@ -62,6 +117,80 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
           onChange={(e) => setApiUrl(e.target.value)}
           autoComplete="off"
         />
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0, fontSize: 13 }}>
+          Sağlık kontrolü ve senkron istekleri bu adrese gönderilir.
+        </p>
+      </div>
+
+      <TraySettings />
+
+      <div className="panel">
+        <p className="h2">Uygulama güncellemesi</p>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Sunucudaki sürüm bilgisini kontrol eder (varsayılan: api.senkronize.com).
+        </p>
+        <div className="row" style={{ marginTop: 12 }}>
+          <button
+            type="button"
+            disabled={updateBusy}
+            onClick={() => void onCheckUpdates()}
+            className="btn btnAccent"
+          >
+            Güncelleme Kontrol Et
+          </button>
+        </div>
+        {updateError ? <div className="alert" style={{ marginTop: 12 }}>{updateError}</div> : null}
+        {updateResult ? (
+          <div style={{ marginTop: 12, fontSize: 13, color: '#334155' }}>
+            <p style={{ margin: 0 }}>
+              <span style={{ fontWeight: 650 }}>Yerel:</span> {updateResult.currentVersion}
+            </p>
+            <p style={{ margin: '6px 0 0' }}>
+              <span style={{ fontWeight: 650 }}>Sunucu:</span> {updateResult.latestVersion}
+            </p>
+            {updateResult.hasUpdate ? (
+              <p style={{ margin: '8px 0 0', color: '#0c4a6e', fontWeight: 650 }}>
+                Yeni sürüm mevcut.
+              </p>
+            ) : (
+              <p style={{ margin: '8px 0 0' }}>Güncel görünüyorsunuz.</p>
+            )}
+            {updateResult.releaseNotes ? (
+              <p style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{updateResult.releaseNotes}</p>
+            ) : null}
+            {updateResult.hasUpdate && updateResult.downloadUrl ? (
+              <button
+                type="button"
+                className="btn btnGhost"
+                style={{ marginTop: 12 }}
+                onClick={() => void openDownload(updateResult.downloadUrl ?? '')}
+              >
+                İndirme bağlantısını aç
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="panel">
+        <div className="flexBetween">
+          <div>
+            <p className="h2">Başlangıçta otomatik başlat</p>
+            <p className="muted" style={{ marginTop: 8 }}>
+              İşletim sistemi oturum açılışında uygulamayı başlatır (Tauri autostart eklentisi).
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={launchOnStartup}
+            disabled={busy}
+            onClick={() => void onToggleAutostart(!launchOnStartup)}
+            className={`toggle ${launchOnStartup ? 'toggleOn' : 'toggleOff'}`}
+          >
+            <span className={`knob ${launchOnStartup ? 'knobOn' : ''}`} />
+          </button>
+        </div>
       </div>
 
       <div className="panel">
@@ -85,47 +214,10 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
           >
             Bağlantıyı Test Et
           </button>
-          {erpTestMessage ? (
-            <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>{erpTestMessage}</p>
+          {feedbackMessage ? (
+            <p style={{ margin: 0, fontSize: 13, color: '#334155' }}>{feedbackMessage}</p>
           ) : null}
         </div>
-      </div>
-
-      <div className="panel">
-        <div className="flexBetween">
-          <div>
-            <p className="h2">Başlangıçta otomatik başlat</p>
-            <p className="muted" style={{ marginTop: 8 }}>
-              Şimdilik yalnızca arayüzde tutulur (işletim sistemi entegrasyonu sonraya bırakıldı).
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={launchOnStartup}
-            onClick={() => setLaunchOnStartup((v) => !v)}
-            className={`toggle ${launchOnStartup ? 'toggleOn' : 'toggleOff'}`}
-          >
-            <span className={`knob ${launchOnStartup ? 'knobOn' : ''}`} />
-          </button>
-        </div>
-      </div>
-
-      <div className="panel">
-        <p className="h2">Sync aralığı</p>
-        <p className="muted" style={{ marginTop: 8 }}>
-          Şimdilik yalnızca planlama arayüzü; zamanlayıcı entegrasyonu sonraki adım.
-        </p>
-        <select
-          className="select"
-          value={syncInterval}
-          onChange={(e) => setSyncInterval(e.target.value as SyncInterval)}
-        >
-          <option value="manual">El ile</option>
-          <option value="15m">15 dakika</option>
-          <option value="30m">30 dakika</option>
-          <option value="1h">1 saat</option>
-        </select>
       </div>
 
       <div className="dangerPanel">

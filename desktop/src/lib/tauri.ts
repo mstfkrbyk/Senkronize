@@ -49,6 +49,20 @@ export interface ErpToCloudSyncResult {
   message: string;
 }
 
+export interface SyncStatusResponse {
+  intervalMinutes: number;
+  lastSync: string | null;
+  isRunning: boolean;
+}
+
+export interface UpdateCheckResponse {
+  currentVersion: string;
+  latestVersion: string;
+  hasUpdate: boolean;
+  downloadUrl: string | null;
+  releaseNotes: string | null;
+}
+
 export const tauriApi = {
   saveToken: (payload: TokenPayload): Promise<void> =>
     invoke<void>('save_token', { payload }),
@@ -87,4 +101,17 @@ export const tauriApi = {
     cloudApiUrl: string;
     cloudApiKey: string;
   }): Promise<ErpToCloudSyncResult> => invoke<ErpToCloudSyncResult>('sync_erp_to_cloud', args),
+
+  startAutoSync: (intervalMinutes: number): Promise<void> =>
+    invoke<void>('start_auto_sync', { interval_minutes: intervalMinutes }),
+
+  stopAutoSync: (): Promise<void> => invoke<void>('stop_auto_sync'),
+
+  getSyncStatus: (): Promise<SyncStatusResponse> => invoke<SyncStatusResponse>('get_sync_status'),
+
+  recordLastSync: (atRfc3339?: string | null): Promise<void> =>
+    invoke<void>('record_last_sync', { at_rfc3339: atRfc3339 ?? null }),
+
+  checkForUpdates: (): Promise<UpdateCheckResponse> =>
+    invoke<UpdateCheckResponse>('check_for_updates'),
 };

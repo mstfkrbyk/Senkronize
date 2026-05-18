@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "Senkronize Desktop",
-        "width": 900,
-        "height": 650,
-        "minWidth": 700,
-        "minHeight": 500,
+        "width": 1024,
+        "height": 768,
+        "minWidth": 1024,
+        "minHeight": 768,
         "resizable": true,
         "decorations": true
       }
