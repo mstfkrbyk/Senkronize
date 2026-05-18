@@ -22,8 +22,12 @@ import { AppModule } from '../src/app.module';
 import { loginAndGetAccessToken } from './helpers/auth-helper';
 import { buildRegisterDto, uniqueTaxNumber } from './helpers/create-test-user';
 
+/**
+ * Tam uygulama e2e. `GET /health` gerçek DB bağlantısı dener.
+ * Auth akışı Prisma şemasının (ör. `User.lockedUntil`) DB ile uyumlu olmasını gerektirir.
+ */
 describe('App (e2e)', () => {
-  let app: INestApplication;
+  let app: INestApplication | undefined;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -44,11 +48,18 @@ describe('App (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app?.close();
   });
 
+  function httpServer() {
+    if (!app) {
+      throw new Error('Nest uygulaması başlatılmadı');
+    }
+    return app.getHttpServer();
+  }
+
   it('GET /api/v1/health → 200', () => {
-    return request(app.getHttpServer())
+    return request(httpServer())
       .get('/api/v1/health')
       .expect(200)
       .expect((res) => {
@@ -67,7 +78,7 @@ describe('App (e2e)', () => {
         name: 'Test User',
         taxNumber: uniqueTaxNumber(),
       });
-      const res = await request(app.getHttpServer())
+      const res = await request(httpServer())
         .post('/api/v1/auth/register')
         .send(dto)
         .expect(201);
@@ -75,6 +86,9 @@ describe('App (e2e)', () => {
     });
 
     it('POST /api/v1/auth/login → 200', async () => {
+      if (!app) {
+        throw new Error('Nest uygulaması başlatılmadı');
+      }
       const token = await loginAndGetAccessToken(app, testEmail, password);
       expect(token).toBeDefined();
       expect(token.length).toBeGreaterThan(10);

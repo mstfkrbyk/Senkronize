@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
 
 import { AuthModule } from '../auth/auth.module';
@@ -14,7 +14,7 @@ import { JwtOrApiKeyGuard } from './jwt-or-api-key.guard';
   imports: [
     PrismaModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
-    AuthModule,
+    forwardRef(() => AuthModule),
   ],
   controllers: [ApiKeyController],
   providers: [

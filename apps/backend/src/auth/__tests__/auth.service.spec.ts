@@ -18,11 +18,13 @@ import { mockDeep } from 'jest-mock-extended';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
+import { CacheService } from '../../common/cache/cache.service';
 import { NotificationService } from '../../notification/notification.service';
 import { EmailService } from '../../notifications/email/email.service';
 import { SmsService } from '../../notifications/sms/sms.service';
 import { PartnerService } from '../../partner/partner.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AnomalyDetectionService } from '../../security/anomaly-detection.service';
 import { RegisterDto } from '../auth.dto';
 import { AuthService } from '../auth.service';
 import { TwoFactorService } from '../two-factor.service';
@@ -128,6 +130,17 @@ describe('AuthService', () => {
         {
           provide: TwoFactorService,
           useValue: { verifyTokenForLogin: jest.fn() },
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            del: jest.fn().mockResolvedValue(undefined),
+            incrWithExpire: jest.fn().mockResolvedValue(1),
+          },
+        },
+        {
+          provide: AnomalyDetectionService,
+          useValue: { checkNewIpLogin: jest.fn() },
         },
       ],
     }).compile();
@@ -324,7 +337,7 @@ describe('AuthService', () => {
       });
       expect(prismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'u2' },
-        data: { lastLoginAt: expect.any(Date) },
+        data: { lastLoginAt: expect.any(Date), lockedUntil: null },
       });
     });
 
