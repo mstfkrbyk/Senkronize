@@ -69,6 +69,9 @@ export class ErpConnectionService {
     if (erpType === ErpType.TICIMAX) {
       return creds.siteUrl ?? null;
     }
+    if (erpType === ErpType.PARASUT) {
+      return creds.companyId ?? null;
+    }
     return null;
   }
 

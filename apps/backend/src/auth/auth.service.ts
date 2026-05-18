@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +19,12 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { LoginDto, RegisterDto } from './auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RegisterDto,
+  UpdateProfileDto,
+} from './auth.dto';
 import { AuthenticatedUser } from './auth.types';
 
 const BCRYPT_ROUNDS = 10;
@@ -175,6 +181,51 @@ export class AuthService {
       }
     }
     return false;
+  }
+
+  async changePassword(
+    actor: AuthenticatedUser,
+    dto: ChangePasswordDto,
+  ): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: actor.id, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı');
+    }
+
+    const isValid = await this.comparePasswords(dto.currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Mevcut şifre hatalı');
+    }
+
+    const newHash = await bcrypt.hash(dto.newPassword, 12);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'auth.password_changed',
+        resourceType: 'User',
+        resourceId: user.id,
+        metadata: {},
+      },
+    });
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<void> {
+    if (dto.name === undefined) {
+      return;
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { name: dto.name },
+    });
   }
 
   async getCurrentOrganization(user: AuthenticatedUser) {

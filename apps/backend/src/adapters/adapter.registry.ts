@@ -3,6 +3,7 @@ import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
 
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
+import { ParasutAdapter } from './parasut/parasut.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
@@ -16,6 +17,7 @@ export class AdapterRegistry {
     private readonly trendyol: TrendyolAdapter,
     private readonly hepsiburada: HepsiburadaAdapter,
     private readonly bizimhesap: BizimHesapAdapter,
+    private readonly parasut: ParasutAdapter,
     private readonly tsoft: TsoftAdapter,
     private readonly ticimax: TicimaxAdapter,
   ) {
@@ -25,6 +27,7 @@ export class AdapterRegistry {
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],
+      ['PARASUT', parasut],
       ['TSOFT', tsoft],
       ['TICIMAX', ticimax],
     ]);

@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { AdapterRegistry } from './adapter.registry';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
+import { ParasutAdapter } from './parasut/parasut.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
@@ -13,6 +14,7 @@ import { TsoftAdapter } from './tsoft/tsoft.adapter';
     TrendyolAdapter,
     HepsiburadaAdapter,
     BizimHesapAdapter,
+    ParasutAdapter,
     TsoftAdapter,
     TicimaxAdapter,
     AdapterRegistry,
@@ -22,6 +24,7 @@ import { TsoftAdapter } from './tsoft/tsoft.adapter';
     TrendyolAdapter,
     HepsiburadaAdapter,
     BizimHesapAdapter,
+    ParasutAdapter,
     TsoftAdapter,
     TicimaxAdapter,
   ],

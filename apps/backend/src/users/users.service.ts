@@ -5,11 +5,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import {
+  type NotificationPreference,
+  Prisma,
+  UserRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { InviteUserDto, UpdateUserRoleDto } from './users.dto';
+import {
+  InviteUserDto,
+  UpdateNotificationPreferencesDto,
+  UpdateUserRoleDto,
+} from './users.dto';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -32,9 +41,34 @@ function metadataToRecord(value: Prisma.JsonValue): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+const NOTIFICATION_PREF_BOOLEAN_KEYS = [
+  'newOrder',
+  'stockAlert',
+  'paymentAlert',
+  'syncError',
+  'emailEnabled',
+  'smsEnabled',
+  'pushEnabled',
+] as const;
+
+function notificationPreferenceUpdateData(
+  dto: UpdateNotificationPreferencesDto,
+): Prisma.NotificationPreferenceUpdateInput {
+  const data: Prisma.NotificationPreferenceUpdateInput = {};
+  for (const key of NOTIFICATION_PREF_BOOLEAN_KEYS) {
+    if (typeof dto[key] === 'boolean') {
+      data[key] = dto[key];
+    }
+  }
+  return data;
+}
+
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
+  ) {}
 
   async getAuditLog(
     organizationId: string,
@@ -193,6 +227,80 @@ export class UsersService {
     await this.prisma.user.update({
       where: { id: targetUserId },
       data: { deletedAt: new Date() },
+    });
+  }
+
+  async getNotificationPreferences(
+    userId: string,
+    organizationId: string,
+  ): Promise<NotificationPreference> {
+    return this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId, organizationId },
+      update: {},
+    });
+  }
+
+  async updateNotificationPreferences(
+    userId: string,
+    organizationId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ): Promise<NotificationPreference> {
+    const data = notificationPreferenceUpdateData(dto);
+    return this.prisma.notificationPreference.upsert({
+      where: { userId },
+      create: { userId, organizationId, ...data },
+      update: data,
+    });
+  }
+
+  async requestDataExport(
+    userId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const [user, orders, listings, org] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: userId, deletedAt: null },
+      }),
+      this.prisma.order.count({
+        where: { organizationId, deletedAt: null },
+      }),
+      this.prisma.listing.count({
+        where: { organizationId, deletedAt: null },
+      }),
+      this.prisma.organization.findFirst({
+        where: { id: organizationId, deletedAt: null },
+        select: { name: true },
+      }),
+    ]);
+
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: userId,
+        actorOrgId: user.organizationId,
+        impersonatedOrgId:
+          user.organizationId === organizationId ? null : organizationId,
+        action: 'DATA_EXPORT_REQUESTED',
+        resourceType: 'User',
+        resourceId: userId,
+        metadata: { orderCount: orders, listingCount: listings },
+      },
+    });
+
+    await this.notificationService.dispatch({
+      organizationId,
+      userId,
+      channel: 'email',
+      template: 'welcome',
+      payload: {
+        orgName: org?.name ?? 'Senkronize',
+        userEmail: user.email,
+        email: user.email,
+      },
     });
   }
 }

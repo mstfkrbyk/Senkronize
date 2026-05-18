@@ -149,6 +149,7 @@ model Organization {
   priceHistories           PriceHistory[]
   buyBoxSnapshots          BuyBoxSnapshot[]
   webhookEvents            WebhookEvent[]
+  notificationPreferences  NotificationPreference[]
 }
 
 model WebhookEvent {
@@ -183,6 +184,25 @@ model User {
   deletedAt      DateTime?
 
   refreshTokens RefreshToken[]
+
+  notificationPreference NotificationPreference?
+}
+
+model NotificationPreference {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newOrder       Boolean      @default(true)
+  stockAlert     Boolean      @default(true)
+  paymentAlert   Boolean      @default(true)
+  syncError      Boolean      @default(true)
+  emailEnabled   Boolean      @default(true)
+  smsEnabled     Boolean      @default(false)
+  pushEnabled    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model Subscription {

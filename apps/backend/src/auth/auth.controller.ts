@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -17,7 +18,13 @@ import {
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto, RegisterDto } from './auth.dto';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  RefreshTokenDto,
+  RegisterDto,
+  UpdateProfileDto,
+} from './auth.dto';
 import { CurrentUser } from './current-user.decorator';
 import { AuthenticatedUser } from './auth.types';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -102,5 +109,33 @@ export class AuthController {
       currentOrgId: user.currentOrgId,
       isImpersonating: user.isImpersonating,
     };
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Şifre değiştir' })
+  @ApiResponse({ status: 200, description: 'Şifre güncellendi' })
+  @ApiResponse({ status: 401, description: 'Mevcut şifre hatalı veya yetkisiz' })
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    await this.authService.changePassword(user, dto);
+    return { message: 'Şifre güncellendi' };
+  }
+
+  @Patch('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Profil güncelle' })
+  @ApiResponse({ status: 200, description: 'Profil güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<{ message: string }> {
+    await this.authService.updateProfile(user.id, dto);
+    return { message: 'Profil güncellendi' };
   }
 }
