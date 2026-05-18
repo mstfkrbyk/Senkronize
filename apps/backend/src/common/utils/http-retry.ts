@@ -126,5 +126,12 @@ export const PLATFORM_RATE_LIMITS: Record<string, number> = {
   TEKNOSA: 40,
   KOTON: 35,
   MAVI: 35,
+  MAGENTO: 60,
+  PRESTASHOP: 40,
+  OPENCART: 60,
+  FAPRIKA: 40,
+  UNIPOS: 40,
+  AKINON: 40,
+  IKAS: 40,
   DEFAULT: 30,
 };

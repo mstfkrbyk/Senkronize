@@ -73,7 +73,16 @@ export type ErpType =
   | 'ISNET';
 
 /** Prisma `EcommerceType` ile uyumlu */
-export type EcommerceType = 'TICIMAX' | 'TSOFT';
+export type EcommerceType =
+  | 'TICIMAX'
+  | 'TSOFT'
+  | 'MAGENTO'
+  | 'PRESTASHOP'
+  | 'OPENCART'
+  | 'FAPRIKA'
+  | 'UNIPOS'
+  | 'AKINON'
+  | 'IKAS';
 
 /** Prisma `CargoProvider` ile uyumlu */
 export type CargoProvider =

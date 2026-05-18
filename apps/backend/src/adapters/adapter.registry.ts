@@ -37,6 +37,13 @@ import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { VatanAdapter } from './vatan/vatan.adapter';
+import { AkinonAdapter } from './akinon/akinon.adapter';
+import { FaprikaAdapter } from './faprika/faprika.adapter';
+import { IkasAdapter } from './ikas/ikas.adapter';
+import { MagentoAdapter } from './magento/magento.adapter';
+import { OpencartAdapter } from './opencart/opencart.adapter';
+import { PrestashopAdapter } from './prestashop/prestashop.adapter';
+import { UniposAdapter } from './unipos/unipos.adapter';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 
 @Injectable()
@@ -82,6 +89,13 @@ export class AdapterRegistry {
     private readonly teknosa: TeknosaAdapter,
     private readonly koton: KotonAdapter,
     private readonly mavi: MaviAdapter,
+    private readonly magento: MagentoAdapter,
+    private readonly prestashop: PrestashopAdapter,
+    private readonly opencart: OpencartAdapter,
+    private readonly faprika: FaprikaAdapter,
+    private readonly unipos: UniposAdapter,
+    private readonly akinon: AkinonAdapter,
+    private readonly ikas: IkasAdapter,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
@@ -115,6 +129,13 @@ export class AdapterRegistry {
       ['TEKNOSA', teknosa],
       ['KOTON', koton],
       ['MAVI', mavi],
+      ['MAGENTO', magento],
+      ['OPENCART', opencart],
+      ['PRESTASHOP', prestashop],
+      ['FAPRIKA', faprika],
+      ['UNIPOS', unipos],
+      ['AKINON', akinon],
+      ['IKAS', ikas],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],

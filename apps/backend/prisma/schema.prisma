@@ -109,6 +109,13 @@ enum ErpType {
 enum EcommerceType {
   TICIMAX
   TSOFT
+  MAGENTO
+  PRESTASHOP
+  OPENCART
+  FAPRIKA
+  UNIPOS
+  AKINON
+  IKAS
 }
 
 enum CargoProvider {
