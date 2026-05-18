@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth.store';
 
+import { AppearanceTab } from './tabs/AppearanceTab';
 import { ApiKeysTab } from './tabs/ApiKeysTab';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
@@ -34,6 +35,7 @@ export function SettingsPage(): ReactElement {
       <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
         <TabsList className="flex h-auto flex-wrap justify-start gap-1">
           <TabsTrigger value="profile">Profil</TabsTrigger>
+          <TabsTrigger value="appearance">Görünüm</TabsTrigger>
           <TabsTrigger value="organization">Firma</TabsTrigger>
           <TabsTrigger value="team">Ekip</TabsTrigger>
           <TabsTrigger value="subscription">Abonelik</TabsTrigger>
@@ -46,6 +48,9 @@ export function SettingsPage(): ReactElement {
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <ProfileTab />
+        </TabsContent>
+        <TabsContent value="appearance" className="mt-6">
+          <AppearanceTab />
         </TabsContent>
         <TabsContent value="organization" className="mt-6">
           <OrganizationTab />

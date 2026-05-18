@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
+import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from 'next-themes';
 import {
   BrowserRouter,
   Navigate,
@@ -36,14 +36,30 @@ import { ReportsPage } from '@/pages/reports/ReportsPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
 import { StockPage } from '@/pages/stock/StockPage';
 import { SyncLogsPage } from '@/pages/sync-logs/SyncLogsPage';
+import { useThemeStore } from '@/store/theme.store';
+
+function SystemThemeListener(): null {
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (): void => {
+      if (useThemeStore.getState().theme === 'system') {
+        document.documentElement.classList.toggle('dark', mq.matches);
+      }
+    };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  return null;
+}
 
 export default function App(): ReactElement {
   return (
-    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <Toaster position="top-center" richColors closeButton />
-          <Routes>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <SystemThemeListener />
+        <Toaster position="top-center" richColors closeButton />
+        <Routes>
             <Route
               path="/invite/:token"
               element={
@@ -108,9 +124,8 @@ export default function App(): ReactElement {
                 </ErrorBoundary>
               }
             />
-          </Routes>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

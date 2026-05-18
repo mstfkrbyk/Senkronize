@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react"
 import {
   CircleCheck,
   Info,
@@ -5,17 +6,25 @@ import {
   OctagonX,
   TriangleAlert,
 } from "lucide-react"
-import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
+
+import {
+  getResolvedTheme,
+  subscribeResolvedTheme,
+} from "@/store/theme.store"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const resolved = useSyncExternalStore(
+    subscribeResolvedTheme,
+    getResolvedTheme,
+    () => "light" as const,
+  )
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={resolved}
       className="toaster group"
       icons={{
         success: <CircleCheck className="h-4 w-4" />,

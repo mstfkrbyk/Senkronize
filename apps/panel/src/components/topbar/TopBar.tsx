@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { disconnectSocket } from '@/lib/socket';
 import { NAV_ITEMS } from '@/constants/navigation';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/topbar/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -92,8 +93,11 @@ export function TopBar(): ReactElement {
         )}
       </div>
 
-      <div className="shrink-0 md:hidden">
-        <NotificationBell />
+      <div className="flex shrink-0 items-center gap-1">
+        <div className="md:hidden">
+          <NotificationBell />
+        </div>
+        <ThemeToggle />
       </div>
 
       <DropdownMenu>
