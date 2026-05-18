@@ -2,10 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
 
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
+import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
+import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { LogoAdapter } from './logo/logo.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
+import { N11Adapter } from './n11/n11.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
@@ -19,6 +22,9 @@ export class AdapterRegistry {
   constructor(
     private readonly trendyol: TrendyolAdapter,
     private readonly hepsiburada: HepsiburadaAdapter,
+    private readonly n11: N11Adapter,
+    private readonly ciceksepeti: CiceksepetiAdapter,
+    private readonly ideasoft: IdeasoftAdapter,
     private readonly bizimhesap: BizimHesapAdapter,
     private readonly parasut: ParasutAdapter,
     private readonly logo: LogoAdapter,
@@ -30,6 +36,9 @@ export class AdapterRegistry {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['TRENDYOL', trendyol],
       ['HEPSIBURADA', hepsiburada],
+      ['N11', n11],
+      ['CICEKSEPETI', ciceksepeti],
+      ['IDEASOFT', ideasoft],
       ['TSOFT', tsoft],
       ['TICIMAX', ticimax],
     ]);

@@ -21,6 +21,37 @@ export const MARKETPLACE_OPTIONS: MarketplaceOption[] = [
     ],
   },
   {
+    id: 'N11',
+    label: 'N11',
+    logo: '🔶',
+    fields: [
+      { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+      { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'CICEKSEPETI',
+    label: 'Çiçeksepeti',
+    logo: '🌸',
+    fields: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  },
+  {
+    id: 'IDEASOFT',
+    label: 'İdeasoft',
+    logo: '💡',
+    fields: [
+      {
+        key: 'storeUrl',
+        label: 'Mağaza URL',
+        type: 'text',
+        placeholder: 'https://magaza.com',
+        required: true,
+      },
+      { key: 'apiKey', label: 'Client ID', type: 'text', required: true },
+      { key: 'apiSecret', label: 'Client Secret', type: 'password', required: true },
+    ],
+  },
+  {
     id: 'TSOFT',
     label: 'T-Soft',
     logo: '🏬',

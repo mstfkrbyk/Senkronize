@@ -1,0 +1,4 @@
+-- AlterEnum
+ALTER TYPE "Marketplace" ADD VALUE 'IDEASOFT';
+ALTER TYPE "Marketplace" ADD VALUE 'PTTAVM';
+ALTER TYPE "Marketplace" ADD VALUE 'PAZARAMA';

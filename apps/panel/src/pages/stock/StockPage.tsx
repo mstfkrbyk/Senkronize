@@ -36,6 +36,9 @@ const EXTRA_MARKETPLACE_FILTERS: { id: string; label: string }[] = [
   { id: 'N11', label: 'n11' },
   { id: 'AMAZON_TR', label: 'Amazon TR' },
   { id: 'CICEKSEPETI', label: 'Çiçeksepeti' },
+  { id: 'IDEASOFT', label: 'İdeasoft' },
+  { id: 'PTTAVM', label: 'PTT AVM' },
+  { id: 'PAZARAMA', label: 'Pazarama' },
 ];
 
 function isStockAlertPayload(

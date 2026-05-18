@@ -75,6 +75,15 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.TICIMAX) {
       return creds.siteUrl ?? null;
     }
+    if (platform === Marketplace.N11) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.CICEKSEPETI) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.IDEASOFT) {
+      return creds.storeUrl ?? null;
+    }
     return null;
   }
 

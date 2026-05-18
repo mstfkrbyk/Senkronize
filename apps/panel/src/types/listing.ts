@@ -1,6 +1,12 @@
 export type ListingPlatform =
   | 'TRENDYOL'
   | 'HEPSIBURADA'
+  | 'N11'
+  | 'AMAZON_TR'
+  | 'CICEKSEPETI'
+  | 'IDEASOFT'
+  | 'PTTAVM'
+  | 'PAZARAMA'
   | 'TSOFT'
   | 'TICIMAX';
 
