@@ -86,6 +86,22 @@ export class MarketplaceConnectionController {
     return this.marketplaceConnectionService.findOne(org.id, id);
   }
 
+  @Post(':id/register-webhook')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Webhook URL için gizli anahtar üret ve kaydet',
+  })
+  @ApiResponse({ status: 200, description: 'Webhook URL döndürüldü' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async registerWebhook(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ webhookUrl: string }> {
+    return this.marketplaceConnectionService.registerWebhook(org.id, id);
+  }
+
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Bağlantıyı güncelle (kimlik bilgisi veya aktiflik)' })

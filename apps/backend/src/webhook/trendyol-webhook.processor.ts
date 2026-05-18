@@ -20,4 +20,16 @@ export class TrendyolWebhookProcessor {
     this.logger.log(`Trendyol webhook işi alındı: ${job.data.webhookEventId}`);
     await this.webhookService.processTrendyolWebhookJob(job.data.webhookEventId);
   }
+
+  @Process('hepsiburada-webhook')
+  async handleHepsiburadaWebhook(
+    job: Job<TrendyolWebhookJobData>,
+  ): Promise<void> {
+    this.logger.log(
+      `Hepsiburada webhook işi alındı: ${job.data.webhookEventId}`,
+    );
+    await this.webhookService.processHepsiburadaWebhookJob(
+      job.data.webhookEventId,
+    );
+  }
 }

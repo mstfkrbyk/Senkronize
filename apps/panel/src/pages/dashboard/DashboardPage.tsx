@@ -22,6 +22,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,10 +42,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { useListingSummary } from '@/pages/listings/hooks/useListings';
 import { useOrderSummary } from '@/pages/orders/hooks/useOrders';
 import type { MarketplaceConnectionDto } from '@/types/connection';
+import type { Order, OrderStatus } from '@/types/order';
 import type { SyncStatusItem } from '@/types/sync';
 
 const KPI_CARDS: {
@@ -90,49 +93,6 @@ const KPI_CARDS: {
   },
 ];
 
-const MOCK_ORDERS = [
-  {
-    id: '1',
-    platform: 'TRENDYOL',
-    customer: 'Ahmet Y.',
-    amount: 459.9,
-    status: 'Yeni',
-    date: '2026-05-16',
-  },
-  {
-    id: '2',
-    platform: 'TRENDYOL',
-    customer: 'Fatma K.',
-    amount: 189.5,
-    status: 'Kargoda',
-    date: '2026-05-16',
-  },
-  {
-    id: '3',
-    platform: 'HEPSIBURADA',
-    customer: 'Mehmet A.',
-    amount: 729.0,
-    status: 'Teslim Edildi',
-    date: '2026-05-15',
-  },
-  {
-    id: '4',
-    platform: 'TRENDYOL',
-    customer: 'Zeynep S.',
-    amount: 99.9,
-    status: 'Yeni',
-    date: '2026-05-15',
-  },
-  {
-    id: '5',
-    platform: 'HEPSIBURADA',
-    customer: 'Ali R.',
-    amount: 1240.0,
-    status: 'İptal',
-    date: '2026-05-14',
-  },
-] as const;
-
 const MOCK_WEEKLY = [
   { gun: 'Pzt', siparis: 12 },
   { gun: 'Sal', siparis: 18 },
@@ -154,16 +114,49 @@ const KPI_COLOR: Record<
   purple: { ring: 'ring-purple-100', icon: 'text-purple-600' },
 };
 
-function OrderStatusBadge({ status }: { status: string }): ReactElement {
-  const tone: Record<string, string> = {
-    Yeni: 'border-blue-200 bg-blue-50 text-blue-800',
-    Kargoda: 'border-orange-200 bg-orange-50 text-orange-800',
-    'Teslim Edildi': 'border-green-200 bg-green-50 text-green-800',
-    İptal: 'border-red-200 bg-red-50 text-red-800',
-  };
+interface SalesReportRow {
+  period: string;
+  totalOrders: number;
+  totalRevenue: number;
+  byPlatform: Record<string, number>;
+}
+
+function last7DayKeys(): { iso: string; label: string }[] {
+  const res: { iso: string; label: string }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().split('T')[0] ?? '';
+    res.push({
+      iso,
+      label: d.toLocaleDateString('tr-TR', { weekday: 'short' }),
+    });
+  }
+  return res;
+}
+
+function chartFromSalesReport(
+  rows: SalesReportRow[] | undefined,
+): { gun: string; siparis: number }[] {
+  const keys = last7DayKeys();
+  const periodMap = new Map(
+    (rows ?? []).map((r) => [r.period.slice(0, 10), r.totalOrders]),
+  );
+  return keys.map(({ iso, label }) => ({
+    gun: label,
+    siparis: periodMap.get(iso) ?? 0,
+  }));
+}
+
+function RecentOrderStatusBadge({
+  status,
+}: {
+  status: OrderStatus;
+}): ReactElement {
   return (
-    <Badge variant="outline" className={tone[status] ?? ''}>
-      {status}
+    <Badge variant="outline" className={orderStatusTone(status)}>
+      {ORDER_STATUS_LABEL_TR[status]}
     </Badge>
   );
 }
@@ -197,6 +190,13 @@ function formatTry(amount: number): string {
   }).format(amount);
 }
 
+function formatTryFromString(amount: string, currency: string): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: currency || 'TRY',
+  }).format(Number(amount));
+}
+
 export function DashboardPage(): ReactElement {
   const orderSummaryQuery = useOrderSummary();
   const listingSummaryQuery = useListingSummary();
@@ -204,12 +204,41 @@ export function DashboardPage(): ReactElement {
   const connectionsCountQuery = useQuery({
     queryKey: ['marketplace-connections', 'count'],
     queryFn: async (): Promise<number> => {
-      const { data } = await api.get<MarketplaceConnectionDto[]>(
-        '/marketplace-connections',
-      );
-      return data.length;
+      const { data } = await api.get<
+        | MarketplaceConnectionDto[]
+        | { items: MarketplaceConnectionDto[]; total: number }
+      >('/marketplace-connections');
+      if (Array.isArray(data)) {
+        return data.length;
+      }
+      return data.total;
     },
     initialData: 0,
+  });
+
+  const recentOrdersQuery = useQuery({
+    queryKey: ['orders', 'recent'],
+    queryFn: async (): Promise<Order[]> => {
+      const { data } = await api.get<{ items: Order[]; total: number }>(
+        '/orders',
+        { params: { limit: 5, page: 1 } },
+      );
+      return data.items;
+    },
+  });
+
+  const weeklySalesQuery = useQuery({
+    queryKey: ['reports', 'sales', 'weekly'],
+    queryFn: async (): Promise<SalesReportRow[]> => {
+      const end = new Date().toISOString().split('T')[0] ?? '';
+      const start = new Date(Date.now() - 7 * 86_400_000)
+        .toISOString()
+        .split('T')[0] ?? '';
+      const { data } = await api.get<SalesReportRow[]>('/reports/sales', {
+        params: { startDate: start, endDate: end, groupBy: 'day' },
+      });
+      return data;
+    },
   });
 
   const syncQuery = useQuery({
@@ -223,6 +252,13 @@ export function DashboardPage(): ReactElement {
   const handleMockSyncTrigger = (): void => {
     toast.info('Senkron kuyruğu tetikleme yakında aktif olacak.');
   };
+
+  const chartData =
+    weeklySalesQuery.isError || weeklySalesQuery.isPending
+      ? [...MOCK_WEEKLY]
+      : chartFromSalesReport(weeklySalesQuery.data);
+
+  const recentOrders = recentOrdersQuery.data ?? [];
 
   return (
     <div className="space-y-8">
@@ -287,11 +323,15 @@ export function DashboardPage(): ReactElement {
       <Card>
         <CardHeader>
           <CardTitle>Haftalık siparişler</CardTitle>
-          <CardDescription>Son 7 gün (örnek veri)</CardDescription>
+          <CardDescription>
+            {weeklySalesQuery.isError || weeklySalesQuery.isPending
+              ? 'Son 7 gün (örnek veri — rapor yüklenemedi veya bekleniyor)'
+              : 'Son 7 gün (günlük rapor)'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={[...MOCK_WEEKLY]} margin={{ left: 0, right: 8 }}>
+            <BarChart data={chartData} margin={{ left: 0, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="gun" tick={{ fontSize: 12 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
@@ -311,39 +351,74 @@ export function DashboardPage(): ReactElement {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Son siparişler</CardTitle>
-            <CardDescription>Örnek veri — API bağlantısı yakında</CardDescription>
+            <CardDescription>Son 5 sipariş</CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Pazaryeri</TableHead>
-                  <TableHead>Müşteri</TableHead>
-                  <TableHead className="text-right">Tutar</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead>Tarih</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {MOCK_ORDERS.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium">
-                      {getMarketplaceBranding(order.platform).label}
-                    </TableCell>
-                    <TableCell>{order.customer}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatTry(order.amount)}
-                    </TableCell>
-                    <TableCell>
-                      <OrderStatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {order.date}
-                    </TableCell>
+            {recentOrdersQuery.isPending ? (
+              <div className="space-y-2 p-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </div>
+            ) : null}
+            {recentOrdersQuery.isError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                {getApiErrorMessage(recentOrdersQuery.error)}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => {
+                    void recentOrdersQuery.refetch();
+                  }}
+                >
+                  Tekrar dene
+                </Button>
+              </div>
+            ) : null}
+            {!recentOrdersQuery.isPending &&
+            !recentOrdersQuery.isError &&
+            recentOrders.length === 0 ? (
+              <EmptyState
+                title="Henüz sipariş yok"
+                description="Pazaryeri siparişleri çekildiğinde burada listelenecek."
+              />
+            ) : null}
+            {!recentOrdersQuery.isPending &&
+            !recentOrdersQuery.isError &&
+            recentOrders.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pazaryeri</TableHead>
+                    <TableHead>Müşteri</TableHead>
+                    <TableHead className="text-right">Tutar</TableHead>
+                    <TableHead>Durum</TableHead>
+                    <TableHead>Tarih</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recentOrders.map((order) => (
+                    <TableRow key={order.id}>
+                      <TableCell className="font-medium">
+                        {getMarketplaceBranding(order.platform).label}
+                      </TableCell>
+                      <TableCell>{order.customerName}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatTryFromString(order.totalAmount, order.currency)}
+                      </TableCell>
+                      <TableCell>
+                        <RecentOrderStatusBadge status={order.status} />
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {order.platformCreatedAt.slice(0, 10)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -388,9 +463,10 @@ export function DashboardPage(): ReactElement {
             {!syncQuery.isLoading &&
             !syncQuery.isError &&
             (syncQuery.data?.length ?? 0) === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Henüz entegrasyon yok
-              </p>
+              <EmptyState
+                title="Henüz entegrasyon yok"
+                description="Pazaryeri bağlantısı eklediğinizde senkron durumu burada görünür."
+              />
             ) : null}
 
             {!syncQuery.isLoading &&

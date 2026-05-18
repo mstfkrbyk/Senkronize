@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
@@ -226,6 +228,30 @@ export class MarketplaceConnectionService {
       where: { id: row.id },
       data: { deletedAt: new Date() },
     });
+  }
+
+  async registerWebhook(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{ webhookUrl: string }> {
+    const row = await this.prisma.marketplaceConnection.findFirst({
+      where: { id: connectionId, organizationId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Pazaryeri bağlantısı bulunamadı');
+    }
+    const secret = randomBytes(32).toString('hex');
+    const webhookSecretEnc = this.encryptionService.encrypt(secret);
+    await this.prisma.marketplaceConnection.update({
+      where: { id: row.id },
+      data: { webhookSecret: webhookSecretEnc },
+    });
+    const base = (process.env.APP_URL ?? 'http://localhost:3001').replace(
+      /\/$/,
+      '',
+    );
+    const webhookUrl = `${base}/api/v1/webhooks/${row.platform.toLowerCase()}/${connectionId}`;
+    return { webhookUrl };
   }
 
   /**

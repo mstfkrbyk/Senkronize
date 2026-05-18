@@ -2,9 +2,10 @@ import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,6 +28,35 @@ import {
 
 const PAGE_SIZE = 20;
 
+function escapeCsvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function downloadListingsCsv(rows: Listing[]): void {
+  const headers = ['barkod', 'baslik', 'fiyat', 'stok', 'platform'];
+  const lines = [
+    headers.join(','),
+    ...rows.map((l) =>
+      [
+        escapeCsvCell(l.barcode),
+        escapeCsvCell(l.title),
+        escapeCsvCell(l.salePrice),
+        escapeCsvCell(String(l.quantity)),
+        escapeCsvCell(l.platform),
+      ].join(','),
+    ),
+  ];
+  const blob = new Blob([`\ufeff${lines.join('\n')}`], {
+    type: 'text/csv;charset=utf-8;',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `listelemeler-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ListingsPage(): ReactElement {
   const queryClient = useQueryClient();
   const { on } = useSocket();
@@ -41,12 +71,17 @@ export function ListingsPage(): ReactElement {
   const [priceOpen, setPriceOpen] = useState(false);
   const [stockTarget, setStockTarget] = useState<Listing | null>(null);
   const [stockOpen, setStockOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const listingsQuery = useListings(filters);
   const summaryQuery = useListingSummary();
   const syncMutation = useSyncListings();
   const updatePriceMutation = useUpdatePrice();
   const updateStockMutation = useUpdateStock();
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filters.page, filters.platform, filters.approved, filters.search]);
 
   useEffect(() => {
     const unlisten = on('listing:synced', () => {
@@ -137,6 +172,32 @@ export function ListingsPage(): ReactElement {
 
       <ListingFilters filters={filters} onChange={setFilters} />
 
+      {!listingsQuery.isLoading &&
+      !listingsQuery.isError &&
+      data &&
+      data.items.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2">
+          <Badge variant="secondary" aria-live="polite">
+            {selectedIds.size} seçili
+          </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            disabled={selectedIds.size === 0}
+            onClick={() => {
+              const rows = data.items.filter((l) => selectedIds.has(l.id));
+              downloadListingsCsv(rows);
+              toast.success('CSV indirildi');
+            }}
+          >
+            <Download className="h-4 w-4 shrink-0" aria-hidden />
+            Seçilenleri dışa aktar
+          </Button>
+        </div>
+      ) : null}
+
       {listingsQuery.isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-12 w-full" />
@@ -166,9 +227,10 @@ export function ListingsPage(): ReactElement {
       !listingsQuery.isError &&
       data &&
       data.items.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Henüz listeleme yok veya filtrelere uygun kayıt bulunamadı.
-        </p>
+        <EmptyState
+          title="Henüz listeleme yok"
+          description="Filtrelere uygun kayıt bulunamadı veya henüz pazaryeri listesi çekilmedi."
+        />
       ) : null}
 
       {!listingsQuery.isLoading &&
@@ -177,6 +239,32 @@ export function ListingsPage(): ReactElement {
       data.items.length > 0 ? (
         <ListingsTable
           listings={data.items}
+          selectedIds={selectedIds}
+          onToggleRow={(id, selected) => {
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (selected) {
+                next.add(id);
+              } else {
+                next.delete(id);
+              }
+              return next;
+            });
+          }}
+          onToggleAllOnPage={(selected) => {
+            const ids = data.items.map((l) => l.id);
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              for (const id of ids) {
+                if (selected) {
+                  next.add(id);
+                } else {
+                  next.delete(id);
+                }
+              }
+              return next;
+            });
+          }}
           onRowClick={handleRowClick}
           onOpenPrice={(listing) => {
             setPriceTarget(listing);

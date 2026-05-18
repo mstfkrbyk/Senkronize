@@ -4,6 +4,7 @@ import { Banknote, Boxes, Package } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -17,6 +18,9 @@ import type { Listing } from '@/types/listing';
 
 interface Props {
   listings: Listing[];
+  selectedIds: Set<string>;
+  onToggleRow: (id: string, selected: boolean) => void;
+  onToggleAllOnPage: (selected: boolean) => void;
   onRowClick: (listing: Listing) => void;
   onOpenPrice: (listing: Listing) => void;
   onOpenStock: (listing: Listing) => void;
@@ -72,15 +76,38 @@ function PlatformBadge({ platform }: { platform: string }): ReactElement {
 
 export function ListingsTable({
   listings,
+  selectedIds,
+  onToggleRow,
+  onToggleAllOnPage,
   onRowClick,
   onOpenPrice,
   onOpenStock,
 }: Props): ReactElement {
+  const pageIds = listings.map((l) => l.id);
+  const allSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const someSelected = pageIds.some((id) => selectedIds.has(id));
+
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[44px] p-2">
+              <Checkbox
+                checked={
+                  allSelected
+                    ? true
+                    : someSelected
+                      ? 'indeterminate'
+                      : false
+                }
+                onCheckedChange={(v) => {
+                  onToggleAllOnPage(v === true);
+                }}
+                aria-label="Bu sayfadaki tüm listelemeleri seç"
+              />
+            </TableHead>
             <TableHead className="w-[56px]">Görsel</TableHead>
             <TableHead>Ürün adı</TableHead>
             <TableHead>Barkod</TableHead>
@@ -100,13 +127,32 @@ export function ListingsTable({
                 onRowClick(listing);
               }}
             >
+              <TableCell
+                className="w-[44px] p-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <Checkbox
+                  checked={selectedIds.has(listing.id)}
+                  onCheckedChange={(v) => {
+                    onToggleRow(listing.id, v === true);
+                  }}
+                  aria-label={`Seç: ${listing.title}`}
+                />
+              </TableCell>
               <TableCell>
                 <ListingThumb urls={listing.imageUrls} />
               </TableCell>
               <TableCell className="max-w-[220px] font-medium">
                 <span className="line-clamp-2">{listing.title}</span>
               </TableCell>
-              <TableCell className="font-mono text-xs">{listing.barcode}</TableCell>
+              <TableCell className="font-mono text-xs">
+                {listing.barcode}
+              </TableCell>
               <TableCell>
                 <PlatformBadge platform={listing.platform} />
               </TableCell>

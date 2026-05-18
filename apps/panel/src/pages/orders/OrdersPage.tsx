@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
+import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getApiErrorMessage } from '@/lib/api';
@@ -79,9 +80,10 @@ export function OrdersPage(): ReactElement {
       ) : null}
 
       {!isLoading && !isError && data && data.items.length === 0 ? (
-        <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Henüz sipariş yok veya filtrelere uygun kayıt bulunamadı.
-        </p>
+        <EmptyState
+          title="Henüz sipariş yok"
+          description="Filtrelere uygun kayıt bulunamadı veya henüz pazaryeri siparişi çekilmedi."
+        />
       ) : null}
 
       {!isLoading && !isError && data && data.items.length > 0 ? (
@@ -130,6 +132,9 @@ export function OrdersPage(): ReactElement {
         order={selectedOrder}
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}
+        onCargoUpdated={(o) => {
+          setSelectedOrder(o);
+        }}
       />
     </div>
   );
