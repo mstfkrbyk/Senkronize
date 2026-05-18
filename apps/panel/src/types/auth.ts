@@ -4,7 +4,7 @@ export interface AuthUserDto {
   name: string;
   phone: string | null;
   role: string;
-  organizationId: string;
+  organizationId: string | null;
   twoFactorEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;

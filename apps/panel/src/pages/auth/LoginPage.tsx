@@ -156,7 +156,7 @@ export function LoginPage(): ReactElement {
 
   const finishLogin = useCallback(
     async (tokens: TokenPair): Promise<void> => {
-      setTokens(tokens.accessToken, tokens.refreshToken);
+      setTokens(tokens.accessToken, tokens.refreshToken, tokens.sessionId);
       const { data: me } = await api.get<MeResponse>('/auth/me');
       queryClient.setQueryData(['auth', 'me'], me);
       setUser({

@@ -25,6 +25,11 @@ import { useThemeStore } from '@/store/theme.store';
 const InviteAcceptPage = lazy(() =>
   import('@/pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
 );
+const AcceptInvitePage = lazy(() =>
+  import('@/pages/auth/AcceptInvitePage').then((m) => ({
+    default: m.AcceptInvitePage,
+  })),
+);
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
@@ -152,6 +157,14 @@ export default function App(): ReactElement {
         <Toaster position="top-center" richColors closeButton />
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            <Route
+              path="/accept-invite"
+              element={
+                <ErrorBoundary>
+                  <AcceptInvitePage />
+                </ErrorBoundary>
+              }
+            />
             <Route
               path="/invite/:token"
               element={

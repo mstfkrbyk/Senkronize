@@ -6,4 +6,5 @@ export interface OrgUser {
   role: string;
   lastLoginAt: string | null;
   createdAt: string;
+  lastActivityAt?: string;
 }

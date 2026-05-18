@@ -252,7 +252,7 @@ export function RegisterPage(): ReactElement {
         inviteToken: inviteFromUrl ?? undefined,
         plan: values.selectedPlan,
       });
-      setTokens(tokens.accessToken, tokens.refreshToken);
+      setTokens(tokens.accessToken, tokens.refreshToken, tokens.sessionId);
       const { data: me } = await api.get<MeResponse>('/auth/me');
       queryClient.setQueryData(['auth', 'me'], me);
       setUser({

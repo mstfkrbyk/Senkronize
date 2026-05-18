@@ -86,11 +86,12 @@ api.interceptors.response.use(
       const { data } = await axios.post<{
         accessToken: string;
         refreshToken: string;
+        sessionId?: string;
       }>(`${API_BASE_URL}/auth/refresh`, { refreshToken });
 
       useAuthStore
         .getState()
-        .setTokens(data.accessToken, data.refreshToken);
+        .setTokens(data.accessToken, data.refreshToken, data.sessionId);
 
       const impToken = useImpersonationStore.getState().impersonationToken;
       const nextToken = impToken ?? data.accessToken;
