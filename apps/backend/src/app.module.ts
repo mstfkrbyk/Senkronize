@@ -7,6 +7,7 @@ import { AdminModule } from './admin/admin.module';
 import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
+import { CacheModule } from './common/cache/cache.module';
 import { CommonModule } from './common/common.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
@@ -75,6 +76,7 @@ import { WebhookModule } from './webhook/webhook.module';
     SmsModule,
     PushModule,
     CommonModule,
+    CacheModule,
     AdapterModule,
     MarketplaceConnectionModule,
     ErpConnectionModule,

@@ -30,6 +30,7 @@ export function useListings(filters: ListingFilters) {
       });
       return data;
     },
+    staleTime: 60_000,
   });
 }
 

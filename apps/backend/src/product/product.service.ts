@@ -5,13 +5,17 @@ import {
 } from '@nestjs/common';
 import { Prisma, type Product } from '@prisma/client';
 
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { CreateProductDto, ProductQueryDto, UpdateProductDto } from './product.dto';
 
 @Injectable()
 export class ProductService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async findAll(
     organizationId: string,
@@ -19,6 +23,25 @@ export class ProductService {
   ): Promise<{ items: Product[]; total: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
+
+    const cachePayload = JSON.stringify({
+      page,
+      limit,
+      search: query.search ?? null,
+      isActive: query.isActive ?? null,
+      category: query.category ?? null,
+    });
+    const cacheKey = CacheService.key(
+      'products',
+      organizationId,
+      cachePayload,
+    );
+    const cached = await this.cache.get<{ items: Product[]; total: number }>(
+      cacheKey,
+    );
+    if (cached) {
+      return cached;
+    }
 
     const where: Prisma.ProductWhereInput = {
       organizationId,
@@ -59,7 +82,9 @@ export class ProductService {
       this.prisma.product.count({ where }),
     ]);
 
-    return { items, total };
+    const result = { items, total };
+    await this.cache.set(cacheKey, result, 120);
+    return result;
   }
 
   async findOne(organizationId: string, id: string): Promise<Product> {
@@ -74,7 +99,7 @@ export class ProductService {
 
   async create(organizationId: string, dto: CreateProductDto): Promise<Product> {
     try {
-      return await this.prisma.product.create({
+      const created = await this.prisma.product.create({
         data: {
           organizationId,
           name: dto.name,
@@ -86,6 +111,8 @@ export class ProductService {
           imageUrls: [],
         },
       });
+      await this.cache.invalidateProductsForOrg(organizationId);
+      return created;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -106,7 +133,7 @@ export class ProductService {
   ): Promise<Product> {
     await this.findOne(organizationId, id);
     try {
-      return await this.prisma.product.update({
+      const updated = await this.prisma.product.update({
         where: { id },
         data: {
           ...(dto.name !== undefined && { name: dto.name }),
@@ -118,6 +145,8 @@ export class ProductService {
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         },
       });
+      await this.cache.invalidateProductsForOrg(organizationId);
+      return updated;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -137,6 +166,7 @@ export class ProductService {
       where: { id },
       data: { deletedAt: new Date() },
     });
+    await this.cache.invalidateProductsForOrg(organizationId);
   }
 
   async addImageUrl(
@@ -154,6 +184,7 @@ export class ProductService {
       where: { id: productId },
       data: { imageUrls: { push: imageUrl } },
     });
+    await this.cache.invalidateProductsForOrg(organizationId);
   }
 
   async getByBarcode(

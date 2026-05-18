@@ -160,6 +160,47 @@ export class ImageService implements OnModuleInit {
     return `${this.publicUrl}/${key}`;
   }
 
+  private getContentTypeFromFilename(filename: string): string {
+    const ext = filename.split('.').pop()?.toLowerCase().split('?')[0] ?? '';
+    if (ext === 'png') {
+      return 'image/png';
+    }
+    if (ext === 'webp') {
+      return 'image/webp';
+    }
+    if (ext === 'gif') {
+      return 'image/gif';
+    }
+    return 'image/jpeg';
+  }
+
+  /** Buffer ile R2 yükleme; R2 kapalıysa mock URL (iş kuyruğu tamamlanır). */
+  async uploadBuffer(
+    buffer: Buffer,
+    filename: string,
+    organizationId: string,
+  ): Promise<string> {
+    if (!this.r2Enabled || !this.s3) {
+      const key = `${organizationId}/${filename}`;
+      return `https://mock-r2.example.com/${key}`;
+    }
+
+    const key = `${organizationId}/${filename}`;
+    const client = this.assertR2();
+    const contentType = this.getContentTypeFromFilename(filename);
+    await client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        CacheControl: 'public, max-age=31536000',
+      }),
+    );
+
+    return `${this.publicUrl}/${key}`;
+  }
+
   async getPresignedUrl(
     organizationId: string,
     filename: string,

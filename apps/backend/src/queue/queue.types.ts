@@ -49,3 +49,10 @@ export interface ImageUploadFromUrlJobData {
   resourceType: 'listing' | 'product';
   resourceId: string;
 }
+
+/** image-sync — pazaryeri URL → buffer → R2 → ürün imageUrls */
+export interface ImageSyncJobData {
+  organizationId: string;
+  productId: string;
+  imageUrl: string;
+}

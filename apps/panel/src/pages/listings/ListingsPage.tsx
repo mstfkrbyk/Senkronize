@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { Download, Loader2, Percent, Upload } from 'lucide-react';
@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
 import type { Listing, ListingFilters as ListingFiltersState } from '@/types/listing';
@@ -86,6 +87,23 @@ export function ListingsPage(): ReactElement {
     page: 1,
     limit: PAGE_SIZE,
   });
+  const [searchDraft, setSearchDraft] = useState('');
+  const debouncedSearch = useDebouncedValue(searchDraft, 300);
+  const listingQueryFilters = useMemo(
+    () => ({
+      ...filters,
+      search: debouncedSearch.trim() ? debouncedSearch.trim() : undefined,
+    }),
+    [filters, debouncedSearch],
+  );
+
+  const prevDebouncedSearch = useRef(debouncedSearch);
+  useEffect(() => {
+    if (prevDebouncedSearch.current !== debouncedSearch) {
+      prevDebouncedSearch.current = debouncedSearch;
+      setFilters((f) => ({ ...f, page: 1 }));
+    }
+  }, [debouncedSearch]);
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [priceTarget, setPriceTarget] = useState<Listing | null>(null);
@@ -96,7 +114,7 @@ export function ListingsPage(): ReactElement {
   const [bulkPctOpen, setBulkPctOpen] = useState(false);
   const [bulkPctInput, setBulkPctInput] = useState('0');
 
-  const listingsQuery = useListings(filters);
+  const listingsQuery = useListings(listingQueryFilters);
   const summaryQuery = useListingSummary();
   const syncMutation = useSyncListings();
   const updatePriceMutation = useUpdatePrice();
@@ -105,7 +123,7 @@ export function ListingsPage(): ReactElement {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [filters.page, filters.platform, filters.approved, filters.search]);
+  }, [filters.page, filters.platform, filters.approved, debouncedSearch]);
 
   useEffect(() => {
     const unlisten = on('listing:synced', () => {
@@ -290,7 +308,12 @@ export function ListingsPage(): ReactElement {
         </Button>
       </div>
 
-      <ListingFilters filters={filters} onChange={setFilters} />
+      <ListingFilters
+        filters={filters}
+        onChange={setFilters}
+        searchInput={searchDraft}
+        onSearchInputChange={setSearchDraft}
+      />
 
       {!listingsQuery.isLoading &&
       !listingsQuery.isError &&

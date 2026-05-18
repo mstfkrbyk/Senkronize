@@ -15,6 +15,9 @@ import type { ListingFilters as ListingFiltersState } from '@/types/listing';
 interface Props {
   filters: ListingFiltersState;
   onChange: (next: ListingFiltersState) => void;
+  /** Debounced arama için üst bileşenden kontrollü metin */
+  searchInput?: string;
+  onSearchInputChange?: (value: string) => void;
 }
 
 const DEFAULT_LIMIT = 20;
@@ -22,6 +25,8 @@ const DEFAULT_LIMIT = 20;
 export function ListingFilters({
   filters,
   onChange,
+  searchInput,
+  onSearchInputChange,
 }: Props): ReactElement {
   const setField = <K extends keyof ListingFiltersState>(
     key: K,
@@ -35,8 +40,12 @@ export function ListingFilters({
   };
 
   const handleClear = (): void => {
+    onSearchInputChange?.('');
     onChange({ page: 1, limit: DEFAULT_LIMIT });
   };
+
+  const searchControlled =
+    searchInput !== undefined && onSearchInputChange !== undefined;
 
   const approvedValue =
     filters.approved === undefined
@@ -96,10 +105,15 @@ export function ListingFilters({
         <Input
           id="listing-search"
           placeholder="Ürün adı veya barkod"
-          value={filters.search ?? ''}
-          onChange={(e) =>
-            setField('search', e.target.value ? e.target.value : undefined)
-          }
+          value={searchControlled ? searchInput : (filters.search ?? '')}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (searchControlled) {
+              onSearchInputChange(v);
+            } else {
+              setField('search', v ? v : undefined);
+            }
+          }}
         />
       </div>
 

@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import type { MarketplaceOrder } from '@senkronize/shared';
 
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
@@ -23,7 +24,10 @@ export type SerializedOrder = Omit<Order, 'totalAmount'> & {
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async findAll(
     organizationId: string,
@@ -166,6 +170,9 @@ export class OrderService {
           syncedAt: new Date(),
         },
       });
+    }
+    if (orders.length > 0) {
+      await this.cache.invalidateReportsForOrg(organizationId);
     }
   }
 

@@ -6,6 +6,8 @@ export const QUEUE_ERP_SYNC = 'erp-sync';
 export const QUEUE_NOTIFICATION = 'notification-dispatch';
 export const QUEUE_PRICING = 'pricing-engine';
 export const QUEUE_IMAGE = 'image-upload';
+/** Pazaryeri görsel URL → R2 buffer yükleme (axios) */
+export const QUEUE_IMAGE_SYNC = 'image-sync';
 
 /** Pazaryeri pull/push ve benzeri dış API işleri — Bull job varsayılanları */
 export const JOB_DEFAULT_OPTIONS: JobOptions = {
