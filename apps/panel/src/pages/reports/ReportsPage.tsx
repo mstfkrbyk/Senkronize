@@ -1,7 +1,18 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,12 +33,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getApiErrorMessage } from '@/lib/api';
+import { exportToCsv } from '@/lib/csv-export';
 import type { ReportFilters, SalesReportData } from '@/types/report';
 
 import { PlatformBreakdown } from './PlatformBreakdown';
 import { SalesChart } from './SalesChart';
-import { usePlatformReport, useSalesReport, useTopProducts } from './hooks/useReports';
+import {
+  useOrderTrend,
+  usePlatformComparison,
+  usePlatformReport,
+  useProfitReport,
+  useSalesReport,
+  useStockValueReport,
+  useTopProducts,
+} from './hooks/useReports';
 import {
   aggregateSalesByGroup,
   filterSalesByDateRange,
@@ -44,25 +65,33 @@ function defaultDateRange(): { start: string; end: string } {
   };
 }
 
-function downloadCSV(data: SalesReportData[], filename: string): void {
-  const headers = ['Tarih', 'Sipariş Sayısı', 'Gelir (TL)'];
-  const rows = data.map((d) => [d.period, String(d.totalOrders), d.totalRevenue.toFixed(2)]);
-  const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function formatTry(n: number): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 export function ReportsPage(): ReactElement {
   const initialRange = useMemo(() => defaultDateRange(), []);
+  const [activeTab, setActiveTab] = useState('overview');
+
   const [startDate, setStartDate] = useState(initialRange.start);
   const [endDate, setEndDate] = useState(initialRange.end);
   const [platform, setPlatform] = useState<string>('all');
   const [groupBy, setGroupBy] = useState<'day' | 'week' | 'month'>('day');
+
+  const [profitPreset, setProfitPreset] = useState<'7' | '30' | '90' | 'custom'>('30');
+  const [profitStart, setProfitStart] = useState(initialRange.start);
+  const [profitEnd, setProfitEnd] = useState(initialRange.end);
+  const [profitPlatform, setProfitPlatform] = useState<string>('all');
+
+  const [trendStart, setTrendStart] = useState(initialRange.start);
+  const [trendEnd, setTrendEnd] = useState(initialRange.end);
+  const [trendGranularity, setTrendGranularity] = useState<
+    'daily' | 'weekly' | 'monthly'
+  >('daily');
 
   const filters: ReportFilters = useMemo(
     () => ({
@@ -77,6 +106,31 @@ export function ReportsPage(): ReactElement {
   const salesQuery = useSalesReport(filters);
   const platformQuery = usePlatformReport(filters);
   const topProductsQuery = useTopProducts(20);
+
+  const profitQuery = useProfitReport(
+    {
+      startDate: profitStart,
+      endDate: profitEnd,
+      platform: profitPlatform,
+    },
+    { enabled: activeTab === 'profit' },
+  );
+
+  const stockQuery = useStockValueReport({ enabled: activeTab === 'stock' });
+
+  const orderTrendQuery = useOrderTrend(
+    {
+      startDate: trendStart,
+      endDate: trendEnd,
+      granularity: trendGranularity,
+    },
+    { enabled: activeTab === 'trend' },
+  );
+
+  const platformCompareQuery = usePlatformComparison(
+    { startDate, endDate },
+    { enabled: activeTab === 'platform' },
+  );
 
   const chartRows = useMemo(() => {
     const rows = salesQuery.data?.rows ?? [];
@@ -93,10 +147,53 @@ export function ReportsPage(): ReactElement {
     }));
   }, [platformQuery.data]);
 
+  const profitPieSlices = useMemo(() => {
+    const rows = profitQuery.data?.byPlatform ?? [];
+    return rows.map((r) => ({
+      name: r.platform,
+      value: r.revenue,
+    }));
+  }, [profitQuery.data?.byPlatform]);
+
+  const orderTrendChartData = useMemo(() => {
+    const d = orderTrendQuery.data;
+    if (!d) {
+      return [];
+    }
+    return d.labels.map((label, i) => ({
+      label,
+      orderCount: d.orderCounts[i] ?? 0,
+      revenue: d.revenues[i] ?? 0,
+    }));
+  }, [orderTrendQuery.data]);
+
   const summary = useMemo(() => summarizeSales(chartRows), [chartRows]);
 
   const showSampleBanner = salesQuery.data?.kind === 'mock';
   const isSalesLoading = salesQuery.isFetching && salesQuery.data?.kind === 'placeholder';
+
+  function applyProfitPreset(preset: '7' | '30' | '90'): void {
+    const end = new Date();
+    const daysBack = preset === '7' ? 6 : preset === '30' ? 29 : 89;
+    const start = subDays(end, daysBack);
+    setProfitStart(format(start, 'yyyy-MM-dd'));
+    setProfitEnd(format(end, 'yyyy-MM-dd'));
+    setProfitPreset(preset);
+  }
+
+  function exportSalesTable(): void {
+    if (chartRows.length === 0) {
+      return;
+    }
+    exportToCsv(
+      chartRows.map((d: SalesReportData) => ({
+        Tarih: d.period,
+        'Sipariş sayısı': d.totalOrders,
+        'Gelir (TL)': d.totalRevenue,
+      })),
+      'satis-raporu',
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -104,23 +201,9 @@ export function ReportsPage(): ReactElement {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">Raporlar</h1>
           <p className="text-muted-foreground">
-            Satış performansınızı tarih aralığı, platform ve gruplamaya göre inceleyin.
+            Satış, kâr, stok değeri ve platform performansını tek ekrandan inceleyin.
           </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          className="shrink-0"
-          disabled={chartRows.length === 0}
-          onClick={() =>
-            downloadCSV(
-              chartRows,
-              `satis-raporu-${filters.startDate ?? 'baslangic'}-${filters.endDate ?? 'bitis'}.csv`,
-            )
-          }
-        >
-          CSV İndir
-        </Button>
       </div>
 
       {showSampleBanner ? (
@@ -129,179 +212,766 @@ export function ReportsPage(): ReactElement {
         </div>
       ) : null}
 
-      {salesQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(salesQuery.error)}
-        </div>
-      ) : null}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="flex h-auto flex-wrap gap-1">
+          <TabsTrigger value="overview">Satış özeti</TabsTrigger>
+          <TabsTrigger value="profit">Kâr analizi</TabsTrigger>
+          <TabsTrigger value="stock">Stok değeri</TabsTrigger>
+          <TabsTrigger value="trend">Sipariş trendi</TabsTrigger>
+          <TabsTrigger value="platform">Platform karşılaştırma</TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Filtreler</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2">
-            <Label htmlFor="rep-start">Başlangıç</Label>
-            <Input
-              id="rep-start"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="rep-end">Bitiş</Label>
-            <Input
-              id="rep-end"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Platform</Label>
-            <Select value={platform} onValueChange={setPlatform}>
-              <SelectTrigger>
-                <SelectValue placeholder="Tümü" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tümü</SelectItem>
-                <SelectItem value="TRENDYOL">Trendyol</SelectItem>
-                <SelectItem value="HEPSIBURADA">Hepsiburada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Gruplama</Label>
-            <Select
-              value={groupBy}
-              onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}
+        <TabsContent value="overview" className="space-y-6">
+          {salesQuery.isError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {getApiErrorMessage(salesQuery.error)}
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={chartRows.length === 0}
+              onClick={exportSalesTable}
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Gün</SelectItem>
-                <SelectItem value="week">Hafta</SelectItem>
-                <SelectItem value="month">Ay</SelectItem>
-              </SelectContent>
-            </Select>
+              CSV İndir (grafik)
+            </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam sipariş
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isSalesLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <p className="text-2xl font-semibold text-primary">{summary.totalOrders}</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam gelir
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isSalesLoading ? (
-              <Skeleton className="h-8 w-32" />
-            ) : (
-              <p className="text-2xl font-semibold text-primary">
-                {new Intl.NumberFormat('tr-TR', {
-                  style: 'currency',
-                  currency: 'TRY',
-                  maximumFractionDigits: 0,
-                }).format(summary.totalRevenue)}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ortalama sipariş değeri
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isSalesLoading ? (
-              <Skeleton className="h-8 w-32" />
-            ) : (
-              <p className="text-2xl font-semibold text-primary">
-                {new Intl.NumberFormat('tr-TR', {
-                  style: 'currency',
-                  currency: 'TRY',
-                  maximumFractionDigits: 0,
-                }).format(summary.averageOrderValue)}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SalesChart data={chartRows} />
-        {platformQuery.isLoading ? (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Platform dağılımı</CardTitle>
+              <CardTitle className="text-base">Filtreler</CardTitle>
             </CardHeader>
-            <CardContent className="h-72">
-              <Skeleton className="h-full w-full rounded-md" />
+            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-2">
+                <Label htmlFor="rep-start">Başlangıç</Label>
+                <Input
+                  id="rep-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rep-end">Bitiş</Label>
+                <Input
+                  id="rep-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Platform</Label>
+                <Select value={platform} onValueChange={setPlatform}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tümü" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tümü</SelectItem>
+                    <SelectItem value="TRENDYOL">Trendyol</SelectItem>
+                    <SelectItem value="HEPSIBURADA">Hepsiburada</SelectItem>
+                    <SelectItem value="N11">n11</SelectItem>
+                    <SelectItem value="AMAZON_TR">Amazon TR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Gruplama</Label>
+                <Select
+                  value={groupBy}
+                  onValueChange={(v) => setGroupBy(v as 'day' | 'week' | 'month')}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Gün</SelectItem>
+                    <SelectItem value="week">Hafta</SelectItem>
+                    <SelectItem value="month">Ay</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
-        ) : (
-          <PlatformBreakdown data={platformPieSlices} />
-        )}
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">En çok satan ürünler</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {topProductsQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(topProductsQuery.error)}</p>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Toplam sipariş
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isSalesLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">{summary.totalOrders}</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Toplam gelir
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isSalesLoading ? (
+                  <Skeleton className="h-8 w-32" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">
+                    {formatTry(summary.totalRevenue)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Ortalama sipariş değeri
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isSalesLoading ? (
+                  <Skeleton className="h-8 w-32" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">
+                    {formatTry(summary.averageOrderValue)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SalesChart data={chartRows} />
+            {platformQuery.isLoading ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Platform dağılımı</CardTitle>
+                </CardHeader>
+                <CardContent className="h-72">
+                  <Skeleton className="h-full w-full rounded-md" />
+                </CardContent>
+              </Card>
+            ) : (
+              <PlatformBreakdown data={platformPieSlices} />
+            )}
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">En çok satan ürünler</CardTitle>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={(topProductsQuery.data ?? []).length === 0}
+                onClick={() =>
+                  exportToCsv(
+                    (topProductsQuery.data ?? []).map((row) => ({
+                      Barkod: row.barcode,
+                      Adet: row.totalQuantity,
+                      'Sipariş sayısı': row.orderCount,
+                    })),
+                    'en-cok-satan-urunler',
+                  )
+                }
+              >
+                CSV İndir
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {topProductsQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {getApiErrorMessage(topProductsQuery.error)}
+                </p>
+              ) : null}
+              {topProductsQuery.isLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </div>
+              ) : (topProductsQuery.data ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Ürün raporu için veri bulunamadı.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Barkod</TableHead>
+                        <TableHead className="text-right">Adet</TableHead>
+                        <TableHead className="text-right">Sipariş sayısı</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(topProductsQuery.data ?? []).map((row) => (
+                        <TableRow key={row.barcode}>
+                          <TableCell className="font-mono text-sm">{row.barcode}</TableCell>
+                          <TableCell className="text-right">{row.totalQuantity}</TableCell>
+                          <TableCell className="text-right">{row.orderCount}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="profit" className="space-y-6">
+          {profitQuery.isError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {getApiErrorMessage(profitQuery.error)}
+            </div>
           ) : null}
-          {topProductsQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Tarih aralığı</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={profitPreset === '7' ? 'default' : 'outline'}
+                  onClick={() => applyProfitPreset('7')}
+                >
+                  Son 7 gün
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={profitPreset === '30' ? 'default' : 'outline'}
+                  onClick={() => applyProfitPreset('30')}
+                >
+                  Son 30 gün
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={profitPreset === '90' ? 'default' : 'outline'}
+                  onClick={() => applyProfitPreset('90')}
+                >
+                  Son 90 gün
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={profitPreset === 'custom' ? 'default' : 'outline'}
+                  onClick={() => setProfitPreset('custom')}
+                >
+                  Özel
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Başlangıç</Label>
+                  <Input
+                    type="date"
+                    value={profitStart}
+                    onChange={(e) => {
+                      setProfitStart(e.target.value);
+                      setProfitPreset('custom');
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bitiş</Label>
+                  <Input
+                    type="date"
+                    value={profitEnd}
+                    onChange={(e) => {
+                      setProfitEnd(e.target.value);
+                      setProfitPreset('custom');
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Platform</Label>
+                  <Select
+                    value={profitPlatform}
+                    onValueChange={(v) => {
+                      setProfitPlatform(v);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Tümü" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tümü</SelectItem>
+                      <SelectItem value="TRENDYOL">Trendyol</SelectItem>
+                      <SelectItem value="HEPSIBURADA">Hepsiburada</SelectItem>
+                      <SelectItem value="N11">n11</SelectItem>
+                      <SelectItem value="AMAZON_TR">Amazon TR</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Toplam gelir
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profitQuery.isLoading ? (
+                  <Skeleton className="h-8 w-32" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">
+                    {formatTry(profitQuery.data?.totalRevenue ?? 0)}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Tahmini kâr
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profitQuery.isLoading ? (
+                  <Skeleton className="h-8 w-32" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">
+                    {formatTry(profitQuery.data?.estimatedProfit ?? 0)}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Maliyet verisi yoksa gelirin %20&apos;si varsayılır.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Kâr marjı
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profitQuery.isLoading ? (
+                  <Skeleton className="h-8 w-24" />
+                ) : (
+                  <p className="text-2xl font-semibold text-primary">
+                    {(profitQuery.data?.profitMargin ?? 0).toFixed(1)}%
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            {profitQuery.isLoading ? (
+              <Card>
+                <CardContent className="h-72 pt-6">
+                  <Skeleton className="h-full w-full rounded-md" />
+                </CardContent>
+              </Card>
+            ) : (
+              <PlatformBreakdown data={profitPieSlices} />
+            )}
+            <Card>
+              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+                <CardTitle className="text-base">En çok satan 10 ürün (gelir)</CardTitle>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={(profitQuery.data?.topProducts ?? []).length === 0}
+                  onClick={() =>
+                    exportToCsv(
+                      (profitQuery.data?.topProducts ?? []).map((row) => ({
+                        Ürün: row.name,
+                        Barkod: row.barcode,
+                        'Gelir (TL)': row.revenue,
+                        Adet: row.quantity,
+                      })),
+                      'kar-raporu-urunler',
+                    )
+                  }
+                >
+                  CSV İndir
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {(profitQuery.data?.topProducts ?? []).length === 0 && !profitQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground">Bu aralıkta satır bulunamadı.</p>
+                ) : (
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ürün</TableHead>
+                          <TableHead>Barkod</TableHead>
+                          <TableHead className="text-right">Gelir</TableHead>
+                          <TableHead className="text-right">Adet</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(profitQuery.data?.topProducts ?? []).map((row) => (
+                          <TableRow key={row.barcode}>
+                            <TableCell className="max-w-[180px] truncate">{row.name}</TableCell>
+                            <TableCell className="font-mono text-sm">{row.barcode}</TableCell>
+                            <TableCell className="text-right">{formatTry(row.revenue)}</TableCell>
+                            <TableCell className="text-right">{row.quantity}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="stock" className="space-y-6">
+          {stockQuery.isError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {getApiErrorMessage(stockQuery.error)}
             </div>
-          ) : (topProductsQuery.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">Ürün raporu için veri bulunamadı.</p>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Barkod</TableHead>
-                    <TableHead className="text-right">Adet</TableHead>
-                    <TableHead className="text-right">Sipariş sayısı</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(topProductsQuery.data ?? []).map((row) => (
-                    <TableRow key={row.barcode}>
-                      <TableCell className="font-mono text-sm">{row.barcode}</TableCell>
-                      <TableCell className="text-right">{row.totalQuantity}</TableCell>
-                      <TableCell className="text-right">{row.orderCount}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Toplam stok değeri (satış fiyatı × adet)</p>
+              {stockQuery.isLoading ? (
+                <Skeleton className="mt-2 h-12 w-48" />
+              ) : (
+                <p className="text-3xl font-semibold tracking-tight text-primary">
+                  {formatTry(stockQuery.data?.totalStockValue ?? 0)}
+                </p>
+              )}
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={(stockQuery.data?.byPlatform ?? []).length === 0}
+              onClick={() =>
+                exportToCsv(
+                  (stockQuery.data?.byPlatform ?? []).map((row) => ({
+                    Platform: row.platform,
+                    'Stok değeri (TL)': row.totalValue,
+                    'SKU sayısı': row.skuCount,
+                  })),
+                  'stok-degeri-platform',
+                )
+              }
+            >
+              CSV İndir
+            </Button>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Ürün (barkod) sayısı
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stockQuery.isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <p className="text-2xl font-semibold">{stockQuery.data?.totalProducts ?? 0}</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="border-destructive/30 bg-destructive/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-destructive">Stokta yok</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stockQuery.isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <p className="text-2xl font-semibold text-destructive">
+                    {stockQuery.data?.outOfStockCount ?? 0}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="border-amber-200 bg-amber-50/80">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-amber-900">Düşük stok (1–5)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {stockQuery.isLoading ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  <p className="text-2xl font-semibold text-amber-900">
+                    {stockQuery.data?.lowStockCount ?? 0}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Platform bazlı stok değeri</CardTitle>
+              <Badge variant="secondary">SKU: {stockQuery.data?.totalSkus ?? '—'}</Badge>
+            </CardHeader>
+            <CardContent>
+              {stockQuery.isLoading ? (
+                <Skeleton className="h-32 w-full" />
+              ) : (stockQuery.data?.byPlatform ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Listeleme kaydı yok.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Platform</TableHead>
+                        <TableHead className="text-right">SKU</TableHead>
+                        <TableHead className="text-right">Değer</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(stockQuery.data?.byPlatform ?? []).map((row) => (
+                        <TableRow key={row.platform}>
+                          <TableCell>{row.platform}</TableCell>
+                          <TableCell className="text-right">{row.skuCount}</TableCell>
+                          <TableCell className="text-right">{formatTry(row.totalValue)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="trend" className="space-y-6">
+          {orderTrendQuery.isError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {getApiErrorMessage(orderTrendQuery.error)}
+            </div>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Filtreler</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Başlangıç</Label>
+                <Input
+                  type="date"
+                  value={trendStart}
+                  onChange={(e) => setTrendStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bitiş</Label>
+                <Input
+                  type="date"
+                  value={trendEnd}
+                  onChange={(e) => setTrendEnd(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Granülarite</Label>
+                <Select
+                  value={trendGranularity}
+                  onValueChange={(v) =>
+                    setTrendGranularity(v as 'daily' | 'weekly' | 'monthly')
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Günlük</SelectItem>
+                    <SelectItem value="weekly">Haftalık</SelectItem>
+                    <SelectItem value="monthly">Aylık</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Sipariş ve gelir trendi</CardTitle>
+            </CardHeader>
+            <CardContent className="h-96">
+              {orderTrendQuery.isLoading ? (
+                <Skeleton className="h-full w-full rounded-md" />
+              ) : orderTrendChartData.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Bu aralıkta veri yok.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={orderTrendChartData}
+                    margin={{ top: 8, right: 24, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis
+                      yAxisId="orders"
+                      orientation="left"
+                      tick={{ fontSize: 11 }}
+                      allowDecimals={false}
+                    />
+                    <YAxis
+                      yAxisId="revenue"
+                      orientation="right"
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) =>
+                        new Intl.NumberFormat('tr-TR', {
+                          notation: 'compact',
+                          maximumFractionDigits: 1,
+                        }).format(Number(v))
+                      }
+                    />
+                    <Tooltip
+                      formatter={(value, name) => {
+                        const v = value == null ? 0 : Number(value);
+                        if (name === 'revenue') {
+                          return [formatTry(v), 'Gelir'];
+                        }
+                        return [v, 'Sipariş'];
+                      }}
+                    />
+                    <Legend
+                      formatter={(value) =>
+                        value === 'revenue' ? 'Gelir (₺)' : 'Sipariş adedi'
+                      }
+                    />
+                    <Line
+                      yAxisId="orders"
+                      type="monotone"
+                      dataKey="orderCount"
+                      name="orderCount"
+                      stroke="#38bdf8"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <Line
+                      yAxisId="revenue"
+                      type="monotone"
+                      dataKey="revenue"
+                      name="revenue"
+                      stroke="#0f172a"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={orderTrendChartData.length === 0}
+              onClick={() =>
+                exportToCsv(
+                  orderTrendChartData.map((row) => ({
+                    Dönem: row.label,
+                    'Sipariş adedi': row.orderCount,
+                    'Gelir (TL)': row.revenue,
+                  })),
+                  'siparis-trendi',
+                )
+              }
+            >
+              CSV İndir
+            </Button>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="platform" className="space-y-6">
+          {platformCompareQuery.isError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              {getApiErrorMessage(platformCompareQuery.error)}
+            </div>
+          ) : null}
+
+          <p className="text-sm text-muted-foreground">
+            Tarih aralığı için üstteki Satış özeti sekmesindeki başlangıç ve bitiş tarihlerini kullanır.
+          </p>
+
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Platform performansı</CardTitle>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={(platformCompareQuery.data?.platforms ?? []).length === 0}
+                onClick={() =>
+                  exportToCsv(
+                    (platformCompareQuery.data?.platforms ?? []).map((row) => ({
+                      Platform: row.name,
+                      'Sipariş (iptal hariç)': row.orderCount,
+                      'Gelir (TL)': row.revenue,
+                      'Ort. sepet (TL)': row.avgOrderValue,
+                      'İptal/iade oranı (%)': row.returnRate.toFixed(2),
+                      'Senkron durumu': row.syncStatus,
+                    })),
+                    'platform-karsilastirma',
+                  )
+                }
+              >
+                CSV İndir
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {platformCompareQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : (platformCompareQuery.data?.platforms ?? []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">Veri bulunamadı.</p>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Platform</TableHead>
+                        <TableHead className="text-right">Sipariş</TableHead>
+                        <TableHead className="text-right">Gelir</TableHead>
+                        <TableHead className="text-right">Ort. sepet</TableHead>
+                        <TableHead className="text-right">İptal/iade %</TableHead>
+                        <TableHead>Senkron</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(platformCompareQuery.data?.platforms ?? []).map((row) => (
+                        <TableRow key={row.name}>
+                          <TableCell className="font-medium">{row.name}</TableCell>
+                          <TableCell className="text-right">{row.orderCount}</TableCell>
+                          <TableCell className="text-right">{formatTry(row.revenue)}</TableCell>
+                          <TableCell className="text-right">{formatTry(row.avgOrderValue)}</TableCell>
+                          <TableCell className="text-right">
+                            {row.returnRate.toFixed(1)}%
+                          </TableCell>
+                          <TableCell className="text-sm">{row.syncStatus}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

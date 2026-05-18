@@ -10,17 +10,24 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  DateRangeReportQueryDto,
+  OrderTrendQueryDto,
   PlatformReportQueryDto,
   ProductsReportQueryDto,
+  ProfitReportQueryDto,
   SalesReportQueryDto,
   StockMovementQueryDto,
 } from './reports.dto';
 import { ReportsService } from './reports.service';
 import type {
   DashboardSummaryDto,
+  OrderTrendDto,
+  PlatformComparisonDto,
   PlatformReportRow,
+  ProfitReportDto,
   SalesReportRow,
   StockMovementRow,
+  StockValueReportDto,
   TopProductRow,
 } from './reports.types';
 
@@ -117,5 +124,65 @@ export class ReportsController {
       start,
       end,
     );
+  }
+
+  @Get('profit')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kâr analizi (tahmini kâr ve platform dağılımı)' })
+  @ApiResponse({ status: 200, description: 'Kâr raporu' })
+  async getProfitReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ProfitReportQueryDto,
+  ): Promise<ProfitReportDto> {
+    const from = new Date(query.startDate);
+    const to = new Date(query.endDate);
+    to.setHours(23, 59, 59, 999);
+    return this.reportsService.getProfitReport(org.id, {
+      from,
+      to,
+      platform: query.platform,
+    });
+  }
+
+  @Get('stock-value')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok değeri özeti (listing satış fiyatı × adet)' })
+  @ApiResponse({ status: 200, description: 'Stok değeri raporu' })
+  async getStockValueReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<StockValueReportDto> {
+    return this.reportsService.getStockValueReport(org.id);
+  }
+
+  @Get('order-trend')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş ve gelir trendi (günlük / haftalık / aylık)' })
+  @ApiResponse({ status: 200, description: 'Zaman serisi' })
+  async getOrderTrend(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: OrderTrendQueryDto,
+  ): Promise<OrderTrendDto> {
+    const from = new Date(query.startDate);
+    const to = new Date(query.endDate);
+    to.setHours(23, 59, 59, 999);
+    return this.reportsService.getOrderTrend(org.id, {
+      granularity: query.granularity,
+      from,
+      to,
+    });
+  }
+
+  @Get('platform-comparison')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Platform performans karşılaştırması' })
+  @ApiResponse({ status: 200, description: 'Platform satırları' })
+  async getPlatformComparison(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DateRangeReportQueryDto,
+  ): Promise<PlatformComparisonDto> {
+    const from = new Date(query.startDate);
+    const to = new Date(query.endDate);
+    to.setHours(23, 59, 59, 999);
+    return this.reportsService.getPlatformComparison(org.id, { from, to });
   }
 }

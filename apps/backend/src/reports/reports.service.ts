@@ -1,13 +1,18 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
   DashboardSummaryDto,
+  OrderTrendDto,
+  PlatformComparisonDto,
+  PlatformComparisonRowDto,
   PlatformReportRow,
+  ProfitReportDto,
   SalesReportRow,
   StockMovementRow,
+  StockValueReportDto,
   TopProductRow,
 } from './reports.types';
 
@@ -36,6 +41,21 @@ function periodKeyUtc(
   const mon = new Date(monMs);
   return `${mon.getUTCFullYear()}-${pad2(mon.getUTCMonth() + 1)}-${pad2(mon.getUTCDate())}`;
 }
+
+const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
+  [Marketplace.TRENDYOL]: 'Trendyol',
+  [Marketplace.HEPSIBURADA]: 'Hepsiburada',
+  [Marketplace.N11]: 'n11',
+  [Marketplace.AMAZON_TR]: 'Amazon TR',
+  [Marketplace.CICEKSEPETI]: 'Çiçeksepeti',
+  [Marketplace.IDEASOFT]: 'Ideasoft',
+  [Marketplace.PTTAVM]: 'PttAVM',
+  [Marketplace.PAZARAMA]: 'Pazarama',
+  [Marketplace.TSOFT]: 'T-Soft',
+  [Marketplace.TICIMAX]: 'Ticimax',
+  [Marketplace.WOOCOMMERCE]: 'WooCommerce',
+  [Marketplace.SHOPIFY]: 'Shopify',
+};
 
 @Injectable()
 export class ReportsService {
@@ -274,5 +294,332 @@ export class ReportsService {
       reservedQty: r.reservedQty,
       updatedAt: r.updatedAt.toISOString(),
     }));
+  }
+
+  async getProfitReport(
+    organizationId: string,
+    params: { from: Date; to: Date; platform?: Marketplace },
+  ): Promise<ProfitReportDto> {
+    const orderWhere: Prisma.OrderWhereInput = {
+      organizationId,
+      deletedAt: null,
+      platformCreatedAt: { gte: params.from, lte: params.to },
+      status: { notIn: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+      ...(params.platform ? { platform: params.platform } : {}),
+    };
+
+    const [revenueAgg, byPlatformRows, orderItems] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: orderWhere,
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: orderWhere,
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.orderItem.findMany({
+        where: {
+          organizationId,
+          order: orderWhere,
+        },
+        select: {
+          barcode: true,
+          productName: true,
+          quantity: true,
+          unitPrice: true,
+        },
+      }),
+    ]);
+
+    const totalRevenue = Number(revenueAgg._sum.totalAmount ?? 0);
+    const estimatedProfit = totalRevenue * 0.2;
+    const profitMargin =
+      totalRevenue > 0 ? (estimatedProfit / totalRevenue) * 100 : 0;
+
+    const byPlatform = byPlatformRows.map((r) => ({
+      platform: r.platform,
+      revenue: Number(r._sum.totalAmount ?? 0),
+      orderCount: r._count._all,
+    }));
+
+    const aggByBarcode = new Map<
+      string,
+      { revenue: number; quantity: number; nameHint: string | null }
+    >();
+    for (const it of orderItems) {
+      const lineRevenue = Number(it.unitPrice) * it.quantity;
+      const prev = aggByBarcode.get(it.barcode);
+      const nameHint =
+        it.productName && it.productName.trim().length > 0
+          ? it.productName.trim()
+          : null;
+      if (!prev) {
+        aggByBarcode.set(it.barcode, {
+          revenue: lineRevenue,
+          quantity: it.quantity,
+          nameHint,
+        });
+      } else {
+        prev.revenue += lineRevenue;
+        prev.quantity += it.quantity;
+        if (!prev.nameHint && nameHint) {
+          prev.nameHint = nameHint;
+        }
+      }
+    }
+
+    const sortedBarcodes = Array.from(aggByBarcode.entries())
+      .sort((a, b) => b[1].revenue - a[1].revenue)
+      .slice(0, 10)
+      .map(([b]) => b);
+
+    const products =
+      sortedBarcodes.length > 0
+        ? await this.prisma.product.findMany({
+            where: {
+              organizationId,
+              deletedAt: null,
+              barcode: { in: sortedBarcodes },
+            },
+            select: { barcode: true, name: true },
+          })
+        : [];
+    const productNameByBarcode = new Map(
+      products.map((p) => [p.barcode, p.name] as const),
+    );
+
+    const topProducts = sortedBarcodes.map((barcode) => {
+      const row = aggByBarcode.get(barcode)!;
+      const fromProduct = productNameByBarcode.get(barcode);
+      const name =
+        row.nameHint ?? fromProduct ?? barcode;
+      return {
+        name,
+        barcode,
+        revenue: row.revenue,
+        quantity: row.quantity,
+      };
+    });
+
+    return {
+      totalRevenue,
+      estimatedProfit,
+      profitMargin,
+      byPlatform,
+      topProducts,
+    };
+  }
+
+  async getStockValueReport(
+    organizationId: string,
+  ): Promise<StockValueReportDto> {
+    const listings = await this.prisma.listing.findMany({
+      where: { organizationId, deletedAt: null },
+      select: {
+        platform: true,
+        barcode: true,
+        salePrice: true,
+        quantity: true,
+      },
+    });
+
+    let totalStockValue = 0;
+    let outOfStockCount = 0;
+    let lowStockCount = 0;
+    const distinctProducts = new Set<string>();
+    const byPlatform = new Map<
+      Marketplace,
+      { totalValue: number; skuCount: number }
+    >();
+
+    for (const L of listings) {
+      distinctProducts.add(L.barcode);
+      const price = Number(L.salePrice);
+      const value = price * L.quantity;
+      totalStockValue += value;
+
+      if (L.quantity === 0) {
+        outOfStockCount++;
+      } else if (L.quantity <= 5) {
+        lowStockCount++;
+      }
+
+      const cur = byPlatform.get(L.platform) ?? { totalValue: 0, skuCount: 0 };
+      cur.totalValue += value;
+      cur.skuCount++;
+      byPlatform.set(L.platform, cur);
+    }
+
+    return {
+      totalProducts: distinctProducts.size,
+      totalSkus: listings.length,
+      totalStockValue,
+      outOfStockCount,
+      lowStockCount,
+      byPlatform: Array.from(byPlatform.entries()).map(([platform, v]) => ({
+        platform,
+        totalValue: v.totalValue,
+        skuCount: v.skuCount,
+      })),
+    };
+  }
+
+  async getOrderTrend(
+    organizationId: string,
+    params: {
+      granularity: 'daily' | 'weekly' | 'monthly';
+      from: Date;
+      to: Date;
+    },
+  ): Promise<OrderTrendDto> {
+    const groupBy =
+      params.granularity === 'daily'
+        ? 'day'
+        : params.granularity === 'weekly'
+          ? 'week'
+          : 'month';
+    const rows = await this.getSalesReport(
+      organizationId,
+      params.from,
+      params.to,
+      groupBy,
+    );
+    return {
+      labels: rows.map((r) => r.period),
+      orderCounts: rows.map((r) => r.totalOrders),
+      revenues: rows.map((r) => r.totalRevenue),
+    };
+  }
+
+  async getPlatformComparison(
+    organizationId: string,
+    params: { from: Date; to: Date },
+  ): Promise<PlatformComparisonDto> {
+    const baseWhere: Prisma.OrderWhereInput = {
+      organizationId,
+      deletedAt: null,
+      platformCreatedAt: { gte: params.from, lte: params.to },
+    };
+
+    const [goodRows, totalRows, badRows, connections] = await Promise.all([
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: {
+          ...baseWhere,
+          status: { notIn: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+        },
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: baseWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: {
+          ...baseWhere,
+          status: { in: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.marketplaceConnection.findMany({
+        where: { organizationId, deletedAt: null },
+        select: {
+          platform: true,
+          isActive: true,
+          lastSyncAt: true,
+          syncErrorCount: true,
+        },
+      }),
+    ]);
+
+    const goodMap = new Map(
+      goodRows.map((r) => [
+        r.platform,
+        {
+          orderCount: r._count._all,
+          revenue: Number(r._sum.totalAmount ?? 0),
+        },
+      ] as const),
+    );
+    const totalMap = new Map(
+      totalRows.map((r) => [r.platform, r._count._all] as const),
+    );
+    const badMap = new Map(
+      badRows.map((r) => [r.platform, r._count._all] as const),
+    );
+
+    const platformSet = new Set<Marketplace>();
+    for (const c of connections) {
+      platformSet.add(c.platform);
+    }
+    for (const p of totalMap.keys()) {
+      platformSet.add(p);
+    }
+    for (const p of goodMap.keys()) {
+      platformSet.add(p);
+    }
+
+    const connByPlatform = new Map(
+      connections.map((c) => [c.platform, c] as const),
+    );
+
+    const platforms: PlatformComparisonRowDto[] = Array.from(platformSet)
+      .sort((a, b) => a.localeCompare(b))
+      .map((platform) => {
+        const good = goodMap.get(platform);
+        const orderCount = good?.orderCount ?? 0;
+        const revenue = good?.revenue ?? 0;
+        const avgOrderValue = orderCount > 0 ? revenue / orderCount : 0;
+        const totalOrders = totalMap.get(platform) ?? 0;
+        const badOrders = badMap.get(platform) ?? 0;
+        const returnRate =
+          totalOrders > 0 ? (badOrders / totalOrders) * 100 : 0;
+        return {
+          name: MARKETPLACE_LABEL_TR[platform] ?? platform,
+          orderCount,
+          revenue,
+          avgOrderValue,
+          returnRate,
+          syncStatus: this.describeConnectionSync(
+            connByPlatform.get(platform),
+          ),
+        };
+      });
+
+    return { platforms };
+  }
+
+  private describeConnectionSync(
+    connection:
+      | {
+          isActive: boolean;
+          lastSyncAt: Date | null;
+          syncErrorCount: number;
+        }
+      | undefined,
+  ): string {
+    if (!connection) {
+      return 'Bağlantı yok';
+    }
+    if (!connection.isActive) {
+      return 'Pasif';
+    }
+    if (connection.syncErrorCount > 0) {
+      return 'Senkron hatası';
+    }
+    if (!connection.lastSyncAt) {
+      return 'Henüz senkron yok';
+    }
+    const hours =
+      (Date.now() - connection.lastSyncAt.getTime()) / (60 * 60 * 1000);
+    if (hours > 48) {
+      return 'Senkron gecikti';
+    }
+    return 'Güncel';
   }
 }

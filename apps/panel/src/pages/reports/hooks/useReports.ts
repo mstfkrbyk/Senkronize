@@ -3,9 +3,13 @@ import { isAxiosError } from 'axios';
 
 import { api } from '@/lib/api';
 import type {
+  OrderTrendData,
+  PlatformComparisonData,
   PlatformReportData,
+  ProfitReportData,
   ReportFilters,
   SalesReportData,
+  StockValueReportData,
   TopProduct,
 } from '@/types/report';
 
@@ -33,6 +37,28 @@ function generateMockSalesData(days: number): SalesReportData[] {
       },
     };
   });
+}
+
+function normalizePlatformRow(
+  row: {
+    platform: string;
+    orderCount?: number;
+    revenue?: number;
+    totalOrders?: number;
+    totalRevenue?: number;
+  },
+  totalRevenueAll: number,
+): PlatformReportData {
+  const totalOrders = row.orderCount ?? row.totalOrders ?? 0;
+  const totalRevenue = row.revenue ?? row.totalRevenue ?? 0;
+  const percentage =
+    totalRevenueAll > 0 ? (totalRevenue / totalRevenueAll) * 100 : 0;
+  return {
+    platform: row.platform,
+    totalOrders,
+    totalRevenue,
+    percentage,
+  };
 }
 
 export function useSalesReport(filters: ReportFilters) {
@@ -64,10 +90,22 @@ export function usePlatformReport(filters: ReportFilters) {
     queryKey: ['reports', 'platform', filters],
     queryFn: async (): Promise<PlatformReportData[]> => {
       try {
-        const { data } = await api.get<PlatformReportData[]>('/reports/platform', {
+        const { data } = await api.get<
+          {
+            platform: string;
+            orderCount?: number;
+            revenue?: number;
+            totalOrders?: number;
+            totalRevenue?: number;
+          }[]
+        >('/reports/platform', {
           params: filters,
         });
-        return data;
+        const totalRev = data.reduce(
+          (s, r) => s + (r.revenue ?? r.totalRevenue ?? 0),
+          0,
+        );
+        return data.map((r) => normalizePlatformRow(r, totalRev));
       } catch (error) {
         if (isAxiosError(error)) {
           return [];
@@ -93,6 +131,89 @@ export function useTopProducts(limit = 20) {
         }
         throw error;
       }
+    },
+  });
+}
+
+export interface ProfitReportFilters {
+  startDate: string;
+  endDate: string;
+  platform?: string;
+}
+
+export function useProfitReport(
+  filters: ProfitReportFilters,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['reports', 'profit', filters],
+    enabled: options?.enabled ?? true,
+    queryFn: async (): Promise<ProfitReportData> => {
+      const { data } = await api.get<ProfitReportData>('/reports/profit', {
+        params: {
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+          ...(filters.platform && filters.platform !== 'all'
+            ? { platform: filters.platform }
+            : {}),
+        },
+      });
+      return data;
+    },
+  });
+}
+
+export function useStockValueReport(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['reports', 'stock-value'],
+    enabled: options?.enabled ?? true,
+    queryFn: async (): Promise<StockValueReportData> => {
+      const { data } = await api.get<StockValueReportData>('/reports/stock-value');
+      return data;
+    },
+  });
+}
+
+export interface OrderTrendFilters {
+  startDate: string;
+  endDate: string;
+  granularity: 'daily' | 'weekly' | 'monthly';
+}
+
+export function useOrderTrend(
+  filters: OrderTrendFilters,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['reports', 'order-trend', filters],
+    enabled: options?.enabled ?? true,
+    queryFn: async (): Promise<OrderTrendData> => {
+      const { data } = await api.get<OrderTrendData>('/reports/order-trend', {
+        params: filters,
+      });
+      return data;
+    },
+  });
+}
+
+export interface PlatformComparisonFilters {
+  startDate: string;
+  endDate: string;
+}
+
+export function usePlatformComparison(
+  filters: PlatformComparisonFilters,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['reports', 'platform-comparison', filters],
+    enabled: options?.enabled ?? true,
+    queryFn: async (): Promise<PlatformComparisonData> => {
+      const { data } = await api.get<PlatformComparisonData>(
+        '/reports/platform-comparison',
+        { params: filters },
+      );
+      return data;
     },
   });
 }
