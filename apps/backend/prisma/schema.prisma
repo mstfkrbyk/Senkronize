@@ -56,6 +56,15 @@ enum Marketplace {
   TICIMAX
   WOOCOMMERCE
   SHOPIFY
+  GETIR
+  GRATIS
+  BOYNER
+  MORHIPO
+  DOLAP
+  EBAY
+  ETSY
+  TEMU
+  SAHIBINDEN
 }
 
 enum PricingStrategy {
@@ -78,6 +87,13 @@ enum ErpType {
   MIKRO
   LUCA
   NETSIS
+  ETA
+  KOLAYBI
+  ZIRVE
+  NEBIM
+  EBA
+  SAP_B1
+  ISNET
 }
 
 enum EcommerceType {
@@ -136,6 +152,12 @@ model Organization {
   id                  String    @id @default(cuid())
   slug                String    @unique
   name                String
+  taxNumber           String?   @unique
+  taxOffice           String?
+  address             String?
+  city                String?
+  website             String?
+  referralCode        String?
   suspended           Boolean   @default(false)
   onboardingCompleted Boolean   @default(false)
   type                OrgType

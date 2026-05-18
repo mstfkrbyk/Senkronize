@@ -78,6 +78,21 @@ export class ErpConnectionService {
     if (erpType === ErpType.LUCA) {
       return creds.companyId ?? null;
     }
+    if (
+      erpType === ErpType.ETA ||
+      erpType === ErpType.ZIRVE ||
+      erpType === ErpType.NEBIM ||
+      erpType === ErpType.SAP_B1 ||
+      erpType === ErpType.ISNET
+    ) {
+      return creds.baseUrl ?? creds.host ?? null;
+    }
+    if (erpType === ErpType.KOLAYBI) {
+      return creds.companyName ?? creds.workspaceId ?? null;
+    }
+    if (erpType === ErpType.EBA) {
+      return creds.clientId ?? null;
+    }
     return null;
   }
 

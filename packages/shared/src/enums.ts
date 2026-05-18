@@ -33,7 +33,16 @@ export type Marketplace =
   | 'TSOFT'
   | 'TICIMAX'
   | 'WOOCOMMERCE'
-  | 'SHOPIFY';
+  | 'SHOPIFY'
+  | 'GETIR'
+  | 'GRATIS'
+  | 'BOYNER'
+  | 'MORHIPO'
+  | 'DOLAP'
+  | 'EBAY'
+  | 'ETSY'
+  | 'TEMU'
+  | 'SAHIBINDEN';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -44,7 +53,14 @@ export type ErpType =
   | 'LOGO'
   | 'MIKRO'
   | 'LUCA'
-  | 'NETSIS';
+  | 'NETSIS'
+  | 'ETA'
+  | 'KOLAYBI'
+  | 'ZIRVE'
+  | 'NEBIM'
+  | 'EBA'
+  | 'SAP_B1'
+  | 'ISNET';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType = 'TICIMAX' | 'TSOFT';

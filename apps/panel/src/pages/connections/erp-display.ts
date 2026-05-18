@@ -163,6 +163,173 @@ export const ERP_OPTIONS: ErpOption[] = [
       { key: 'companyId', label: 'Firma ID', type: 'text', required: true },
     ],
   },
+  {
+    id: 'ETA',
+    label: 'ETA V8',
+    logo: '📒',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'API taban URL (veya aşağıda host)',
+        type: 'text',
+        placeholder: 'http://192.168.1.10:8080/eta/api',
+        required: false,
+      },
+      { key: 'host', label: 'Sunucu (host)', type: 'text', required: false },
+      { key: 'port', label: 'Port', type: 'text', placeholder: '80', required: false },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'KOLAYBI',
+    label: 'Kolaybi',
+    logo: '☁️',
+    fields: [
+      {
+        key: 'apiKey',
+        label: 'API Key (X-Api-Key)',
+        type: 'password',
+        required: true,
+      },
+      {
+        key: 'companyName',
+        label: 'Hesap etiketi (isteğe bağlı)',
+        type: 'text',
+        required: false,
+      },
+      {
+        key: 'workspaceId',
+        label: 'Çalışma alanı ID (isteğe bağlı)',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+  {
+    id: 'ZIRVE',
+    label: 'Zirve ERP',
+    logo: '📈',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'API taban URL',
+        type: 'text',
+        placeholder: 'http://192.168.1.10:8080/zirve/api',
+        required: false,
+      },
+      { key: 'host', label: 'Sunucu (host)', type: 'text', required: false },
+      { key: 'port', label: 'Port', type: 'text', placeholder: '8080', required: false },
+      {
+        key: 'token',
+        label: 'Sabit token (varsa, giriş atlanır)',
+        type: 'password',
+        required: false,
+      },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: false },
+      {
+        key: 'password',
+        label: 'Şifre',
+        type: 'password',
+        required: false,
+      },
+    ],
+  },
+  {
+    id: 'NEBIM',
+    label: 'Nebim V3',
+    logo: '🛍️',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'Web servis kök URL',
+        type: 'text',
+        placeholder: 'http://192.168.1.10/NebimV3WS',
+        required: false,
+      },
+      { key: 'host', label: 'Sunucu (host)', type: 'text', required: false },
+      {
+        key: 'useHttps',
+        label: 'HTTPS kullan (true/false)',
+        type: 'text',
+        placeholder: 'false',
+        required: false,
+      },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'EBA',
+    label: 'eBA',
+    logo: '📄',
+    fields: [
+      { key: 'clientId', label: 'OAuth Client ID', type: 'text', required: true },
+      {
+        key: 'clientSecret',
+        label: 'OAuth Client Secret',
+        type: 'password',
+        required: true,
+      },
+      {
+        key: 'apiBaseUrl',
+        label: 'API taban URL (isteğe bağlı)',
+        type: 'text',
+        placeholder: 'https://api.eba.com.tr/v1',
+        required: false,
+      },
+      {
+        key: 'oauthTokenUrl',
+        label: 'Token URL (isteğe bağlı)',
+        type: 'text',
+        required: false,
+      },
+      {
+        key: 'triggerApprovalFlow',
+        label: 'Onay akışı tetikle (true/false)',
+        type: 'text',
+        required: false,
+      },
+    ],
+  },
+  {
+    id: 'SAP_B1',
+    label: 'SAP Business One',
+    logo: '🏢',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'Service Layer URL',
+        type: 'text',
+        placeholder: 'https://sunucu:50000/b1s/v1',
+        required: true,
+      },
+      { key: 'companyDB', label: 'Şirket veritabanı', type: 'text', required: true },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      { key: 'password', label: 'Şifre', type: 'password', required: true },
+    ],
+  },
+  {
+    id: 'ISNET',
+    label: 'İşnet ERP',
+    logo: '🔗',
+    fields: [
+      { key: 'baseUrl', label: 'API taban URL', type: 'text', required: true },
+      {
+        key: 'apiKey',
+        label: 'API Key (Bearer)',
+        type: 'password',
+        required: false,
+      },
+      { key: 'username', label: 'Kullanıcı Adı (Basic)', type: 'text', required: false },
+      {
+        key: 'password',
+        label: 'Şifre (Basic)',
+        type: 'password',
+        required: false,
+      },
+    ],
+  },
 ];
 
 export function getErpBranding(erpType: string): {

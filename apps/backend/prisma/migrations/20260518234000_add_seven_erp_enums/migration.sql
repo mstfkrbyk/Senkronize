@@ -1,0 +1,8 @@
+-- ErpType: ETA, Kolaybi, Zirve, Nebim, eBA, SAP Business One, İşnet
+ALTER TYPE "ErpType" ADD VALUE 'ETA';
+ALTER TYPE "ErpType" ADD VALUE 'KOLAYBI';
+ALTER TYPE "ErpType" ADD VALUE 'ZIRVE';
+ALTER TYPE "ErpType" ADD VALUE 'NEBIM';
+ALTER TYPE "ErpType" ADD VALUE 'EBA';
+ALTER TYPE "ErpType" ADD VALUE 'SAP_B1';
+ALTER TYPE "ErpType" ADD VALUE 'ISNET';

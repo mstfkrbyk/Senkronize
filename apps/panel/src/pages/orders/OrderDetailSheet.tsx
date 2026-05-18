@@ -55,6 +55,13 @@ const ERP_LABEL_TR: Record<string, string> = {
   TSOFT: 'T-Soft',
   TICIMAX: 'Ticimax',
   NETSIS: 'Netsis',
+  ETA: 'ETA V8',
+  KOLAYBI: 'Kolaybi',
+  ZIRVE: 'Zirve',
+  NEBIM: 'Nebim V3',
+  EBA: 'eBA',
+  SAP_B1: 'SAP Business One',
+  ISNET: 'İşnet',
 };
 
 const FULFILLMENT_STEPS: readonly {
