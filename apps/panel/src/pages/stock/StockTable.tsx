@@ -1,5 +1,8 @@
 import type { ReactElement } from 'react';
 
+import { formatDistanceToNow } from 'date-fns';
+import { tr } from 'date-fns/locale';
+
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -16,19 +19,19 @@ interface Props {
   entries: StockEntry[];
 }
 
-function formatDate(iso: string): string {
+function formatRelative(iso: string): string {
   try {
-    return new Intl.DateTimeFormat('tr-TR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(iso));
+    return formatDistanceToNow(new Date(iso), {
+      addSuffix: true,
+      locale: tr,
+    });
   } catch {
     return iso;
   }
 }
 
 function platformLabel(platform: string | null): string {
-  if (!platform) {
+  if (!platform || platform === 'null') {
     return 'Merkezi';
   }
   return getMarketplaceBranding(platform).label;
@@ -64,7 +67,7 @@ export function StockTable({ entries }: Props): ReactElement {
             <TableRow key={row.id}>
               <TableCell className="max-w-[220px] font-medium">
                 <span className="line-clamp-2">
-                  {row.product?.name ?? '—'}
+                  {row.product?.name ?? row.barcode}
                 </span>
                 {row.product?.sku ? (
                   <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -74,7 +77,7 @@ export function StockTable({ entries }: Props): ReactElement {
               </TableCell>
               <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
               <TableCell>
-                {!row.platform ? (
+                {!row.platform || row.platform === 'null' ? (
                   <Badge variant="outline" className="border-slate-200 bg-slate-50">
                     Merkezi
                   </Badge>
@@ -99,7 +102,7 @@ export function StockTable({ entries }: Props): ReactElement {
                 {row.availableQty}
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {formatDate(row.updatedAt)}
+                {formatRelative(row.updatedAt)}
               </TableCell>
             </TableRow>
           ))}

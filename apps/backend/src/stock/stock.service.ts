@@ -1,6 +1,6 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable } from '@nestjs/common';
-import { type StockEntry } from '@prisma/client';
+import { type Marketplace, Prisma } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,7 +8,36 @@ import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 
-import type { BulkStockUpdateDto } from './stock.dto';
+import type { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
+
+const DEFAULT_PAGE_LIMIT = 20;
+const LOW_STOCK_THRESHOLD = 10;
+
+export interface SerializedStockProduct {
+  id: string;
+  name: string;
+  sku: string | null;
+}
+
+export interface SerializedStockEntry {
+  id: string;
+  organizationId: string;
+  productId: string | null;
+  barcode: string;
+  platform: Marketplace | null;
+  quantity: number;
+  reservedQty: number;
+  availableQty: number;
+  updatedAt: string;
+  createdAt: string;
+  product: SerializedStockProduct | null;
+}
+
+export type LowStockEntryRow = Prisma.StockEntryGetPayload<{
+  include: { product: true };
+}> & {
+  availableQty: number;
+};
 
 @Injectable()
 export class StockService {
@@ -18,34 +47,94 @@ export class StockService {
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
 
-  async findAll(organizationId: string): Promise<StockEntry[]> {
-    return this.prisma.stockEntry.findMany({
-      where: { organizationId },
-      orderBy: [{ barcode: 'asc' }, { platform: 'asc' }],
+  async findAll(
+    organizationId: string,
+    query: StockQueryDto,
+  ): Promise<{ items: SerializedStockEntry[]; total: number }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? DEFAULT_PAGE_LIMIT;
+    const skip = (page - 1) * limit;
+    const search = query.search?.trim();
+
+    const where: Prisma.StockEntryWhereInput = {
+      organizationId,
+      ...(query.platform !== undefined ? { platform: query.platform } : {}),
+      ...(query.lowStock === true
+        ? { quantity: { lt: LOW_STOCK_THRESHOLD } }
+        : {}),
+      ...(search && search.length > 0
+        ? {
+            OR: [
+              { barcode: { contains: search, mode: 'insensitive' } },
+              {
+                product: {
+                  deletedAt: null,
+                  OR: [
+                    { name: { contains: search, mode: 'insensitive' } },
+                    {
+                      sku: { contains: search, mode: 'insensitive' },
+                    },
+                  ],
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.stockEntry.findMany({
+        where,
+        include: {
+          product: {
+            where: { deletedAt: null },
+            select: { id: true, name: true, sku: true },
+          },
+        },
+        orderBy: [{ barcode: 'asc' }, { platform: 'asc' }],
+        skip,
+        take: limit,
+      }),
+      this.prisma.stockEntry.count({ where }),
+    ]);
+
+    const items: SerializedStockEntry[] = rows.map((row) => {
+      const { product, ...rest } = row;
+      const availableQty = rest.quantity - rest.reservedQty;
+      return {
+        id: rest.id,
+        organizationId: rest.organizationId,
+        productId: rest.productId,
+        barcode: rest.barcode,
+        platform: rest.platform,
+        quantity: rest.quantity,
+        reservedQty: rest.reservedQty,
+        availableQty,
+        updatedAt: rest.updatedAt.toISOString(),
+        createdAt: rest.createdAt.toISOString(),
+        product: product
+          ? { id: product.id, name: product.name, sku: product.sku }
+          : null,
+      };
     });
+
+    return { items, total };
   }
 
   async getLowStock(
     organizationId: string,
     threshold = 10,
-  ): Promise<
-    Array<
-      StockEntry & {
-        product: {
-          id: string;
-          name: string;
-          barcode: string;
-          sku: string | null;
-        } | null;
-      }
-    >
-  > {
+  ): Promise<LowStockEntryRow[]> {
     const safeThreshold = Math.max(1, threshold);
-    return this.prisma.stockEntry.findMany({
+    const rows = await this.prisma.stockEntry.findMany({
       where: { organizationId, quantity: { lt: safeThreshold } },
       include: { product: true },
       orderBy: { quantity: 'asc' },
     });
+    return rows.map((row) => ({
+      ...row,
+      availableQty: row.quantity - row.reservedQty,
+    }));
   }
 
   async bulkUpdate(

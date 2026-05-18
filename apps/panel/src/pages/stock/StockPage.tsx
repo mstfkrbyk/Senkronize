@@ -5,6 +5,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -17,13 +23,20 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
+import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type { StockFilters as StockFiltersState } from '@/types/stock';
 
 import { LowStockAlert } from './LowStockAlert';
 import { StockTable } from './StockTable';
-import { useStock } from './hooks/useStock';
+import { useLowStock, useStock } from './hooks/useStock';
 
 const PAGE_SIZE = 20;
+
+const EXTRA_MARKETPLACE_FILTERS: { id: string; label: string }[] = [
+  { id: 'N11', label: 'n11' },
+  { id: 'AMAZON_TR', label: 'Amazon TR' },
+  { id: 'CICEKSEPETI', label: 'Çiçeksepeti' },
+];
 
 function isStockAlertPayload(
   data: unknown,
@@ -45,6 +58,7 @@ export function StockPage(): ReactElement {
   });
 
   const stockQuery = useStock(filters);
+  const lowStockQuery = useLowStock(10);
 
   useEffect(() => {
     const unlisten = on('stock:alert', (data: unknown) => {
@@ -74,11 +88,13 @@ export function StockPage(): ReactElement {
     setFilters({ page: 1, limit: PAGE_SIZE });
   };
 
-  const data = stockQuery.data ?? [];
+  const list = stockQuery.data?.items ?? [];
+  const total = stockQuery.data?.total ?? 0;
   const limit = filters.limit ?? PAGE_SIZE;
   const page = filters.page ?? 1;
-  const hasNext = data.length === limit;
+  const hasNext = page * limit < total;
   const hasPrev = page > 1;
+  const criticalCount = lowStockQuery.data?.length;
 
   return (
     <div className="space-y-6">
@@ -89,6 +105,31 @@ export function StockPage(): ReactElement {
         <p className="text-muted-foreground">
           Ürün stoklarınızı izleyin ve düşük stok uyarılarını takip edin.
         </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Toplam SKU</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">
+              {stockQuery.isLoading ? '—' : total}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Kritik stok</CardDescription>
+            <CardTitle className="text-2xl tabular-nums text-amber-800">
+              {lowStockQuery.isLoading ? '—' : (criticalCount ?? 0)}
+            </CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Toplam stok değeri</CardDescription>
+            <CardTitle className="text-2xl text-muted-foreground">—</CardTitle>
+          </CardHeader>
+        </Card>
       </div>
 
       <LowStockAlert />
@@ -119,8 +160,16 @@ export function StockPage(): ReactElement {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tümü</SelectItem>
-              <SelectItem value="TRENDYOL">Trendyol</SelectItem>
-              <SelectItem value="HEPSIBURADA">Hepsiburada</SelectItem>
+              {MARKETPLACE_OPTIONS.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
+              {EXTRA_MARKETPLACE_FILTERS.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -175,20 +224,20 @@ export function StockPage(): ReactElement {
 
       {!stockQuery.isLoading &&
       !stockQuery.isError &&
-      data.length === 0 ? (
+      list.length === 0 ? (
         <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
           Henüz stok kaydı yok veya filtrelere uygun sonuç bulunamadı.
         </p>
       ) : null}
 
-      {!stockQuery.isLoading && !stockQuery.isError && data.length > 0 ? (
-        <StockTable entries={data} />
+      {!stockQuery.isLoading && !stockQuery.isError && list.length > 0 ? (
+        <StockTable entries={list} />
       ) : null}
 
-      {!stockQuery.isLoading && !stockQuery.isError && data.length > 0 ? (
+      {!stockQuery.isLoading && !stockQuery.isError && list.length > 0 ? (
         <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
           <p className="text-sm text-muted-foreground">
-            Sayfa {page}
+            Toplam {total} kayıt · Sayfa {page}
             {hasNext ? ' · Daha fazla kayıt olabilir' : ''}
           </p>
           <div className="flex gap-2">

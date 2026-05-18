@@ -1,16 +1,8 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,14 +13,27 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getApiErrorMessage } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 
 import { useAuditLog } from '../hooks/useAuditLog';
 import { AuditLogTable } from './AuditLogTable';
 
 export function SecurityTab(): ReactElement {
   const auditQuery = useAuditLog(50);
-  const [exportOpen, setExportOpen] = useState(false);
+
+  const requestExport = useMutation({
+    mutationFn: () =>
+      api.post<{ message: string }>('/users/export-data').then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(
+        data.message ??
+          'Talebiniz alındı. 30 dakika içinde e-posta ile gönderilecektir.',
+      );
+    },
+    onError: () => {
+      toast.error('Bir hata oluştu, lütfen tekrar deneyin.');
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -85,29 +90,18 @@ export function SecurityTab(): ReactElement {
           <p className="text-sm text-muted-foreground">
             Tüm hesap verilerinizi paketleyip e-posta ile gönderebiliriz.
           </p>
-          <Button type="button" variant="secondary" onClick={() => setExportOpen(true)}>
-            Verilerimi indir
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={requestExport.isPending}
+            onClick={() => {
+              requestExport.mutate();
+            }}
+          >
+            {requestExport.isPending ? 'Gönderiliyor…' : 'Verilerimi indir'}
           </Button>
         </CardContent>
       </Card>
-
-      <AlertDialog open={exportOpen} onOpenChange={setExportOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Talebiniz alındı</AlertDialogTitle>
-            <AlertDialogDescription>
-              Veri dışa aktarma talebiniz kaydedildi. Verileriniz 30 dakika içinde e-posta ile
-              gönderilecektir.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel type="button">Kapat</AlertDialogCancel>
-            <AlertDialogAction type="button" onClick={() => setExportOpen(false)}>
-              Tamam
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

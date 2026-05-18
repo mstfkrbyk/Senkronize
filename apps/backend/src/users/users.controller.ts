@@ -23,7 +23,11 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../common/guards/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { InviteUserDto, UpdateUserRoleDto } from './users.dto';
+import {
+  InviteUserDto,
+  UpdateNotificationPreferencesDto,
+  UpdateUserRoleDto,
+} from './users.dto';
 import { UsersService } from './users.service';
 
 @ApiTags('Users')
@@ -55,6 +59,50 @@ export class UsersController {
     @Body() dto: InviteUserDto,
   ) {
     return this.usersService.invite(org.id, dto);
+  }
+
+  @Get('notification-preferences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Bildirim tercihleri' })
+  @ApiResponse({ status: 200, description: 'Tercihler' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async getNotificationPreferences(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getNotificationPreferences(
+      user.id,
+      user.currentOrgId,
+    );
+  }
+
+  @Patch('notification-preferences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Bildirim tercihlerini güncelle' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async updateNotificationPreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateNotificationPreferencesDto,
+  ) {
+    return this.usersService.updateNotificationPreferences(
+      user.id,
+      user.currentOrgId,
+      dto,
+    );
+  }
+
+  @Post('export-data')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'KVKK veri dışa aktarma talebi' })
+  @ApiResponse({ status: 200, description: 'Talep alındı' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async requestDataExport(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ message: string }> {
+    await this.usersService.requestDataExport(user.id, user.currentOrgId);
+    return {
+      message:
+        'Veri dışa aktarma talebiniz alındı. 30 dakika içinde e-posta adresinize gönderilecektir.',
+    };
   }
 
   @Patch(':id/role')

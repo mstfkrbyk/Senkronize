@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
-import type { StockEntry, StockFilters } from '@/types/stock';
+import type { StockEntry, StockFilters, StockListResponse } from '@/types/stock';
 
 function buildStockParams(
   filters: StockFilters,
@@ -19,8 +19,8 @@ function buildStockParams(
 export function useStock(filters: StockFilters) {
   return useQuery({
     queryKey: ['stock', filters],
-    queryFn: async (): Promise<StockEntry[]> => {
-      const { data } = await api.get<StockEntry[]>('/stock', {
+    queryFn: async (): Promise<StockListResponse> => {
+      const { data } = await api.get<StockListResponse>('/stock', {
         params: buildStockParams(filters),
       });
       return data;

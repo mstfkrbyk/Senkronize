@@ -14,13 +14,15 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { StockEntry } from '@prisma/client';
-
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { BulkStockUpdateDto } from './stock.dto';
-import { StockService } from './stock.service';
+import { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
+import {
+  StockService,
+  type LowStockEntryRow,
+  type SerializedStockEntry,
+} from './stock.service';
 
 @ApiTags('Stok')
 @ApiBearerAuth()
@@ -33,8 +35,11 @@ export class StockController {
   @ApiOperation({ summary: 'Stok kayıtları' })
   @ApiResponse({ status: 200, description: 'Liste' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
-  async findAll(@CurrentOrg() org: CurrentOrgPayload): Promise<StockEntry[]> {
-    return this.stockService.findAll(org.id);
+  async findAll(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: StockQueryDto,
+  ): Promise<{ items: SerializedStockEntry[]; total: number }> {
+    return this.stockService.findAll(org.id, query);
   }
 
   @Get('low-stock')
@@ -46,18 +51,7 @@ export class StockController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Query('threshold', new DefaultValuePipe(10), ParseIntPipe)
     threshold: number,
-  ): Promise<
-    Array<
-      StockEntry & {
-        product: {
-          id: string;
-          name: string;
-          barcode: string;
-          sku: string | null;
-        } | null;
-      }
-    >
-  > {
+  ): Promise<LowStockEntryRow[]> {
     return this.stockService.getLowStock(org.id, threshold);
   }
 

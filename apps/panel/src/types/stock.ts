@@ -13,6 +13,11 @@ export interface StockEntry {
   updatedAt: string;
 }
 
+export interface StockListResponse {
+  items: StockEntry[];
+  total: number;
+}
+
 export interface StockFilters {
   search?: string;
   platform?: string;

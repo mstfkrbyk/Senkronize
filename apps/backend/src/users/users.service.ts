@@ -51,16 +51,29 @@ const NOTIFICATION_PREF_BOOLEAN_KEYS = [
   'pushEnabled',
 ] as const;
 
-function notificationPreferenceUpdateData(
+type NotificationPrefBooleanKey = (typeof NOTIFICATION_PREF_BOOLEAN_KEYS)[number];
+
+const NOTIFICATION_PREF_DEFAULTS: Record<NotificationPrefBooleanKey, boolean> =
+  {
+    newOrder: true,
+    stockAlert: true,
+    paymentAlert: true,
+    syncError: true,
+    emailEnabled: true,
+    smsEnabled: false,
+    pushEnabled: false,
+  };
+
+function booleanPatchFromDto(
   dto: UpdateNotificationPreferencesDto,
-): Prisma.NotificationPreferenceUpdateInput {
-  const data: Prisma.NotificationPreferenceUpdateInput = {};
+): Partial<Record<NotificationPrefBooleanKey, boolean>> {
+  const patch: Partial<Record<NotificationPrefBooleanKey, boolean>> = {};
   for (const key of NOTIFICATION_PREF_BOOLEAN_KEYS) {
     if (typeof dto[key] === 'boolean') {
-      data[key] = dto[key];
+      patch[key] = dto[key];
     }
   }
-  return data;
+  return patch;
 }
 
 @Injectable()
@@ -246,11 +259,16 @@ export class UsersService {
     organizationId: string,
     dto: UpdateNotificationPreferencesDto,
   ): Promise<NotificationPreference> {
-    const data = notificationPreferenceUpdateData(dto);
+    const patch = booleanPatchFromDto(dto);
     return this.prisma.notificationPreference.upsert({
       where: { userId },
-      create: { userId, organizationId, ...data },
-      update: data,
+      create: {
+        userId,
+        organizationId,
+        ...NOTIFICATION_PREF_DEFAULTS,
+        ...patch,
+      },
+      update: patch,
     });
   }
 
