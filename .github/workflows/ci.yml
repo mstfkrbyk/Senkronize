@@ -6,90 +6,64 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  NODE_VERSION: '22'
-  PNPM_VERSION: '9.15.0'
-
 jobs:
-  type-check:
-    name: Type Check
+  lint-and-typecheck:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        with: { version: 9 }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+        with: { node-version: '20', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @senkronize/shared build
       - run: pnpm --filter backend exec prisma generate
-      - run: pnpm --filter backend type-check
-      - run: pnpm --filter panel type-check
-      # marketing build her commit'te çok yavaş, PR'de yap
-      # - run: pnpm --filter marketing build
+      - run: pnpm --filter backend exec tsc --noEmit
+      - run: pnpm --filter panel exec tsc --noEmit
+      - run: pnpm --filter marketing exec tsc --noEmit
 
-  test:
-    name: Backend Tests
+  test-backend:
     runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: senkronize
-          POSTGRES_PASSWORD: senkronize
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
           POSTGRES_DB: senkronize_test
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: redis:7-alpine
-        ports:
-          - 6380:6379
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/senkronize_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: test-secret-32-chars-minimum-here
+      JWT_REFRESH_SECRET: test-refresh-secret-32-chars-minimum
+      ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        with: { version: 9 }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+        with: { node-version: '20', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @senkronize/shared build
-      - name: Run backend tests
+      - run: pnpm --filter backend exec prisma generate
+      - run: pnpm --filter backend exec prisma migrate deploy
         working-directory: apps/backend
-        env:
-          DATABASE_URL: postgresql://senkronize:senkronize@localhost:5433/senkronize_test
-          REDIS_URL: redis://localhost:6380
-          JWT_SECRET: test-secret-key
-          JWT_REFRESH_SECRET: test-refresh-secret
-          ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000001
-        run: |
-          pnpm exec prisma migrate deploy
-          pnpm test -- --passWithNoTests
+      - run: pnpm --filter backend test --passWithNoTests
 
   build-check:
-    name: Build Check
     runs-on: ubuntu-latest
-    needs: [type-check]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
+        with: { version: 9 }
       - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+        with: { node-version: '20', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @senkronize/shared build
-      - run: pnpm --filter backend exec prisma generate
-      - run: pnpm --filter backend build
       - run: pnpm --filter panel build
+      - run: pnpm --filter marketing build
