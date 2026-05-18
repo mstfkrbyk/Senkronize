@@ -33,7 +33,7 @@ import {
   SyncAllPlatformsDto,
   UpdateProductDto,
 } from './product.dto';
-import { ProductService } from './product.service';
+import { type ProductListItem, ProductService } from './product.service';
 
 const PRODUCT_IMAGE_LIMIT = 5 * 1024 * 1024;
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/webp'] as const;
@@ -76,7 +76,7 @@ export class ProductController {
   async findAll(
     @CurrentOrg() org: CurrentOrgPayload,
     @Query() query: ProductQueryDto,
-  ): Promise<{ items: Product[]; total: number }> {
+  ): Promise<{ items: ProductListItem[]; total: number }> {
     return this.productService.findAll(org.id, query);
   }
 

@@ -19,6 +19,25 @@ import {
   UpdateProductDto,
 } from './product.dto';
 
+const productListSelect = {
+  id: true,
+  organizationId: true,
+  barcode: true,
+  sku: true,
+  name: true,
+  description: true,
+  brand: true,
+  category: true,
+  imageUrls: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ProductSelect;
+
+export type ProductListItem = Prisma.ProductGetPayload<{
+  select: typeof productListSelect;
+}>;
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -31,7 +50,7 @@ export class ProductService {
   async findAll(
     organizationId: string,
     query: ProductQueryDto,
-  ): Promise<{ items: Product[]; total: number }> {
+  ): Promise<{ items: ProductListItem[]; total: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -47,9 +66,10 @@ export class ProductService {
       organizationId,
       cachePayload,
     );
-    const cached = await this.cache.get<{ items: Product[]; total: number }>(
-      cacheKey,
-    );
+    const cached = await this.cache.get<{
+      items: ProductListItem[];
+      total: number;
+    }>(cacheKey);
     if (cached) {
       return cached;
     }
@@ -86,7 +106,8 @@ export class ProductService {
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        orderBy: { updatedAt: 'desc' },
+        select: productListSelect,
+        orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),

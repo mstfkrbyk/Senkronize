@@ -36,7 +36,7 @@ import { JwtRefreshValidatedUser } from './jwt-refresh.strategy';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
+  @Throttle({ short: { limit: 5 }, medium: { limit: 5 } })
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Yeni hesap ve organizasyon oluştur' })
@@ -48,7 +48,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
+  @Throttle({ short: { limit: 10 }, medium: { limit: 10 } })
   @Post('login')
   @ApiOperation({ summary: 'Giriş' })
   @ApiResponse({ status: 200, description: 'Token çifti' })
@@ -59,7 +59,7 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Throttle({ auth: { limit: 10, ttl: 60_000 } })
+  @Throttle({ short: { limit: 20 }, medium: { limit: 60 } })
   @Post('refresh')
   @UseGuards(JwtRefreshAuthGuard)
   @ApiOperation({ summary: 'Access token yenile' })

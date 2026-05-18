@@ -393,6 +393,7 @@ model Product {
 
   @@unique([organizationId, barcode])
   @@index([organizationId])
+  @@index([organizationId, createdAt])
 }
 
 // Pazaryerindeki ürün listesi (platform x ürün)
@@ -419,6 +420,7 @@ model Listing {
   @@unique([organizationId, platform, platformProductId])
   @@index([organizationId])
   @@index([organizationId, platform])
+  @@index([barcode, organizationId])
 }
 
 // Stok takibi (platform bazlı veya merkezi)
@@ -464,6 +466,8 @@ model Order {
   @@index([organizationId])
   @@index([organizationId, status])
   @@index([organizationId, platform])
+  @@index([organizationId, createdAt])
+  @@index([platformOrderId, organizationId])
 }
 
 model OrderItem {

@@ -20,8 +20,10 @@ async function bootstrap(): Promise<void> {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
           scriptSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+          connectSrc: ["'self'", 'wss:', 'ws:'],
+          fontSrc: ["'self'", 'https://fonts.gstatic.com'],
         },
       },
       crossOriginEmbedderPolicy: false,
