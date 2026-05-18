@@ -1,7 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PartnerStatus, UserRole } from '@prisma/client';
 import { PassportStrategy } from '@nestjs/passport';
+import { PartnerStatus, UserRole } from '@prisma/client';
+import * as Sentry from '@sentry/node';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthenticatedUser, JwtPayload } from './auth.types';
@@ -69,6 +70,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
           throw new UnauthorizedException();
         }
       }
+    }
+
+    if (process.env.SENTRY_DSN?.trim()) {
+      const effectiveOrgId = payload.impersonatedOrgId ?? payload.orgId;
+      Sentry.setUser({ id: user.id, email: user.email });
+      Sentry.setTag('organizationId', effectiveOrgId);
     }
 
     return {

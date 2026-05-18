@@ -1,4 +1,5 @@
-import type { ErrorInfo, ReactNode } from 'react';
+import * as Sentry from '@sentry/react';
+import type { ErrorInfo, ReactElement, ReactNode } from 'react';
 import React from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,48 @@ interface ErrorBoundaryProps {
   fallback?: ReactNode;
 }
 
-export class ErrorBoundary extends React.Component<
+function DefaultCrashUI({
+  error,
+  onReset,
+}: {
+  error?: Error;
+  onReset: () => void;
+}): ReactElement {
+  return (
+    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
+      <div className="text-6xl">⚠️</div>
+      <h2 className="text-xl font-semibold">Bir şeyler yanlış gitti</h2>
+      <p className="text-muted-foreground max-w-md text-center text-sm">
+        {error?.message ?? 'Beklenmedik bir hata oluştu.'}
+      </p>
+      <Button type="button" onClick={onReset}>
+        Sayfayı Yenile
+      </Button>
+    </div>
+  );
+}
+
+function Passthrough({ children }: { children?: ReactNode }): ReactElement {
+  return <>{children}</>;
+}
+
+const SentryPassthroughBoundary =
+  typeof import.meta.env.VITE_SENTRY_DSN === 'string' &&
+  import.meta.env.VITE_SENTRY_DSN.length > 0
+    ? Sentry.withErrorBoundary(Passthrough, {
+        fallback: ({ error, resetError }) => (
+          <DefaultCrashUI
+            error={error instanceof Error ? error : undefined}
+            onReset={() => {
+              resetError();
+              window.location.reload();
+            }}
+          />
+        ),
+      })
+    : null;
+
+class LegacyErrorBoundary extends React.Component<
   React.PropsWithChildren<ErrorBoundaryProps>,
   ErrorBoundaryState
 > {
@@ -34,25 +76,29 @@ export class ErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
-            <div className="text-6xl">⚠️</div>
-            <h2 className="text-xl font-semibold">Bir şeyler yanlış gitti</h2>
-            <p className="text-muted-foreground max-w-md text-center text-sm">
-              {this.state.error?.message ?? 'Beklenmedik bir hata oluştu.'}
-            </p>
-            <Button
-              type="button"
-              onClick={() => {
-                this.setState({ hasError: false });
-                window.location.reload();
-              }}
-            >
-              Sayfayı Yenile
-            </Button>
-          </div>
+          <DefaultCrashUI
+            error={this.state.error}
+            onReset={() => {
+              this.setState({ hasError: false });
+              window.location.reload();
+            }}
+          />
         )
       );
     }
     return this.props.children;
   }
+}
+
+export function ErrorBoundary({
+  children,
+  fallback,
+}: ErrorBoundaryProps): ReactElement {
+  if (SentryPassthroughBoundary) {
+    const Boundary = SentryPassthroughBoundary;
+    return <Boundary>{children}</Boundary>;
+  }
+  return (
+    <LegacyErrorBoundary fallback={fallback}>{children}</LegacyErrorBoundary>
+  );
 }

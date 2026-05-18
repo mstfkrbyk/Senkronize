@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useSentryUser } from '@/hooks/useSentryUser';
 import { PageLoader } from '@/components/PageLoader';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
@@ -115,6 +116,11 @@ const SyncLogsPage = lazy(() =>
   import('@/pages/sync-logs/SyncLogsPage').then((m) => ({ default: m.SyncLogsPage })),
 );
 
+function SentryUserSync(): null {
+  useSentryUser();
+  return null;
+}
+
 function SystemThemeListener(): null {
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -134,6 +140,7 @@ export default function App(): ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <SentryUserSync />
         <SystemThemeListener />
         <Toaster position="top-center" richColors closeButton />
         <Suspense fallback={<PageLoader />}>

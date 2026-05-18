@@ -2,13 +2,16 @@ import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as Sentry from '@sentry/node';
 import compression from 'compression';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
+import { initSentry } from './instrument';
 
 async function bootstrap(): Promise<void> {
+  initSentry();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     bodyParser: false,
@@ -88,7 +91,17 @@ async function bootstrap(): Promise<void> {
   app.useBodyParser('urlencoded', { extended: true, limit: '50mb' });
 
   app.setGlobalPrefix('api/v1', {
-    exclude: [{ path: 'health', method: RequestMethod.GET }],
+    exclude: [
+      { path: 'health', method: RequestMethod.GET },
+      ...(process.env.NODE_ENV === 'development'
+        ? [
+            {
+              path: 'dev/email-preview/:template',
+              method: RequestMethod.GET,
+            },
+          ]
+        : []),
+    ],
   });
 
   app.useGlobalPipes(
@@ -133,6 +146,8 @@ async function bootstrap(): Promise<void> {
     }
     next();
   });
+
+  Sentry.setupExpressErrorHandler(app.getHttpAdapter().getInstance());
 
   const port = process.env.BACKEND_PORT ?? 3001;
   await app.listen(port);

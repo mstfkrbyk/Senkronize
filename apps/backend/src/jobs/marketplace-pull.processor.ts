@@ -2,6 +2,7 @@ import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Marketplace, NotificationType } from '@prisma/client';
+import * as Sentry from '@sentry/node';
 import type { Job, Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
@@ -41,6 +42,16 @@ export class MarketplacePullProcessor {
 
   @Process('pull-orders')
   async handlePullOrders(job: Job<MarketplacePullJobData>): Promise<void> {
+    return Sentry.startSpan(
+      {
+        name: 'marketplace-pull.pull-orders',
+        op: 'queue.process',
+        attributes: {
+          'job.organizationId': job.data.organizationId,
+          'job.platform': String(job.data.platform),
+        },
+      },
+      async () => {
     const { organizationId, platform, since } = job.data;
     this.logger.log('Pazaryeri sipariş çekme işi başladı', {
       organizationId,
@@ -142,10 +153,22 @@ export class MarketplacePullProcessor {
       );
       throw error;
     }
+      },
+    );
   }
 
   @Process('pull-listings')
   async handlePullListings(job: Job<MarketplacePullJobData>): Promise<void> {
+    return Sentry.startSpan(
+      {
+        name: 'marketplace-pull.pull-listings',
+        op: 'queue.process',
+        attributes: {
+          'job.organizationId': job.data.organizationId,
+          'job.platform': String(job.data.platform),
+        },
+      },
+      async () => {
     const { organizationId, platform } = job.data;
     this.logger.log('Pazaryeri listeleme çekme işi başladı', {
       organizationId,
@@ -304,5 +327,7 @@ export class MarketplacePullProcessor {
       );
       throw error;
     }
+      },
+    );
   }
 }

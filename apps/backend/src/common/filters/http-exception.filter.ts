@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import type { Request, Response } from 'express';
 
 @Catch()
@@ -43,6 +44,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     } else {
       this.logger.error('Beklenmeyen hata', { exception });
+    }
+
+    if (statusCode >= 500 && process.env.SENTRY_DSN?.trim()) {
+      Sentry.captureException(exception);
     }
 
     const body: {
