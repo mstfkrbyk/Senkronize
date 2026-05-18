@@ -17,6 +17,7 @@ import { ListingModule } from './listing/listing.module';
 import { MigrationModule } from './migration/migration.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
+import { EmailModule } from './notifications/email/email.module';
 import { OrderModule } from './order/order.module';
 import { OrganizationModule } from './organization/organization.module';
 import { PartnerModule } from './partner/partner.module';
@@ -67,6 +68,7 @@ import { WebhookModule } from './webhook/webhook.module';
       },
     }),
     PrismaModule,
+    EmailModule,
     CommonModule,
     AdapterModule,
     MarketplaceConnectionModule,

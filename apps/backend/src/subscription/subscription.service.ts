@@ -10,9 +10,10 @@ import {
   SubStatus,
   UserRole,
 } from '@prisma/client';
-import { PrismaService } from '../prisma/prisma.service';
-import { EncryptionService } from '../common/encryption/encryption.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { EncryptionService } from '../common/encryption/encryption.service';
+import { EmailService } from '../notifications/email/email.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
 
@@ -79,6 +80,7 @@ export class SubscriptionService {
     private readonly prisma: PrismaService,
     private readonly paytrService: PaytrService,
     private readonly encryptionService: EncryptionService,
+    private readonly emailService: EmailService,
   ) {}
 
   async getSubscription(organizationId: string): Promise<unknown> {
@@ -315,6 +317,29 @@ export class SubscriptionService {
           });
         }
       });
+
+      const ownerForEmail = await this.prisma.user.findFirst({
+        where: {
+          organizationId: payment.organizationId,
+          role: UserRole.OWNER,
+          deletedAt: null,
+        },
+      });
+      if (ownerForEmail?.email) {
+        void this.emailService
+          .sendSubscriptionConfirm(
+            ownerForEmail.email,
+            ownerForEmail.name ?? 'Merhaba',
+            PLAN_LABEL_TR[payment.plan],
+            nextBilling,
+          )
+          .catch((error: unknown) => {
+            this.logger.error('Abonelik onay e-postası gönderilemedi', {
+              organizationId: payment.organizationId,
+              error,
+            });
+          });
+      }
       return;
     }
 

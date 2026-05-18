@@ -1,9 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuthService } from './auth.service';
 import { NotificationService } from '../notification/notification.service';
+import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -54,6 +55,12 @@ describe('AuthService', () => {
           provide: NotificationService,
           useValue: {
             dispatch: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: EmailService,
+          useValue: {
+            sendWelcome: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

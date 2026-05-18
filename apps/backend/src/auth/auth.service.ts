@@ -18,6 +18,7 @@ import {
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
+import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangePasswordDto,
@@ -39,6 +40,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly notificationService: NotificationService,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(
@@ -111,6 +113,13 @@ export class AuthService {
           error,
         });
       });
+
+    void this.emailService.sendWelcome(email, dto.name).catch((error: unknown) => {
+      this.logger.error('Hoş geldin e-postası gönderilemedi', {
+        organizationId: newUser.organizationId,
+        error,
+      });
+    });
 
     return this.generateTokens(
       newUser.id,

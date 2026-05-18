@@ -32,9 +32,10 @@ const footerColumns: {
   {
     title: 'Yasal',
     links: [
-      { href: '/kvkk', label: 'KVKK' },
-      { href: '/gizlilik', label: 'Gizlilik Politikası' },
-      { href: '/kullanim', label: 'Kullanım Koşulları' },
+      { href: '/legal/privacy', label: 'Gizlilik Politikası' },
+      { href: '/legal/terms', label: 'Kullanım Koşulları' },
+      { href: '/legal/cancellation', label: 'İptal ve İade' },
+      { href: 'mailto:kvkk@senkronize.com', label: 'KVKK Başvuru Formu' },
     ],
   },
 ];
@@ -107,12 +108,23 @@ export function Footer(): ReactElement {
               <ul className="mt-4 space-y-3">
                 {col.links.map((link) => (
                   <li key={link.label}>
-                    <Link
-                      href={link.href}
-                      className="text-sm text-muted-foreground transition-colors hover:text-primary"
-                    >
-                      {link.label}
-                    </Link>
+                    {link.href.startsWith('mailto:') ||
+                    link.href.startsWith('http://') ||
+                    link.href.startsWith('https://') ? (
+                      <a
+                        href={link.href}
+                        className="text-sm text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        {link.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        className="text-sm text-muted-foreground transition-colors hover:text-primary"
+                      >
+                        {link.label}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>
