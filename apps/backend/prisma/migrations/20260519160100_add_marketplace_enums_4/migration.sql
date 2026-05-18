@@ -1,0 +1,13 @@
+-- AlterEnum (4. tur — gıda/hızlı teslimat, moda, ev & yaşam)
+ALTER TYPE "Marketplace" ADD VALUE 'YEMEKSEPETI';
+ALTER TYPE "Marketplace" ADD VALUE 'GETIR_FOOD';
+ALTER TYPE "Marketplace" ADD VALUE 'TRENDYOL_YEMEK';
+ALTER TYPE "Marketplace" ADD VALUE 'FUUDY';
+ALTER TYPE "Marketplace" ADD VALUE 'MODANISA';
+ALTER TYPE "Marketplace" ADD VALUE 'SEFAMERVE';
+ALTER TYPE "Marketplace" ADD VALUE 'LIDYANA';
+ALTER TYPE "Marketplace" ADD VALUE 'ADDAX';
+ALTER TYPE "Marketplace" ADD VALUE 'VIVENSE';
+ALTER TYPE "Marketplace" ADD VALUE 'CICEKSEPETI_EV';
+ALTER TYPE "Marketplace" ADD VALUE 'EVIDEA';
+ALTER TYPE "Marketplace" ADD VALUE 'PORLAND';

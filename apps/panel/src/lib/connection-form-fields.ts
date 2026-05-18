@@ -396,6 +396,77 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  YEMEKSEPETI: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
+  ],
+  GETIR_FOOD: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  TRENDYOL_YEMEK: [
+    {
+      key: 'apiKey',
+      label: 'API Key (Basic kullanıcı)',
+      type: 'text',
+      required: true,
+    },
+    {
+      key: 'apiSecret',
+      label: 'API Secret (Basic şifre)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'supplierId',
+      label: 'Tedarikçi ID (opsiyonel)',
+      type: 'text',
+      required: false,
+    },
+  ],
+  FUUDY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MODANISA: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+  ],
+  SEFAMERVE: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  LIDYANA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ADDAX: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  VIVENSE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  CICEKSEPETI_EV: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    {
+      key: 'categoryId',
+      label: 'Ev & yaşam kategori / kanal ID',
+      type: 'text',
+      required: false,
+      hint: 'Çiçeksepeti API ile aynı uçlar; sipariş ve ürün listelerinde filtre için.',
+    },
+  ],
+  EVIDEA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PORLAND: [
+    { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+    { key: 'password', label: 'Şifre', type: 'password', required: true },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -611,6 +682,18 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'MIGROSHEMEN',
   'ROBOMARKT',
   'SHOPIGO',
+  'YEMEKSEPETI',
+  'GETIR_FOOD',
+  'TRENDYOL_YEMEK',
+  'FUUDY',
+  'MODANISA',
+  'SEFAMERVE',
+  'LIDYANA',
+  'ADDAX',
+  'VIVENSE',
+  'CICEKSEPETI_EV',
+  'EVIDEA',
+  'PORLAND',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

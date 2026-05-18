@@ -92,6 +92,18 @@ enum Marketplace {
   MIGROSHEMEN
   ROBOMARKT
   SHOPIGO
+  YEMEKSEPETI
+  GETIR_FOOD
+  TRENDYOL_YEMEK
+  FUUDY
+  MODANISA
+  SEFAMERVE
+  LIDYANA
+  ADDAX
+  VIVENSE
+  CICEKSEPETI_EV
+  EVIDEA
+  PORLAND
 }
 
 enum PricingStrategy {
@@ -210,6 +222,40 @@ enum NotificationType {
   SYSTEM
 }
 
+model UserSession {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique // refresh token hash
+  ipAddress    String?
+  userAgent    String?
+  lastActiveAt DateTime @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+model UserInvite {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  role           UserRole
+  invitedBy      String
+  token          String    @unique
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  inviter      User         @relation("UserInvitesSent", fields: [invitedBy], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, email])
+  @@unique([organizationId, email, acceptedAt])
+}
+
 model Organization {
   id                  String    @id @default(cuid())
   slug                String    @unique
@@ -259,6 +305,7 @@ model Organization {
   notificationPreferences   NotificationPreference[]
   inAppNotifications        InAppNotification[]
   apiKeys                   ApiKey[]
+  userInvites               UserInvite[]
 }
 
 model ApiKey {
@@ -314,21 +361,27 @@ model WebhookLog {
 }
 
 model User {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String       @unique
-  passwordHash   String
-  name           String
-  phone          String?
-  role           UserRole
-  permissions    Json         @default("{}")
-  lastLoginAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  deletedAt      DateTime?
+  id               String         @id @default(cuid())
+  organizationId   String?
+  organization     Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email            String         @unique
+  passwordHash     String
+  name             String
+  phone            String?
+  role             UserRole
+  permissions      Json           @default("{}")
+  lastLoginAt      DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  deletedAt        DateTime?
+
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String? // AES-256-GCM ile şifreli TOTP secret
+  backupCodes      String[] @default([]) // bcrypt ile hashlenmiş yedek kodlar
 
   refreshTokens RefreshToken[]
+  sessions      UserSession[]
+  sentInvites   UserInvite[] @relation("UserInvitesSent")
 
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]

@@ -69,7 +69,19 @@ export type Marketplace =
   | 'BIMAKILLI'
   | 'MIGROSHEMEN'
   | 'ROBOMARKT'
-  | 'SHOPIGO';
+  | 'SHOPIGO'
+  | 'YEMEKSEPETI'
+  | 'GETIR_FOOD'
+  | 'TRENDYOL_YEMEK'
+  | 'FUUDY'
+  | 'MODANISA'
+  | 'SEFAMERVE'
+  | 'LIDYANA'
+  | 'ADDAX'
+  | 'VIVENSE'
+  | 'CICEKSEPETI_EV'
+  | 'EVIDEA'
+  | 'PORLAND';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

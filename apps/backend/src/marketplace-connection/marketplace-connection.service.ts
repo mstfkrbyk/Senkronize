@@ -85,6 +85,13 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.CICEKSEPETI) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
+    if (platform === Marketplace.CICEKSEPETI_EV) {
+      return (
+        creds.categoryId?.trim() ??
+        creds.channelId?.trim() ??
+        (creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null)
+      );
+    }
     if (platform === Marketplace.IDEASOFT) {
       return creds.storeUrl ?? null;
     }
@@ -164,17 +171,36 @@ export class MarketplaceConnectionService {
       platform === Marketplace.BANABI ||
       platform === Marketplace.VESTEL ||
       platform === Marketplace.BIMAKILLI ||
-      platform === Marketplace.ROBOMARKT
+      platform === Marketplace.ROBOMARKT ||
+      platform === Marketplace.FUUDY ||
+      platform === Marketplace.LIDYANA ||
+      platform === Marketplace.VIVENSE ||
+      platform === Marketplace.EVIDEA
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
     if (platform === Marketplace.A101) {
       return creds.merchantId ?? null;
     }
+    if (platform === Marketplace.YEMEKSEPETI) {
+      return creds.merchantId ?? null;
+    }
+    if (platform === Marketplace.TRENDYOL_YEMEK) {
+      return creds.supplierId ?? creds.apiKey ?? null;
+    }
+    if (platform === Marketplace.MODANISA) {
+      return creds.sellerId ?? null;
+    }
+    if (platform === Marketplace.PORLAND) {
+      return creds.username ?? null;
+    }
     if (
       platform === Marketplace.ELEKTRA ||
       platform === Marketplace.MIGROSHEMEN ||
-      platform === Marketplace.SHOPIGO
+      platform === Marketplace.SHOPIGO ||
+      platform === Marketplace.GETIR_FOOD ||
+      platform === Marketplace.SEFAMERVE ||
+      platform === Marketplace.ADDAX
     ) {
       return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
     }

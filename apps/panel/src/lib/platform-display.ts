@@ -44,6 +44,18 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   MIGROSHEMEN: { label: 'Migros Hemen', logo: '🚀', color: 'orange' },
   ROBOMARKT: { label: 'Robomarkt', logo: '🤖', color: 'cyan' },
   SHOPIGO: { label: 'Shopigo', logo: '🛍️', color: 'violet' },
+  YEMEKSEPETI: { label: 'Yemeksepeti Market', logo: '🛒', color: 'orange' },
+  GETIR_FOOD: { label: 'Getir Yemek', logo: '🍔', color: 'purple' },
+  TRENDYOL_YEMEK: { label: 'Trendyol Yemek', logo: '🍽️', color: 'orange' },
+  FUUDY: { label: 'Fuudy', logo: '🥬', color: 'emerald' },
+  MODANISA: { label: 'Modanisa', logo: '🧕', color: 'rose' },
+  SEFAMERVE: { label: 'Sefamerve', logo: '👗', color: 'pink' },
+  LIDYANA: { label: 'Lidyana', logo: '👚', color: 'fuchsia' },
+  ADDAX: { label: 'Addax', logo: '👔', color: 'slate' },
+  VIVENSE: { label: 'Vivense', logo: '🛋️', color: 'amber' },
+  CICEKSEPETI_EV: { label: 'Çiçeksepeti Ev', logo: '🏠', color: 'pink' },
+  EVIDEA: { label: 'Evidea', logo: '🏡', color: 'cyan' },
+  PORLAND: { label: 'Porland', logo: '🍽️', color: 'stone' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
