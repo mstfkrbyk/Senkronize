@@ -1,3 +1,18 @@
+jest.mock('archiver', () => ({
+  __esModule: true,
+  default: jest.fn(() => ({
+    on: jest.fn(),
+    pipe: jest.fn().mockReturnThis(),
+    finalize: jest.fn(),
+    append: jest.fn(),
+  })),
+}));
+
+jest.mock('puppeteer', () => ({
+  __esModule: true,
+  default: {},
+}));
+
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
