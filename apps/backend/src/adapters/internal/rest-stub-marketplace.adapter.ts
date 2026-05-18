@@ -4,6 +4,7 @@ import type {
   IMarketplaceAdapter,
   MarketplaceListing,
   MarketplaceOrder,
+  MarketplaceReturn,
   PaginatedResult,
   PriceUpdatePayload,
   StockUpdatePayload,
@@ -27,7 +28,10 @@ import type { StubRestOrder, StubRestOrderLine } from './rest-stub-marketplace.t
 export interface RestStubMarketplaceOptions {
   /** `IMarketplaceAdapter.platform` ve registry anahtarı */
   platform: string;
+  /** Sabit taban URL; `resolveBaseUrl` tanımlıysa o önceliklidir */
   baseUrl: string;
+  /** Kimlik bilgisine göre taban URL (örn. `{supplierId}` içeren Trendyol Yemek yolu) */
+  resolveBaseUrl?: (credentials: Record<string, string>) => string;
   /** Nest `Logger` bağlamı (sınıf adı) */
   loggerContext: string;
   /** `PLATFORM_RATE_LIMITS` ve `withRateLimit` anahtarı */
@@ -51,7 +55,6 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
   readonly platform: string;
   private readonly logger: Logger;
   private readonly opts: RestStubMarketplaceOptions;
-  private readonly base: string;
 
   constructor(
     encryptionService: EncryptionService,
@@ -61,7 +64,6 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
     this.opts = opts;
     this.platform = opts.platform;
     this.logger = new Logger(opts.loggerContext);
-    this.base = opts.baseUrl.replace(/\/$/, '');
   }
 
   private rpm(): number {
@@ -71,8 +73,17 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
     );
   }
 
-  private url(path: string): string {
-    return `${this.base}${path.startsWith('/') ? path : `/${path}`}`;
+  private effectiveBase(credentials: Record<string, string>): string {
+    const raw =
+      this.opts.resolveBaseUrl !== undefined
+        ? this.opts.resolveBaseUrl(credentials)
+        : this.opts.baseUrl;
+    return raw.trim().replace(/\/+$/, '');
+  }
+
+  private url(path: string, credentials: Record<string, string>): string {
+    const base = this.effectiveBase(credentials);
+    return `${base}${path.startsWith('/') ? path : `/${path}`}`;
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
@@ -81,7 +92,7 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
       await axiosWithRetry<unknown>(
         {
           method: 'GET',
-          url: this.url(this.opts.pathProfile),
+          url: this.url(this.opts.pathProfile, credentials),
           timeout: 12_000,
           ...auth,
         },
@@ -160,7 +171,7 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
         const data = await axiosWithRetry<unknown>(
           {
             method: 'GET',
-            url: this.url(this.opts.pathOrders),
+            url: this.url(this.opts.pathOrders, credentials),
             timeout: 20_000,
             params:
               sinceMs !== undefined
@@ -193,7 +204,7 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
           const data = await axiosWithRetry<unknown>(
             {
               method: 'GET',
-              url: this.url(this.opts.pathProducts),
+              url: this.url(this.opts.pathProducts, credentials),
               timeout: 20_000,
               params: { page, page_size: 50 },
               ...auth,
@@ -255,6 +266,13 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
     }
   }
 
+  async getReturns(
+    _credentials: Record<string, string>,
+    _since?: Date,
+  ): Promise<MarketplaceReturn[]> {
+    return [];
+  }
+
   async updateStock(
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
@@ -290,7 +308,7 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
         await axiosWithRetry<unknown>(
           {
             method: 'PATCH',
-            url: this.url(this.opts.pathPrice),
+            url: this.url(this.opts.pathPrice, credentials),
             timeout: 20_000,
             data: {
               items: updates.map((u) => ({

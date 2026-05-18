@@ -5,6 +5,9 @@ export interface BlogArticleJsonLdInput {
   description: string;
   datePublished: string;
   slug: string;
+  /** ISO 8601 date; defaults to datePublished when omitted */
+  dateModified?: string;
+  wordCount?: number;
 }
 
 export function buildBlogArticleJsonLd(
@@ -12,13 +15,16 @@ export function buildBlogArticleJsonLd(
 ): Record<string, unknown> {
   const base = getSiteUrl();
   const imageUrl = `${base}/blog/${input.slug}/opengraph-image`;
+  const dateModified = input.dateModified ?? input.datePublished;
 
-  return {
+  const article: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: input.headline,
     description: input.description,
     datePublished: input.datePublished,
+    dateModified,
+    inLanguage: 'tr-TR',
     author: {
       '@type': 'Person',
       name: 'Senkronize Ekibi',
@@ -37,4 +43,10 @@ export function buildBlogArticleJsonLd(
       '@id': `${base}/blog/${input.slug}`,
     },
   };
+
+  if (input.wordCount !== undefined) {
+    article.wordCount = input.wordCount;
+  }
+
+  return article;
 }

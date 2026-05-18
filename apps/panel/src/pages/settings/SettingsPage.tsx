@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/auth.store';
 
 import { AppearanceTab } from './tabs/AppearanceTab';
 import { ApiKeysTab } from './tabs/ApiKeysTab';
+import { CurrencyTab } from './tabs/CurrencyTab';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
 import { PartnersTab } from './tabs/PartnersTab';
@@ -37,6 +38,7 @@ export function SettingsPage(): ReactElement {
           <TabsTrigger value="profile">Profil</TabsTrigger>
           <TabsTrigger value="appearance">Görünüm</TabsTrigger>
           <TabsTrigger value="organization">Firma</TabsTrigger>
+          <TabsTrigger value="currency">Para birimi</TabsTrigger>
           <TabsTrigger value="team">Ekip</TabsTrigger>
           <TabsTrigger value="subscription">Abonelik</TabsTrigger>
           <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
@@ -54,6 +56,9 @@ export function SettingsPage(): ReactElement {
         </TabsContent>
         <TabsContent value="organization" className="mt-6">
           <OrganizationTab />
+        </TabsContent>
+        <TabsContent value="currency" className="mt-6">
+          <CurrencyTab />
         </TabsContent>
         <TabsContent value="team" className="mt-6">
           <TeamTab />

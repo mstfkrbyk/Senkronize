@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2, Package, Truck } from 'lucide-react';
+import { Download, FileArchive, Loader2, Package, Truck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
-import { TableSkeleton } from '@/components/TableSkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -107,6 +107,16 @@ function downloadOrdersCsv(rows: Order[]): void {
 
 const ALL_STATUSES = Object.keys(ORDER_STATUS_LABEL_TR) as OrderStatus[];
 
+function OrdersPageSkeleton(): ReactElement {
+  return (
+    <div className="space-y-3" aria-hidden>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-md" />
+      ))}
+    </div>
+  );
+}
+
 export function OrdersPage(): ReactElement {
   usePageTitle('Siparişler');
   const queryClient = useQueryClient();
@@ -146,6 +156,25 @@ export function OrdersPage(): ReactElement {
   const erpConnectionsQuery = useErpConnections();
   const syncToErpMutation = useSyncOrderToErp();
   const triggerSyncMutation = useTriggerManualSync();
+
+  const bulkInvoiceMutation = useMutation({
+    mutationFn: async (orderIds: string[]): Promise<Blob> => {
+      const res = await api.post('/invoices/bulk', { orderIds }, { responseType: 'blob' });
+      return res.data as Blob;
+    },
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `faturalar-${new Date().toISOString().slice(0, 10)}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Toplu fatura ZIP indirildi');
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
 
   const patchStatusMutation = useMutation({
     mutationFn: async (args: {
@@ -264,7 +293,7 @@ export function OrdersPage(): ReactElement {
 
       <OrderFilters filters={filters} onChange={setFilters} />
 
-      {isLoading ? <TableSkeleton rows={8} cols={6} /> : null}
+      {isLoading ? <OrdersPageSkeleton /> : null}
 
       {isError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -346,6 +375,28 @@ export function OrdersPage(): ReactElement {
               >
                 <Truck className="h-3.5 w-3.5" aria-hidden />
                 Kargo bilgisi ekle
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedRows.length === 0 ||
+                  selectedRows.length > 50 ||
+                  bulkInvoiceMutation.isPending
+                }
+                onClick={() => {
+                  bulkInvoiceMutation.mutate(selectedOrderIds);
+                  track('orders_bulk_invoice', { count: selectedOrderIds.length });
+                }}
+              >
+                {bulkInvoiceMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <FileArchive className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Toplu fatura (ZIP)
               </Button>
               <Button
                 type="button"

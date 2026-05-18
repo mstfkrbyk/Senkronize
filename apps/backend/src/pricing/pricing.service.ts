@@ -26,7 +26,13 @@ import type {
   PricingRunRulesJobData,
 } from '../queue/queue.types';
 
-import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
+import type {
+  BuyBoxAnalysisResult,
+  BuyBoxHistoryRow,
+  BuyBoxReportResult,
+  BuyBoxStatus,
+  BuyBoxWinRateStats,
+} from './buybox.service';
 import { BuyBoxService } from './buybox.service';
 import type {
   CreatePricingRuleDto,

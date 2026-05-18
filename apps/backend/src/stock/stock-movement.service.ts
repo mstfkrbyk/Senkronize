@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StockMovementType, type StockMovement } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -238,6 +238,90 @@ export class StockMovementService {
         warehouseId,
         platform: null,
         movementType: StockMovementType.ADJUSTMENT,
+        quantity: after - before,
+        beforeQuantity: before,
+        afterQuantity: after,
+        note: note?.trim() || null,
+        tx: db,
+      });
+    };
+
+    if (tx) {
+      await run(tx);
+      return;
+    }
+
+    await this.prisma.$transaction(async (inner) => {
+      await run(inner);
+    });
+  }
+
+  /**
+   * Merkezi stok (platform=null) miktarını artırır ve PURCHASE hareketi yazar.
+   */
+  async applyPurchaseInflow(
+    organizationId: string,
+    warehouseId: string,
+    barcode: string,
+    delta: number,
+    note: string | null,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (!Number.isFinite(delta) || delta <= 0) {
+      throw new BadRequestException('Teslim miktarı pozitif bir sayı olmalıdır.');
+    }
+    const trimmed = barcode.trim();
+    const client = tx ?? this.prisma;
+
+    const warehouse = await client.warehouse.findFirst({
+      where: { id: warehouseId, organizationId },
+    });
+    if (!warehouse) {
+      throw new NotFoundException('Depo bulunamadı.');
+    }
+
+    const product = await client.product.findFirst({
+      where: { organizationId, barcode: trimmed, deletedAt: null },
+      select: { id: true },
+    });
+
+    const run = async (db: Prisma.TransactionClient): Promise<void> => {
+      const existing = await db.stockEntry.findFirst({
+        where: {
+          organizationId,
+          barcode: trimmed,
+          platform: null,
+          warehouseId,
+        },
+      });
+      const before = existing?.quantity ?? 0;
+      const after = before + delta;
+      if (existing) {
+        await db.stockEntry.update({
+          where: { id: existing.id },
+          data: {
+            quantity: after,
+            ...(product ? { productId: product.id } : {}),
+          },
+        });
+      } else {
+        await db.stockEntry.create({
+          data: {
+            organizationId,
+            warehouseId,
+            barcode: trimmed,
+            platform: null,
+            quantity: after,
+            productId: product?.id ?? null,
+          },
+        });
+      }
+      await this.record({
+        organizationId,
+        barcode: trimmed,
+        warehouseId,
+        platform: null,
+        movementType: StockMovementType.PURCHASE,
         quantity: after - before,
         beforeQuantity: before,
         afterQuantity: after,

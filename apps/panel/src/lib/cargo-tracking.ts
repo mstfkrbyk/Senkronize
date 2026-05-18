@@ -7,6 +7,7 @@ export const CARGO_TRACKING_URLS: Record<string, string> = {
   MNG: 'https://www.mngkargo.com.tr/mngkargo/kargo-takip?barcode={trackingCode}',
   UPS: 'https://www.ups.com/track?tracknum={trackingCode}',
   DHL: 'https://www.dhl.com/tr-tr/home/tracking.html?tracking-id={trackingCode}',
+  FEDEX: 'https://www.fedex.com/fedextrack/?trknbr={trackingCode}',
   SENDEO: 'https://www.sendeo.com.tr/tr/kargo-takip?barcode={trackingCode}',
   PTT_KARGO: 'https://www.ptt.gov.tr/KargoTakip?barcode={trackingCode}',
   PTT: 'https://gonderitakip.ptt.gov.tr/Track/Verify?q={trackingCode}',

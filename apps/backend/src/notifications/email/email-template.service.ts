@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import type {
+  CriticalStockForecastEmailData,
   EmailPreviewTemplate,
   InvoiceEmailData,
   LowStockEmailData,
@@ -113,6 +114,22 @@ export class EmailTemplateService {
       .join('');
   }
 
+  private buildCriticalStockForecastRows(
+    products: CriticalStockForecastEmailData['products'],
+  ): string {
+    return products
+      .map(
+        (p) =>
+          `<tr>
+            <td style="padding:10px 10px;border-bottom:1px solid #fecaca;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;">${escapeHtml(p.name)}</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #fecaca;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;">${escapeHtml(p.barcode)}</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #fecaca;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#b91c1c;text-align:center;font-weight:700;">${escapeHtml(p.daysLeft)}</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #fecaca;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:center;">${escapeHtml(p.recommendedQty)}</td>
+          </tr>`,
+      )
+      .join('');
+  }
+
   private buildTrialLostFeaturesRows(features: string[]): string {
     if (features.length === 0) {
       return '<span style="color:#991b1b;">Deneme bittiğinde panele erişiminiz kısıtlanır ve senkronizasyonlar durdurulur.</span>';
@@ -161,6 +178,16 @@ export class EmailTemplateService {
       stockUpdateUrl: escapeHtml(data.stockUpdateUrl),
       unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
       productRows: this.buildLowStockRows(data.products),
+    });
+  }
+
+  renderCriticalStockForecast(data: CriticalStockForecastEmailData): string {
+    return this.renderTemplate('critical-stock-forecast', {
+      recipientName: escapeHtml(data.recipientName),
+      count: String(data.count),
+      forecastUrl: escapeHtml(data.forecastUrl),
+      unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
+      productRows: this.buildCriticalStockForecastRows(data.products),
     });
   }
 

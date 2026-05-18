@@ -22,7 +22,8 @@ const NAV_SHORTCUTS: { keys: string; description: string }[] = [
   { keys: 'g o', description: 'Siparişler' },
   { keys: 'g l', description: 'Listelemeler' },
   { keys: 'g s', description: 'Stok' },
-  { keys: 'g p', description: 'Fiyatlandırma' },
+  { keys: 'g p', description: 'Ürün kataloğu' },
+  { keys: 'g f', description: 'Fiyatlandırma' },
   { keys: 'g r', description: 'Raporlar' },
   { keys: 'g c', description: 'Bağlantılar' },
   { keys: 'g m', description: 'Migrasyon' },
@@ -30,7 +31,8 @@ const NAV_SHORTCUTS: { keys: string; description: string }[] = [
 
 const ACTION_SHORTCUTS: { keys: string; description: string }[] = [
   { keys: 'Ctrl veya ⌘ + B', description: 'Kenar çubuğunu aç / kapat' },
-  { keys: '?', description: 'Bu pencereyi aç' },
+  { keys: '/', description: 'Hızlı stok aramasını aç' },
+  { keys: '?', description: 'Kısayol yardımı' },
   { keys: 'Esc', description: 'Bu pencereyi kapat' },
 ];
 

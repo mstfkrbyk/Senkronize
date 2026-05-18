@@ -26,6 +26,7 @@ import {
   BulkStockUpdateDto,
   CreateStockCountSessionDto,
   StockAdjustDto,
+  StockForecastQueryDto,
   StockHistoryQueryDto,
   StockQueryDto,
   StockSummaryQueryDto,
@@ -36,6 +37,13 @@ import {
   type StockCountItemRowDto,
   type StockCountSessionDetailDto,
 } from './stock-count.service';
+import { StockForecastService } from './stock-forecast.service';
+import type {
+  SeasonalityDataDto,
+  StockForecastSummaryDto,
+  StockoutEstimateDto,
+  StockProjectionDto,
+} from './stock-forecast.types';
 import {
   StockMovementService,
   type MovementSummary,
@@ -55,7 +63,66 @@ export class StockController {
     private readonly stockService: StockService,
     private readonly stockMovementService: StockMovementService,
     private readonly stockCountService: StockCountService,
+    private readonly stockForecastService: StockForecastService,
   ) {}
+
+  @Get('forecast/summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok tahmini özet (7/14/30 gün, tahmini maliyet)' })
+  @ApiResponse({ status: 200 })
+  async forecastSummary(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<StockForecastSummaryDto> {
+    return this.stockForecastService.getForecastSummary(org.id);
+  }
+
+  @Get('forecast/critical')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '7 günden az stok ömrü olan ürünler' })
+  @ApiResponse({ status: 200 })
+  async forecastCritical(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: StockoutEstimateDto[] }> {
+    const data = await this.stockForecastService.getCriticalStockItems(org.id);
+    return { data };
+  }
+
+  @Get('forecast')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün bazlı stok tükenme tahmini listesi' })
+  @ApiResponse({ status: 200 })
+  async forecastBulk(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: StockForecastQueryDto,
+  ): Promise<{ data: StockoutEstimateDto[] }> {
+    const data = await this.stockForecastService.bulkForecast(
+      org.id,
+      query.maxItems,
+    );
+    return { data };
+  }
+
+  @Get('forecast/:barcode/seasonality')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Basit sezonsallık karşılaştırması (son 30 gün vs önceki 30 gün)' })
+  @ApiResponse({ status: 200 })
+  async forecastSeasonality(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ): Promise<SeasonalityDataDto> {
+    return this.stockForecastService.analyzeSeasonality(org.id, barcode);
+  }
+
+  @Get('forecast/:barcode/projection')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: '30 günlük stok projeksiyonu (satış hızı varsayımı)' })
+  @ApiResponse({ status: 200 })
+  async forecastProjection(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ): Promise<StockProjectionDto> {
+    return this.stockForecastService.getProjection(org.id, barcode);
+  }
 
   @Get('overview')
   @UseGuards(JwtAuthGuard)

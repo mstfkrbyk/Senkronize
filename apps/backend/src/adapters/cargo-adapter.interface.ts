@@ -2,7 +2,10 @@ export interface ICargoAdapter {
   createShipment(params: CreateShipmentParams): Promise<ShipmentResult>;
   trackShipment(trackingCode: string): Promise<TrackingResult>;
   cancelShipment(trackingCode: string): Promise<void>;
-  getLabel(trackingCode: string): Promise<string | null>;
+  /** PDF veya ham etiket baytları; yoksa null */
+  getLabel(trackingCode: string): Promise<Buffer | null>;
+  /** Fiyat teklifleri; desteklenmiyorsa boş dizi */
+  getRates(params: RateParams): Promise<CargoRate[]>;
   testConnection(): Promise<boolean>;
 }
 
@@ -46,4 +49,34 @@ export interface TrackingEvent {
   status: string;
   description: string;
   location?: string;
+}
+
+export interface RateParams {
+  fromCountryCode: string;
+  toCountryCode: string;
+  fromPostalCode: string;
+  toPostalCode: string;
+  fromCity: string;
+  toCity: string;
+  weightKg: number;
+  desi?: number;
+}
+
+export interface CargoRate {
+  serviceCode?: string;
+  serviceName: string;
+  price: number;
+  currency: string;
+  transitDaysMin?: number;
+  transitDaysMax?: number;
+}
+
+export interface CargoRateComparison {
+  connectionId: string;
+  provider: string;
+  providerLabel: string;
+  price: number;
+  currency: string;
+  serviceName: string;
+  estimatedTransitDays?: number;
 }

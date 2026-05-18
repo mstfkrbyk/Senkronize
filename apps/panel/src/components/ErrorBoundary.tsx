@@ -16,20 +16,30 @@ interface ErrorBoundaryProps {
 
 function DefaultCrashUI({
   error,
-  onReset,
+  onRetry,
 }: {
   error?: Error;
-  onReset: () => void;
+  onRetry: () => void;
 }): ReactElement {
+  const isDev = import.meta.env.DEV;
+
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
-      <div className="text-6xl">⚠️</div>
-      <h2 className="text-xl font-semibold">Bir şeyler yanlış gitti</h2>
-      <p className="text-muted-foreground max-w-md text-center text-sm">
-        {error?.message ?? 'Beklenmedik bir hata oluştu.'}
+      <div className="text-6xl" aria-hidden>
+        ⚠️
+      </div>
+      <h2 className="text-xl font-semibold text-foreground">Bir şeyler yanlış gitti</h2>
+      <p className="max-w-md text-center text-sm text-muted-foreground">
+        Bu bölüm yüklenirken beklenmedik bir hata oluştu. Yeniden deneyebilir veya sayfayı
+        yenileyebilirsiniz.
       </p>
-      <Button type="button" onClick={onReset}>
-        Sayfayı Yenile
+      {isDev && error ? (
+        <pre className="max-h-48 max-w-full overflow-auto rounded-md border border-border bg-muted p-3 text-left text-xs text-foreground">
+          {error.stack ?? error.message}
+        </pre>
+      ) : null}
+      <Button type="button" onClick={onRetry}>
+        Yeniden dene
       </Button>
     </div>
   );
@@ -46,7 +56,7 @@ const SentryPassthroughBoundary =
         fallback: ({ error, resetError }) => (
           <DefaultCrashUI
             error={error instanceof Error ? error : undefined}
-            onReset={() => {
+            onRetry={() => {
               resetError();
               window.location.reload();
             }}
@@ -70,6 +80,9 @@ class LegacyErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('ErrorBoundary caught:', error, info);
+    if (typeof import.meta.env.VITE_SENTRY_DSN === 'string' && import.meta.env.VITE_SENTRY_DSN.length > 0) {
+      Sentry.captureException(error, { extra: { componentStack: info.componentStack } });
+    }
   }
 
   render(): ReactNode {
@@ -78,8 +91,8 @@ class LegacyErrorBoundary extends React.Component<
         this.props.fallback ?? (
           <DefaultCrashUI
             error={this.state.error}
-            onReset={() => {
-              this.setState({ hasError: false });
+            onRetry={() => {
+              this.setState({ hasError: false, error: undefined });
               window.location.reload();
             }}
           />

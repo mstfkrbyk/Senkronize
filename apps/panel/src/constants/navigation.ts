@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export interface NavItem {
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
   path: string;
   badge?: string;
@@ -26,24 +26,29 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: 'Özet', icon: LayoutDashboard, path: '/dashboard' },
-  { label: 'Siparişler', icon: ShoppingCart, path: '/orders', badge: 'canlı' },
-  { label: 'Ürün Listesi', icon: Package, path: '/listings' },
-  { label: 'Ürün Kataloğu', icon: PackageSearch, path: '/products' },
-  { label: 'Stok', icon: Warehouse, path: '/stock' },
-  { label: 'Stok sayımı', icon: ScanLine, path: '/stock/count' },
-  { label: 'Fiyatlandırma', icon: Tag, path: '/pricing', badge: 'PRO' },
-  { label: 'Entegrasyonlar', icon: Plug, path: '/connections' },
-  { label: 'Sync Durumu', icon: Activity, path: '/sync-logs' },
-  { label: 'Bildirimler', icon: Bell, path: '/notifications' },
-  { label: 'Aktivite Geçmişi', icon: History, path: '/audit-logs' },
-  { label: 'Raporlar', icon: BarChart2, path: '/reports' },
-  { label: 'Geçiş sihirbazı', icon: ArrowRightLeft, path: '/migration' },
+  { labelKey: 'nav.dashboard', icon: LayoutDashboard, path: '/dashboard' },
   {
-    label: 'Partner Paneli',
+    labelKey: 'nav.orders',
+    icon: ShoppingCart,
+    path: '/orders',
+    badge: 'canlı',
+  },
+  { labelKey: 'nav.listings', icon: Package, path: '/listings' },
+  { labelKey: 'nav.products', icon: PackageSearch, path: '/products' },
+  { labelKey: 'nav.stock', icon: Warehouse, path: '/stock' },
+  { labelKey: 'nav.stockCount', icon: ScanLine, path: '/stock/count' },
+  { labelKey: 'nav.pricing', icon: Tag, path: '/pricing', badge: 'PRO' },
+  { labelKey: 'nav.integrations', icon: Plug, path: '/connections' },
+  { labelKey: 'nav.syncLogs', icon: Activity, path: '/sync-logs' },
+  { labelKey: 'nav.notifications', icon: Bell, path: '/notifications' },
+  { labelKey: 'nav.auditLogs', icon: History, path: '/audit-logs' },
+  { labelKey: 'nav.reports', icon: BarChart2, path: '/reports' },
+  { labelKey: 'nav.migration', icon: ArrowRightLeft, path: '/migration' },
+  {
+    labelKey: 'nav.partner',
     icon: Users2,
     path: '/partner',
     partnerOnly: true,
   },
-  { label: 'Ayarlar', icon: Settings, path: '/settings' },
+  { labelKey: 'nav.settings', icon: Settings, path: '/settings' },
 ];

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { BarChart3 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ import {
 import { useAuthStore } from '@/store/auth.store';
 
 export function SidebarNav(): ReactElement {
+  const { t } = useTranslation();
   const location = useLocation();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
   const userRole = useAuthStore((s) => s.user?.role);
@@ -30,7 +32,7 @@ export function SidebarNav(): ReactElement {
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-        Menü
+        {t('nav.menu')}
       </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
@@ -46,10 +48,11 @@ export function SidebarNav(): ReactElement {
                 <SidebarMenuButton
                   asChild
                   isActive={isActive}
-                  tooltip={item.label}
+                  tooltip={t(item.labelKey)}
                 >
                   <NavLink
                     to={item.path}
+                    data-onboarding={item.path}
                     onClick={() => {
                       if (isMobile) {
                         setOpenMobile(false);
@@ -57,10 +60,10 @@ export function SidebarNav(): ReactElement {
                     }}
                   >
                     <Icon className="size-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="truncate">{t(item.labelKey)}</span>
                     {item.badge === 'canlı' ? (
                       <SidebarMenuBadge className="bg-accent text-accent-foreground">
-                        canlı
+                        {t('nav.live')}
                       </SidebarMenuBadge>
                     ) : null}
                     {item.badge === 'PRO' ? (
@@ -79,7 +82,7 @@ export function SidebarNav(): ReactElement {
             <SidebarSeparator className="my-2 bg-sidebar-border" />
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Admin Panel">
+                <SidebarMenuButton asChild tooltip={t('nav.adminPanel')}>
                   <Link
                     to="/admin"
                     onClick={() => {
@@ -89,7 +92,7 @@ export function SidebarNav(): ReactElement {
                     }}
                   >
                     <BarChart3 className="size-4 shrink-0" />
-                    <span className="truncate">Admin Panel →</span>
+                    <span className="truncate">{t('nav.adminPanel')}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -140,6 +140,10 @@ enum Marketplace {
   QOO10
   LAZADA_PH
   MERCADOLIBRE
+  GETIR_YEMEK
+  LETGO
+  SAHIBINDEN_PRO
+  SHOPIVERSE
 }
 
 enum PricingStrategy {
@@ -181,6 +185,7 @@ enum EcommerceType {
   UNIPOS
   AKINON
   IKAS
+  SHOPIVERSE
 }
 
 enum CargoProvider {

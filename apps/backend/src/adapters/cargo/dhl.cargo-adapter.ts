@@ -2,8 +2,10 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type {
+  CargoRate,
   CreateShipmentParams,
   ICargoAdapter,
+  RateParams,
   ShipmentResult,
   TrackingResult,
 } from '../cargo-adapter.interface';
@@ -28,17 +30,19 @@ export class DhlCargoAdapter implements ICargoAdapter {
     return `Basic ${token}`;
   }
 
-  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
-    const account =
-      typeof this.creds.accountNumber === 'string' && this.creds.accountNumber.length > 0
-        ? this.creds.accountNumber
-        : requireStringField(this.creds, 'apiKey');
+  private accountNumber(): string {
+    if (typeof this.creds.accountNumber === 'string' && this.creds.accountNumber.length > 0) {
+      return this.creds.accountNumber;
+    }
+    return requireStringField(this.creds, 'apiKey');
+  }
 
+  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
     const body = {
       plannedShippingDateAndTime: new Date().toISOString(),
       pickup: { isRequested: false },
       productCode: 'N',
-      accounts: [{ typeCode: 'shipper', number: account }],
+      accounts: [{ typeCode: 'shipper', number: this.accountNumber() }],
       customerDetails: {
         shipperDetails: {
           postalAddress: {
@@ -100,12 +104,14 @@ export class DhlCargoAdapter implements ICargoAdapter {
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
-    const { data, status } = await axios.get<unknown>(`${BASE}/tracking`, {
-      params: { shipmentTrackingNumber: trackingCode },
-      headers: { Authorization: this.authHeader() },
-      timeout: 45_000,
-      validateStatus: () => true,
-    });
+    const { data, status } = await axios.get<unknown>(
+      `${BASE}/shipments/${encodeURIComponent(trackingCode)}/tracking`,
+      {
+        headers: { Authorization: this.authHeader() },
+        timeout: 45_000,
+        validateStatus: () => true,
+      },
+    );
     if (status < 200 || status >= 300) {
       throw new BadGatewayException('DHL takip sorgusu başarısız');
     }
@@ -129,45 +135,53 @@ export class DhlCargoAdapter implements ICargoAdapter {
     }
   }
 
-  async getLabel(trackingCode: string): Promise<string | null> {
+  async getLabel(trackingCode: string): Promise<Buffer | null> {
     void trackingCode;
     return null;
   }
 
-  async getRates(
-    fromCountry: string,
-    toCountry: string,
-    weightKg: number,
-  ): Promise<unknown> {
-    const body = {
-      customerDetails: {
-        shipperDetails: { postalCode: '34000', cityName: 'Istanbul', countryCode: fromCountry },
-        receiverDetails: { postalCode: '34000', cityName: 'Istanbul', countryCode: toCountry },
-      },
-      accounts: [{ typeCode: 'shipper', number: requireStringField(this.creds, 'apiKey') }],
-      productAndServices: [{ productCode: 'N' }],
-      packages: [{ weight: Math.max(0.5, weightKg) }],
-      plannedShippingDateAndTime: new Date().toISOString(),
+  async getRates(params: RateParams): Promise<CargoRate[]> {
+    const planned = new Date();
+    planned.setDate(planned.getDate() + 1);
+    const qs = new URLSearchParams({
+      accountNumber: this.accountNumber(),
+      originCountryCode: params.fromCountryCode,
+      destinationCountryCode: params.toCountryCode,
+      weight: String(Math.max(0.5, params.weightKg)),
+      length: '20',
+      width: '15',
+      height: '10',
+      plannedShippingDate: planned.toISOString(),
+      isCustomsDeclarable: 'false',
       unitOfMeasurement: 'metric',
-    };
-    const { data, status } = await axios.post<unknown>(`${BASE}/rates`, body, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: this.authHeader(),
-      },
+    });
+    if (params.fromPostalCode.trim()) {
+      qs.set('originPostalCode', params.fromPostalCode.trim());
+    }
+    if (params.toPostalCode.trim()) {
+      qs.set('destinationPostalCode', params.toPostalCode.trim());
+    }
+    if (params.fromCity.trim()) {
+      qs.set('originCityName', params.fromCity.trim());
+    }
+    if (params.toCity.trim()) {
+      qs.set('destinationCityName', params.toCity.trim());
+    }
+
+    const { data, status } = await axios.get<unknown>(`${BASE}/rates?${qs.toString()}`, {
+      headers: { Authorization: this.authHeader() },
       timeout: 45_000,
       validateStatus: () => true,
     });
     if (status < 200 || status >= 300) {
-      throw new BadGatewayException('DHL fiyat sorgusu başarısız');
+      return [];
     }
-    return data;
+    return parseDhlRates(data);
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      await axios.get(`${BASE}/tracking`, {
-        params: { shipmentTrackingNumber: '0000000000' },
+      await axios.get(`${BASE}/shipments/0000000000/tracking`, {
         headers: { Authorization: this.authHeader() },
         timeout: 15_000,
         validateStatus: () => true,
@@ -177,4 +191,33 @@ export class DhlCargoAdapter implements ICargoAdapter {
       return false;
     }
   }
+}
+
+function parseDhlRates(data: unknown): CargoRate[] {
+  if (typeof data !== 'object' || data === null) {
+    return [];
+  }
+  const products = (data as { products?: unknown }).products;
+  if (!Array.isArray(products)) {
+    return [];
+  }
+  const out: CargoRate[] = [];
+  for (const p of products) {
+    if (typeof p !== 'object' || p === null) {
+      continue;
+    }
+    const r = p as Record<string, unknown>;
+    const name = typeof r.productName === 'string' ? r.productName : 'DHL Express';
+    const code = typeof r.productCode === 'string' ? r.productCode : undefined;
+    const priceObj = r.totalPrice as Record<string, unknown> | undefined;
+    const raw = priceObj?.price ?? r.price;
+    const price = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(price)) {
+      continue;
+    }
+    const currency =
+      typeof priceObj?.currencyType === 'string' ? priceObj.currencyType : 'EUR';
+    out.push({ serviceCode: code, serviceName: name, price, currency });
+  }
+  return out;
 }

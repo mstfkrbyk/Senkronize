@@ -1,13 +1,14 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { Marketplace, Prisma, type Product, type ProductVariant } from '@prisma/client';
 import type { Queue } from 'bull';
 
+import { Cacheable } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
@@ -18,7 +19,24 @@ import {
   ProductQueryDto,
   SyncAllPlatformsDto,
   UpdateProductDto,
+  UpdateProductReorderDto,
 } from './product.dto';
+
+function productListCacheKey(
+  organizationId: string,
+  query: ProductQueryDto,
+): string {
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+  const cachePayload = JSON.stringify({
+    page,
+    limit,
+    search: query.search ?? null,
+    isActive: query.isActive ?? null,
+    category: query.category ?? null,
+  });
+  return CacheService.key('products', organizationId, cachePayload);
+}
 
 const productListSelect = {
   id: true,
@@ -29,7 +47,11 @@ const productListSelect = {
   description: true,
   brand: true,
   category: true,
+  categoryId: true,
   costPrice: true,
+  reorderPoint: true,
+  reorderQty: true,
+  leadTimeDays: true,
   tags: true,
   imageUrls: true,
   isActive: true,
@@ -71,6 +93,18 @@ export interface ProductDetailPayload {
   stockMovements: ProductDetailStock[];
 }
 
+export interface ReorderAlertRow {
+  productId: string;
+  barcode: string;
+  name: string;
+  sku: string | null;
+  currentStock: number;
+  reorderPoint: number;
+  shortfall: number;
+  reorderQty: number | null;
+  leadTimeDays: number | null;
+}
+
 @Injectable()
 export class ProductService {
   constructor(
@@ -80,32 +114,38 @@ export class ProductService {
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
 
+  private async resolveCategoryId(
+    organizationId: string,
+    categoryId: string,
+  ): Promise<string> {
+    const row = await this.prisma.productCategory.findFirst({
+      where: { id: categoryId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!row) {
+      throw new BadRequestException('Geçersiz kategori');
+    }
+    return categoryId;
+  }
+
+  @Cacheable(
+    (organizationId: string, query: ProductQueryDto) =>
+      productListCacheKey(organizationId, query),
+    60,
+  )
   async findAll(
+    organizationId: string,
+    query: ProductQueryDto,
+  ): Promise<{ items: ProductListItem[]; total: number }> {
+    return this.findAllUncached(organizationId, query);
+  }
+
+  private async findAllUncached(
     organizationId: string,
     query: ProductQueryDto,
   ): Promise<{ items: ProductListItem[]; total: number }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-
-    const cachePayload = JSON.stringify({
-      page,
-      limit,
-      search: query.search ?? null,
-      isActive: query.isActive ?? null,
-      category: query.category ?? null,
-    });
-    const cacheKey = CacheService.key(
-      'products',
-      organizationId,
-      cachePayload,
-    );
-    const cached = await this.cache.get<{
-      items: ProductListItem[];
-      total: number;
-    }>(cacheKey);
-    if (cached) {
-      return cached;
-    }
 
     const where: Prisma.ProductWhereInput = {
       organizationId,
@@ -147,9 +187,7 @@ export class ProductService {
       this.prisma.product.count({ where }),
     ]);
 
-    const result = { items, total };
-    await this.cache.set(cacheKey, result, 120);
-    return result;
+    return { items, total };
   }
 
   async findOne(organizationId: string, id: string): Promise<Product> {
@@ -166,42 +204,49 @@ export class ProductService {
     organizationId: string,
     id: string,
   ): Promise<ProductDetailPayload> {
-    const product = await this.findOne(organizationId, id);
-    const [variants, listings, stockEntryRows] = await Promise.all([
-      this.prisma.productVariant.findMany({
-        where: { organizationId, productId: id, deletedAt: null },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.listing.findMany({
-        where: { organizationId, productId: id, deletedAt: null },
-        select: {
-          id: true,
-          platform: true,
-          title: true,
-          salePrice: true,
-          listPrice: true,
-          quantity: true,
-          approved: true,
-          lastSyncAt: true,
+    const row = await this.prisma.product.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: {
+        variants: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'asc' },
         },
-        orderBy: { updatedAt: 'desc' },
-      }),
-      this.prisma.stockEntry.findMany({
-        where: { organizationId, productId: id },
-        select: {
-          id: true,
-          barcode: true,
-          platform: true,
-          warehouseId: true,
-          quantity: true,
-          reservedQty: true,
-          updatedAt: true,
-          warehouse: { select: { code: true, name: true } },
+        listings: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            platform: true,
+            title: true,
+            salePrice: true,
+            listPrice: true,
+            quantity: true,
+            approved: true,
+            lastSyncAt: true,
+          },
+          orderBy: { updatedAt: 'desc' },
         },
-        orderBy: { updatedAt: 'desc' },
-        take: 50,
-      }),
-    ]);
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+    const { variants, listings, ...product } = row;
+
+    const stockEntryRows = await this.prisma.stockEntry.findMany({
+      where: { organizationId, productId: id },
+      select: {
+        id: true,
+        barcode: true,
+        platform: true,
+        warehouseId: true,
+        quantity: true,
+        reservedQty: true,
+        updatedAt: true,
+        warehouse: { select: { code: true, name: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
     const stockMovements: ProductDetailStock[] = stockEntryRows.map((r) => ({
       id: r.id,
       barcode: r.barcode,
@@ -213,10 +258,14 @@ export class ProductService {
       reservedQty: r.reservedQty,
       updatedAt: r.updatedAt,
     }));
-    return { product, variants, listings, stockMovements };
+    return { product: product as Product, variants, listings, stockMovements };
   }
 
   async create(organizationId: string, dto: CreateProductDto): Promise<Product> {
+    const categoryId =
+      dto.categoryId === undefined
+        ? undefined
+        : await this.resolveCategoryId(organizationId, dto.categoryId);
     try {
       const created = await this.prisma.product.create({
         data: {
@@ -226,6 +275,7 @@ export class ProductService {
           sku: dto.sku,
           brand: dto.brand,
           category: dto.category,
+          ...(categoryId !== undefined && { categoryId }),
           description: dto.description,
           costPrice:
             dto.costPrice !== undefined
@@ -256,6 +306,10 @@ export class ProductService {
     dto: UpdateProductDto,
   ): Promise<Product> {
     await this.findOne(organizationId, id);
+    let categoryId: string | undefined;
+    if (dto.categoryId !== undefined) {
+      categoryId = await this.resolveCategoryId(organizationId, dto.categoryId);
+    }
     try {
       const updated = await this.prisma.product.update({
         where: { id },
@@ -265,12 +319,20 @@ export class ProductService {
           ...(dto.sku !== undefined && { sku: dto.sku }),
           ...(dto.brand !== undefined && { brand: dto.brand }),
           ...(dto.category !== undefined && { category: dto.category }),
+          ...(categoryId !== undefined && { categoryId }),
           ...(dto.description !== undefined && { description: dto.description }),
           ...(dto.isActive !== undefined && { isActive: dto.isActive }),
           ...(dto.costPrice !== undefined && {
             costPrice: new Prisma.Decimal(dto.costPrice),
           }),
           ...(dto.tags !== undefined && { tags: dto.tags }),
+          ...(dto.reorderPoint !== undefined && {
+            reorderPoint: dto.reorderPoint,
+          }),
+          ...(dto.reorderQty !== undefined && { reorderQty: dto.reorderQty }),
+          ...(dto.leadTimeDays !== undefined && {
+            leadTimeDays: dto.leadTimeDays,
+          }),
         },
       });
       await this.cache.invalidateProductsForOrg(organizationId);
@@ -420,5 +482,115 @@ export class ProductService {
     }
 
     return { queued };
+  }
+
+  private async aggregateAvailableStockByBarcode(
+    organizationId: string,
+  ): Promise<Map<string, number>> {
+    const rows = await this.prisma.stockEntry.groupBy({
+      by: ['barcode'],
+      where: { organizationId },
+      _sum: { quantity: true, reservedQty: true },
+    });
+    const map = new Map<string, number>();
+    for (const r of rows) {
+      const q = r._sum.quantity ?? 0;
+      const res = r._sum.reservedQty ?? 0;
+      map.set(r.barcode, Math.max(0, q - res));
+    }
+    return map;
+  }
+
+  async getReorderAlerts(organizationId: string): Promise<ReorderAlertRow[]> {
+    const products = await this.prisma.product.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        reorderPoint: { not: null },
+      },
+      select: {
+        id: true,
+        barcode: true,
+        name: true,
+        sku: true,
+        reorderPoint: true,
+        reorderQty: true,
+        leadTimeDays: true,
+      },
+    });
+    const stockMap = await this.aggregateAvailableStockByBarcode(organizationId);
+    const out: ReorderAlertRow[] = [];
+    for (const p of products) {
+      const min = p.reorderPoint ?? 0;
+      const stock = stockMap.get(p.barcode) ?? 0;
+      if (stock >= min) {
+        continue;
+      }
+      out.push({
+        productId: p.id,
+        barcode: p.barcode,
+        name: p.name,
+        sku: p.sku,
+        currentStock: stock,
+        reorderPoint: min,
+        shortfall: min - stock,
+        reorderQty: p.reorderQty,
+        leadTimeDays: p.leadTimeDays,
+      });
+    }
+    out.sort((a, b) => b.shortfall - a.shortfall);
+    return out;
+  }
+
+  async patchReorderSettings(
+    organizationId: string,
+    productId: string,
+    dto: UpdateProductReorderDto,
+  ): Promise<Product> {
+    await this.findOne(organizationId, productId);
+    const data: Prisma.ProductUpdateInput = {};
+    if (dto.reorderPoint !== undefined) {
+      data.reorderPoint = dto.reorderPoint;
+    }
+    if (dto.reorderQty !== undefined) {
+      data.reorderQty = dto.reorderQty;
+    }
+    if (dto.leadTimeDays !== undefined) {
+      data.leadTimeDays = dto.leadTimeDays;
+    }
+    if (Object.keys(data).length === 0) {
+      return this.findOne(organizationId, productId);
+    }
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data,
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return updated;
+  }
+
+  async setReorderPoint(
+    organizationId: string,
+    barcode: string,
+    reorderPoint: number | null,
+    reorderQty: number | null,
+    leadTimeDays: number | null,
+  ): Promise<Product> {
+    const row = await this.prisma.product.findFirst({
+      where: { organizationId, barcode, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+    const updated = await this.prisma.product.update({
+      where: { id: row.id },
+      data: {
+        reorderPoint,
+        reorderQty,
+        leadTimeDays,
+      },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return updated;
   }
 }

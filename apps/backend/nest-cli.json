@@ -8,6 +8,10 @@
       {
         "include": "notifications/email/templates/**/*.html",
         "watchAssets": true
+      },
+      {
+        "include": "config/vat-rates.json",
+        "watchAssets": true
       }
     ]
   }

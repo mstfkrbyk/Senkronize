@@ -77,6 +77,16 @@ export function QuickStockSearch(): ReactElement {
   useBarcodeInputClaim('quick-stock-search', BARCODE_PRIORITY_QUICK_SEARCH, onUsbScan, open);
 
   useEffect(() => {
+    const onShortcutOpen = (): void => {
+      setOpen(true);
+    };
+    window.addEventListener('senkronize-open-quick-search', onShortcutOpen);
+    return () => {
+      window.removeEventListener('senkronize-open-quick-search', onShortcutOpen);
+    };
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.defaultPrevented) {
         return;
@@ -90,20 +100,6 @@ export function QuickStockSearch(): ReactElement {
         e.preventDefault();
         setOpen(true);
         return;
-      }
-      const t = e.target;
-      if (
-        t instanceof HTMLElement &&
-        (t.tagName === 'INPUT' ||
-          t.tagName === 'TEXTAREA' ||
-          t.tagName === 'SELECT' ||
-          t.isContentEditable)
-      ) {
-        return;
-      }
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        setOpen(true);
       }
     };
     window.addEventListener('keydown', onKey);

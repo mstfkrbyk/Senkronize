@@ -1,10 +1,11 @@
-import { CheckCircle2, Circle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Circle, ExternalLink, FileDown, Loader2 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { InvoicePreview } from '@/components/InvoicePreview';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
 import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import { useAuthStore } from '@/store/auth.store';
 import type { Order, OrderStatus } from '@/types/order';
 
 interface Props {
@@ -115,6 +117,7 @@ export function OrderDetailSheet({
   onOpenChange,
   onCargoUpdated,
 }: Props): ReactElement {
+  const currentOrg = useAuthStore((s) => s.currentOrg);
   const queryClient = useQueryClient();
   const erpConnectionsQuery = useErpConnections();
   const syncToErpMutation = useSyncOrderToErp();
@@ -152,6 +155,25 @@ export function OrderDetailSheet({
   });
 
   const displayOrder = detailQuery.data ?? order;
+
+  const invoicePdfMutation = useMutation({
+    mutationFn: async (orderId: string): Promise<Blob> => {
+      const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
+      return res.data as Blob;
+    },
+    onSuccess: (blob, orderId) => {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 120_000);
+      toast.success('Fatura PDF açıldı');
+      void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
 
   const cargoMutation = useMutation({
     mutationFn: async (): Promise<Order> => {
@@ -280,6 +302,35 @@ export function OrderDetailSheet({
                     {formatTry(displayOrder.totalAmount, displayOrder.currency)}
                   </span>
                 </p>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="text-sm font-medium">Fatura</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sunucuda üretilen PDF veya istemci tarafı önizleme ile PDF alın.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3 w-full gap-2"
+                  disabled={invoicePdfMutation.isPending}
+                  onClick={() => {
+                    invoicePdfMutation.mutate(displayOrder.id);
+                  }}
+                >
+                  {invoicePdfMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <FileDown className="h-4 w-4" aria-hidden />
+                  )}
+                  Fatura İndir (PDF)
+                </Button>
+                <div className="mt-4">
+                  <InvoicePreview
+                    order={displayOrder}
+                    organizationName={currentOrg?.name ?? '—'}
+                  />
+                </div>
               </div>
 
               <div>

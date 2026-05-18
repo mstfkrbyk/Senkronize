@@ -8,6 +8,7 @@ import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
+import { OrderService } from '../order/order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
@@ -93,6 +94,7 @@ export class MarketplacePushProcessor {
   constructor(
     private readonly adapterRegistry: AdapterRegistry,
     private readonly marketplaceConnectionService: MarketplaceConnectionService,
+    private readonly orderService: OrderService,
     private readonly prisma: PrismaService,
     private readonly syncStatusService: SyncStatusService,
     private readonly eventService: EventService,
@@ -242,6 +244,147 @@ export class MarketplacePushProcessor {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';
       this.logger.error('Pazaryeri fiyat gönderim hatası', {
+        organizationId,
+        platform,
+        error: message,
+      });
+      await this.syncStatusService.recordError(
+        organizationId,
+        platform as Marketplace,
+        message,
+      );
+      throw error;
+    }
+  }
+
+  @Process('push-return-action')
+  async handlePushReturnAction(job: Job<MarketplacePushJobData>): Promise<void> {
+    const { organizationId, platform } = job.data;
+    const returnId = job.data.resourceIds[0];
+    if (!returnId) {
+      return;
+    }
+    const actionRaw = job.data.payload?.action;
+    const action = actionRaw === 'reject' ? 'reject' : 'approve';
+    const reason =
+      typeof job.data.payload?.reason === 'string' ? job.data.payload.reason : '';
+    try {
+      const credentials =
+        await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
+          organizationId,
+          platform as Marketplace,
+        );
+      if (!credentials) {
+        this.logger.warn('Aktif pazaryeri bağlantısı bulunamadı (iade bildirimi)', {
+          organizationId,
+          platform,
+        });
+        return;
+      }
+      const adapter = this.adapterRegistry.get(platform);
+      const row = await this.prisma.return.findFirst({
+        where: { id: returnId, organizationId, deletedAt: null },
+        select: { platformReturnId: true },
+      });
+      const platformReturnId = row?.platformReturnId;
+      if (!platformReturnId) {
+        return;
+      }
+      if (action === 'approve' && typeof adapter.approveReturn === 'function') {
+        await adapter.approveReturn(credentials, platformReturnId);
+      } else if (
+        action === 'reject' &&
+        typeof adapter.rejectReturn === 'function'
+      ) {
+        await adapter.rejectReturn(
+          credentials,
+          platformReturnId,
+          reason.length > 0 ? reason : 'Reddedildi',
+        );
+      } else {
+        this.logger.warn('Platform iade onay/red API desteklemiyor', {
+          platform,
+          action,
+        });
+      }
+      await this.syncStatusService.recordSuccess(
+        organizationId,
+        platform as Marketplace,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Bilinmeyen hata';
+      this.logger.error('Pazaryeri iade bildirim hatası', {
+        organizationId,
+        platform,
+        error: message,
+      });
+      await this.syncStatusService.recordError(
+        organizationId,
+        platform as Marketplace,
+        message,
+      );
+      throw error;
+    }
+  }
+
+  @Process('push-order-cancel')
+  async handlePushOrderCancel(job: Job<MarketplacePushJobData>): Promise<void> {
+    const { organizationId, platform } = job.data;
+    const orderId = job.data.resourceIds[0];
+    if (!orderId) {
+      return;
+    }
+    const reason =
+      typeof job.data.payload?.reason === 'string' ? job.data.payload.reason : '';
+    try {
+      const credentials =
+        await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
+          organizationId,
+          platform as Marketplace,
+        );
+      if (!credentials) {
+        this.logger.warn('Aktif pazaryeri bağlantısı bulunamadı (sipariş iptali)', {
+          organizationId,
+          platform,
+        });
+        await this.orderService.finalizeOrderCancellationFromJob(
+          organizationId,
+          orderId,
+        );
+        return;
+      }
+      const adapter = this.adapterRegistry.get(platform);
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId, organizationId, deletedAt: null },
+        select: { platformOrderId: true },
+      });
+      if (!order) {
+        return;
+      }
+      if (typeof adapter.cancelOrder === 'function') {
+        await adapter.cancelOrder(
+          credentials,
+          order.platformOrderId,
+          reason.length > 0 ? reason : undefined,
+        );
+      } else {
+        this.logger.warn('Platform sipariş iptali API desteklemiyor', {
+          platform,
+        });
+      }
+      await this.orderService.finalizeOrderCancellationFromJob(
+        organizationId,
+        orderId,
+      );
+      await this.syncStatusService.recordSuccess(
+        organizationId,
+        platform as Marketplace,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Bilinmeyen hata';
+      this.logger.error('Pazaryeri sipariş iptal hatası', {
         organizationId,
         platform,
         error: message,

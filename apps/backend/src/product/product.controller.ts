@@ -41,10 +41,12 @@ import {
   ProductQueryDto,
   SyncAllPlatformsDto,
   UpdateProductDto,
+  UpdateProductReorderDto,
 } from './product.dto';
 import {
   type ProductDetailPayload,
   type ProductListItem,
+  type ReorderAlertRow,
   ProductService,
 } from './product.service';
 
@@ -69,6 +71,17 @@ export class ProductController {
     private readonly productImportService: ProductImportService,
     private readonly imageService: ImageService,
   ) {}
+
+  @Get('reorder-alerts')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Min stok eşiğinin altındaki ürünler' })
+  @ApiResponse({ status: 200 })
+  async getReorderAlerts(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: ReorderAlertRow[] }> {
+    const data = await this.productService.getReorderAlerts(org.id);
+    return { data };
+  }
 
   @Get('barcodes')
   @UseGuards(JwtAuthGuard)
@@ -314,6 +327,18 @@ export class ProductController {
     @Body() dto: CreateProductDto,
   ): Promise<Product> {
     return this.productService.create(org.id, dto);
+  }
+
+  @Patch(':id/reorder')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Otomatik sipariş eşiği (min stok, sipariş miktarı, tedarik süresi)' })
+  @ApiResponse({ status: 200 })
+  async patchReorder(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductReorderDto,
+  ): Promise<Product> {
+    return this.productService.patchReorderSettings(org.id, id, dto);
   }
 
   @Patch(':id')

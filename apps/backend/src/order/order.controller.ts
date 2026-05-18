@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,7 +9,13 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { OrderQueryDto, type OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
+import {
+  CancellationRequestDto,
+  CancelOrderDto,
+  OrderQueryDto,
+  type OrderSummaryDto,
+  UpdateOrderStatusDto,
+} from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
 
 @ApiTags('orders')
@@ -53,6 +59,30 @@ export class OrderController {
     @Body() dto: UpdateOrderStatusDto,
   ): Promise<SerializedOrder> {
     return this.orderService.updateStatus(org.id, id, dto);
+  }
+
+  @Post(':id/cancellation-request')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş iptal talebi oluştur' })
+  @ApiResponse({ status: 200, description: 'Kaydedildi' })
+  async requestCancellation(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CancellationRequestDto,
+  ): Promise<SerializedOrder> {
+    return this.orderService.requestOrderCancellation(org.id, id, dto.note);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Siparişi iptal et (platform + stok, kuyruk)' })
+  @ApiResponse({ status: 200, description: 'İş oluşturuldu' })
+  async cancel(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CancelOrderDto,
+  ): Promise<{ jobId: string }> {
+    return this.orderService.cancelOrder(org.id, id, dto.reason);
   }
 
   @Get(':id')

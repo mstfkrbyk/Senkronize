@@ -53,7 +53,12 @@ export class PricingProcessor {
         where,
         include: {
           product: {
-            select: { category: true, brand: true, sku: true },
+            select: {
+              category: true,
+              brand: true,
+              sku: true,
+              reorderPoint: true,
+            },
           },
         },
       });
@@ -77,6 +82,12 @@ export class PricingProcessor {
           continue;
         }
 
+        const velocity = await this.buyboxService.getVelocityPerDay(
+          organizationId,
+          listing.barcode,
+          listing.platform,
+        );
+
         const newPrice = this.engine.calculateOptimalPrice(
           rule,
           Number(listing.salePrice),
@@ -85,6 +96,8 @@ export class PricingProcessor {
           {
             stock: listing.quantity,
             hasBuyBox: snapshot.isWinner,
+            velocityPerDay: velocity,
+            reorderPoint: listing.product?.reorderPoint ?? null,
           },
         );
 

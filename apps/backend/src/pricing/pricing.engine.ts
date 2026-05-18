@@ -92,21 +92,18 @@ function timeBased(basePrice: number, rule: PricingRule): number {
   return basePrice;
 }
 
-/** Stok azaldıkça fiyat artar */
-function stockBased(basePrice: number, stock: number, rule: PricingRule): number {
-  if (stock <= 0) {
-    return rule.maxPrice ?? basePrice * 2;
-  }
-  const low = rule.lowStockThreshold ?? 5;
-  const high = rule.highStockThreshold ?? 100;
-  if (stock <= low) {
-    return basePrice * 1.1;
-  }
-  if (stock >= high) {
-    return basePrice * 0.95;
-  }
-  return basePrice;
-}
+/**
+ * Mantıksal strateji etiketleri.
+ * Veritabanındaki `PricingStrategy` ile birebir aynı değil; eşleme yorumlarda belirtilir.
+ */
+export type PricingStrategyMode =
+  | 'FIXED'
+  | 'MARGIN_BASED'
+  | 'COMPETITIVE'
+  | 'BUYBOX_WIN'
+  | 'DYNAMIC_DEMAND'
+  | 'TIME_BASED'
+  | 'STOCK_BASED';
 
 function marginFraction(rule: PricingRule): number {
   if (rule.minMarginPercent != null && !Number.isNaN(rule.minMarginPercent)) {
@@ -128,11 +125,51 @@ export interface PricingEngineContext {
   stock: number;
   /** Son BuyBox anlık görüntüsünde kazanan mıyız */
   hasBuyBox: boolean;
+  /** Son 7 günde günlük ortalama satış adedi (DYNAMIC + talep uyarıları) */
+  velocityPerDay?: number;
+  /** Ürün yeniden sipariş eşiği; yoksa kuralın düşük stok eşiği kullanılır */
+  reorderPoint?: number | null;
 }
 
 @Injectable()
 export class PricingEngine {
   private readonly logger = new Logger(PricingEngine.name);
+
+  /** Son satış hızına göre fiyat ayarı (basit kademeli model) */
+  calculateDemandBasedPrice(basePrice: number, velocity: number): number {
+    if (velocity > 10) {
+      return Math.round(basePrice * 1.05 * 100) / 100;
+    }
+    if (velocity > 5) {
+      return Math.round(basePrice * 1.02 * 100) / 100;
+    }
+    if (velocity < 1) {
+      return Math.round(basePrice * 0.97 * 100) / 100;
+    }
+    return Math.round(basePrice * 100) / 100;
+  }
+
+  /**
+   * Stok seviyesine göre fiyat: kritik altında prim, fazla stokta eritme indirimi.
+   * `reorderPoint` 0 veya negatifse 5 kabul edilir.
+   */
+  calculateStockBasedPrice(
+    basePrice: number,
+    stockQty: number,
+    reorderPoint: number,
+  ): number {
+    if (stockQty <= 0) {
+      return Math.round(basePrice * 100) / 100;
+    }
+    const rp = reorderPoint > 0 ? reorderPoint : 5;
+    if (stockQty < rp) {
+      return Math.round(basePrice * 1.1 * 100) / 100;
+    }
+    if (stockQty > rp * 3) {
+      return Math.round(basePrice * 0.95 * 100) / 100;
+    }
+    return Math.round(basePrice * 100) / 100;
+  }
 
   /** Kuralın şu an (İstanbul saati) aktif olup olmadığı */
   isRuleActiveNow(rule: PricingRule, reference: Date = new Date()): boolean {
@@ -244,9 +281,15 @@ export class PricingEngine {
         targetPrice = resolvedCost * (1 + minMarginPct / 100);
         break;
 
-      case PricingStrategy.DYNAMIC:
-        targetPrice = buyBoxPrice * 0.99;
+      case PricingStrategy.DYNAMIC: {
+        let base = buyBoxPrice > 0 ? buyBoxPrice * 0.99 : currentOurPrice;
+        const v = context?.velocityPerDay;
+        if (v !== undefined && v !== null && !Number.isNaN(v)) {
+          base = this.calculateDemandBasedPrice(base, v);
+        }
+        targetPrice = base;
         break;
+      }
 
       case PricingStrategy.AGGRESSIVE_BUYBOX:
         targetPrice = aggressiveBuyBox(
@@ -275,7 +318,15 @@ export class PricingEngine {
           buyBoxPrice > 0
             ? Math.min(currentOurPrice, buyBoxPrice * 0.995)
             : currentOurPrice;
-        targetPrice = stockBased(base, stock, rule);
+        const reorder =
+          context?.reorderPoint != null && context.reorderPoint > 0
+            ? context.reorderPoint
+            : (rule.lowStockThreshold ?? 5);
+        if (stock <= 0) {
+          targetPrice = rule.maxPrice ?? base * 2;
+        } else {
+          targetPrice = this.calculateStockBasedPrice(base, stock, reorder);
+        }
         break;
       }
 

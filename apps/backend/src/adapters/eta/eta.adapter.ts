@@ -13,6 +13,30 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+function usesEtaV8(credentials: Record<string, string>): boolean {
+  if (credentials.etaVersion === 'v8') {
+    return true;
+  }
+  const b = credentials.baseUrl?.toLowerCase() ?? '';
+  return b.includes('etav8');
+}
+
+function resolveEtaV8Root(credentials: Record<string, string>): string {
+  const raw = credentials.baseUrl?.trim();
+  if (raw) {
+    return normalizeBaseUrl(raw);
+  }
+  const host = credentials.host?.trim();
+  if (!host) {
+    return '';
+  }
+  const port = credentials.port?.trim();
+  const proto = credentials.useHttps === 'true' ? 'https' : 'http';
+  const authority =
+    port && port.length > 0 && port !== '80' && port !== '443' ? `${host}:${port}` : host;
+  return normalizeBaseUrl(`${proto}://${authority}/etav8api`);
+}
+
 function resolveEtaBaseUrl(credentials: Record<string, string>): string {
   const raw = credentials.baseUrl?.trim();
   if (raw) {
@@ -47,7 +71,7 @@ function readToken(data: unknown): string | null {
   if (!isRecord(data)) {
     return null;
   }
-  const t = data.token ?? data.access_token;
+  const t = data.token ?? data.access_token ?? data.apiToken;
   return typeof t === 'string' && t.length > 0 ? t : null;
 }
 
@@ -62,6 +86,9 @@ function normalizeItemsPayload(data: unknown): unknown[] {
     if (Array.isArray(data.data)) {
       return data.data;
     }
+    if (Array.isArray(data.Data)) {
+      return data.Data;
+    }
   }
   return [];
 }
@@ -71,7 +98,7 @@ export class EtaAdapter implements IErpAdapter {
   readonly erpType = 'ETA';
   private readonly logger = new Logger(EtaAdapter.name);
 
-  private async getToken(credentials: Record<string, string>): Promise<string> {
+  private async getEtaLegacyToken(credentials: Record<string, string>): Promise<string> {
     const baseUrl = resolveEtaBaseUrl(credentials);
     const username = credentials.username;
     const password = credentials.password;
@@ -95,9 +122,79 @@ export class EtaAdapter implements IErpAdapter {
     return token;
   }
 
+  private async getEtaV8Token(credentials: Record<string, string>): Promise<string> {
+    const staticTok = (credentials.apiToken ?? credentials.token ?? '').trim();
+    if (staticTok) {
+      return staticTok;
+    }
+    const baseUrl = resolveEtaV8Root(credentials);
+    const username = credentials.username;
+    const password = credentials.password;
+    if (!baseUrl || !username || !password) {
+      throw new Error(
+        'ETA V8: baseUrl veya host, apiToken (veya token) ya da username+password zorunludur',
+      );
+    }
+    const data = await axiosWithRetry<EtaTokenResponse>(
+      {
+        method: 'POST',
+        url: `${baseUrl}/api/token`,
+        data: { username, password },
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15_000,
+      },
+      { maxRetries: 2 },
+    );
+    const token = readToken(data as unknown);
+    if (!token) {
+      throw new Error('ETA V8: token alınamadı');
+    }
+    return token;
+  }
+
+  private async resolveAccessToken(credentials: Record<string, string>): Promise<string> {
+    if (usesEtaV8(credentials)) {
+      return this.getEtaV8Token(credentials);
+    }
+    return this.getEtaLegacyToken(credentials);
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      await this.getToken(credentials);
+      const token = await this.resolveAccessToken(credentials);
+      if (usesEtaV8(credentials)) {
+        const root = resolveEtaV8Root(credentials);
+        if (!root) {
+          return false;
+        }
+        await axiosWithRetry<unknown>(
+          {
+            method: 'GET',
+            url: `${root}/api/products`,
+            params: { token, page: 1 },
+            timeout: 15_000,
+          },
+          { maxRetries: 1 },
+        );
+        return true;
+      }
+      const root = resolveEtaBaseUrl(credentials);
+      if (!root) {
+        return false;
+      }
+      await axiosWithRetry<unknown>(
+        {
+          method: 'GET',
+          url: `${root}/items`,
+          params: { limit: 1, offset: 0 },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 15_000,
+        },
+        { maxRetries: 1 },
+      );
       return true;
     } catch (error) {
       this.logger.warn('ETA bağlantı testi başarısız', {
@@ -109,8 +206,67 @@ export class EtaAdapter implements IErpAdapter {
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
     try {
-      const baseUrl = resolveEtaBaseUrl(credentials);
-      const token = await this.getToken(credentials);
+      const v8 = usesEtaV8(credentials);
+      const baseUrl = v8 ? resolveEtaV8Root(credentials) : resolveEtaBaseUrl(credentials);
+      const token = await this.resolveAccessToken(credentials);
+      if (!baseUrl) {
+        throw new Error('ETA: baseUrl veya host zorunludur');
+      }
+      if (v8) {
+        const merged: unknown[] = [];
+        for (let page = 1; page < 500; page += 1) {
+          const data = await axiosWithRetry<unknown>(
+            {
+              method: 'GET',
+              url: `${baseUrl}/api/products`,
+              params: { token, page },
+              timeout: 30_000,
+            },
+            { maxRetries: 2 },
+          );
+          const raw = normalizeItemsPayload(data);
+          if (raw.length === 0) {
+            break;
+          }
+          merged.push(...raw);
+          if (raw.length < 100) {
+            break;
+          }
+        }
+        return merged.map((row, i) => {
+          const p = isRecord(row) ? row : {};
+          const codeRaw = p.code ?? p.itemCode ?? p.stockCode ?? p.productCode;
+          const code =
+            typeof codeRaw === 'string'
+              ? codeRaw.trim()
+              : typeof codeRaw === 'number' && Number.isFinite(codeRaw)
+                ? String(codeRaw)
+                : `row-${i}`;
+          const barcodeRaw = p.barcode ?? p.code ?? code;
+          const barcode =
+            typeof barcodeRaw === 'string'
+              ? barcodeRaw.trim()
+              : typeof barcodeRaw === 'number' && Number.isFinite(barcodeRaw)
+                ? String(barcodeRaw)
+                : code;
+          const nameRaw = p.description ?? p.name ?? code;
+          const name =
+            typeof nameRaw === 'string' ? nameRaw.trim() || code : String(nameRaw);
+          const stockRaw = p.stock ?? p.stockQuantity ?? p.quantityOnHand ?? 0;
+          const purchaseRaw = p.purchasePrice ?? p.buyPrice ?? p.cost;
+          const purchasePrice =
+            purchaseRaw !== undefined && purchaseRaw !== null
+              ? Number(purchaseRaw)
+              : undefined;
+          return {
+            erpProductId: code,
+            barcode,
+            name,
+            stockQuantity: Math.max(0, Math.round(Number(stockRaw))),
+            ...(Number.isFinite(purchasePrice) ? { purchasePrice } : {}),
+          };
+        });
+      }
       const data = await axiosWithRetry<unknown>(
         {
           method: 'GET',
@@ -170,13 +326,16 @@ export class EtaAdapter implements IErpAdapter {
     credentials: Record<string, string>,
     invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
   ): Promise<ErpInvoice> {
-    const baseUrl = resolveEtaBaseUrl(credentials);
-    const token = await this.getToken(credentials);
+    const v8 = usesEtaV8(credentials);
+    const baseUrl = v8 ? resolveEtaV8Root(credentials) : resolveEtaBaseUrl(credentials);
+    const token = await this.resolveAccessToken(credentials);
     const today = new Date().toISOString().split('T')[0];
+    const url = v8 ? `${baseUrl}/api/invoices` : `${baseUrl}/invoices`;
     const data = await axiosWithRetry<EtaInvoiceCreateResponse>(
       {
         method: 'POST',
-        url: `${baseUrl}/invoices`,
+        url,
+        params: v8 ? { token } : undefined,
         data: {
           reference: invoice.orderRef,
           currency: invoice.currency,
@@ -190,10 +349,12 @@ export class EtaAdapter implements IErpAdapter {
             lineTotal: l.total,
           })),
         },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: v8
+          ? { 'Content-Type': 'application/json' }
+          : {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
         timeout: 30_000,
       },
       { maxRetries: 2 },

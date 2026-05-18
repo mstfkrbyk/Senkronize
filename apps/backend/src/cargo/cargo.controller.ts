@@ -19,14 +19,32 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { CargoShipmentQueryDto, CreateCargoShipmentDto } from './cargo.dto';
+import { CargoShipmentQueryDto, CompareCargoRatesDto, CreateCargoShipmentDto } from './cargo.dto';
+import { CargoRateService } from './cargo-rate.service';
 import { CargoService } from './cargo.service';
 
 @ApiTags('cargo')
 @ApiBearerAuth()
 @Controller('cargo')
 export class CargoController {
-  constructor(private readonly cargoService: CargoService) {}
+  constructor(
+    private readonly cargoService: CargoService,
+    private readonly cargoRateService: CargoRateService,
+  ) {}
+
+  @Post('rates/compare')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktif kargo bağlantılarından fiyat karşılaştır' })
+  @ApiResponse({ status: 200, description: 'Fiyat karşılaştırması' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Sipariş bulunamadı' })
+  async compareRates(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: CompareCargoRatesDto,
+  ) {
+    return this.cargoRateService.compareRates(org.id, dto.orderId, dto.weightKg);
+  }
 
   @Post('shipments')
   @HttpCode(201)

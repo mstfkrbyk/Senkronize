@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom';
 
 import { useUiStore } from '@/store/ui.store';
 
+const QUICK_SEARCH_EVENT = 'senkronize-open-quick-search';
+
 const SHORTCUTS: Record<string, string> = {
   'g d': '/dashboard',
   'g o': '/orders',
   'g l': '/listings',
   'g s': '/stock',
-  'g p': '/pricing',
+  'g p': '/products',
+  'g f': '/pricing',
   'g r': '/reports',
   'g c': '/connections',
   'g m': '/migration',
@@ -23,6 +26,10 @@ function isEditableTarget(target: EventTarget | null): boolean {
     return true;
   }
   return target.isContentEditable;
+}
+
+export function openQuickSearchFromShortcut(): void {
+  window.dispatchEvent(new CustomEvent(QUICK_SEARCH_EVENT));
 }
 
 export function useKeyboardShortcuts(): void {
@@ -44,6 +51,14 @@ export function useKeyboardShortcuts(): void {
         return;
       }
       if (useUiStore.getState().shortcutsHelpOpen) {
+        return;
+      }
+
+      if (e.key === '/' && e.key.length === 1) {
+        e.preventDefault();
+        openQuickSearchFromShortcut();
+        buffer = '';
+        clearTimeout(timer);
         return;
       }
 

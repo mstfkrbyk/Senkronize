@@ -35,11 +35,11 @@ export function TablePageEmptyState({
   if (!hasMarketplaceConnections) {
     return (
       <EmptyState
-        title="Henüz bağlantı eklenmedi"
-        description="Pazaryeri verilerinizi görmek için önce bir bağlantı ekleyin."
+        title="Bağlantı yok"
+        description="Sipariş ve listelerinizi görmek için önce pazaryeri bağlantınızı ekleyin."
         actionSlot={
           <Button type="button" variant="default" asChild>
-            <Link to="/connections">Bağlantılar sayfasına git</Link>
+            <Link to="/connections">İlk bağlantınızı ekleyin</Link>
           </Button>
         }
       />
@@ -48,24 +48,31 @@ export function TablePageEmptyState({
 
   return (
     <EmptyState
-      title={hasActiveFilters ? 'Filtrelere uygun kayıt yok' : 'Henüz veri çekilmedi'}
+      title={hasActiveFilters ? 'Filtrelere uygun kayıt yok' : 'Henüz kayıt yok'}
       description={
         hasActiveFilters
           ? 'Filtreleri gevşeterek veya temizleyerek tekrar deneyin.'
-          : 'Pazaryeri listesini veya siparişleri henüz çekmediniz. Senkronizasyonu başlatarak veri oluşturabilirsiniz.'
+          : 'Aktif bağlantılarınızdan veri geldikten sonra kayıtlar burada görünür. Senkronizasyonu başlatabilir veya bağlantılarınızı yönetebilirsiniz.'
       }
       actionSlot={
-        onStartSync && !hasActiveFilters ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={syncDisabled}
-            onClick={() => {
-              onStartSync();
-            }}
-          >
-            {syncLabel}
-          </Button>
+        !hasActiveFilters ? (
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onStartSync ? (
+              <Button
+                type="button"
+                variant="default"
+                disabled={syncDisabled}
+                onClick={() => {
+                  onStartSync();
+                }}
+              >
+                {syncLabel}
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" asChild>
+              <Link to="/connections">Bağlantılara git</Link>
+            </Button>
+          </div>
         ) : null
       }
     />

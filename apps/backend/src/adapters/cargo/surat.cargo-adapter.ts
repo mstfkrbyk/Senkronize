@@ -2,8 +2,10 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type {
+  CargoRate,
   CreateShipmentParams,
   ICargoAdapter,
+  RateParams,
   ShipmentResult,
   TrackingResult,
 } from '../cargo-adapter.interface';
@@ -153,9 +155,14 @@ export class SuratCargoAdapter implements ICargoAdapter {
     }
   }
 
-  async getLabel(trackingCode: string): Promise<string | null> {
+  async getLabel(trackingCode: string): Promise<Buffer | null> {
     void trackingCode;
     return null;
+  }
+
+  async getRates(_params: RateParams): Promise<CargoRate[]> {
+    void _params;
+    return [];
   }
 
   async testConnection(): Promise<boolean> {

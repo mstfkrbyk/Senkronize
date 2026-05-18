@@ -9,6 +9,33 @@ function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, '');
 }
 
+function resolveSapB1ServiceLayerRoot(credentials: Record<string, string>): string {
+  const raw = credentials.baseUrl?.trim();
+  if (raw) {
+    let u = normalizeBaseUrl(raw);
+    if (!/\/b1s\/v\d+$/i.test(u)) {
+      if (/\/b1s$/i.test(u)) {
+        u = `${u}/v1`;
+      } else {
+        u = `${normalizeBaseUrl(u)}/b1s/v1`;
+      }
+    }
+    return normalizeBaseUrl(u);
+  }
+  const host = credentials.host?.trim();
+  if (!host) {
+    return '';
+  }
+  const port = (credentials.port?.trim() || '50000').replace(/^:/, '');
+  const useHttps = credentials.useHttps !== 'false';
+  const scheme = useHttps ? 'https' : 'http';
+  return `${scheme}://${host}:${port}/b1s/v1`;
+}
+
+function readCompanyDb(credentials: Record<string, string>): string {
+  return (credentials.companyDB ?? credentials.companyDb ?? '').trim();
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
@@ -35,17 +62,17 @@ export class SapB1Adapter implements IErpAdapter {
   private readonly sessionCache = new Map<string, SapB1Session>();
 
   private sessionKey(credentials: Record<string, string>): string {
-    const base = normalizeBaseUrl(credentials.baseUrl ?? '');
-    return `${base}\0${credentials.companyDB ?? ''}\0${credentials.username ?? ''}`;
+    const base = resolveSapB1ServiceLayerRoot(credentials);
+    return `${base}\0${readCompanyDb(credentials)}\0${credentials.username ?? ''}`;
   }
 
   private async ensureSession(credentials: Record<string, string>): Promise<string> {
-    const baseUrl = normalizeBaseUrl(credentials.baseUrl ?? '');
-    const companyDB = credentials.companyDB;
+    const baseUrl = resolveSapB1ServiceLayerRoot(credentials);
+    const companyDB = readCompanyDb(credentials);
     const username = credentials.username;
     const password = credentials.password;
     if (!baseUrl || !companyDB || !username || !password) {
-      throw new Error('SAP B1: baseUrl, companyDB, username ve password zorunludur');
+      throw new Error('SAP B1: baseUrl veya host+port, companyDB, username ve password zorunludur');
     }
     const key = this.sessionKey(credentials);
     const now = Date.now();
@@ -83,12 +110,16 @@ export class SapB1Adapter implements IErpAdapter {
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       const cookie = await this.ensureSession(credentials);
-      const baseUrl = normalizeBaseUrl(credentials.baseUrl ?? '');
+      const baseUrl = resolveSapB1ServiceLayerRoot(credentials);
       await axiosWithRetry<SapB1ItemsEnvelope>(
         {
           method: 'GET',
           url: `${baseUrl}/Items`,
-          params: { $top: 1 },
+          params: {
+            $top: 1,
+            $select: 'ItemCode,ItemName,OnHand',
+            $filter: "ItemType eq 'itItems'",
+          },
           headers: {
             Cookie: cookie,
             'Content-Type': 'application/json',
@@ -109,21 +140,34 @@ export class SapB1Adapter implements IErpAdapter {
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
     try {
       const cookie = await this.ensureSession(credentials);
-      const baseUrl = normalizeBaseUrl(credentials.baseUrl ?? '');
-      const data = await axiosWithRetry<SapB1ItemsEnvelope>(
-        {
-          method: 'GET',
-          url: `${baseUrl}/Items`,
-          params: { $top: 500 },
-          headers: {
-            Cookie: cookie,
-            'Content-Type': 'application/json',
+      const baseUrl = resolveSapB1ServiceLayerRoot(credentials);
+      const pageSize = 100;
+      const raw: unknown[] = [];
+      for (let skip = 0; skip < 50_000; skip += pageSize) {
+        const page = await axiosWithRetry<SapB1ItemsEnvelope>(
+          {
+            method: 'GET',
+            url: `${baseUrl}/Items`,
+            params: {
+              $select: 'ItemCode,ItemName,OnHand,PurchasePrice,AvgStdPrice,ItemWarehouseInfoCollection,QuantityOnStock',
+              $filter: "ItemType eq 'itItems'",
+              $top: pageSize,
+              $skip: skip,
+            },
+            headers: {
+              Cookie: cookie,
+              'Content-Type': 'application/json',
+            },
+            timeout: 30_000,
           },
-          timeout: 30_000,
-        },
-        { maxRetries: 2 },
-      );
-      const raw = Array.isArray(data.value) ? data.value : [];
+          { maxRetries: 2 },
+        );
+        const batch = Array.isArray(page.value) ? page.value : [];
+        raw.push(...batch);
+        if (batch.length < pageSize) {
+          break;
+        }
+      }
       return raw.map((row, i) => {
         const p = isRecord(row) ? row : {};
         const codeRaw = p.ItemCode ?? p.itemCode;
@@ -178,7 +222,7 @@ export class SapB1Adapter implements IErpAdapter {
     invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
   ): Promise<ErpInvoice> {
     const cookie = await this.ensureSession(credentials);
-    const baseUrl = normalizeBaseUrl(credentials.baseUrl ?? '');
+    const baseUrl = resolveSapB1ServiceLayerRoot(credentials);
     const today = new Date().toISOString().split('T')[0];
     const data = await axiosWithRetry<SapB1InvoiceCreateResponse>(
       {

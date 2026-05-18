@@ -39,6 +39,8 @@ import {
   ProfitReportQueryDto,
   SalesReportQueryDto,
   StockMovementQueryDto,
+  VatReportExportQueryDto,
+  VatReportQueryDto,
 } from './reports.dto';
 import { ReportsService } from './reports.service';
 import type {
@@ -52,6 +54,8 @@ import type {
   StockValueReportDto,
   TopProductRow,
 } from './reports.types';
+import { TaxReportService } from './tax-report.service';
+import type { VatReport } from './tax-report.types';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -60,6 +64,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly customReportService: CustomReportService,
+    private readonly taxReportService: TaxReportService,
   ) {}
 
   @Get('dashboard-summary')
@@ -210,6 +215,38 @@ export class ReportsController {
     const to = new Date(query.endDate);
     to.setHours(23, 59, 59, 999);
     return this.reportsService.getPlatformComparison(org.id, { from, to });
+  }
+
+  @Get('vat/export')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aylık KDV raporu CSV (e-Arşiv yardımcı dışa aktarım)' })
+  @ApiResponse({ status: 200, description: 'CSV dosyası' })
+  async exportVatReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: VatReportExportQueryDto,
+  ): Promise<StreamableFile> {
+    const csv = await this.taxReportService.exportVatReportCsv(
+      org.id,
+      query.year,
+      query.month,
+    );
+    const buf = Buffer.from(csv, 'utf-8');
+    const monthPart = String(query.month).padStart(2, '0');
+    return new StreamableFile(buf, {
+      type: 'text/csv; charset=utf-8',
+      disposition: `attachment; filename="kdv-raporu-${query.year}-${monthPart}.csv"`,
+    });
+  }
+
+  @Get('vat')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aylık KDV özeti (platform ve oran kırılımı)' })
+  @ApiResponse({ status: 200, description: 'KDV raporu' })
+  async getVatReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: VatReportQueryDto,
+  ): Promise<VatReport> {
+    return this.taxReportService.generateVatReport(org.id, query.year, query.month);
   }
 
   @Post('run')

@@ -2,8 +2,10 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type {
+  CargoRate,
   CreateShipmentParams,
   ICargoAdapter,
+  RateParams,
   ShipmentResult,
   TrackingResult,
 } from '../cargo-adapter.interface';
@@ -80,8 +82,7 @@ export class YurticiCargoAdapter implements ICargoAdapter {
         this.logger.warn('Yurtiçi gönderi yanıtı ayrıştırılamadı');
         throw new BadGatewayException('Yurtiçi Kargo yanıtı işlenemedi');
       }
-      const labelUrl = await this.getLabel(code);
-      return { trackingCode: code, labelUrl: labelUrl ?? undefined };
+      return { trackingCode: code, labelUrl: this.buildLabelUrl(code) };
     } catch (error) {
       this.logger.warn('Yurtiçi createShipment başarısız', {
         message: error instanceof Error ? error.message : 'unknown',
@@ -180,12 +181,39 @@ export class YurticiCargoAdapter implements ICargoAdapter {
     }
   }
 
-  async getLabel(trackingCode: string): Promise<string | null> {
+  private buildLabelUrl(trackingCode: string): string {
     const base =
       typeof this.creds.labelBaseUrl === 'string' && this.creds.labelBaseUrl.length > 0
         ? this.creds.labelBaseUrl.replace(/\/$/, '')
         : 'https://ws.yurticikargo.com/KOPSWebServices/LabelPrintService';
     return `${base}?documentId=${encodeURIComponent(trackingCode)}`;
+  }
+
+  async getLabel(trackingCode: string): Promise<Buffer | null> {
+    try {
+      const url = this.buildLabelUrl(trackingCode);
+      const { data, status, headers } = await axios.get<ArrayBuffer>(url, {
+        responseType: 'arraybuffer',
+        timeout: 30_000,
+        validateStatus: () => true,
+      });
+      if (status >= 200 && status < 300 && data) {
+        const ct = String(headers['content-type'] ?? '');
+        if (ct.includes('pdf') || ct.includes('octet-stream')) {
+          return Buffer.from(new Uint8Array(data));
+        }
+      }
+    } catch (error) {
+      this.logger.warn('Yurtiçi etiket indirilemedi', {
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+    return null;
+  }
+
+  async getRates(_params: RateParams): Promise<CargoRate[]> {
+    void _params;
+    return [];
   }
 
   async testConnection(): Promise<boolean> {

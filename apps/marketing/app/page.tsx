@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
+import { ComparisonTableSection } from '@/components/ComparisonTableSection';
 import { CTASection } from '@/components/CTASection';
+import { ExitIntentNewsletter } from '@/components/ExitIntentNewsletter';
 import { FeaturesSection } from '@/components/FeaturesSection';
 import { HeroSection } from '@/components/HeroSection';
+import { PartnerLogosSection } from '@/components/PartnerLogosSection';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { StatsSection } from '@/components/StatsSection';

@@ -39,10 +39,15 @@ export interface DashboardSummaryDto {
   windowOrdersPrev: number;
   /** Önceki pencereye göre yüzde fark (yaklaşık). */
   windowOrdersDeltaPct: number;
+  /** Takvim ayı başından bugüne kadar oluşturulan iade talepleri. */
+  returnsThisMonth: number;
+  /** Aynı dönemdeki siparişlere göre iade oranı (%). */
+  returnRatePct: number;
 }
 
 export interface ProfitReportByPlatformRow {
   platform: string;
+  /** TRY (kur dönüşümü sonrası) */
   revenue: number;
   orderCount: number;
 }
@@ -50,12 +55,26 @@ export interface ProfitReportByPlatformRow {
 export interface ProfitReportTopProductRow {
   name: string;
   barcode: string;
+  /** Tahmini satır cirosu TRY */
   revenue: number;
   quantity: number;
 }
 
+export interface ProfitReportOriginalCurrencyRow {
+  currency: string;
+  /** Orijinal para biriminde sipariş tutarları toplamı */
+  totalOriginal: number;
+  orderCount: number;
+}
+
 export interface ProfitReportDto {
+  /** Sipariş tarihindeki kurlarla TRY toplamı */
+  totalRevenueTry: number;
+  /** Geriye dönük uyumluluk: `totalRevenueTry` ile aynı */
   totalRevenue: number;
+  revenueByOriginalCurrency: ProfitReportOriginalCurrencyRow[];
+  /** Kur bulunamadığı için ham tutarın TRY kabul edildiği sipariş sayısı */
+  ordersWithApproximateTryConversion: number;
   estimatedProfit: number;
   profitMargin: number;
   byPlatform: ProfitReportByPlatformRow[];

@@ -100,3 +100,23 @@ export class DateRangeReportQueryDto {
   @IsDateString()
   endDate!: string;
 }
+
+export class VatReportQueryDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(2000)
+  @Max(2100)
+  year!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(12)
+  month!: number;
+}
+
+export class VatReportExportQueryDto extends VatReportQueryDto {
+  @IsOptional()
+  @IsIn(['csv'])
+  format?: 'csv';
+}

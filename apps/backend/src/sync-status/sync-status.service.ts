@@ -34,7 +34,11 @@ export class SyncStatusService {
   async recordSuccess(
     organizationId: string,
     platform: Marketplace,
-    meta?: { ordersProcessed?: number; listingsProcessed?: number },
+    meta?: {
+      ordersProcessed?: number;
+      listingsProcessed?: number;
+      returnsProcessed?: number;
+    },
   ): Promise<void> {
     const conn = await this.prisma.marketplaceConnection.findFirst({
       where: {

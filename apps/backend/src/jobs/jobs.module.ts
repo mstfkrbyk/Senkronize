@@ -10,10 +10,12 @@ import { OrderModule } from '../order/order.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ProductModule } from '../product/product.module';
+import { ReturnModule } from '../return/return.module';
 import { StockModule } from '../stock/stock.module';
 import { SyncStatusModule } from '../sync-status/sync-status.module';
 
 import { BuyBoxFetchTask } from './buybox-fetch.task';
+import { CompetitorPriceTask } from '../pricing/competitor-price.task';
 import {
   MarketplaceJobFailureHandler,
   MarketplacePullDlqHooks,
@@ -40,6 +42,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     ProductModule,
     InAppNotificationModule,
     StockModule,
+    ReturnModule,
   ],
   providers: [
     MarketplaceJobFailureHandler,
@@ -52,6 +55,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     ImageProcessor,
     ImageSyncProcessor,
     BuyBoxFetchTask,
+    CompetitorPriceTask,
     SyncSchedulerTask,
     StockAlertTask,
   ],

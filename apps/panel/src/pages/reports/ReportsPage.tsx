@@ -13,7 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 
-import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -590,7 +590,7 @@ export function ReportsPage(): ReactElement {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Toplam gelir
+                  Toplam gelir (TRY)
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -639,6 +639,56 @@ export function ReportsPage(): ReactElement {
               </CardContent>
             </Card>
           </div>
+
+          {!profitQuery.isLoading &&
+          (profitQuery.data?.ordersWithApproximateTryConversion ?? 0) > 0 ? (
+            <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+              <AlertTitle>Kur dönüşümü kısmen tahmini</AlertTitle>
+              <AlertDescription>
+                {profitQuery.data?.ordersWithApproximateTryConversion} sipariş için geçerli kur
+                bulunamadığından tutarlar TRY olarak yorumlandı. Ayarlar → Para birimi bölümünden
+                manuel kur tanımlayın veya TCMB verisinin gelmesini bekleyin.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {!profitQuery.isLoading &&
+          (profitQuery.data?.revenueByOriginalCurrency?.length ?? 0) > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Orijinal para birimine göre ciro</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Siparişlerin pazaryerindeki para birimi; toplam gelir kartı TRY&apos;ye
+                  çevrilmiştir.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Para birimi</TableHead>
+                      <TableHead className="text-right">Sipariş</TableHead>
+                      <TableHead className="text-right">Tutar (orijinal)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(profitQuery.data?.revenueByOriginalCurrency ?? []).map((row) => (
+                      <TableRow key={row.currency}>
+                        <TableCell className="font-medium">{row.currency}</TableCell>
+                        <TableCell className="text-right">{row.orderCount}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {new Intl.NumberFormat('tr-TR', {
+                            maximumFractionDigits: 2,
+                            minimumFractionDigits: 0,
+                          }).format(row.totalOriginal)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
             {profitQuery.isLoading ? (

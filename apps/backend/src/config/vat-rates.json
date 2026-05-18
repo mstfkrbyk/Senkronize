@@ -1,0 +1,8 @@
+{
+  "defaultVatRatePercent": 20,
+  "includedInPrices": true,
+  "orderStatusesForVatReport": ["INVOICED", "SHIPPED", "DELIVERED"],
+  "additionalVatRatesPercent": [10, 1],
+  "skuVatRatePercent": {},
+  "reportingNote": "Satır bazlı KDV oranı yalnızca skuVatRatePercent eşlemesinde tanımlı SKU'lar için kullanılır; diğer satırlar varsayılan orana göre hesaplanır."
+}

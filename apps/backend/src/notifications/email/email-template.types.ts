@@ -32,6 +32,20 @@ export interface LowStockEmailData {
   stockUpdateUrl: string;
 }
 
+export interface CriticalStockForecastRow {
+  name: string;
+  barcode: string;
+  daysLeft: string;
+  recommendedQty: string;
+}
+
+export interface CriticalStockForecastEmailData {
+  recipientName: string;
+  count: number;
+  products: CriticalStockForecastRow[];
+  forecastUrl: string;
+}
+
 export interface TrialExpiringData {
   name: string;
   trialEndDate: string;

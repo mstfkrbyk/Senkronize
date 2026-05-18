@@ -92,7 +92,6 @@ async function bootstrap(): Promise<void> {
 
   app.setGlobalPrefix('api/v1', {
     exclude: [
-      { path: 'health', method: RequestMethod.GET },
       ...(process.env.NODE_ENV === 'development'
         ? [
             {
@@ -116,9 +115,48 @@ async function bootstrap(): Promise<void> {
 
   const config = new DocumentBuilder()
     .setTitle('Senkronize API')
-    .setDescription('E-ticaret entegrasyon platformu API dokümantasyonu')
-    .setVersion('1.0')
-    .addBearerAuth()
+    .setDescription(`
+# Senkronize API Dokümantasyonu
+
+Senkronize, tüm pazaryerlerinizi, ERP sistemlerinizi ve e-ticaret altyapılarınızı 
+tek bir noktadan yönetmenizi sağlayan entegrasyon platformudur.
+
+## Kimlik Doğrulama
+API, iki kimlik doğrulama yöntemini destekler:
+- **JWT Bearer Token**: Panel kullanıcıları için
+- **API Key**: Harici entegrasyonlar için (\`sk_live_\` öneki ile)
+
+## Rate Limiting
+- Genel: Dakikada 100 istek
+- Auth endpoint'leri: Dakikada 5 istek
+- Webhook endpoint'leri: Sınırsız
+
+## Sayfalama
+Liste endpoint'leri \`page\` ve \`limit\` parametrelerini destekler.
+Yanıt: \`{ data: T[], total: number, page: number, limit: number }\`
+
+## Hata Formatı
+\`\`\`json
+{ "statusCode": 404, "error": "Not Found", "message": "Sipariş bulunamadı" }
+\`\`\`
+  `)
+    .setVersion('1.0.0')
+    .setContact(
+      'Senkronize Destek',
+      'https://senkronize.com/docs',
+      'api@senkronize.com',
+    )
+    .setLicense('Proprietary', 'https://senkronize.com/legal/terms')
+    .addBearerAuth(
+      { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
+      'JWT',
+    )
+    .addApiKey(
+      { type: 'apiKey', in: 'header', name: 'X-Api-Key' },
+      'API-Key',
+    )
+    .addServer('https://api.senkronize.com', 'Production')
+    .addServer('http://localhost:3001', 'Development')
     .addTag('auth', 'Kimlik doğrulama')
     .addTag('organizations', 'Organizasyon yönetimi')
     .addTag('users', 'Kullanıcı yönetimi')
@@ -126,6 +164,8 @@ async function bootstrap(): Promise<void> {
     .addTag('erp-connections', 'ERP bağlantıları')
     .addTag('orders', 'Siparişler')
     .addTag('products', 'Ürünler')
+    .addTag('categories', 'Kategoriler')
+    .addTag('product-matches', 'Ürün eşleştirme')
     .addTag('listings', 'Listelemeler')
     .addTag('pricing', 'Fiyatlandırma ve BuyBox')
     .addTag('reports', 'Raporlar')

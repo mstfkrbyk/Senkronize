@@ -11,7 +11,7 @@ pub fn http_client() -> reqwest::Client {
 
 pub async fn ping_cloud_health(client: &reqwest::Client, api_url: &str, token: &str) -> bool {
     let base = api_url.trim().trim_end_matches('/');
-    let url = format!("{}/health", base);
+    let url = format!("{}/api/v1/health", base);
     client
         .get(url)
         .bearer_auth(token)

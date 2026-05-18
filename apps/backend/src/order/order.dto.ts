@@ -15,17 +15,30 @@ import {
 } from 'class-validator';
 
 export class UpdateOrderStatusDto {
-  @ApiProperty({ enum: OrderStatus })
+  @ApiProperty({
+    description: 'Siparişin yeni durumu',
+    enum: OrderStatus,
+    example: OrderStatus.SHIPPED,
+    required: true,
+  })
   @IsEnum(OrderStatus)
   status!: OrderStatus;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Kargo takip numarası',
+    example: '733102837461',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   cargoTrackingNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Kargo sağlayıcı adı veya kodu',
+    example: 'Yurtiçi Kargo',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -33,64 +46,129 @@ export class UpdateOrderStatusDto {
 }
 
 export class OrderQueryDto {
+  @ApiPropertyOptional({
+    description: 'Tekil pazaryeri filtresi',
+    enum: Marketplace,
+    example: Marketplace.TRENDYOL,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(Marketplace)
   platform?: Marketplace;
 
-  /** Virgülle ayrılmış pazaryeri kodları (çoklu filtre). */
+  @ApiPropertyOptional({
+    description: 'Virgülle ayrılmış pazaryeri kodları (çoklu filtre)',
+    example: 'TRENDYOL,HEPSIBURADA',
+    isArray: true,
+    required: false,
+  })
   @IsOptional()
   @Transform(({ value }) => parseMarketplaceCsv(value))
   @IsArray()
   @IsEnum(Marketplace, { each: true })
   platforms?: Marketplace[];
 
+  @ApiPropertyOptional({
+    description: 'Tekil sipariş durumu filtresi',
+    enum: OrderStatus,
+    example: OrderStatus.NEW,
+    required: false,
+  })
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
 
-  /** Virgülle ayrılmış sipariş durumları. */
+  @ApiPropertyOptional({
+    description: 'Virgülle ayrılmış sipariş durumları',
+    example: 'NEW,PICKING',
+    isArray: true,
+    required: false,
+  })
   @IsOptional()
   @Transform(({ value }) => parseOrderStatusCsv(value))
   @IsArray()
   @IsEnum(OrderStatus, { each: true })
   statuses?: OrderStatus[];
 
+  @ApiPropertyOptional({
+    description: 'Aralık başlangıç tarihi (ISO 8601)',
+    example: '2024-01-01T00:00:00.000Z',
+    required: false,
+  })
   @IsOptional()
   @IsDateString()
   startDate?: string;
 
+  @ApiPropertyOptional({
+    description: 'Aralık bitiş tarihi (ISO 8601)',
+    example: '2024-12-31T23:59:59.999Z',
+    required: false,
+  })
   @IsOptional()
   @IsDateString()
   endDate?: string;
 
+  @ApiPropertyOptional({
+    description: 'Sipariş numarası veya müşteri adı ile metin araması',
+    example: 'TY-2024-001234',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   search?: string;
 
+  @ApiPropertyOptional({
+    description: 'Kargo firmasına göre filtre',
+    example: 'Aras',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(120)
   cargoProvider?: string;
 
+  @ApiPropertyOptional({
+    description: 'Minimum sipariş tutarı (TL)',
+    example: 100,
+    required: false,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   minTotal?: number;
 
+  @ApiPropertyOptional({
+    description: 'Maksimum sipariş tutarı (TL)',
+    example: 5000,
+    required: false,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   maxTotal?: number;
 
+  @ApiPropertyOptional({
+    description: 'Sayfa numarası (1 tabanlı)',
+    example: 1,
+    minimum: 1,
+    required: false,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   page?: number;
 
+  @ApiPropertyOptional({
+    description: 'Sayfa başına kayıt sayısı (en fazla 100)',
+    example: 20,
+    minimum: 1,
+    maximum: 100,
+    required: false,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -129,6 +207,28 @@ function parseOrderStatusCsv(value: unknown): OrderStatus[] | undefined {
   }
   const allowed = new Set<string>(Object.values(OrderStatus));
   return parts.filter((p): p is OrderStatus => allowed.has(p));
+}
+
+export class CancelOrderDto {
+  @ApiPropertyOptional({
+    description: 'İptal nedeni (platforma iletilir)',
+    maxLength: 2000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  reason?: string;
+}
+
+export class CancellationRequestDto {
+  @ApiPropertyOptional({
+    description: 'İptal talebi açıklaması',
+    maxLength: 2000,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
 }
 
 export interface OrderSummaryDto {

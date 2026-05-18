@@ -2,8 +2,10 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type {
+  CargoRate,
   CreateShipmentParams,
   ICargoAdapter,
+  RateParams,
   ShipmentResult,
   TrackingResult,
 } from '../cargo-adapter.interface';
@@ -14,13 +16,20 @@ import {
   singleEventFromText,
 } from './cargo-adapter.helpers';
 
-const BASE = 'https://apikargo.ptt.gov.tr';
+const DEFAULT_BASE = 'https://ecommerce.ptt.gov.tr/api';
 
 export class PttKargoCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(PttKargoCargoAdapter.name);
   private bearer: string | null = null;
 
   constructor(private readonly creds: Record<string, unknown>) {}
+
+  private baseUrl(): string {
+    if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
+      return this.creds.baseUrl.replace(/\/$/, '');
+    }
+    return DEFAULT_BASE;
+  }
 
   private async ensureToken(): Promise<string> {
     if (this.bearer) {
@@ -30,12 +39,12 @@ export class PttKargoCargoAdapter implements ICargoAdapter {
     const password = requireStringField(this.creds, 'password');
     const loginPath =
       typeof this.creds.loginPath === 'string' && this.creds.loginPath.length > 0
-        ? this.creds.loginPath
-        : 'api/auth/token';
+        ? this.creds.loginPath.replace(/^\//, '')
+        : 'auth/login';
 
     const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${loginPath.replace(/^\//, '')}`,
-      { username, password, grant_type: 'password' },
+      `${this.baseUrl()}/${loginPath}`,
+      { username, password },
       {
         headers: { 'Content-Type': 'application/json' },
         timeout: 30_000,
@@ -58,8 +67,8 @@ export class PttKargoCargoAdapter implements ICargoAdapter {
     const path =
       typeof this.creds.createShipmentPath === 'string' &&
       this.creds.createShipmentPath.length > 0
-        ? this.creds.createShipmentPath
-        : 'api/shipment/create';
+        ? this.creds.createShipmentPath.replace(/^\//, '')
+        : 'cargo/create';
 
     const body = {
       referenceNo: params.orderId,
@@ -74,7 +83,7 @@ export class PttKargoCargoAdapter implements ICargoAdapter {
     };
 
     const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
+      `${this.baseUrl()}/${path}`,
       body,
       {
         headers: {
@@ -98,21 +107,18 @@ export class PttKargoCargoAdapter implements ICargoAdapter {
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
     const token = await this.ensureToken();
-    const path =
+    const pathTpl =
       typeof this.creds.trackShipmentPath === 'string' &&
       this.creds.trackShipmentPath.length > 0
-        ? this.creds.trackShipmentPath
-        : 'api/shipment/track';
+        ? this.creds.trackShipmentPath.replace(/^\//, '')
+        : 'cargo/track/{barcode}';
+    const path = pathTpl.replace('{barcode}', encodeURIComponent(trackingCode));
 
-    const { data, status } = await axios.get<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      {
-        params: { barcode: trackingCode, trackingNumber: trackingCode },
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 45_000,
-        validateStatus: () => true,
-      },
-    );
+    const { data, status } = await axios.get<unknown>(`${this.baseUrl()}/${path}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 45_000,
+      validateStatus: () => true,
+    });
     if (status < 200 || status >= 300) {
       throw new BadGatewayException('PTT Kargo takip sorgusu başarısız');
     }
@@ -126,33 +132,47 @@ export class PttKargoCargoAdapter implements ICargoAdapter {
   }
 
   async cancelShipment(trackingCode: string): Promise<void> {
-    const token = await this.ensureToken();
-    const path =
-      typeof this.creds.cancelShipmentPath === 'string' &&
-      this.creds.cancelShipmentPath.length > 0
-        ? this.creds.cancelShipmentPath
-        : 'api/shipment/cancel';
-
-    const { status } = await axios.post(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      { barcode: trackingCode },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        timeout: 45_000,
-        validateStatus: () => true,
-      },
-    );
-    if (status < 200 || status >= 300) {
-      throw new BadGatewayException('PTT Kargo iptal isteği başarısız');
-    }
+    void trackingCode;
+    throw new BadGatewayException('PTT e-ticaret iptali bu adaptörde desteklenmiyor');
   }
 
-  async getLabel(trackingCode: string): Promise<string | null> {
-    void trackingCode;
+  async getLabel(trackingCode: string): Promise<Buffer | null> {
+    try {
+      const token = await this.ensureToken();
+      const path =
+        typeof this.creds.labelPath === 'string' && this.creds.labelPath.length > 0
+          ? this.creds.labelPath.replace(/^\//, '')
+          : 'cargo/label';
+      const { data, status, headers } = await axios.post<ArrayBuffer>(
+        `${this.baseUrl()}/${path}`,
+        { barcode: trackingCode, trackingNumber: trackingCode },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          responseType: 'arraybuffer',
+          timeout: 45_000,
+          validateStatus: () => true,
+        },
+      );
+      if (status >= 200 && status < 300 && data) {
+        const ct = String(headers['content-type'] ?? '');
+        if (ct.includes('pdf') || ct.includes('octet-stream')) {
+          return Buffer.from(new Uint8Array(data));
+        }
+      }
+    } catch (error) {
+      this.logger.warn('PTT etiket alınamadı', {
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+    }
     return null;
+  }
+
+  async getRates(_params: RateParams): Promise<CargoRate[]> {
+    void _params;
+    return [];
   }
 
   async testConnection(): Promise<boolean> {
@@ -170,9 +190,15 @@ function extractBearer(data: unknown): string | undefined {
     return undefined;
   }
   const r = data as Record<string, unknown>;
-  const t = r.access_token ?? r.accessToken ?? r.token ?? r.Token;
+  const t = r.access_token ?? r.accessToken ?? r.token ?? r.Token ?? r.data;
   if (typeof t === 'string' && t.length > 10) {
     return t;
+  }
+  if (typeof t === 'object' && t !== null && 'token' in t) {
+    const inner = (t as { token?: unknown }).token;
+    if (typeof inner === 'string' && inner.length > 10) {
+      return inner;
+    }
   }
   return undefined;
 }

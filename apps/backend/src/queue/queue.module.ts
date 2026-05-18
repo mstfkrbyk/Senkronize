@@ -38,6 +38,7 @@ function parseRedisUrl(redisUrl: string): {
       { name: constants.QUEUE_PRICING },
       { name: constants.QUEUE_IMAGE },
       { name: constants.QUEUE_IMAGE_SYNC },
+      { name: constants.QUEUE_WEBHOOK_DELIVERY },
     ),
   ],
   exports: [BullModule],

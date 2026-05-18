@@ -11,7 +11,14 @@ export class TrendyolYemekAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'TRENDYOL_YEMEK',
-      baseUrl: 'https://api.trendyol.com/mealbooking-integration-service',
+      baseUrl: 'https://api.trendyol.com/sapigw/suppliers/0/food',
+      resolveBaseUrl: (creds) => {
+        const supplierId = creds.supplierId?.trim();
+        if (!supplierId) {
+          throw new Error('Trendyol Yemek: supplierId zorunludur');
+        }
+        return `https://api.trendyol.com/sapigw/suppliers/${supplierId}/food`;
+      },
       loggerContext: TrendyolYemekAdapter.name,
       rateLimitKey: 'TRENDYOL_YEMEK',
       pathProfile: '/merchant/me',

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -8,13 +8,17 @@ import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './common/cache/cache.module';
-import { CargoModule } from './cargo/cargo.module';
 import { CommonModule } from './common/common.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { CategoryModule } from './category/category.module';
+import { CargoModule } from './cargo/cargo.module';
+import { LoggerMiddleware } from './common/middleware/logger.middleware';
+import { CurrencyModule } from './currency/currency.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { HealthModule } from './health/health.module';
 import { ImageModule } from './image/image.module';
+import { InvoiceModule } from './invoice/invoice.module';
 import { ImpersonationModule } from './impersonation/impersonation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ListingModule } from './listing/listing.module';
@@ -30,14 +34,18 @@ import { OrganizationModule } from './organization/organization.module';
 import { PartnerModule } from './partner/partner.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { PricingModule } from './pricing/pricing.module';
+import { ProductMatchModule } from './product-match/product-match.module';
 import { ProductModule } from './product/product.module';
+import { PurchaseOrderModule } from './purchase-order/purchase-order.module';
 import { QueueModule } from './queue/queue.module';
 import { ReportsModule } from './reports/reports.module';
+import { ReturnModule } from './return/return.module';
 import { StockModule } from './stock/stock.module';
-import { WarehouseModule } from './warehouse/warehouse.module';
+import { SupplierModule } from './supplier/supplier.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { UsersModule } from './users/users.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
 import { WebhookModule } from './webhook/webhook.module';
 
 @Module({
@@ -70,12 +78,17 @@ import { WebhookModule } from './webhook/webhook.module';
     ApiKeyModule,
     OrganizationModule,
     OrderModule,
+    InvoiceModule,
     ListingModule,
     MigrationModule,
     ImageModule,
     ProductModule,
+    ProductMatchModule,
+    CategoryModule,
+    PurchaseOrderModule,
     PricingModule,
     StockModule,
+    SupplierModule,
     WarehouseModule,
     UsersModule,
     HealthModule,
@@ -87,10 +100,22 @@ import { WebhookModule } from './webhook/webhook.module';
     ImpersonationModule,
     WebhookModule,
     ReportsModule,
+    ReturnModule,
+    CurrencyModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer
+      .apply(LoggerMiddleware)
+      .exclude(
+        { path: 'health', method: RequestMethod.GET },
+        { path: 'api/v1/health', method: RequestMethod.GET },
+      )
+      .forRoutes('*');
+  }
+}

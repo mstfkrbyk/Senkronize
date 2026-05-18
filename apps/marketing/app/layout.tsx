@@ -17,10 +17,30 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://senkronize.com'),
   title: {
-    default: 'Senkronize',
+    default: 'Senkronize — Tüm Pazaryerlerinizi Tek Panelden Yönetin',
     template: '%s | Senkronize',
   },
-  description: 'Pazaryeri ve ERP entegrasyon platformu',
+  description:
+    'Trendyol, Hepsiburada, N11, Amazon ve 50+ platform için akıllı e-ticaret entegrasyon platformu. ERP entegrasyonu, otomatik fiyatlandırma ve BuyBox optimizasyonu.',
+  keywords: [
+    'e-ticaret entegrasyon',
+    'trendyol entegrasyon',
+    'hepsiburada entegrasyon',
+    'pazaryeri yönetimi',
+    'ERP entegrasyon',
+    'multi channel e-ticaret',
+  ],
+  authors: [{ name: 'Senkronize' }],
+  openGraph: {
+    type: 'website',
+    locale: 'tr_TR',
+    url: 'https://senkronize.com',
+    siteName: 'Senkronize',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: { card: 'summary_large_image', site: '@senkronize' },
+  robots: { index: true, follow: true },
+  verification: { google: 'placeholder-google-verification' },
 };
 
 export default function RootLayout({

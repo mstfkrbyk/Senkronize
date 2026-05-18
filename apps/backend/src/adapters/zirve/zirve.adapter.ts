@@ -61,6 +61,19 @@ function normalizeItemsPayload(data: unknown): unknown[] {
     if (Array.isArray(data.data)) {
       return data.data;
     }
+    if (Array.isArray(data.rows)) {
+      return data.rows;
+    }
+    const sk = data.StokKart ?? data.stokKart ?? data.StokKartlari;
+    if (Array.isArray(sk)) {
+      return sk;
+    }
+    if (isRecord(sk) && Array.isArray(sk.StokKart)) {
+      return sk.StokKart;
+    }
+    if (isRecord(sk) && sk.StokKart !== undefined) {
+      return [sk.StokKart];
+    }
   }
   return [];
 }
@@ -100,9 +113,54 @@ export class ZirveAdapter implements IErpAdapter {
     return token;
   }
 
+  private async buildAuthHeaders(credentials: Record<string, string>): Promise<Record<string, string>> {
+    const explicit = credentials.token?.trim();
+    if (explicit) {
+      return {
+        Authorization: `Bearer ${explicit}`,
+        'Content-Type': 'application/json',
+      };
+    }
+    const username = credentials.username;
+    const password = credentials.password;
+    if (!username || !password) {
+      throw new Error(
+        'Zirve: baseUrl veya host (+isteğe bağlı port), username ve password (veya token) zorunludur',
+      );
+    }
+    try {
+      const token = await this.getToken(credentials);
+      return {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      };
+    } catch {
+      const basic = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
+      return {
+        Authorization: `Basic ${basic}`,
+        'Content-Type': 'application/json',
+      };
+    }
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      await this.getToken(credentials);
+      const baseUrl = resolveZirveApiRoot(credentials);
+      if (!baseUrl) {
+        return false;
+      }
+      const headers = await this.buildAuthHeaders(credentials);
+      const firmNo = (credentials.firmNo ?? credentials.firmno ?? '1').trim();
+      await axiosWithRetry<unknown>(
+        {
+          method: 'GET',
+          url: `${baseUrl}/stokkart`,
+          params: { FirmaNo: firmNo },
+          headers,
+          timeout: 15_000,
+        },
+        { maxRetries: 1 },
+      );
       return true;
     } catch (error) {
       this.logger.warn('Zirve bağlantı testi başarısız', {
@@ -115,24 +173,42 @@ export class ZirveAdapter implements IErpAdapter {
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
     try {
       const baseUrl = resolveZirveApiRoot(credentials);
-      const token = await this.getToken(credentials);
-      const data = await axiosWithRetry<unknown>(
-        {
-          method: 'GET',
-          url: `${baseUrl}/items`,
-          params: { limit: 500, offset: 0 },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
+      const headers = await this.buildAuthHeaders(credentials);
+      const firmNo = (credentials.firmNo ?? credentials.firmno ?? '1').trim();
+      let data: unknown;
+      try {
+        data = await axiosWithRetry<unknown>(
+          {
+            method: 'GET',
+            url: `${baseUrl}/stokkart`,
+            params: { FirmaNo: firmNo },
+            headers,
+            timeout: 30_000,
           },
-          timeout: 30_000,
-        },
-        { maxRetries: 2 },
-      );
+          { maxRetries: 2 },
+        );
+      } catch {
+        data = await axiosWithRetry<unknown>(
+          {
+            method: 'GET',
+            url: `${baseUrl}/items`,
+            params: { limit: 500, offset: 0 },
+            headers,
+            timeout: 30_000,
+          },
+          { maxRetries: 2 },
+        );
+      }
       const raw = normalizeItemsPayload(data);
       return raw.map((row, i) => {
         const p = isRecord(row) ? row : {};
-        const codeRaw = p.code ?? p.itemCode ?? p.stockCode;
+        const codeRaw =
+          p.stokKodu ??
+          p.StokKodu ??
+          p.STOK_KODU ??
+          p.code ??
+          p.itemCode ??
+          p.stockCode;
         const code =
           typeof codeRaw === 'string'
             ? codeRaw.trim()
@@ -146,7 +222,8 @@ export class ZirveAdapter implements IErpAdapter {
             : typeof barcodeRaw === 'number' && Number.isFinite(barcodeRaw)
               ? String(barcodeRaw)
               : code;
-        const nameRaw = p.description ?? p.name ?? code;
+        const nameRaw =
+          p.stokAdi ?? p.StokAdi ?? p.STOK_ADI ?? p.description ?? p.name ?? code;
         const name =
           typeof nameRaw === 'string' ? nameRaw.trim() || code : String(nameRaw);
         const stockRaw = p.stock ?? p.stockQuantity ?? 0;
@@ -176,7 +253,7 @@ export class ZirveAdapter implements IErpAdapter {
     invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
   ): Promise<ErpInvoice> {
     const baseUrl = resolveZirveApiRoot(credentials);
-    const token = await this.getToken(credentials);
+    const headers = await this.buildAuthHeaders(credentials);
     const today = new Date().toISOString().split('T')[0];
     const data = await axiosWithRetry<ZirveInvoiceCreateResponse>(
       {
@@ -195,10 +272,7 @@ export class ZirveAdapter implements IErpAdapter {
             lineTotal: l.total,
           })),
         },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         timeout: 30_000,
       },
       { maxRetries: 2 },

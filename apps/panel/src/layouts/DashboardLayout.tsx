@@ -7,6 +7,8 @@ import { QuickStockSearch } from '@/components/QuickStockSearch';
 import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
+import { CurrencyWidget } from '@/components/CurrencyWidget';
+import { OnboardingTour } from '@/components/OnboardingTour';
 import { TopBar } from '@/components/topbar/TopBar';
 import {
   SidebarInset,
@@ -75,6 +77,8 @@ export function DashboardLayout(): ReactElement {
       </SidebarProvider>
       <ShortcutsModal />
       <QuickStockSearch />
+      <OnboardingTour />
+      <CurrencyWidget />
     </Fragment>
     </BarcodeInputProvider>
   );

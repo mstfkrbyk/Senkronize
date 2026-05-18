@@ -1,0 +1,12 @@
+-- AlterEnum (8. tur — Getir Yemek ayrımı, ikinci el, Shopiverse, yeni ERP)
+ALTER TYPE "Marketplace" ADD VALUE 'GETIR_YEMEK';
+ALTER TYPE "Marketplace" ADD VALUE 'LETGO';
+ALTER TYPE "Marketplace" ADD VALUE 'SAHIBINDEN_PRO';
+ALTER TYPE "Marketplace" ADD VALUE 'SHOPIVERSE';
+
+ALTER TYPE "EcommerceType" ADD VALUE 'SHOPIVERSE';
+
+ALTER TYPE "ErpType" ADD VALUE 'MYSOFT';
+ALTER TYPE "ErpType" ADD VALUE 'PROTEL';
+ALTER TYPE "ErpType" ADD VALUE 'SIMPRA';
+ALTER TYPE "ErpType" ADD VALUE 'LOGO_COMMERCE';

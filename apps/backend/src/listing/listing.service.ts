@@ -11,7 +11,7 @@ import { Marketplace, Prisma, StockMovementType, type Listing } from '@prisma/cl
 import type { Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
-import { readThroughCache } from '../common/cache/cache.decorator';
+import { readThroughCache, Cacheable } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StockMovementService } from '../stock/stock-movement.service';
@@ -271,6 +271,11 @@ export class ListingService {
     };
   }
 
+  @Cacheable(
+    (organizationId: string) =>
+      CacheService.key('listings', organizationId, 'summary'),
+    30,
+  )
   async getSummary(organizationId: string): Promise<ListingSummaryDto> {
     const base = { organizationId, deletedAt: null } satisfies Prisma.ListingWhereInput;
 
@@ -383,38 +388,44 @@ export class ListingService {
     platform: Marketplace,
     listings: MarketplaceListing[],
   ): Promise<void> {
-    for (const l of listings) {
-      await this.prisma.listing.upsert({
-        where: {
-          organizationId_platform_platformProductId: {
-            organizationId,
-            platform,
-            platformProductId: l.platformProductId,
-          },
-        },
-        create: {
-          organizationId,
-          platform,
-          platformProductId: l.platformProductId,
-          barcode: l.barcode,
-          title: l.title,
-          salePrice: new Prisma.Decimal(l.salePrice),
-          listPrice: new Prisma.Decimal(l.listPrice),
-          quantity: l.quantity,
-          approved: l.approved,
-          imageUrls: l.images,
-          lastSyncAt: new Date(),
-        },
-        update: {
-          title: l.title,
-          salePrice: new Prisma.Decimal(l.salePrice),
-          listPrice: new Prisma.Decimal(l.listPrice),
-          quantity: l.quantity,
-          approved: l.approved,
-          imageUrls: l.images,
-          lastSyncAt: new Date(),
-        },
-      });
+    const chunkSize = 15;
+    for (let i = 0; i < listings.length; i += chunkSize) {
+      const chunk = listings.slice(i, i + chunkSize);
+      await Promise.all(
+        chunk.map((l) =>
+          this.prisma.listing.upsert({
+            where: {
+              organizationId_platform_platformProductId: {
+                organizationId,
+                platform,
+                platformProductId: l.platformProductId,
+              },
+            },
+            create: {
+              organizationId,
+              platform,
+              platformProductId: l.platformProductId,
+              barcode: l.barcode,
+              title: l.title,
+              salePrice: new Prisma.Decimal(l.salePrice),
+              listPrice: new Prisma.Decimal(l.listPrice),
+              quantity: l.quantity,
+              approved: l.approved,
+              imageUrls: l.images,
+              lastSyncAt: new Date(),
+            },
+            update: {
+              title: l.title,
+              salePrice: new Prisma.Decimal(l.salePrice),
+              listPrice: new Prisma.Decimal(l.listPrice),
+              quantity: l.quantity,
+              approved: l.approved,
+              imageUrls: l.images,
+              lastSyncAt: new Date(),
+            },
+          }),
+        ),
+      );
     }
     if (listings.length > 0) {
       await this.cache.invalidateListingsForOrg(organizationId);

@@ -107,6 +107,27 @@ export interface MarketplaceOrder {
   cargoProvider?: string;
 }
 
+/** Pazaryeri iade satırı (adaptör pull). */
+export interface MarketplaceReturnItem {
+  barcode: string;
+  quantity: number;
+  reason?: string;
+  condition?: string;
+}
+
+/** Pazaryeri iade kaydı (adaptör pull). */
+export interface MarketplaceReturn {
+  platformReturnId?: string | null;
+  platformOrderId: string;
+  status: string;
+  reason?: string;
+  refundAmount?: number;
+  refundStatus?: string;
+  requestedAt: string;
+  resolvedAt?: string;
+  items: MarketplaceReturnItem[];
+}
+
 export interface MarketplaceListing {
   platformProductId: string;
   barcode: string;
@@ -147,6 +168,25 @@ export interface IMarketplaceAdapter {
   updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
+  ): Promise<void>;
+  /** İade listesi — destekleyen platformlar için. */
+  getReturns?(
+    credentials: Record<string, string>,
+    since?: Date,
+  ): Promise<MarketplaceReturn[]>;
+  approveReturn?(
+    credentials: Record<string, string>,
+    platformReturnId: string,
+  ): Promise<void>;
+  rejectReturn?(
+    credentials: Record<string, string>,
+    platformReturnId: string,
+    reason: string,
+  ): Promise<void>;
+  cancelOrder?(
+    credentials: Record<string, string>,
+    platformOrderId: string,
+    reason?: string,
   ): Promise<void>;
 }
 

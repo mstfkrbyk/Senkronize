@@ -14,6 +14,7 @@ import { MarketplaceConnectionService } from '../marketplace-connection/marketpl
 import { OrderService } from '../order/order.service';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReturnService } from '../return/return.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_IMAGE, QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
 import type {
@@ -36,6 +37,7 @@ export class MarketplacePullProcessor {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly inAppNotificationService: InAppNotificationService,
+    private readonly returnService: ReturnService,
     @InjectQueue(QUEUE_IMAGE)
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
   ) {}
@@ -227,6 +229,7 @@ export class MarketplacePullProcessor {
                 platformProductId: { in: platformProductIds },
               },
               select: {
+                id: true,
                 platformProductId: true,
                 quantity: true,
                 barcode: true,
@@ -244,6 +247,22 @@ export class MarketplacePullProcessor {
         platform as Marketplace,
         all,
       );
+      const listingIdByPlatformProductId =
+        platformProductIds.length > 0
+          ? new Map(
+              (
+                await this.prisma.listing.findMany({
+                  where: {
+                    organizationId,
+                    platform: platform as Marketplace,
+                    deletedAt: null,
+                    platformProductId: { in: platformProductIds },
+                  },
+                  select: { id: true, platformProductId: true },
+                })
+              ).map((r) => [r.platformProductId, r.id] as const),
+            )
+          : new Map<string, string>();
       for (const listing of all) {
         const prev = prevByProductId.get(listing.platformProductId);
         if (!prev || prev.quantity === listing.quantity) {
@@ -271,12 +290,9 @@ export class MarketplacePullProcessor {
           if (!firstImage || firstImage.includes(r2PublicUrl)) {
             continue;
           }
-          const listingId =
-            await this.listingService.findListingIdByPlatformProduct(
-              organizationId,
-              platform as Marketplace,
-              listing.platformProductId,
-            );
+          const listingId = listingIdByPlatformProductId.get(
+            listing.platformProductId,
+          );
           if (!listingId) {
             continue;
           }
@@ -327,6 +343,115 @@ export class MarketplacePullProcessor {
       );
       throw error;
     }
+      },
+    );
+  }
+
+  @Process('pull-returns')
+  async handlePullReturns(job: Job<MarketplacePullJobData>): Promise<void> {
+    return Sentry.startSpan(
+      {
+        name: 'marketplace-pull.pull-returns',
+        op: 'queue.process',
+        attributes: {
+          'job.organizationId': job.data.organizationId,
+          'job.platform': String(job.data.platform),
+        },
+      },
+      async () => {
+        const { organizationId, platform, since, connectionId } = job.data;
+        this.logger.log('Pazaryeri iade çekme işi başladı', {
+          organizationId,
+          platform,
+        });
+        let connectionRowId: string | null = null;
+        try {
+          const connectionRow = await this.prisma.marketplaceConnection.findFirst({
+            where: connectionId
+              ? {
+                  id: connectionId,
+                  organizationId,
+                  deletedAt: null,
+                  isActive: true,
+                }
+              : {
+                  organizationId,
+                  platform: platform as Marketplace,
+                  deletedAt: null,
+                  isActive: true,
+                },
+            select: { id: true },
+          });
+          connectionRowId = connectionRow?.id ?? null;
+
+          const credentials = connectionId
+            ? await this.marketplaceConnectionService.getDecryptedCredentialsForConnection(
+                organizationId,
+                connectionId,
+              )
+            : await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
+                organizationId,
+                platform as Marketplace,
+              );
+          if (!credentials) {
+            this.logger.warn('Aktif pazaryeri bağlantısı bulunamadı', {
+              organizationId,
+              platform,
+            });
+            return;
+          }
+          const adapter = this.adapterRegistry.get(platform);
+          if (typeof adapter.getReturns !== 'function') {
+            this.logger.warn('Platform iade listesi desteklemiyor', {
+              organizationId,
+              platform,
+            });
+            return;
+          }
+          const sinceDate = since ? new Date(since) : undefined;
+          const returns = await adapter.getReturns(credentials, sinceDate);
+          const { upserted } = await this.returnService.upsertFromPlatform(
+            organizationId,
+            platform as Marketplace,
+            returns,
+          );
+          this.logger.log('İadeler senkronize edildi', {
+            organizationId,
+            platform,
+            upserted,
+          });
+          await this.syncStatusService.recordSuccess(
+            organizationId,
+            platform as Marketplace,
+            { returnsProcessed: returns.length },
+          );
+          this.eventService.emit(organizationId, WS_EVENTS.SYNC_COMPLETED, {
+            platform,
+            connectionId: connectionRowId ?? undefined,
+            returnsProcessed: returns.length,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : 'Bilinmeyen hata';
+          this.logger.error('Pazaryeri iade çekme hatası', {
+            organizationId,
+            platform,
+            error: message,
+          });
+          this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
+            platform,
+            connectionId: connectionRowId ?? undefined,
+            message: message.slice(0, 500),
+            timestamp: new Date().toISOString(),
+          });
+          await this.syncStatusService.recordError(
+            organizationId,
+            platform as Marketplace,
+            message,
+          );
+          throw error;
+        }
       },
     );
   }

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 import type {
+  CriticalStockForecastEmailData,
   InvoiceEmailData,
   LowStockEmailData,
   OrderEmailData,
@@ -75,6 +76,18 @@ export class EmailService {
     await this.send(
       to,
       `⚠️ ${data.count} Ürününüzde Stok Kritik Seviyede`,
+      html,
+    );
+  }
+
+  async sendCriticalStockForecastAlert(
+    to: string,
+    data: CriticalStockForecastEmailData,
+  ): Promise<void> {
+    const html = this.templateService.renderCriticalStockForecast(data);
+    await this.send(
+      to,
+      `Stok tahmini: ${String(data.count)} ürün 7 günden az süreyle`,
       html,
     );
   }
@@ -232,6 +245,43 @@ export class EmailService {
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;')}</p>
         <p style="color:#666;font-size:14px">Bu bildirim, iş tüm yeniden denemeler sonunda başarısız kaldığında gönderilir.</p>
+      </div>
+    `,
+    );
+  }
+
+  async sendPurchaseOrderToSupplier(
+    to: string,
+    data: {
+      supplierName: string;
+      orderNumber: string;
+      organizationName: string;
+      currency: string;
+      totalAmount: string;
+      itemLines: string[];
+      notes: string | null;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const lines = data.itemLines.map((l) => `<li>${esc(l)}</li>`).join('');
+    const notesBlock =
+      data.notes && data.notes.trim().length > 0
+        ? `<p><strong>Not:</strong> ${esc(data.notes.trim())}</p>`
+        : '';
+    await this.send(
+      to,
+      `Satın alma siparişi ${data.orderNumber} — ${data.organizationName}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Merhaba ${esc(data.supplierName)},</h2>
+        <p><strong>${esc(data.organizationName)}</strong> aşağıdaki satın alma siparişini iletmiştir.</p>
+        <p><strong>Sipariş no:</strong> ${esc(data.orderNumber)}</p>
+        <p><strong>Toplam:</strong> ${esc(data.totalAmount)} ${esc(data.currency)}</p>
+        ${notesBlock}
+        <h3>Kalemler</h3>
+        <ul style="padding-left:20px">${lines}</ul>
+        <p style="color:#666;font-size:13px;margin-top:24px">Bu mesaj Senkronize paneli üzerinden otomatik gönderilmiştir.</p>
       </div>
     `,
     );

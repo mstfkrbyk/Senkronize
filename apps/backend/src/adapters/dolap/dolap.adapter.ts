@@ -24,7 +24,7 @@ import {
 } from '../stub-helpers';
 import type { DolapOrder, DolapOrderLine } from './dolap.types';
 
-const DOLAP_BASE = 'https://api.dolap.com/v1';
+const DOLAP_BASE = 'https://api.dolap.com/seller/v1';
 const PATH_LISTINGS = '/listings';
 const PATH_ORDERS = '/orders';
 const PATH_STOCK = '/listings/stock';

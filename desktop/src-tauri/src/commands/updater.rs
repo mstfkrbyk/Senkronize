@@ -41,11 +41,27 @@ fn compare_semver_loose(a: &str, b: &str) -> std::cmp::Ordering {
     a.cmp(b)
 }
 
+fn resolve_version_url(cloud_base_url: &str) -> String {
+    let base = cloud_base_url.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return "https://api.senkronize.com/api/v1/app/version".to_string();
+    }
+    format!("{base}/api/v1/app/version")
+}
+
 #[tauri::command]
-pub async fn check_for_updates(app: AppHandle) -> Result<UpdateCheckResponse, String> {
+pub async fn check_for_updates(
+    app: AppHandle,
+    cloud_base_url: Option<String>,
+) -> Result<UpdateCheckResponse, String> {
     let current_version = app.package_info().version.to_string();
 
-    let url = "https://api.senkronize.com/api/v1/app/version";
+    let url = resolve_version_url(
+        cloud_base_url
+            .as_deref()
+            .unwrap_or("https://api.senkronize.com"),
+    );
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(12))
         .build()
@@ -57,15 +73,16 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateCheckResponse, St
     }
 
     let body_text = response.text().await.map_err(|e| e.to_string())?;
-    let v: Value = serde_json::from_str(&body_text)
-        .map_err(|e| format!("Sürüm yanıtı çözümlenemedi: {e}"))?;
+    let v: Value =
+        serde_json::from_str(&body_text).map_err(|e| format!("Sürüm yanıtı çözümlenemedi: {e}"))?;
 
     let node = v.get("data").unwrap_or(&v);
 
     let latest_version = str_field(node, &["latestVersion", "latest_version", "version"])
         .unwrap_or_else(|| current_version.clone());
 
-    let has_update = compare_semver_loose(&current_version, &latest_version) == std::cmp::Ordering::Less;
+    let has_update =
+        compare_semver_loose(&current_version, &latest_version) == std::cmp::Ordering::Less;
 
     Ok(UpdateCheckResponse {
         current_version,

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   BrowserRouter,
@@ -18,9 +18,14 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
-import { LoginPage } from '@/pages/auth/LoginPage';
-import { RegisterPage } from '@/pages/auth/RegisterPage';
-import { useThemeStore } from '@/store/theme.store';
+const LoginPage = lazy(() =>
+  import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
+const RegisterPage = lazy(() =>
+  import('@/pages/auth/RegisterPage').then((m) => ({
+    default: m.RegisterPage,
+  })),
+);
 
 const InviteAcceptPage = lazy(() =>
   import('@/pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
@@ -137,28 +142,12 @@ function AnalyticsSync(): null {
   return null;
 }
 
-function SystemThemeListener(): null {
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = (): void => {
-      if (useThemeStore.getState().theme === 'system') {
-        document.documentElement.classList.toggle('dark', mq.matches);
-      }
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-
-  return null;
-}
-
 export default function App(): ReactElement {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <SentryUserSync />
         <AnalyticsSync />
-        <SystemThemeListener />
         <Toaster position="top-center" richColors closeButton />
         <Suspense fallback={<PageLoader />}>
           <Routes>

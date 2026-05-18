@@ -9,6 +9,34 @@ export interface BlogPostListItem {
 
 export const BLOG_POSTS: BlogPostListItem[] = [
   {
+    slug: 'trendyol-entegrasyon-rehberi',
+    title: 'Trendyol Entegrasyonu: Kapsamlı Satıcı Rehberi 2025',
+    date: '18 Mayıs 2026',
+    excerpt:
+      'Trendyol satıcı olma, API entegrasyonunun avantajları, stok ve fiyat yönetimi ve Senkronize ile otomatik operasyon: uygulanabilir bir yol haritası.',
+    readMinutes: 14,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'hepsiburada-magazanizi-buyutun',
+    title: 'Hepsiburada Mağazanızı Büyütmenin 7 Yolu',
+    date: '18 Mayıs 2026',
+    excerpt:
+      'BuyBox optimizasyonu, fiyatlama, stok ipuçları ve otomatik entegrasyonla zaman tasarrufu: mağaza büyümesi için yedi başlık.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'cok-kanallu-satis-stratejisi',
+    title:
+      'Çok Kanallı Satış (Omnichannel) Stratejisi: Türk E-ticaret İçin Kapsamlı Kılavuz',
+    date: '18 Mayıs 2026',
+    excerpt:
+      'Omnichannel nedir, Türkiye kanalları, entegrasyonsuz çok kanallılığın tuzakları ve Senkronize ile merkezi yönetim.',
+    readMinutes: 11,
+    author: 'Senkronize Ekibi',
+  },
+  {
     slug: 'trendyol-entegrasyonu-rehberi',
     title: 'Trendyol Entegrasyonunda Yapılan 7 Kritik Hata ve Çözümleri',
     date: '18 Mayıs 2026',

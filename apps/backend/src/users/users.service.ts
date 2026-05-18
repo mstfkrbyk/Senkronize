@@ -90,8 +90,11 @@ function buildAuditActionWhere(
 const SYNC_QUEUE_JOB_NAMES = [
   'pull-orders',
   'pull-listings',
+  'pull-returns',
   'push-stock',
   'push-price',
+  'push-return-action',
+  'push-order-cancel',
 ] as const;
 
 function buildSyncAuditWhere(): Prisma.AuditLogWhereInput {

@@ -943,6 +943,14 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
     ],
     ZIRVE: [
       {
+        key: 'baseUrl',
+        label: 'REST köprü URL (opsiyonel)',
+        type: 'url',
+        placeholder: 'http://192.168.1.10:8080/zirveapi',
+        required: false,
+        hint: 'Boşsa host+port+/zirveapi kullanılır.',
+      },
+      {
         key: 'host',
         label: 'Sunucu',
         type: 'text',
@@ -956,8 +964,23 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         required: true,
         defaultValue: '8080',
       },
+      {
+        key: 'firmNo',
+        label: 'Firma no',
+        type: 'text',
+        required: true,
+        defaultValue: '1',
+        hint: 'stokkart listesi için kullanılır.',
+      },
       { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
+      {
+        key: 'token',
+        label: 'Bearer token (opsiyonel)',
+        type: 'password',
+        required: false,
+        hint: 'Doluysa kullanıcı/şifre ile oturum açılmaz.',
+      },
     ],
     NEBIM: [
       {

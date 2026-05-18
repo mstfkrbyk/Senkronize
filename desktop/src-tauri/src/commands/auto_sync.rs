@@ -47,14 +47,36 @@ pub async fn start_auto_sync(
         return Err("Aralık 0 olamaz.".to_string());
     }
 
+    let was_running = *state
+        .is_running
+        .lock()
+        .map_err(|_| "Durum kilidi alınamadı".to_string())?;
+
+    if was_running {
+        state.stop_flag.store(true, Ordering::SeqCst);
+        if let Some(h) = state
+            .join_handle
+            .lock()
+            .map_err(|_| "Görev kilidi alınamadı".to_string())?
+            .take()
+        {
+            h.abort();
+        }
+        {
+            let mut running = state
+                .is_running
+                .lock()
+                .map_err(|_| "Durum kilidi alınamadı".to_string())?;
+            *running = false;
+        }
+        state.stop_flag.store(false, Ordering::SeqCst);
+    }
+
     {
         let mut running = state
             .is_running
             .lock()
             .map_err(|_| "Durum kilidi alınamadı".to_string())?;
-        if *running {
-            return Err("Otomatik senkron zaten çalışıyor.".to_string());
-        }
         *running = true;
     }
 

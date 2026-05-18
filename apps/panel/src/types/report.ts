@@ -26,7 +26,14 @@ export interface TopProduct {
 }
 
 export interface ProfitReportData {
+  totalRevenueTry: number;
   totalRevenue: number;
+  revenueByOriginalCurrency: {
+    currency: string;
+    totalOriginal: number;
+    orderCount: number;
+  }[];
+  ordersWithApproximateTryConversion: number;
   estimatedProfit: number;
   profitMargin: number;
   byPlatform: { platform: string; revenue: number; orderCount: number }[];

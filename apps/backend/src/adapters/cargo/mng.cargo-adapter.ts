@@ -2,8 +2,10 @@ import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
 import type {
+  CargoRate,
   CreateShipmentParams,
   ICargoAdapter,
+  RateParams,
   ShipmentResult,
   TrackingResult,
 } from '../cargo-adapter.interface';
@@ -14,126 +16,104 @@ import {
   singleEventFromText,
 } from './cargo-adapter.helpers';
 
-const BASE = 'https://ws.mngkargo.com.tr/mngkargo';
+const DEFAULT_BASE = 'https://customerservice.mngkargo.com.tr/mngapis/api';
 
 export class MngCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(MngCargoAdapter.name);
-  private jwt: string | null = null;
 
   constructor(private readonly creds: Record<string, unknown>) {}
 
-  private getCustomerCode(): string {
+  private baseUrl(): string {
+    if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
+      return this.creds.baseUrl.replace(/\/$/, '');
+    }
+    return DEFAULT_BASE;
+  }
+
+  private customerNumber(): string {
+    if (typeof this.creds.customerNumber === 'string' && this.creds.customerNumber.length > 0) {
+      return this.creds.customerNumber;
+    }
     if (typeof this.creds.customerCode === 'string' && this.creds.customerCode.length > 0) {
       return this.creds.customerCode;
-    }
-    if (typeof this.creds.customerId === 'string' && this.creds.customerId.length > 0) {
-      return this.creds.customerId;
     }
     return requireStringField(this.creds, 'username');
   }
 
-  private async ensureToken(): Promise<string> {
-    if (this.jwt) {
-      return this.jwt;
-    }
-    const customerCode = this.getCustomerCode();
+  private authHeader(): string {
+    const customerNumber = this.customerNumber();
     const password = requireStringField(this.creds, 'password');
-    const authPath =
-      typeof this.creds.authPath === 'string' && this.creds.authPath.length > 0
-        ? this.creds.authPath
-        : 'api/auth/login';
+    const token = Buffer.from(`${customerNumber}:${password}`, 'utf8').toString('base64');
+    return `Basic ${token}`;
+  }
 
-    const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${authPath.replace(/^\//, '')}`,
-      { customerCode, password, customerNumber: customerCode },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30_000,
-        validateStatus: () => true,
-      },
-    );
-    if (status < 200 || status >= 300) {
-      throw new BadGatewayException('MNG Kargo kimlik doğrulama başarısız');
-    }
-    const token = extractJwt(data);
-    if (!token) {
-      throw new BadGatewayException('MNG Kargo oturum anahtarı alınamadı');
-    }
-    this.jwt = token;
-    return token;
+  private headersJson(): Record<string, string> {
+    return {
+      'Content-Type': 'application/json',
+      Authorization: this.authHeader(),
+    };
   }
 
   async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
-    const token = await this.ensureToken();
     const path =
-      typeof this.creds.createShipmentPath === 'string' &&
-      this.creds.createShipmentPath.length > 0
-        ? this.creds.createShipmentPath
-        : 'api/cargo';
+      typeof this.creds.createOrderPath === 'string' && this.creds.createOrderPath.length > 0
+        ? this.creds.createOrderPath.replace(/^\//, '')
+        : 'Barcode/CreateOrder';
 
     const body = {
-      referenceId: params.orderId,
-      receiver: {
-        name: params.receiverName,
-        phone: params.receiverPhone,
-        address: params.receiverAddress,
-        city: params.receiverCity,
-        district: params.receiverDistrict,
+      order: {
+        referenceId: params.orderId,
+        description: params.notes ?? '',
       },
-      weight: params.weight,
-      desi: params.desi ?? params.weight,
-      contentDescription: params.notes ?? '',
+      recipient: {
+        customerName: params.receiverName,
+        customerAddress: params.receiverAddress,
+        cityName: params.receiverCity,
+        districtName: params.receiverDistrict,
+        phoneNumber: params.receiverPhone,
+      },
+      shipment: {
+        weight: params.weight,
+        desi: params.desi ?? params.weight,
+      },
     };
 
     const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
+      `${this.baseUrl()}/${path}`,
       body,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: this.headersJson(),
         timeout: 45_000,
         validateStatus: () => true,
       },
     );
     if (status < 200 || status >= 300) {
-      this.logger.warn('MNG createShipment HTTP hata', { status });
+      this.logger.warn('MNG CreateOrder HTTP hata', { status });
       throw new BadGatewayException('MNG Kargo gönderi oluşturma başarısız');
     }
     const code = extractTrackingCodeFromPayload(data);
     if (!code) {
       throw new BadGatewayException('MNG Kargo yanıtında takip numarası bulunamadı');
     }
-    const barcode =
-      typeof data === 'object' && data !== null && 'barcode' in data
-        ? String((data as { barcode: unknown }).barcode)
-        : undefined;
-    const labelUrl = await this.getLabel(code);
-    return {
-      trackingCode: code,
-      barcode: barcode && barcode !== code ? barcode : undefined,
-      labelUrl: labelUrl ?? undefined,
-    };
+    const labelUrl = `https://www.mngkargo.com.tr/mngkargo/kargo-takip?barcode=${encodeURIComponent(code)}`;
+    return { trackingCode: code, labelUrl };
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
-    const token = await this.ensureToken();
-    const path =
-      typeof this.creds.trackShipmentPath === 'string' &&
-      this.creds.trackShipmentPath.length > 0
-        ? this.creds.trackShipmentPath
-        : 'api/cargo/track';
+    const custom =
+      typeof this.creds.trackPath === 'string' && this.creds.trackPath.length > 0
+        ? this.creds.trackPath
+        : '';
+    const path = custom
+      ? custom.replaceAll('{barcode}', encodeURIComponent(trackingCode))
+      : `Tracking/TrackByBarcode/${encodeURIComponent(trackingCode)}`;
+    const url = `${this.baseUrl()}/${path.replace(/^\//, '')}`;
 
-    const { data, status } = await axios.get<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      {
-        params: { barcode: trackingCode },
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 45_000,
-        validateStatus: () => true,
-      },
-    );
+    const { data, status } = await axios.get<unknown>(url, {
+      headers: { Authorization: this.authHeader() },
+      timeout: 45_000,
+      validateStatus: () => true,
+    });
     if (status < 200 || status >= 300) {
       throw new BadGatewayException('MNG Kargo takip sorgusu başarısız');
     }
@@ -147,79 +127,30 @@ export class MngCargoAdapter implements ICargoAdapter {
   }
 
   async cancelShipment(trackingCode: string): Promise<void> {
-    const token = await this.ensureToken();
-    const path =
-      typeof this.creds.cancelShipmentPath === 'string' &&
-      this.creds.cancelShipmentPath.length > 0
-        ? this.creds.cancelShipmentPath
-        : 'api/cargo/cancel';
-
-    const { status } = await axios.post(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      { barcode: trackingCode },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        timeout: 45_000,
-        validateStatus: () => true,
-      },
-    );
-    if (status < 200 || status >= 300) {
-      throw new BadGatewayException('MNG Kargo iptal isteği başarısız');
-    }
+    void trackingCode;
+    throw new BadGatewayException('MNG REST iptali bu sürümde desteklenmiyor');
   }
 
-  async getLabel(trackingCode: string): Promise<string | null> {
-    const token = await this.ensureToken();
-    const path =
-      typeof this.creds.labelPath === 'string' && this.creds.labelPath.length > 0
-        ? this.creds.labelPath
-        : 'api/cargo/label';
+  async getLabel(trackingCode: string): Promise<Buffer | null> {
+    void trackingCode;
+    return null;
+  }
 
-    const { data, status } = await axios.get<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      {
-        params: { barcode: trackingCode },
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 30_000,
-        validateStatus: () => true,
-      },
-    );
-    if (status < 200 || status >= 300) {
-      return `https://www.mngkargo.com.tr/mngkargo/kargo-takip?barcode=${encodeURIComponent(trackingCode)}`;
-    }
-    const url = extractTrackingCodeFromPayload(data);
-    return url ?? null;
+  async getRates(_params: RateParams): Promise<CargoRate[]> {
+    void _params;
+    return [];
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.ensureToken();
+      await axios.get(`${this.baseUrl()}/Tracking/TrackByBarcode/0000000000000`, {
+        headers: { Authorization: this.authHeader() },
+        timeout: 15_000,
+        validateStatus: () => true,
+      });
       return true;
     } catch {
       return false;
     }
   }
-}
-
-function extractJwt(data: unknown): string | undefined {
-  if (typeof data === 'string' && data.length > 20) {
-    return data;
-  }
-  if (typeof data !== 'object' || data === null) {
-    return undefined;
-  }
-  const r = data as Record<string, unknown>;
-  const direct = [r.token, r.accessToken, r.jwt, r.Token];
-  for (const d of direct) {
-    if (typeof d === 'string' && d.length > 20) {
-      return d;
-    }
-  }
-  if (typeof r.data === 'object' && r.data !== null) {
-    return extractJwt(r.data);
-  }
-  return undefined;
 }

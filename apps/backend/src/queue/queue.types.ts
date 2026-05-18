@@ -2,7 +2,7 @@
 export interface MarketplacePushJobData {
   organizationId: string;
   platform: string;
-  type: 'stock' | 'price' | 'listing';
+  type: 'stock' | 'price' | 'listing' | 'return-action' | 'order-cancel';
   resourceIds: string[];
   payload?: Record<string, unknown>;
 }
@@ -11,8 +11,9 @@ export interface MarketplacePushJobData {
 export interface MarketplacePullJobData {
   organizationId: string;
   platform: string;
-  type: 'orders' | 'stock' | 'listings';
+  type: 'orders' | 'stock' | 'listings' | 'returns';
   since?: string;
+  connectionId?: string;
 }
 
 /** erp-sync job payload */
@@ -64,4 +65,11 @@ export interface ImageSyncJobData {
   organizationId: string;
   productId: string;
   imageUrl: string;
+}
+
+/** Giden webhook teslimatı — webhook-delivery kuyruğu */
+export interface WebhookDeliveryJobData {
+  endpointId: string;
+  event: string;
+  payload: Record<string, unknown>;
 }

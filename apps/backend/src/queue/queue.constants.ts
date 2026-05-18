@@ -8,6 +8,8 @@ export const QUEUE_PRICING = 'pricing-engine';
 export const QUEUE_IMAGE = 'image-upload';
 /** Pazaryeri görsel URL → R2 buffer yükleme (axios) */
 export const QUEUE_IMAGE_SYNC = 'image-sync';
+/** Giden müşteri webhook teslimatı (HTTP POST + imza) */
+export const QUEUE_WEBHOOK_DELIVERY = 'webhook-delivery';
 
 /** Pazaryeri pull/push ve benzeri dış API işleri — Bull job varsayılanları */
 export const JOB_DEFAULT_OPTIONS: JobOptions = {

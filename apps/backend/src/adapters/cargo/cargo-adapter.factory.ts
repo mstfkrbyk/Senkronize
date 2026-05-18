@@ -4,6 +4,7 @@ import { CargoProvider } from '@prisma/client';
 import type { ICargoAdapter } from '../cargo-adapter.interface';
 import { ArasCargoAdapter } from './aras.cargo-adapter';
 import { DhlCargoAdapter } from './dhl.cargo-adapter';
+import { FedexCargoAdapter } from './fedex.cargo-adapter';
 import { MngCargoAdapter } from './mng.cargo-adapter';
 import { PttKargoCargoAdapter } from './ptt-kargo.cargo-adapter';
 import { SendeoCargoAdapter } from './sendeo.cargo-adapter';
@@ -28,6 +29,8 @@ export function createCargoAdapter(
       return new UpsCargoAdapter(credentials);
     case CargoProvider.DHL:
       return new DhlCargoAdapter(credentials);
+    case CargoProvider.FEDEX:
+      return new FedexCargoAdapter(credentials);
     case CargoProvider.SENDEO:
       return new SendeoCargoAdapter(credentials);
     case CargoProvider.PTT:

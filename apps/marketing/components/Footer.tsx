@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 
+import { NewsletterSubscribe } from '@/components/NewsletterSubscribe';
+
 const footerColumns: {
   title: string;
   links: { href: string; label: string }[];
@@ -25,9 +27,10 @@ const footerColumns: {
   {
     title: 'Destek',
     links: [
-      { href: '#', label: 'Yardım Merkezi' },
-      { href: '#', label: 'Durum Sayfası' },
-      { href: '#', label: 'API Dokümantasyonu' },
+      { href: '/faq', label: 'Yardım Merkezi' },
+      { href: '/status', label: 'Durum Sayfası' },
+      { href: '/docs', label: 'API Dokümantasyonu' },
+      { href: '/changelog', label: 'Sürüm Notları' },
     ],
   },
   {
@@ -56,6 +59,9 @@ export function Footer(): ReactElement {
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
               Pazaryeri ve ERP entegrasyonunda tek panel, gerçek zamanlı senkron.
             </p>
+            <div className="mt-8 max-w-sm">
+              <NewsletterSubscribe variant="footer" />
+            </div>
             <div className="mt-6 flex gap-3">
               <a
                 href="https://twitter.com"

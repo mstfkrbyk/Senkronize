@@ -1,5 +1,6 @@
 import { CargoProvider } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateCargoShipmentDto {
   @IsString()
@@ -14,4 +15,16 @@ export class CargoShipmentQueryDto {
   @IsOptional()
   @IsEnum(CargoProvider)
   cargoProvider?: CargoProvider;
+}
+
+export class CompareCargoRatesDto {
+  @IsString()
+  @IsNotEmpty()
+  orderId!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  weightKg?: number;
 }

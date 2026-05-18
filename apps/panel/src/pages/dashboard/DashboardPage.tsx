@@ -71,11 +71,26 @@ const KPI_ICON: Record<
   'blue' | 'orange' | 'green' | 'sky' | 'purple',
   { ring: string; icon: string }
 > = {
-  blue: { ring: 'ring-blue-100', icon: 'text-blue-600' },
-  orange: { ring: 'ring-orange-100', icon: 'text-orange-600' },
-  green: { ring: 'ring-green-100', icon: 'text-green-600' },
-  sky: { ring: 'ring-sky-100', icon: 'text-sky-600' },
-  purple: { ring: 'ring-purple-100', icon: 'text-purple-600' },
+  blue: {
+    ring: 'ring-blue-100 dark:ring-blue-900/60',
+    icon: 'text-blue-600 dark:text-blue-400',
+  },
+  orange: {
+    ring: 'ring-orange-100 dark:ring-orange-900/50',
+    icon: 'text-orange-600 dark:text-orange-400',
+  },
+  green: {
+    ring: 'ring-green-100 dark:ring-green-900/50',
+    icon: 'text-green-600 dark:text-green-400',
+  },
+  sky: {
+    ring: 'ring-sky-100 dark:ring-sky-900/50',
+    icon: 'text-sky-600 dark:text-sky-400',
+  },
+  purple: {
+    ring: 'ring-purple-100 dark:ring-purple-900/50',
+    icon: 'text-purple-600 dark:text-purple-400',
+  },
 };
 
 interface SalesReportRow {
@@ -136,9 +151,12 @@ function SyncStatusBadge({
     error: 'Hata',
   };
   const tone: Record<SyncStatusItem['status'], string> = {
-    healthy: 'border-green-200 bg-green-50 text-green-800',
-    warning: 'border-amber-200 bg-amber-50 text-amber-900',
-    error: 'border-red-200 bg-red-50 text-red-800',
+    healthy:
+      'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-200',
+    warning:
+      'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+    error:
+      'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200',
   };
   return (
     <Badge variant="outline" className={tone[status]}>
@@ -156,12 +174,12 @@ function formatTryFromString(amount: string, currency: string): string {
 
 function pendingOrdersTone(count: number): string {
   if (count === 0) {
-    return 'text-green-600';
+    return 'text-green-600 dark:text-green-400';
   }
   if (count <= 5) {
-    return 'text-amber-600';
+    return 'text-amber-600 dark:text-amber-400';
   }
-  return 'text-red-600';
+  return 'text-red-600 dark:text-red-400';
 }
 
 export function DashboardPage(): ReactElement {
@@ -571,19 +589,41 @@ export function DashboardPage(): ReactElement {
               : 'Son 7 gün (günlük rapor)'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ left: 0, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="gun" tick={{ fontSize: 12 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+        <CardContent className="h-64 w-full min-h-[14rem] sm:h-72">
+          <ResponsiveContainer width="100%" height="100%" minHeight={160}>
+            <BarChart data={chartData} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="hsl(var(--border))"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="gun"
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+              />
+              <YAxis
+                allowDecimals={false}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+              />
               <Tooltip
+                cursor={{ fill: 'hsl(var(--muted) / 0.15)' }}
                 contentStyle={{
                   borderRadius: 8,
                   border: '1px solid hsl(var(--border))',
+                  background: 'hsl(var(--popover))',
+                  color: 'hsl(var(--popover-foreground))',
                 }}
+                labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
               />
-              <Bar dataKey="siparis" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+              <Bar
+                dataKey="siparis"
+                fill="hsl(var(--primary))"
+                radius={[4, 4, 0, 0]}
+                stroke="hsl(var(--primary))"
+                strokeWidth={0}
+              />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

@@ -6,4 +6,8 @@ export interface OrganizationDetail {
   logoUrl: string | null;
   onboardingCompleted: boolean;
   createdAt: string;
+  defaultCurrency: string;
+  currencyPreferManualRates: boolean;
+  currencyTcmbEnabled: boolean;
+  currencyManualRates: Record<string, number> | null;
 }

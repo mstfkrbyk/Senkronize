@@ -20,6 +20,17 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+const MAX_FORECAST_PRODUCTS = 5000;
+
+export class StockForecastQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_FORECAST_PRODUCTS)
+  maxItems?: number;
+}
+
 export class StockQueryDto {
   @IsOptional()
   @IsString()

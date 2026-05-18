@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationDto } from './organization.dto';
 
@@ -25,6 +27,20 @@ export class OrganizationService {
         ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
         ...(dto.onboardingCompleted !== undefined
           ? { onboardingCompleted: dto.onboardingCompleted }
+          : {}),
+        ...(dto.defaultCurrency !== undefined
+          ? { defaultCurrency: dto.defaultCurrency }
+          : {}),
+        ...(dto.currencyPreferManualRates !== undefined
+          ? { currencyPreferManualRates: dto.currencyPreferManualRates }
+          : {}),
+        ...(dto.currencyTcmbEnabled !== undefined
+          ? { currencyTcmbEnabled: dto.currencyTcmbEnabled }
+          : {}),
+        ...(dto.currencyManualRates !== undefined
+          ? {
+              currencyManualRates: dto.currencyManualRates as Prisma.InputJsonValue,
+            }
           : {}),
       },
     });

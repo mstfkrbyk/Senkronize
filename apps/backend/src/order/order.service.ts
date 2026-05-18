@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bull';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   Marketplace,
   OrderStatus,
@@ -7,9 +13,14 @@ import {
   type OrderItem,
 } from '@prisma/client';
 import type { MarketplaceOrder } from '@senkronize/shared';
+import type { Queue } from 'bull';
 
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
+import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
+import type { MarketplacePushJobData } from '../queue/queue.types';
+import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
 
@@ -18,16 +29,26 @@ export type SerializedOrderItem = Omit<OrderItem, 'unitPrice'> & {
   thumbnailUrl?: string | null;
 };
 
-export type SerializedOrder = Omit<Order, 'totalAmount'> & {
+export type SerializedOrder = Omit<
+  Order,
+  'totalAmount' | 'cancellationRequestedAt' | 'cancellationRequestNote'
+> & {
   totalAmount: string;
   items: SerializedOrderItem[];
+  cancellationRequestedAt: string | null;
+  cancellationRequestNote: string | null;
 };
 
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly warehouseService: WarehouseService,
+    @InjectQueue(QUEUE_MARKETPLACE_PUSH)
+    private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
 
   async findAll(
@@ -107,7 +128,10 @@ export class OrderService {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where,
-        include: { items: true },
+        include: {
+          items: true,
+          _count: { select: { items: true } },
+        },
         orderBy: { platformCreatedAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
@@ -243,6 +267,7 @@ export class OrderService {
       data,
       include: { items: true },
     });
+    await this.cache.invalidateReportsForOrg(organizationId);
     const thumbnails = await this.loadItemThumbnails(
       organizationId,
       updated.platform,
@@ -256,62 +281,87 @@ export class OrderService {
     platform: Marketplace,
     orders: MarketplaceOrder[],
   ): Promise<{ createdOrders: Order[] }> {
-    const createdOrders: Order[] = [];
-    for (const o of orders) {
-      const existing = await this.prisma.order.findUnique({
-        where: {
-          organizationId_platform_platformOrderId: {
-            organizationId,
-            platform,
-            platformOrderId: o.platformOrderId,
-          },
-        },
-      });
-      const row = await this.prisma.order.upsert({
-        where: {
-          organizationId_platform_platformOrderId: {
-            organizationId,
-            platform,
-            platformOrderId: o.platformOrderId,
-          },
-        },
-        create: {
-          organizationId,
-          platform,
-          platformOrderId: o.platformOrderId,
-          status: mapPlatformStatus(o.status),
-          customerName: o.customerName,
-          totalAmount: o.totalAmount,
-          currency: o.currency ?? 'TRY',
-          cargoTrackingNumber: o.cargoTrackingNumber ?? null,
-          cargoProvider: o.cargoProvider ?? null,
-          platformCreatedAt: new Date(o.createdAt),
-          items: {
-            create: o.items.map((item) => ({
+    if (orders.length === 0) {
+      return { createdOrders: [] };
+    }
+
+    const platformOrderIds = [...new Set(orders.map((o) => o.platformOrderId))];
+    const preExistingRows =
+      platformOrderIds.length > 0
+        ? await this.prisma.order.findMany({
+            where: {
               organizationId,
-              sku: item.sku,
-              barcode: item.barcode,
-              productName: item.productName ?? null,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              platformItemId: item.platformItemId,
-            })),
-          },
-        },
-        update: {
-          status: mapPlatformStatus(o.status),
-          cargoTrackingNumber: o.cargoTrackingNumber ?? null,
-          cargoProvider: o.cargoProvider ?? null,
-          syncedAt: new Date(),
-        },
-      });
-      if (!existing) {
-        createdOrders.push(row);
+              platform,
+              platformOrderId: { in: platformOrderIds },
+              deletedAt: null,
+            },
+            select: { platformOrderId: true },
+          })
+        : [];
+    const preExistingSet = new Set(
+      preExistingRows.map((r) => r.platformOrderId),
+    );
+    const countedCreated = new Set<string>();
+    const createdOrders: Order[] = [];
+
+    const chunkSize = 12;
+    for (let i = 0; i < orders.length; i += chunkSize) {
+      const chunk = orders.slice(i, i + chunkSize);
+      const rows = await Promise.all(
+        chunk.map((o) =>
+          this.prisma.order.upsert({
+            where: {
+              organizationId_platform_platformOrderId: {
+                organizationId,
+                platform,
+                platformOrderId: o.platformOrderId,
+              },
+            },
+            create: {
+              organizationId,
+              platform,
+              platformOrderId: o.platformOrderId,
+              status: mapPlatformStatus(o.status),
+              customerName: o.customerName,
+              totalAmount: o.totalAmount,
+              currency: o.currency ?? 'TRY',
+              cargoTrackingNumber: o.cargoTrackingNumber ?? null,
+              cargoProvider: o.cargoProvider ?? null,
+              platformCreatedAt: new Date(o.createdAt),
+              items: {
+                create: o.items.map((item) => ({
+                  organizationId,
+                  sku: item.sku,
+                  barcode: item.barcode,
+                  productName: item.productName ?? null,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  platformItemId: item.platformItemId,
+                })),
+              },
+            },
+            update: {
+              status: mapPlatformStatus(o.status),
+              cargoTrackingNumber: o.cargoTrackingNumber ?? null,
+              cargoProvider: o.cargoProvider ?? null,
+              syncedAt: new Date(),
+            },
+          }),
+        ),
+      );
+
+      for (let j = 0; j < chunk.length; j++) {
+        const o = chunk[j]!;
+        const row = rows[j]!;
+        const wasInDb = preExistingSet.has(o.platformOrderId);
+        if (!wasInDb && !countedCreated.has(o.platformOrderId)) {
+          createdOrders.push(row);
+          countedCreated.add(o.platformOrderId);
+        }
       }
     }
-    if (orders.length > 0) {
-      await this.cache.invalidateReportsForOrg(organizationId);
-    }
+
+    await this.cache.invalidateReportsForOrg(organizationId);
     return { createdOrders };
   }
 
@@ -334,6 +384,7 @@ export class OrderService {
       },
       data: { status, syncedAt: new Date() },
     });
+    await this.cache.invalidateReportsForOrg(organizationId);
   }
 
   async getSummary(organizationId: string): Promise<OrderSummaryDto> {
@@ -409,13 +460,136 @@ export class OrderService {
     };
   }
 
-  private serializeOrder(
+  async requestOrderCancellation(
+    organizationId: string,
+    orderId: string,
+    note?: string,
+  ): Promise<SerializedOrder> {
+    const existing = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+    if (existing.status === OrderStatus.CANCELLED) {
+      throw new ConflictException('Sipariş zaten iptal edilmiş');
+    }
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: {
+        cancellationRequestedAt: new Date(),
+        cancellationRequestNote: note?.trim() || null,
+      },
+      include: { items: true },
+    });
+    const thumbnails = await this.loadItemThumbnails(
+      organizationId,
+      updated.platform,
+      updated.items,
+    );
+    return this.serializeOrder(updated, thumbnails);
+  }
+
+  async cancelOrder(
+    organizationId: string,
+    orderId: string,
+    reason?: string,
+  ): Promise<{ jobId: string }> {
+    const existing = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      select: { id: true, platform: true, status: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+    if (existing.status === OrderStatus.CANCELLED) {
+      throw new ConflictException('Sipariş zaten iptal edilmiş');
+    }
+    const job = await this.marketplacePushQueue.add(
+      'push-order-cancel',
+      {
+        organizationId,
+        platform: String(existing.platform),
+        type: 'order-cancel',
+        resourceIds: [orderId],
+        payload: { reason: reason ?? '' },
+      },
+      STANDARD_QUEUE_JOB_OPTIONS,
+    );
+    return { jobId: String(job.id) };
+  }
+
+  /**
+   * Kuyruk işi: platform iptal bildiriminden sonra yerel iptal ve rezervasyon serbest bırakma.
+   */
+  async finalizeOrderCancellationFromJob(
+    organizationId: string,
+    orderId: string,
+  ): Promise<void> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!order || order.status === OrderStatus.CANCELLED) {
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await this.releaseReservedForOrderTx(tx, organizationId, order);
+      await tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancellationRequestedAt: null,
+          cancellationRequestNote: null,
+        },
+      });
+    });
+    await this.cache.invalidateReportsForOrg(organizationId);
+  }
+
+  private async releaseReservedForOrderTx(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
     order: Order & { items: OrderItem[] },
+  ): Promise<void> {
+    const wh = await this.warehouseService.getOrCreateMainWarehouse(organizationId);
+    for (const item of order.items) {
+      const entry = await tx.stockEntry.findUnique({
+        where: {
+          organizationId_barcode_platform_warehouseId: {
+            organizationId,
+            barcode: item.barcode,
+            platform: order.platform,
+            warehouseId: wh.id,
+          },
+        },
+      });
+      if (!entry || entry.reservedQty <= 0) {
+        continue;
+      }
+      const release = Math.min(entry.reservedQty, item.quantity);
+      if (release <= 0) {
+        continue;
+      }
+      await tx.stockEntry.update({
+        where: { id: entry.id },
+        data: { reservedQty: entry.reservedQty - release },
+      });
+    }
+  }
+
+  private serializeOrder(
+    order: Order & { items: OrderItem[] } & { _count?: { items: number } },
     thumbnailByKey?: Map<string, string | null>,
   ): SerializedOrder {
+    const { _count: _ignoredOrderItemCount, ...orderRest } = order;
     return {
-      ...order,
+      ...orderRest,
       totalAmount: order.totalAmount.toString(),
+      cancellationRequestedAt:
+        order.cancellationRequestedAt?.toISOString() ?? null,
+      cancellationRequestNote: order.cancellationRequestNote ?? null,
       items: order.items.map((item) => {
         const thumbKey = `${order.platform}:${item.barcode}`;
         const base: SerializedOrderItem = {
