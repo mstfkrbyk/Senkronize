@@ -11,7 +11,7 @@ const APP_VERSION = '0.1.0';
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
-  @Get()
+  @Get('health')
   @SkipThrottle()
   @ApiOperation({ summary: 'Sağlık kontrolü' })
   async check(): Promise<{
@@ -35,6 +35,24 @@ export class HealthController {
       services: {
         database: dbOk ? 'up' : 'down',
       },
+    };
+  }
+
+  @Get('app/version')
+  @SkipThrottle()
+  @ApiOperation({ summary: 'Desktop uygulama sürüm bilgisi' })
+  getAppVersion(): {
+    version: string;
+    latestVersion: string;
+    downloadUrl: string | null;
+    releaseNotes: string | null;
+  } {
+    const current = APP_VERSION;
+    return {
+      version: current,
+      latestVersion: current,
+      downloadUrl: null,
+      releaseNotes: null,
     };
   }
 }
