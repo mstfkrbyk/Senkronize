@@ -29,6 +29,7 @@ import {
 } from './listing.dto';
 import {
   ListingService,
+  type ListingDetailResponse,
   type ListingSummaryDto,
   type SerializedListing,
 } from './listing.service';
@@ -60,6 +61,19 @@ export class ListingController {
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<ListingSummaryDto> {
     return this.listingService.getSummary(org.id);
+  }
+
+  @Get(':id/detail')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Listeleme detay (fiyat geçmişi, BuyBox)' })
+  @ApiResponse({ status: 200, description: 'Detay' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async getDetail(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<ListingDetailResponse> {
+    return this.listingService.getListingDetail(org.id, id);
   }
 
   @Get(':id')

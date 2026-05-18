@@ -52,6 +52,26 @@ export interface ListingSummaryDto {
   pending: number;
 }
 
+export interface ListingDetailPricePoint {
+  appliedAt: string;
+  oldPrice: string;
+  newPrice: string;
+}
+
+export interface ListingDetailBuyBox {
+  isWinner: boolean;
+  buyBoxPrice: string;
+  ourPrice: string;
+  capturedAt: string;
+}
+
+export interface ListingDetailResponse {
+  listing: SerializedListing;
+  category: string | null;
+  priceHistory: ListingDetailPricePoint[];
+  buyBox: ListingDetailBuyBox | null;
+}
+
 @Injectable()
 export class ListingService {
   constructor(
@@ -150,6 +170,67 @@ export class ListingService {
       throw new NotFoundException('Listeleme bulunamadı');
     }
     return this.serializeListing(row);
+  }
+
+  async getListingDetail(
+    organizationId: string,
+    id: string,
+  ): Promise<ListingDetailResponse> {
+    const row = await this.prisma.listing.findFirst({
+      where: { id, organizationId, deletedAt: null },
+      include: {
+        product: { select: { category: true } },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Listeleme bulunamadı');
+    }
+    const { product, ...listingRow } = row;
+    const listing = this.serializeListing(listingRow);
+
+    const [historyRows, snap] = await Promise.all([
+      this.prisma.priceHistory.findMany({
+        where: {
+          organizationId,
+          barcode: row.barcode,
+          platform: row.platform,
+        },
+        orderBy: { appliedAt: 'desc' },
+        take: 60,
+        select: { appliedAt: true, oldPrice: true, newPrice: true },
+      }),
+      this.prisma.buyBoxSnapshot.findFirst({
+        where: {
+          organizationId,
+          barcode: row.barcode,
+          platform: row.platform,
+        },
+        orderBy: { capturedAt: 'desc' },
+      }),
+    ]);
+
+    const priceHistory: ListingDetailPricePoint[] = historyRows.map((h) => ({
+      appliedAt: h.appliedAt.toISOString(),
+      oldPrice: h.oldPrice.toString(),
+      newPrice: h.newPrice.toString(),
+    }));
+
+    let buyBox: ListingDetailBuyBox | null = null;
+    if (snap) {
+      buyBox = {
+        isWinner: snap.isWinner,
+        buyBoxPrice: snap.buyBoxPrice.toString(),
+        ourPrice: snap.ourPrice.toString(),
+        capturedAt: snap.capturedAt.toISOString(),
+      };
+    }
+
+    return {
+      listing,
+      category: product?.category ?? null,
+      priceHistory,
+      buyBox,
+    };
   }
 
   async upsertFromPlatform(

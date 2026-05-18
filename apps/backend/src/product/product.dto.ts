@@ -2,6 +2,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
@@ -93,4 +94,21 @@ export class ProductQueryDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+}
+
+export class SyncAllPlatformsDto {
+  @IsString()
+  @MinLength(1)
+  barcode!: string;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  quantity!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.01)
+  price?: number;
 }

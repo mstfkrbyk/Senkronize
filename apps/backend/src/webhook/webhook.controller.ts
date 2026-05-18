@@ -79,4 +79,28 @@ export class WebhookController {
     await this.webhookService.processHepsiburadaWebhook(connectionId, body);
     return { ok: true };
   }
+
+  @Post('ciceksepeti')
+  @SkipThrottle()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Çiçeksepeti webhook (HMAC-SHA256)' })
+  @ApiResponse({ status: 200, description: 'Kabul edildi' })
+  @ApiResponse({ status: 403, description: 'İmza veya yapılandırma hatası' })
+  async handleCiceksepeti(
+    @Headers('x-signature') signature: string | undefined,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ ok: true }> {
+    const rawBody = req.rawBody;
+    if (!rawBody || !Buffer.isBuffer(rawBody)) {
+      throw new BadRequestException('Ham gövde kullanılamıyor');
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(rawBody.toString('utf8')) as unknown;
+    } catch {
+      throw new BadRequestException('Geçersiz JSON');
+    }
+    await this.webhookService.processCiceksepeti(body, rawBody, signature);
+    return { ok: true };
+  }
 }

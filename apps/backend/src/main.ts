@@ -70,6 +70,7 @@ async function bootstrap(): Promise<void> {
       'X-Requested-With',
       'X-Api-Key',
       'x-api-key',
+      'x-signature',
     ],
   });
 

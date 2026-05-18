@@ -1,20 +1,31 @@
+import { InjectQueue } from '@nestjs/bull';
 import {
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type Product } from '@prisma/client';
+import type { Queue } from 'bull';
 
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
+import type { MarketplacePushJobData } from '../queue/queue.types';
 
-import type { CreateProductDto, ProductQueryDto, UpdateProductDto } from './product.dto';
+import {
+  CreateProductDto,
+  ProductQueryDto,
+  SyncAllPlatformsDto,
+  UpdateProductDto,
+} from './product.dto';
 
 @Injectable()
 export class ProductService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    @InjectQueue(QUEUE_MARKETPLACE_PUSH)
+    private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
 
   async findAll(
@@ -203,5 +214,48 @@ export class ProductService {
       orderBy: { barcode: 'asc' },
     });
     return rows.map((r) => r.barcode);
+  }
+
+  async syncToPlatforms(
+    organizationId: string,
+    dto: SyncAllPlatformsDto,
+  ): Promise<{ queued: number }> {
+    const connections = await this.prisma.marketplaceConnection.findMany({
+      where: { organizationId, isActive: true, deletedAt: null },
+    });
+
+    let queued = 0;
+    for (const conn of connections) {
+      await this.marketplacePushQueue.add(
+        'push-stock',
+        {
+          organizationId,
+          platform: conn.platform,
+          type: 'stock',
+          resourceIds: [dto.barcode],
+          payload: {
+            updates: [{ barcode: dto.barcode, quantity: dto.quantity }],
+          },
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+
+      if (dto.price !== undefined) {
+        await this.marketplacePushQueue.add(
+          'push-price',
+          {
+            organizationId,
+            platform: conn.platform,
+            type: 'price',
+            resourceIds: [dto.barcode],
+            payload: { price: dto.price },
+          },
+          JOB_DEFAULT_OPTIONS,
+        );
+      }
+      queued += 1;
+    }
+
+    return { queued };
   }
 }

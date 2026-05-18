@@ -30,6 +30,7 @@ import { ImageService } from '../image/image.service';
 import {
   CreateProductDto,
   ProductQueryDto,
+  SyncAllPlatformsDto,
   UpdateProductDto,
 } from './product.dto';
 import { ProductService } from './product.service';
@@ -55,6 +56,17 @@ export class ProductController {
   ): Promise<{ items: string[] }> {
     const items = await this.productService.listBarcodes(org.id);
     return { items };
+  }
+
+  @Post('sync-all-platforms')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Tüm aktif pazaryeri bağlantılarında stok/fiyat kuyruğa' })
+  @ApiResponse({ status: 200, description: 'Kuyruğa eklenen bağlantı sayısı' })
+  async syncAllPlatforms(
+    @Body() dto: SyncAllPlatformsDto,
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ queued: number }> {
+    return this.productService.syncToPlatforms(org.id, dto);
   }
 
   @Get()

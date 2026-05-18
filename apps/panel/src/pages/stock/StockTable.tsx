@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { StockBadge } from '@/components/StockBadge';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -35,16 +36,6 @@ function platformLabel(platform: string | null): string {
     return 'Merkezi';
   }
   return getMarketplaceBranding(platform).label;
-}
-
-function quantityTone(qty: number): string {
-  if (qty < 5) {
-    return 'font-medium text-destructive';
-  }
-  if (qty <= 20) {
-    return 'font-medium text-amber-700';
-  }
-  return 'font-medium text-green-700';
 }
 
 export function StockTable({ entries }: Props): ReactElement {
@@ -92,10 +83,8 @@ export function StockTable({ entries }: Props): ReactElement {
                   </Badge>
                 )}
               </TableCell>
-              <TableCell
-                className={`text-right tabular-nums ${quantityTone(row.quantity)}`}
-              >
-                {row.quantity}
+              <TableCell className="text-right">
+                <StockBadge quantity={row.quantity} />
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {row.reservedQty}

@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Marketplace, Prisma } from '@prisma/client';
+import { Marketplace, Prisma, type MarketplaceConnection } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { TRENDYOL_WEBHOOK_EVENTS } from '../adapters/trendyol/trendyol.constants';
@@ -15,8 +15,15 @@ import { ListingService } from '../listing/listing.service';
 import { OrderService } from '../order/order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_NOTIFICATION } from '../queue/queue.constants';
-import type { TrendyolWebhookJobData } from '../queue/queue.types';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PULL,
+  QUEUE_NOTIFICATION,
+} from '../queue/queue.constants';
+import type {
+  MarketplacePullJobData,
+  TrendyolWebhookJobData,
+} from '../queue/queue.types';
 
 import {
   extractHepsiburadaCargo,
@@ -32,6 +39,45 @@ import {
 import { verifyTrendyolSignature } from './trendyol-signature.util';
 import { resolvePlainWebhookSecret } from './webhook-secret.util';
 
+function readTrimmedString(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const v = obj[key];
+  if (typeof v === 'string') {
+    const t = v.trim();
+    return t.length > 0 ? t : undefined;
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return String(v).trim();
+  }
+  return undefined;
+}
+
+function ciceksepetiSupplierKeyFromBody(
+  rec: Record<string, unknown>,
+): string | undefined {
+  const direct =
+    readTrimmedString(rec, 'supplierId') ??
+    readTrimmedString(rec, 'sellerId') ??
+    readTrimmedString(rec, 'supplierCode') ??
+    readTrimmedString(rec, 'merchantId');
+  if (direct) {
+    return direct;
+  }
+  const nested = rec.data ?? rec.payload;
+  if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {
+    const n = nested as Record<string, unknown>;
+    return (
+      readTrimmedString(n, 'supplierId') ??
+      readTrimmedString(n, 'sellerId') ??
+      readTrimmedString(n, 'supplierCode') ??
+      readTrimmedString(n, 'merchantId')
+    );
+  }
+  return undefined;
+}
+
 @Injectable()
 export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
@@ -43,6 +89,8 @@ export class WebhookService {
     private readonly encryptionService: EncryptionService,
     @InjectQueue(QUEUE_NOTIFICATION)
     private readonly notificationQueue: Queue<TrendyolWebhookJobData>,
+    @InjectQueue(QUEUE_MARKETPLACE_PULL)
+    private readonly marketplacePullQueue: Queue<MarketplacePullJobData>,
   ) {}
 
   /**
@@ -331,5 +379,171 @@ export class WebhookService {
         data,
       });
     }
+  }
+
+  /**
+   * Çiçeksepeti REST webhook: HMAC-SHA256 (x-signature) ile doğrulanır;
+   * sipariş ve listeleme olaylarında pull kuyruğuna iş eklenir.
+   */
+  async processCiceksepeti(
+    body: unknown,
+    rawBody: Buffer,
+    signature: string | undefined,
+  ): Promise<void> {
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      this.logger.warn('Çiçeksepeti webhook beklenmeyen gövde');
+      return;
+    }
+    const rec = body as Record<string, unknown>;
+    const connection = await this.resolveCiceksepetiConnection(
+      rec,
+      rawBody,
+      signature,
+    );
+    if (!connection) {
+      return;
+    }
+    const plainSecret = this.resolveCiceksepetiWebhookSecret(connection);
+    if (!plainSecret) {
+      this.logger.warn('Çiçeksepeti webhook secret tanımlı değil', {
+        connectionId: connection.id,
+      });
+      throw new ForbiddenException('Webhook secret yapılandırılmamış');
+    }
+    if (!verifyTrendyolSignature(signature, rawBody, plainSecret)) {
+      throw new ForbiddenException('Geçersiz imza');
+    }
+
+    const eventRaw = rec.type ?? rec.event ?? rec.eventType;
+    const event =
+      typeof eventRaw === 'string' ? eventRaw.trim().toUpperCase() : '';
+
+    if (event === 'ORDER_CREATED' || event === 'NEW_ORDER') {
+      await this.marketplacePullQueue.add(
+        'pull-orders',
+        {
+          organizationId: connection.organizationId,
+          platform: Marketplace.CICEKSEPETI,
+          type: 'orders',
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+      return;
+    }
+
+    if (
+      event === 'PRODUCT_STATUS_CHANGED' ||
+      event === 'PRODUCT_UPDATED' ||
+      event === 'LISTING_UPDATED'
+    ) {
+      await this.marketplacePullQueue.add(
+        'pull-listings',
+        {
+          organizationId: connection.organizationId,
+          platform: Marketplace.CICEKSEPETI,
+          type: 'listings',
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+    }
+  }
+
+  private decryptCredentialsJson(
+    credentialsEnc: string,
+  ): Record<string, unknown> {
+    try {
+      const json = this.encryptionService.decrypt(credentialsEnc);
+      const parsed: unknown = JSON.parse(json);
+      if (
+        typeof parsed !== 'object' ||
+        parsed === null ||
+        Array.isArray(parsed)
+      ) {
+        return {};
+      }
+      return parsed as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  }
+
+  private resolveCiceksepetiWebhookSecret(
+    connection: MarketplaceConnection,
+  ): string | null {
+    const fromField = resolvePlainWebhookSecret(
+      this.encryptionService,
+      connection.webhookSecret,
+    );
+    if (fromField) {
+      return fromField;
+    }
+    const creds = this.decryptCredentialsJson(connection.credentialsEnc);
+    return (
+      readTrimmedString(creds, 'secretKey') ??
+      readTrimmedString(creds, 'webhookSecret') ??
+      null
+    );
+  }
+
+  private supplierMatchesCiceksepetiCredentials(
+    creds: Record<string, unknown>,
+    supplierKey: string,
+  ): boolean {
+    const keys = [
+      'supplierId',
+      'sellerId',
+      'supplierCode',
+      'merchantId',
+      'storeId',
+    ];
+    for (const k of keys) {
+      const v = readTrimmedString(creds, k);
+      if (v && v === supplierKey) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private async resolveCiceksepetiConnection(
+    rec: Record<string, unknown>,
+    rawBody: Buffer,
+    signature: string | undefined,
+  ): Promise<MarketplaceConnection | null> {
+    const rows = await this.prisma.marketplaceConnection.findMany({
+      where: {
+        platform: Marketplace.CICEKSEPETI,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const supplierKey = ciceksepetiSupplierKeyFromBody(rec);
+    let candidates = rows;
+    if (supplierKey) {
+      const matched = rows.filter((row) =>
+        this.supplierMatchesCiceksepetiCredentials(
+          this.decryptCredentialsJson(row.credentialsEnc),
+          supplierKey,
+        ),
+      );
+      if (matched.length === 1) {
+        return matched[0];
+      }
+      if (matched.length > 1) {
+        candidates = matched;
+      }
+    }
+
+    for (const row of candidates) {
+      const secret = this.resolveCiceksepetiWebhookSecret(row);
+      if (secret && verifyTrendyolSignature(signature, rawBody, secret)) {
+        return row;
+      }
+    }
+    return null;
   }
 }

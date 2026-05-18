@@ -46,3 +46,23 @@ export interface ListingFilters {
   page?: number;
   limit?: number;
 }
+
+export interface ListingDetailPricePoint {
+  appliedAt: string;
+  oldPrice: string;
+  newPrice: string;
+}
+
+export interface ListingDetailBuyBox {
+  isWinner: boolean;
+  buyBoxPrice: string;
+  ourPrice: string;
+  capturedAt: string;
+}
+
+export interface ListingDetailResponse {
+  listing: Listing;
+  category: string | null;
+  priceHistory: ListingDetailPricePoint[];
+  buyBox: ListingDetailBuyBox | null;
+}

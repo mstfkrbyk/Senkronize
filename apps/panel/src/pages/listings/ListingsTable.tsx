@@ -1,10 +1,17 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Banknote, Boxes, Package } from 'lucide-react';
+import { Banknote, Boxes, MoreHorizontal, Package } from 'lucide-react';
 
+import { StockBadge } from '@/components/StockBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -24,6 +31,7 @@ interface Props {
   onRowClick: (listing: Listing) => void;
   onOpenPrice: (listing: Listing) => void;
   onOpenStock: (listing: Listing) => void;
+  onSyncAllPlatforms?: (listing: Listing) => void;
 }
 
 function formatTryFromDecimal(value: string): string {
@@ -82,6 +90,7 @@ export function ListingsTable({
   onRowClick,
   onOpenPrice,
   onOpenStock,
+  onSyncAllPlatforms,
 }: Props): ReactElement {
   const pageIds = listings.map((l) => l.id);
   const allSelected =
@@ -161,10 +170,8 @@ export function ListingsTable({
               <TableCell className="text-right tabular-nums">
                 {formatTryFromDecimal(listing.salePrice)}
               </TableCell>
-              <TableCell
-                className={`text-right tabular-nums ${listing.quantity < 5 ? 'font-medium text-destructive' : ''}`}
-              >
-                {listing.quantity}
+              <TableCell className="text-right">
+                <StockBadge quantity={listing.quantity} />
               </TableCell>
               <TableCell>
                 {listing.approved ? (
@@ -184,7 +191,7 @@ export function ListingsTable({
                 )}
               </TableCell>
               <TableCell>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap items-center gap-1">
                   <Button
                     type="button"
                     variant="outline"
@@ -211,6 +218,34 @@ export function ListingsTable({
                     <Boxes className="h-3.5 w-3.5" aria-hidden />
                     Stok
                   </Button>
+                  {onSyncAllPlatforms ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0"
+                          aria-label="Diğer işlemler"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSyncAllPlatforms(listing);
+                          }}
+                        >
+                          Tüm platformlarda senkronize et
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
                 </div>
               </TableCell>
             </TableRow>

@@ -53,6 +53,18 @@ function parseStockUpdatesFromPayload(
 function parsePriceUpdatesFromPayload(
   job: Job<MarketplacePushJobData>,
 ): PriceUpdatePayload[] {
+  const single = job.data.payload?.price;
+  if (
+    typeof single === 'number' &&
+    Number.isFinite(single) &&
+    single > 0
+  ) {
+    return job.data.resourceIds.map((barcode) => ({
+      barcode,
+      salePrice: single,
+      listPrice: single,
+    }));
+  }
   const sale = job.data.payload?.salePrice;
   const list = job.data.payload?.listPrice;
   if (

@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
+  ListingDetailResponse,
   ListingFilters,
   ListingsResponse,
   ListingSummary,
@@ -34,6 +35,20 @@ export function useListings(filters: ListingFilters) {
   });
 }
 
+export function useListingDetail(listingId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['listings', 'detail', listingId],
+    queryFn: async (): Promise<ListingDetailResponse> => {
+      const { data } = await api.get<ListingDetailResponse>(
+        `/listings/${listingId}/detail`,
+      );
+      return data;
+    },
+    enabled: Boolean(listingId) && enabled,
+    staleTime: 30_000,
+  });
+}
+
 export function useListingSummary() {
   return useQuery({
     queryKey: ['listings', 'summary'],
@@ -42,6 +57,35 @@ export function useListingSummary() {
       return data;
     },
     staleTime: 60_000,
+  });
+}
+
+export function useSyncAllPlatforms() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      barcode: string;
+      quantity: number;
+      price?: number;
+    }): Promise<{ queued: number }> => {
+      const { data } = await api.post<{ queued: number }>(
+        '/products/sync-all-platforms',
+        payload,
+      );
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(
+        res.queued > 0
+          ? `${String(res.queued)} bağlantıda kuyruğa alındı`
+          : 'Aktif bağlantı yok',
+      );
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({ queryKey: ['stock'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
   });
 }
 
@@ -81,9 +125,12 @@ export function useUpdatePrice() {
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Fiyat güncellendi');
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['listings', 'detail', variables.id],
+      });
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err));
@@ -104,9 +151,12 @@ export function useUpdateStock() {
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Stok güncellendi');
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['listings', 'detail', variables.id],
+      });
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err));

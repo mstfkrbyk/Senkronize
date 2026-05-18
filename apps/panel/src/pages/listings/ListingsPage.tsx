@@ -34,6 +34,7 @@ import {
   useBulkListingUpdate,
   useListingSummary,
   useListings,
+  useSyncAllPlatforms,
   useSyncListings,
   useUpdatePrice,
   useUpdateStock,
@@ -120,6 +121,7 @@ export function ListingsPage(): ReactElement {
   const updatePriceMutation = useUpdatePrice();
   const updateStockMutation = useUpdateStock();
   const bulkUpdateMutation = useBulkListingUpdate();
+  const syncAllPlatformsMutation = useSyncAllPlatforms();
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -470,6 +472,12 @@ export function ListingsPage(): ReactElement {
           onOpenStock={(listing) => {
             setStockTarget(listing);
             setStockOpen(true);
+          }}
+          onSyncAllPlatforms={(listing) => {
+            syncAllPlatformsMutation.mutate({
+              barcode: listing.barcode,
+              quantity: listing.quantity,
+            });
           }}
         />
       ) : null}
