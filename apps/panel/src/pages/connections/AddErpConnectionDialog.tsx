@@ -28,10 +28,12 @@ import { getApiErrorMessage } from '@/lib/api';
 import {
   FORM_MESSAGES,
   HTTPS_URL_CREDENTIAL_KEYS,
+  isValidHttpOrHttpsUrl,
   isValidHttpsUrl,
 } from '@/lib/form-messages';
 import { cn } from '@/lib/utils';
-import { ERP_OPTIONS, type ErpOption } from '@/pages/connections/erp-display';
+import { ERP_OPTIONS } from '@/pages/connections/erp-display';
+import type { ErpOption } from '@/pages/onboarding/onboarding.types';
 
 interface Props {
   open: boolean;
@@ -92,7 +94,12 @@ export function AddErpConnectionDialog({
         next[f.key] = FORM_MESSAGES.required;
         continue;
       }
+      if (f.type === 'url' && raw.length > 0 && !isValidHttpOrHttpsUrl(raw)) {
+        next[f.key] = 'Geçerli bir adres girin (http:// veya https://).';
+        continue;
+      }
       if (
+        f.type !== 'url' &&
         HTTPS_URL_CREDENTIAL_KEYS.has(f.key) &&
         raw.length > 0 &&
         !isValidHttpsUrl(raw)

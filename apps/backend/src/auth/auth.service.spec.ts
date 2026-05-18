@@ -192,9 +192,15 @@ describe('AuthService', () => {
       expect(true).toBe(false);
     } catch (e) {
       expect(e).toBeInstanceOf(ConflictException);
-      expect((e as ConflictException).getResponse()).toBe(
-        'Bu vergi numarasıyla zaten kayıt mevcut',
-      );
+      const body = (e as ConflictException).getResponse();
+      const msg =
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof (body as { message: unknown }).message === 'string'
+          ? (body as { message: string }).message
+          : String(body);
+      expect(msg).toBe('Bu vergi numarasıyla zaten kayıt mevcut');
     }
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
