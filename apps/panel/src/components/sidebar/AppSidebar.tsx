@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { SidebarNav } from '@/components/sidebar/SidebarNav';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 function CollapseToggle(): ReactElement {
+  const { t } = useTranslation();
   const { toggleSidebar, state } = useSidebar();
   const expanded = state === 'expanded';
 
@@ -32,12 +34,12 @@ function CollapseToggle(): ReactElement {
       {expanded ? (
         <>
           <ChevronLeft className="size-4 shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">Daralt</span>
+          <span className="group-data-[collapsible=icon]:hidden">{t('nav.collapse')}</span>
         </>
       ) : (
         <>
           <ChevronRight className="size-4 shrink-0" />
-          <span className="group-data-[collapsible=icon]:hidden">Genişlet</span>
+          <span className="group-data-[collapsible=icon]:hidden">{t('nav.expand')}</span>
         </>
       )}
     </Button>

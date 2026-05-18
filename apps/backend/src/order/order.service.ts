@@ -20,6 +20,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
@@ -47,6 +48,7 @@ export class OrderService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly warehouseService: WarehouseService,
+    private readonly outboundWebhookService: OutboundWebhookService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -267,6 +269,12 @@ export class OrderService {
       data,
       include: { items: true },
     });
+    if (existing.status !== dto.status) {
+      void this.outboundWebhookService.dispatch(organizationId, 'order.status_changed', {
+        orderId: id,
+        status: dto.status,
+      });
+    }
     await this.cache.invalidateReportsForOrg(organizationId);
     const thumbnails = await this.loadItemThumbnails(
       organizationId,
@@ -295,11 +303,14 @@ export class OrderService {
               platformOrderId: { in: platformOrderIds },
               deletedAt: null,
             },
-            select: { platformOrderId: true },
+            select: { platformOrderId: true, status: true },
           })
         : [];
     const preExistingSet = new Set(
       preExistingRows.map((r) => r.platformOrderId),
+    );
+    const prevStatusByPlatformOrderId = new Map(
+      preExistingRows.map((r) => [r.platformOrderId, r.status]),
     );
     const countedCreated = new Set<string>();
     const createdOrders: Order[] = [];
@@ -357,6 +368,33 @@ export class OrderService {
         if (!wasInDb && !countedCreated.has(o.platformOrderId)) {
           createdOrders.push(row);
           countedCreated.add(o.platformOrderId);
+          void this.outboundWebhookService.dispatch(
+            organizationId,
+            'order.created',
+            {
+              order: {
+                id: row.id,
+                platform: row.platform,
+                platformOrderId: row.platformOrderId,
+                status: row.status,
+                customerName: row.customerName,
+                totalAmount: row.totalAmount.toString(),
+                currency: row.currency,
+              },
+            },
+          );
+        } else if (wasInDb) {
+          const prevStatus = prevStatusByPlatformOrderId.get(o.platformOrderId);
+          if (prevStatus !== undefined && prevStatus !== row.status) {
+            void this.outboundWebhookService.dispatch(
+              organizationId,
+              'order.status_changed',
+              {
+                orderId: row.id,
+                status: row.status,
+              },
+            );
+          }
         }
       }
     }
@@ -375,6 +413,15 @@ export class OrderService {
     platformStatus: string,
   ): Promise<void> {
     const status = mapPlatformStatus(platformStatus);
+    const before = await this.prisma.order.findFirst({
+      where: {
+        organizationId,
+        platform,
+        platformOrderId,
+        deletedAt: null,
+      },
+      select: { id: true, status: true },
+    });
     await this.prisma.order.updateMany({
       where: {
         organizationId,
@@ -384,6 +431,12 @@ export class OrderService {
       },
       data: { status, syncedAt: new Date() },
     });
+    if (before && before.status !== status) {
+      void this.outboundWebhookService.dispatch(organizationId, 'order.status_changed', {
+        orderId: before.id,
+        status,
+      });
+    }
     await this.cache.invalidateReportsForOrg(organizationId);
   }
 

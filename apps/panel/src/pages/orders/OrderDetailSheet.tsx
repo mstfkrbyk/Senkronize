@@ -1,4 +1,4 @@
-import { CheckCircle2, Circle, ExternalLink, FileDown, Loader2 } from 'lucide-react';
+import { CheckCircle2, Circle, ExternalLink, FileDown, Loader2, PackageSearch } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -9,6 +9,14 @@ import { InvoicePreview } from '@/components/InvoicePreview';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -34,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
 import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
@@ -41,6 +50,16 @@ import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { useAuthStore } from '@/store/auth.store';
 import type { Order, OrderStatus } from '@/types/order';
+
+interface CargoRateComparisonRow {
+  connectionId: string;
+  provider: string;
+  providerLabel: string;
+  price: number;
+  currency: string;
+  serviceName: string;
+  estimatedTransitDays?: number;
+}
 
 interface Props {
   order: Order | null;
@@ -100,6 +119,14 @@ function formatTry(amount: string, currency: string): string {
   }).format(Number(amount));
 }
 
+function formatMoney(amount: number, currency: string): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: currency || 'TRY',
+    minimumFractionDigits: 2,
+  }).format(amount);
+}
+
 function formatDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('tr-TR', {
@@ -124,6 +151,8 @@ export function OrderDetailSheet({
   const [tracking, setTracking] = useState('');
   const [provider, setProvider] = useState('');
   const [erpConnectionId, setErpConnectionId] = useState('');
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelNote, setCancelNote] = useState('');
 
   const activeErpConnections = useMemo(
     () => (erpConnectionsQuery.data ?? []).filter((c) => c.isActive),
@@ -161,14 +190,13 @@ export function OrderDetailSheet({
       const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
       return res.data as Blob;
     },
-    onSuccess: (blob, orderId) => {
+    onSuccess: () => {
       const url = URL.createObjectURL(blob);
       window.open(url, '_blank', 'noopener,noreferrer');
       setTimeout(() => {
         URL.revokeObjectURL(url);
       }, 120_000);
       toast.success('Fatura PDF açıldı');
-      void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -200,6 +228,68 @@ export function OrderDetailSheet({
     },
   });
 
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+
+  const compareRatesQuery = useQuery({
+    queryKey: ['cargo', 'rates', 'compare', displayOrder?.id],
+    queryFn: async (): Promise<CargoRateComparisonRow[]> => {
+      const { data } = await api.post<CargoRateComparisonRow[]>(`/cargo/rates/compare`, {
+        orderId: displayOrder!.id,
+      });
+      return data;
+    },
+    enabled: compareDialogOpen && !!displayOrder?.id,
+  });
+
+  const shipFromCompareMutation = useMutation({
+    mutationFn: async (row: CargoRateComparisonRow): Promise<void> => {
+      if (!displayOrder) {
+        throw new Error('Sipariş seçilmedi');
+      }
+      await api.post(`/cargo/shipments`, {
+        orderId: displayOrder.id,
+        cargoProvider: row.provider,
+      });
+    },
+    onSuccess: async () => {
+      toast.success('Gönderi oluşturuldu ve takip numarası kaydedildi');
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (displayOrder) {
+        void queryClient.invalidateQueries({
+          queryKey: ['orders', 'detail', displayOrder.id],
+        });
+        const { data: refreshed } = await api.get<Order>(`/orders/${displayOrder.id}`);
+        onCargoUpdated?.(refreshed);
+      }
+      setCompareDialogOpen(false);
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+
+  const cancellationRequestMutation = useMutation({
+    mutationFn: async (args: { orderId: string; note: string }): Promise<Order> => {
+      const { data } = await api.post<Order>(
+        `/orders/${args.orderId}/cancellation-request`,
+        { note: args.note.trim().length > 0 ? args.note.trim() : undefined },
+      );
+      return data;
+    },
+    onSuccess: (updated) => {
+      toast.success('İptal talebi kaydedildi');
+      setCancelDialogOpen(false);
+      setCancelNote('');
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['orders', 'detail', updated.id],
+      });
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+
   const canEditCargo =
     displayOrder &&
     !['CANCELLED', 'DELIVERED', 'RETURNED'].includes(displayOrder.status);
@@ -217,7 +307,12 @@ export function OrderDetailSheet({
     ? statusRank(displayOrder.status)
     : 0;
 
+  const canRequestCancellation =
+    !!displayOrder &&
+    !['CANCELLED', 'DELIVERED', 'RETURNED'].includes(displayOrder.status);
+
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       {order ? (
         <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-lg">
@@ -495,6 +590,25 @@ export function OrderDetailSheet({
               ) : null}
 
               <div className="rounded-lg border p-4">
+                <p className="text-sm font-medium">Kargo gönder</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Bağlı kargo hesaplarından fiyatları karşılaştırıp gönderi oluşturabilirsiniz.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="mt-3 w-full gap-2"
+                  disabled={!canEditCargo || !displayOrder}
+                  onClick={() => {
+                    setCompareDialogOpen(true);
+                  }}
+                >
+                  <PackageSearch className="h-4 w-4 shrink-0" aria-hidden />
+                  Kargo gönder
+                </Button>
+              </div>
+
+              <div className="rounded-lg border p-4">
                 <p className="text-sm font-medium">Kargo bilgisi güncelle</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Takip numarası ve kargo firması girerek siparişi kargoda olarak
@@ -550,5 +664,90 @@ export function OrderDetailSheet({
         </SheetContent>
       ) : null}
     </Sheet>
+
+    <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Kargo fiyat karşılaştırması</DialogTitle>
+          <DialogDescription>
+            Aktif kargo bağlantılarınızdan anlık teklif alınır (UPS, DHL, FedEx gibi
+            fiyat API’si olan firmalar listelenir).
+          </DialogDescription>
+        </DialogHeader>
+        {compareRatesQuery.isPending ? (
+          <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+            Fiyatlar yükleniyor…
+          </div>
+        ) : null}
+        {compareRatesQuery.isError ? (
+          <p className="py-4 text-sm text-destructive">
+            {getApiErrorMessage(compareRatesQuery.error)}
+          </p>
+        ) : null}
+        {compareRatesQuery.data && compareRatesQuery.data.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">
+            Gösterilecek fiyat teklifi yok. Kargo bağlantılarınızı kontrol edin veya bu
+            firmalar fiyat API’sini desteklemiyor olabilir.
+          </p>
+        ) : null}
+        {compareRatesQuery.data && compareRatesQuery.data.length > 0 ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Firma</TableHead>
+                  <TableHead>Hizmet</TableHead>
+                  <TableHead className="w-20">Süre</TableHead>
+                  <TableHead className="text-right">Fiyat</TableHead>
+                  <TableHead className="w-28 text-right">İşlem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {compareRatesQuery.data.map((row) => (
+                  <TableRow key={`${row.connectionId}-${row.serviceName}`}>
+                    <TableCell className="font-medium">{row.providerLabel}</TableCell>
+                    <TableCell className="max-w-[140px] truncate text-xs">
+                      {row.serviceName}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {row.estimatedTransitDays != null
+                        ? `${String(row.estimatedTransitDays)} gün`
+                        : '—'}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm">
+                      {formatMoney(row.price, row.currency)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="default"
+                        disabled={shipFromCompareMutation.isPending}
+                        onClick={() => {
+                          shipFromCompareMutation.mutate(row);
+                        }}
+                      >
+                        {shipFromCompareMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                        ) : (
+                          'Seç ve gönder'
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setCompareDialogOpen(false)}>
+            Kapat
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

@@ -14,6 +14,7 @@ export interface ProductListItem {
   description: string | null;
   brand: string | null;
   category: string | null;
+  categoryId?: string | null;
   costPrice: unknown;
   tags: string[];
   imageUrls: string[];

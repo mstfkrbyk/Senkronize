@@ -249,6 +249,8 @@ export class BuyBoxService {
         ? Number(productRow.costPrice)
         : currentPrice * 0.65;
 
+    const minMarginPct = 15;
+
     const suggestedPrice = this.calculateOptimalPrice({
       currentPrice,
       costPrice: costGuess > 0 ? costGuess : currentPrice * 0.65,

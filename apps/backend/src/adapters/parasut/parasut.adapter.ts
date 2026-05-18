@@ -4,6 +4,8 @@ import axios, { AxiosInstance } from 'axios';
 
 import { PARASUT_AUTH_URL, PARASUT_BASE_URL } from './parasut.constants';
 import type {
+  ParasutContactsResponse,
+  ParasutEInvoice,
   ParasutInvoice,
   ParasutProductsResponse,
   ParasutTokenResponse,
@@ -78,16 +80,64 @@ export class ParasutAdapter implements IErpAdapter {
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
     const client = await this.getClient(credentials);
-    const { data } = await client.get<ParasutProductsResponse>('/products', {
-      params: { 'page[size]': 250, 'page[number]': 1 },
+    const out: ErpProduct[] = [];
+    let page = 1;
+    let totalPages = 1;
+    do {
+      const { data } = await client.get<ParasutProductsResponse>('/products', {
+        params: { 'page[size]': 250, 'page[number]': page },
+      });
+      for (const p of data.data) {
+        out.push({
+          erpProductId: p.id,
+          barcode: p.attributes.code,
+          name: p.attributes.name,
+          stockQuantity: 0,
+          purchasePrice: p.attributes.purchase_price,
+        });
+      }
+      totalPages = data.meta?.total_pages ?? 1;
+      page += 1;
+    } while (page <= totalPages);
+    return out;
+  }
+
+  /**
+   * Müşteri (cari) arama — `GET /contacts?q=...`
+   */
+  async searchContacts(
+    credentials: Record<string, string>,
+    nameQuery: string,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const client = await this.getClient(credentials);
+    const { data } = await client.get<ParasutContactsResponse>('/contacts', {
+      params: { q: nameQuery, 'page[size]': 50, 'page[number]': 1 },
     });
-    return data.data.map((p) => ({
-      erpProductId: p.id,
-      barcode: p.attributes.code,
-      name: p.attributes.name,
-      stockQuantity: 0,
-      purchasePrice: p.attributes.purchase_price,
+    return (data.data ?? []).map((c) => ({
+      id: c.id,
+      name:
+        c.attributes.name ??
+        c.attributes.title ??
+        c.attributes.email ??
+        c.id,
     }));
+  }
+
+  /**
+   * E-fatura gönderimi — `POST /e_invoices` (JSON:API gövdesi)
+   */
+  async sendEInvoice(
+    credentials: Record<string, string>,
+    attributes: Record<string, unknown>,
+  ): Promise<ParasutEInvoice> {
+    const client = await this.getClient(credentials);
+    const { data } = await client.post<{ data: ParasutEInvoice }>('/e_invoices', {
+      data: {
+        type: 'e_invoices',
+        attributes,
+      },
+    });
+    return data.data;
   }
 
   async createInvoice(

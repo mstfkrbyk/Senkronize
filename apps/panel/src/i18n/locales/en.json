@@ -5,6 +5,7 @@
     "products": "Products",
     "listings": "Listings",
     "stock": "Inventory",
+    "stockForecast": "Stock forecast",
     "stockCount": "Stock count",
     "pricing": "Pricing",
     "reports": "Reports",
@@ -17,6 +18,8 @@
     "partner": "Partner dashboard",
     "settings": "Settings",
     "suppliers": "Suppliers",
+    "purchaseOrders": "Purchase orders",
+    "supply": "Supply",
     "returns": "Returns",
     "menu": "Menu",
     "live": "live",
@@ -60,7 +63,8 @@
     "shipped": "Shipped",
     "delivered": "Delivered",
     "cancelled": "Cancelled",
-    "returned": "Returned"
+    "returned": "Returned",
+    "openDetail": "Open details"
   },
   "dashboard": {
     "totalRevenue": "Total Revenue",

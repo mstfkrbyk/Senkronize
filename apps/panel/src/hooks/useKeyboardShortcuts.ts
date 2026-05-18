@@ -54,7 +54,7 @@ export function useKeyboardShortcuts(): void {
         return;
       }
 
-      if (e.key === '/' && e.key.length === 1) {
+      if (e.key === '/') {
         e.preventDefault();
         openQuickSearchFromShortcut();
         buffer = '';

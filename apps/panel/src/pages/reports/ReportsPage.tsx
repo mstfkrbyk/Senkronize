@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { Printer } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   CartesianGrid,
   Legend,
@@ -14,6 +15,7 @@ import {
 } from 'recharts';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -38,7 +40,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { getApiErrorMessage } from '@/lib/api';
+import { api, getApiErrorMessage } from '@/lib/api';
 import { exportToCsv } from '@/lib/csv-export';
 import { printReport } from '@/lib/pdf-export';
 import { useAuthStore } from '@/store/auth.store';
@@ -55,6 +57,7 @@ import {
   useStockValueReport,
   useTopProducts,
 } from './hooks/useReports';
+import { useVatReport } from './hooks/useVatReport';
 import {
   aggregateSalesByGroup,
   filterSalesByDateRange,
@@ -106,6 +109,9 @@ export function ReportsPage(): ReactElement {
     'daily' | 'weekly' | 'monthly'
   >('daily');
 
+  const [vatYear, setVatYear] = useState(() => new Date().getFullYear());
+  const [vatMonth, setVatMonth] = useState(() => new Date().getMonth() + 1);
+
   const filters: ReportFilters = useMemo(
     () => ({
       startDate: startDate || undefined,
@@ -144,6 +150,12 @@ export function ReportsPage(): ReactElement {
     { startDate, endDate },
     { enabled: activeTab === 'platform' },
   );
+
+  const vatQuery = useVatReport({
+    year: vatYear,
+    month: vatMonth,
+    enabled: activeTab === 'vat',
+  });
 
   const chartRows = useMemo(() => {
     const rows = salesQuery.data?.rows ?? [];
@@ -254,6 +266,7 @@ export function ReportsPage(): ReactElement {
           <TabsTrigger value="stock">Stok değeri</TabsTrigger>
           <TabsTrigger value="trend">Sipariş trendi</TabsTrigger>
           <TabsTrigger value="platform">Platform karşılaştırma</TabsTrigger>
+          <TabsTrigger value="vat">Vergi raporu</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -1144,6 +1157,208 @@ export function ReportsPage(): ReactElement {
             </CardContent>
           </Card>
         </div>
+        </TabsContent>
+
+        <TabsContent value="vat">
+          <div className="space-y-6">
+            {vatQuery.isError ? (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                {getApiErrorMessage(vatQuery.error)}
+              </div>
+            ) : null}
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Dönem seçimi</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-end gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vat-year">Yıl</Label>
+                  <Input
+                    id="vat-year"
+                    type="number"
+                    min={2000}
+                    max={2100}
+                    className="w-28"
+                    value={vatYear}
+                    onChange={(e) => {
+                      setVatYear(Number(e.target.value));
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vat-month">Ay</Label>
+                  <Select
+                    value={String(vatMonth)}
+                    onValueChange={(v) => {
+                      setVatMonth(Number(v));
+                    }}
+                  >
+                    <SelectTrigger id="vat-month" className="w-40">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <SelectItem key={m} value={String(m)}>
+                          {String(m).padStart(2, '0')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-2"
+                  disabled={vatQuery.isFetching}
+                  onClick={() => {
+                    void (async (): Promise<void> => {
+                      try {
+                        const res = await api.get('/reports/vat/export', {
+                          params: { year: vatYear, month: vatMonth, format: 'csv' },
+                          responseType: 'blob',
+                        });
+                        const blob = new Blob([res.data as BlobPart], {
+                          type: 'text/csv;charset=utf-8;',
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `kdv-raporu-${vatYear}-${String(vatMonth).padStart(2, '0')}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (err: unknown) {
+                        toast.error(getApiErrorMessage(err));
+                      }
+                    })();
+                  }}
+                >
+                  <Download className="h-4 w-4" aria-hidden />
+                  CSV İndir
+                </Button>
+              </CardContent>
+            </Card>
+
+            {vatQuery.isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-32 w-full" />
+              </div>
+            ) : vatQuery.data ? (
+              <>
+                <p className="text-xs text-muted-foreground">{vatQuery.data.reportingNote}</p>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Brüt satış (KDV dahil)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {formatTry(vatQuery.data.grossSales)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        KDV tutarı
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {formatTry(vatQuery.data.vatAmount)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Net satış
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-2xl font-semibold text-primary">
+                        {formatTry(vatQuery.data.netSales)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Platform bazında</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {vatQuery.data.byPlatform.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Bu dönemde kayıt yok.</p>
+                    ) : (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Platform</TableHead>
+                              <TableHead className="text-right">Sipariş</TableHead>
+                              <TableHead className="text-right">Brüt</TableHead>
+                              <TableHead className="text-right">KDV</TableHead>
+                              <TableHead className="text-right">Net</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {vatQuery.data.byPlatform.map((row) => (
+                              <TableRow key={row.platform}>
+                                <TableCell className="font-medium">{row.platform}</TableCell>
+                                <TableCell className="text-right">{row.orderCount}</TableCell>
+                                <TableCell className="text-right">{formatTry(row.grossSales)}</TableCell>
+                                <TableCell className="text-right">{formatTry(row.vatAmount)}</TableCell>
+                                <TableCell className="text-right">{formatTry(row.netSales)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">KDV oranı kırılımı</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {vatQuery.data.byVatRate.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Oran kırılımı yok.</p>
+                    ) : (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Oran %</TableHead>
+                              <TableHead className="text-right">Brüt</TableHead>
+                              <TableHead className="text-right">KDV</TableHead>
+                              <TableHead className="text-right">Net</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {vatQuery.data.byVatRate.map((row) => (
+                              <TableRow key={row.vatRatePercent}>
+                                <TableCell className="font-medium">{row.vatRatePercent}%</TableCell>
+                                <TableCell className="text-right">{formatTry(row.grossSales)}</TableCell>
+                                <TableCell className="text-right">{formatTry(row.vatAmount)}</TableCell>
+                                <TableCell className="text-right">{formatTry(row.netSales)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </>
+            ) : null}
+          </div>
         </TabsContent>
       </Tabs>
         </TabsContent>

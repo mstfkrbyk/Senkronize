@@ -39,6 +39,7 @@ import type {
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
   SchedulePricingRuleDto,
+  SimulatePriceDto,
   SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
@@ -600,6 +601,105 @@ export class PricingService {
     );
 
     return { suggestedPrice, strategy: rule.strategy };
+  }
+
+  async getBuyBoxReport(organizationId: string): Promise<BuyBoxReportResult> {
+    return this.buybox.getBuyBoxReport(organizationId);
+  }
+
+  async getBuyBoxHistoryForListing(
+    organizationId: string,
+    listingId: string,
+    days: number,
+  ): Promise<BuyBoxHistoryRow[]> {
+    return this.buybox.getBuyBoxHistory(organizationId, listingId, days);
+  }
+
+  async detectBuyBoxStatus(
+    organizationId: string,
+    listingId: string,
+  ): Promise<BuyBoxStatus> {
+    return this.buybox.detectBuyBoxWinner(organizationId, listingId);
+  }
+
+  async simulatePrice(
+    organizationId: string,
+    dto: SimulatePriceDto,
+  ): Promise<{
+    currentPrice: number;
+    simulatedPrice: number;
+    marginImpact: {
+      currentMarginPct: number | null;
+      simulatedMarginPct: number | null;
+    };
+    estimatedBuyBoxProbability: number;
+    estimatedRevenueDelta: number;
+    referenceLowestPrice: number;
+  }> {
+    const listing = await this.prisma.listing.findFirst({
+      where: { id: dto.listingId, organizationId, deletedAt: null },
+      include: { product: { select: { costPrice: true } } },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listeleme bulunamadı');
+    }
+
+    const currentPrice = Number(listing.salePrice);
+    const simulatedPrice = Math.round(dto.salePrice * 100) / 100;
+    const costRaw =
+      dto.costPrice ??
+      (listing.product?.costPrice != null
+        ? Number(listing.product.costPrice)
+        : null);
+
+    const baseline = await this.buybox.detectBuyBoxWinner(
+      organizationId,
+      listing.id,
+    );
+
+    const referenceLowest = baseline.lowestCompetitorPrice;
+
+    const marginOf = (price: number, cost: number | null): number | null => {
+      if (cost === null || cost <= 0 || price <= 0) {
+        return null;
+      }
+      return Math.round(((price - cost) / price) * 10_000) / 100;
+    };
+
+    const marginImpact = {
+      currentMarginPct: marginOf(currentPrice, costRaw),
+      simulatedMarginPct: marginOf(simulatedPrice, costRaw),
+    };
+
+    let estimatedBuyBoxProbability = 0.5;
+    if (referenceLowest > 0) {
+      if (simulatedPrice <= referenceLowest + 0.01) {
+        estimatedBuyBoxProbability = 0.88;
+      } else {
+        const over = (simulatedPrice - referenceLowest) / referenceLowest;
+        estimatedBuyBoxProbability = Math.max(0.04, 0.88 - over * 1.6);
+      }
+    }
+
+    const velocity = await this.buybox.getVelocityPerDay(
+      organizationId,
+      listing.barcode,
+      listing.platform,
+    );
+    const demandUnits = Math.max(velocity, 0.5);
+    const estimatedRevenueDelta =
+      Math.round((simulatedPrice - currentPrice) * demandUnits * 7 * 100) /
+      100;
+
+    return {
+      currentPrice,
+      simulatedPrice,
+      marginImpact,
+      estimatedBuyBoxProbability:
+        Math.round(estimatedBuyBoxProbability * 1000) / 1000,
+      estimatedRevenueDelta,
+      referenceLowestPrice: referenceLowest,
+    };
   }
 
   async findPriceHistoryByBarcode(

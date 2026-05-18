@@ -8,8 +8,7 @@ import {
   type WebhookDelivery,
   type WebhookEndpoint,
 } from '@prisma/client';
-import type { Job } from 'bull';
-import type { Queue } from 'bull';
+import type { Job, Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -110,7 +109,7 @@ export class OutboundWebhookService {
   async testEndpoint(orgId: string, id: string): Promise<WebhookDelivery> {
     const endpoint = await this.requireEndpoint(orgId, id);
     const payload = {
-      event: 'test' as const,
+      event: 'test',
       timestamp: new Date().toISOString(),
     };
     return this.deliverOnce(endpoint, 'test', payload, 1);
@@ -179,7 +178,7 @@ export class OutboundWebhookService {
         data: {
           endpointId: endpoint.id,
           event,
-          payload: { skipped: true, reason: 'inactive' } as object,
+          payload: { skipped: true, reason: 'inactive' },
           status: DeliveryStatus.FAILED,
           attempt,
         },
@@ -257,32 +256,6 @@ export class OutboundWebhookService {
     );
     if (delivery.status !== DeliveryStatus.SUCCESS) {
       throw new Error('Webhook teslimatı başarısız');
-    }
-  }
-
-  async markFinalFailureFromJob(job: Job<WebhookDeliveryJobData>): Promise<void> {
-    try {
-      const latest = await this.prisma.webhookDelivery.findFirst({
-        where: {
-          endpointId: job.data.endpointId,
-          event: job.data.event,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (
-        latest &&
-        latest.status !== DeliveryStatus.SUCCESS &&
-        latest.status !== DeliveryStatus.FAILED
-      ) {
-        await this.prisma.webhookDelivery.update({
-          where: { id: latest.id },
-          data: { status: DeliveryStatus.FAILED },
-        });
-      }
-    } catch (error) {
-      this.logger.warn('Webhook teslimatı son hata güncellenemedi', {
-        message: error instanceof Error ? error.message : 'unknown',
-      });
     }
   }
 

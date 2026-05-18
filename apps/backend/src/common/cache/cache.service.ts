@@ -66,6 +66,75 @@ export class CacheService implements OnModuleDestroy {
     }
   }
 
+  /** Ham Redis INCR + ilk çağrıda EXPIRE (güvenlik sayaçları için). */
+  async incrWithExpire(key: string, expirySeconds: number): Promise<number | null> {
+    if (!this.redis) {
+      return null;
+    }
+    try {
+      const n = await this.redis.incr(key);
+      if (n === 1) {
+        await this.redis.expire(key, expirySeconds);
+      }
+      return n;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Redis incr failed: ${message}`);
+      return null;
+    }
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<void> {
+    if (!this.redis || members.length === 0) {
+      return;
+    }
+    try {
+      await this.redis.sadd(key, ...members);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Redis sadd failed: ${message}`);
+    }
+  }
+
+  async srem(key: string, ...members: string[]): Promise<void> {
+    if (!this.redis || members.length === 0) {
+      return;
+    }
+    try {
+      await this.redis.srem(key, ...members);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Redis srem failed: ${message}`);
+    }
+  }
+
+  async sismember(key: string, member: string): Promise<boolean | null> {
+    if (!this.redis) {
+      return null;
+    }
+    try {
+      const r = await this.redis.sismember(key, member);
+      return r === 1;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(`Redis sismember failed: ${message}`);
+      return null;
+    }
+  }
+
+  async smembers(key: string): Promise<string[] | null> {
+    if (!this.redis) {
+      return null;
+    }
+    try {
+      return await this.redis.smembers(key);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(`Redis smembers failed: ${message}`);
+      return null;
+    }
+  }
+
   /**
    * SCAN ile anahtar silme (KEYS yerine; üretim yükü için daha güvenli).
    */

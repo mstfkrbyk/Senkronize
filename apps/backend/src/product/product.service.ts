@@ -13,6 +13,7 @@ import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 
 import {
   CreateProductDto,
@@ -110,6 +111,7 @@ export class ProductService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly outboundWebhookService: OutboundWebhookService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -336,6 +338,9 @@ export class ProductService {
         },
       });
       await this.cache.invalidateProductsForOrg(organizationId);
+      void this.outboundWebhookService.dispatch(organizationId, 'product.updated', {
+        productId: id,
+      });
       return updated;
     } catch (error) {
       if (

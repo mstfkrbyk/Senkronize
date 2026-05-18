@@ -9,4 +9,6 @@ export interface DashboardSummaryDto {
   windowOrders: number;
   windowOrdersPrev: number;
   windowOrdersDeltaPct: number;
+  returnsThisMonth: number;
+  returnRatePct: number;
 }

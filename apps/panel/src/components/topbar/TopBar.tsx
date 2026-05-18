@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -17,16 +18,23 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { NAV_ITEMS } from '@/constants/navigation';
+import { ALL_NAV_ITEMS_FOR_TITLE } from '@/constants/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth.store';
 import { useUiStore } from '@/store/ui.store';
 
-function pageTitleFromPath(pathname: string): string {
-  const item = NAV_ITEMS.find((n) => n.path === pathname);
-  return item?.label ?? 'Panel';
+function pageTitleFromPath(
+  pathname: string,
+  t: (key: string) => string,
+): string {
+  const item = ALL_NAV_ITEMS_FOR_TITLE.find(
+    (n) =>
+      pathname === n.path ||
+      (n.path !== '/' && pathname.startsWith(`${n.path}/`)),
+  );
+  return item ? t(item.labelKey) : t('common.panel');
 }
 
 function initials(name: string, email: string): string {
@@ -42,6 +50,7 @@ function initials(name: string, email: string): string {
 }
 
 export function TopBar(): ReactElement {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -53,7 +62,7 @@ export function TopBar(): ReactElement {
 
   const org = data?.organization ?? storeOrg;
   const user = data?.user ?? storeUser;
-  const title = pageTitleFromPath(location.pathname);
+  const title = pageTitleFromPath(location.pathname, t);
 
   const handleLogout = async (): Promise<void> => {
     const rt = useAuthStore.getState().refreshToken;
@@ -76,7 +85,9 @@ export function TopBar(): ReactElement {
       <SidebarTrigger className="-ml-1 text-foreground" />
       <Separator orientation="vertical" className="mr-1 h-6" />
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-xs text-muted-foreground">Konum</span>
+        <span className="truncate text-xs text-muted-foreground">
+          {t('common.location')}
+        </span>
         <span className="truncate text-sm font-semibold text-foreground">
           {title}
         </span>

@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   compress: true,
   poweredByHeader: false,
+  i18n: {
+    locales: ['tr', 'en'],
+    defaultLocale: 'tr',
+    localeDetection: true,
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200],

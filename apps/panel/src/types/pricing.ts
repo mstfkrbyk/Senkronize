@@ -1,3 +1,36 @@
+export interface PriceSimulationResult {
+  currentPrice: number;
+  simulatedPrice: number;
+  marginImpact: {
+    currentMarginPct: number | null;
+    simulatedMarginPct: number | null;
+  };
+  estimatedBuyBoxProbability: number;
+  estimatedRevenueDelta: number;
+  referenceLowestPrice: number;
+}
+
+export interface BuyBoxReportTopLoser {
+  listingId: string;
+  title: string;
+  barcode: string;
+  platform: string;
+  isWinner: boolean;
+  currentPrice: number;
+  lowestCompetitorPrice: number;
+  buyBoxReferencePrice: number;
+  priceGap: number;
+  potentialRevenueLoss: number;
+}
+
+export interface BuyBoxReport {
+  totalListings: number;
+  buyBoxCount: number;
+  winRate: number;
+  potentialRevenueLoss: number;
+  topLosers: BuyBoxReportTopLoser[];
+}
+
 export type PricingStrategy =
   | 'MATCH_BUYBOX'
   | 'BEAT_BUYBOX'

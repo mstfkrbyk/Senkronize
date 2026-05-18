@@ -5,6 +5,7 @@
     "products": "Ürünler",
     "listings": "İlanlar",
     "stock": "Stok",
+    "stockForecast": "Stok tahmini",
     "stockCount": "Stok sayımı",
     "pricing": "Fiyatlandırma",
     "reports": "Raporlar",
@@ -17,6 +18,8 @@
     "partner": "Partner Paneli",
     "settings": "Ayarlar",
     "suppliers": "Tedarikçiler",
+    "purchaseOrders": "Satın Alma Siparişleri",
+    "supply": "Tedarik",
     "returns": "İadeler",
     "menu": "Menü",
     "live": "canlı",
@@ -60,7 +63,8 @@
     "shipped": "Kargoda",
     "delivered": "Teslim Edildi",
     "cancelled": "İptal",
-    "returned": "İade"
+    "returned": "İade",
+    "openDetail": "Detayı aç"
   },
   "dashboard": {
     "totalRevenue": "Toplam Gelir",

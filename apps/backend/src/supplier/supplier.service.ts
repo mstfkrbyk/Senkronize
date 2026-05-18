@@ -7,7 +7,7 @@ import type { CreateSupplierDto, SupplierQueryDto, UpdateSupplierDto } from './s
 
 export interface SupplierListRow extends Supplier {
   orderCount: number;
-  totalSpend: Prisma.Decimal;
+  totalSpend: string;
 }
 
 export interface SupplierStats {
@@ -82,7 +82,7 @@ export class SupplierService {
         return {
           ...s,
           orderCount: agg._count.id,
-          totalSpend: agg._sum.totalAmount ?? new Prisma.Decimal(0),
+          totalSpend: (agg._sum.totalAmount ?? new Prisma.Decimal(0)).toFixed(2),
         };
       }),
     );

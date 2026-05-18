@@ -49,6 +49,14 @@ export interface ErpToCloudSyncResult {
   message: string;
 }
 
+export interface ErpSyncEngineResult {
+  productsSynced: number;
+  ordersPushed: number;
+  errors: string[];
+  durationMs: number;
+  syncedAt: string;
+}
+
 export interface SyncStatusResponse {
   intervalMinutes: number;
   lastSync: string | null;
@@ -62,6 +70,8 @@ export interface UpdateCheckResponse {
   downloadUrl: string | null;
   releaseNotes: string | null;
 }
+
+export type TrayIndicatorMode = 'idle' | 'syncing' | 'error';
 
 export const tauriApi = {
   saveToken: (payload: TokenPayload): Promise<void> =>
@@ -102,6 +112,32 @@ export const tauriApi = {
     cloudApiKey: string;
   }): Promise<ErpToCloudSyncResult> => invoke<ErpToCloudSyncResult>('sync_erp_to_cloud', args),
 
+  syncErpProducts: (args: {
+    erpType: string;
+    credentials: Record<string, unknown>;
+    cloudApiUrl: string;
+    apiKey: string;
+  }): Promise<ErpSyncEngineResult> =>
+    invoke<ErpSyncEngineResult>('sync_erp_products', {
+      erp_type: args.erpType,
+      credentials: args.credentials,
+      cloud_api_url: args.cloudApiUrl,
+      api_key: args.apiKey,
+    }),
+
+  syncErpOrders: (args: {
+    erpType: string;
+    credentials: Record<string, unknown>;
+    cloudApiUrl: string;
+    apiKey: string;
+  }): Promise<ErpSyncEngineResult> =>
+    invoke<ErpSyncEngineResult>('sync_erp_orders', {
+      erp_type: args.erpType,
+      credentials: args.credentials,
+      cloud_api_url: args.cloudApiUrl,
+      api_key: args.apiKey,
+    }),
+
   startAutoSync: (intervalMinutes: number): Promise<void> =>
     invoke<void>('start_auto_sync', { interval_minutes: intervalMinutes }),
 
@@ -112,6 +148,9 @@ export const tauriApi = {
   recordLastSync: (atRfc3339?: string | null): Promise<void> =>
     invoke<void>('record_last_sync', { at_rfc3339: atRfc3339 ?? null }),
 
-  checkForUpdates: (): Promise<UpdateCheckResponse> =>
-    invoke<UpdateCheckResponse>('check_for_updates'),
+  checkForUpdates: (cloudBaseUrl?: string | null): Promise<UpdateCheckResponse> =>
+    invoke<UpdateCheckResponse>('check_for_updates', { cloud_base_url: cloudBaseUrl ?? null }),
+
+  setTrayIndicator: (mode: TrayIndicatorMode): Promise<void> =>
+    invoke<void>('set_tray_indicator', { mode }),
 };

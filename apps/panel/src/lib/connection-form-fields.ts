@@ -1054,14 +1054,16 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         label: 'Sunucu',
         type: 'text',
         placeholder: '192.168.1.10',
-        required: true,
+        required: false,
+        hint: 'baseUrl boşsa zorunludur.',
       },
       {
         key: 'port',
         label: 'Port',
         type: 'number',
-        required: true,
+        required: false,
         defaultValue: '50000',
+        hint: 'baseUrl doluysa yok sayılabilir.',
       },
       {
         key: 'useHttps',

@@ -189,7 +189,7 @@ export class InvoiceService {
       for (const id of uniqueIds) {
         const { order, org } = await this.loadOrderWithOrg(organizationId, id);
         const html = this.generateInvoiceHtml(order, org);
-        await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60_000 });
+        await page.setContent(html, { waitUntil: 'load', timeout: 60_000 });
         const pdf = await page.pdf({
           format: 'A4',
           printBackground: true,
@@ -233,7 +233,7 @@ export class InvoiceService {
     const browser = await this.launchBrowser();
     try {
       const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60_000 });
+      await page.setContent(html, { waitUntil: 'load', timeout: 60_000 });
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,

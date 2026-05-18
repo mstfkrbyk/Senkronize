@@ -1,4 +1,4 @@
-import { OrgType, type PlanTier } from '@prisma/client';
+import { OrgType } from '@prisma/client';
 
 import type { RegisterDto } from '../../src/auth/auth.dto';
 
@@ -26,11 +26,4 @@ export function buildRegisterDto(
 
 export function uniqueTaxNumber(): string {
   return `9${Date.now().toString().slice(-9)}`.padStart(10, '0').slice(0, 10);
-}
-
-export function withPlan(
-  dto: RegisterDto,
-  plan: PlanTier,
-): RegisterDto {
-  return { ...dto, plan };
 }

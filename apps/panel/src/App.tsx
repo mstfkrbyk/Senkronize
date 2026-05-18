@@ -67,6 +67,11 @@ const AdminSubscriptionsPage = lazy(() =>
 const AuditLogPage = lazy(() =>
   import('@/pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 );
+const CategoriesPage = lazy(() =>
+  import('@/pages/categories/CategoriesPage').then((m) => ({
+    default: m.CategoriesPage,
+  })),
+);
 const ConnectionsPage = lazy(() =>
   import('@/pages/connections/ConnectionsPage').then((m) => ({
     default: m.ConnectionsPage,
@@ -93,6 +98,9 @@ const NotificationsPage = lazy(() =>
 const OrdersPage = lazy(() =>
   import('@/pages/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })),
 );
+const ReturnsPage = lazy(() =>
+  import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
+);
 const PartnerPage = lazy(() =>
   import('@/pages/partner/PartnerPage').then((m) => ({ default: m.PartnerPage })),
 );
@@ -107,6 +115,11 @@ const ProductDetailPage = lazy(() =>
 const ProductImportPage = lazy(() =>
   import('@/pages/products/ProductImportPage').then((m) => ({
     default: m.ProductImportPage,
+  })),
+);
+const ProductMatchingPage = lazy(() =>
+  import('@/pages/products/ProductMatchingPage').then((m) => ({
+    default: m.ProductMatchingPage,
   })),
 );
 const ProductsPage = lazy(() =>
@@ -128,8 +141,31 @@ const StockManagementPage = lazy(() =>
     default: m.StockManagementPage,
   })),
 );
+const StockForecastPage = lazy(() =>
+  import('@/pages/stock/StockForecastPage').then((m) => ({
+    default: m.StockForecastPage,
+  })),
+);
 const SyncLogsPage = lazy(() =>
   import('@/pages/sync-logs/SyncLogsPage').then((m) => ({ default: m.SyncLogsPage })),
+);
+const SuppliersPage = lazy(() =>
+  import('@/pages/suppliers/SuppliersPage').then((m) => ({ default: m.SuppliersPage })),
+);
+const SupplierDetailPage = lazy(() =>
+  import('@/pages/suppliers/SupplierDetailPage').then((m) => ({
+    default: m.SupplierDetailPage,
+  })),
+);
+const PurchaseOrdersPage = lazy(() =>
+  import('@/pages/suppliers/PurchaseOrdersPage').then((m) => ({
+    default: m.PurchaseOrdersPage,
+  })),
+);
+const PurchaseOrderDetailPage = lazy(() =>
+  import('@/pages/suppliers/PurchaseOrderDetailPage').then((m) => ({
+    default: m.PurchaseOrderDetailPage,
+  })),
 );
 
 function SentryUserSync(): null {
@@ -209,12 +245,20 @@ export default function App(): ReactElement {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/returns" element={<ReturnsPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
                 <Route path="/products/import" element={<ProductImportPage />} />
+                <Route path="/products/matching" element={<ProductMatchingPage />} />
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/stock/count" element={<StockCountPage />} />
+                <Route path="/stock/forecast" element={<StockForecastPage />} />
                 <Route path="/stock" element={<StockManagementPage />} />
+                <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
+                <Route path="/suppliers" element={<SuppliersPage />} />
+                <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
+                <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />

@@ -438,6 +438,26 @@ export class SimulatePricingRuleDto {
   hasBuyBox?: boolean;
 }
 
+export class SimulatePriceDto {
+  @ApiProperty({ description: 'Listeleme kimliği' })
+  @IsString()
+  @IsNotEmpty()
+  listingId!: string;
+
+  @ApiProperty({ description: 'Simüle edilecek satış fiyatı (TRY)' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  salePrice!: number;
+
+  @ApiPropertyOptional({ description: 'Maliyet (TRY); boşsa ürün maliyeti kullanılır' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  costPrice?: number;
+}
+
 export class ManualPriceUpdateDto {
   @ApiProperty()
   @IsString()

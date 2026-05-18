@@ -173,6 +173,10 @@ enum ErpType {
   EBA
   SAP_B1
   ISNET
+  MYSOFT
+  PROTEL
+  SIMPRA
+  LOGO_COMMERCE
 }
 
 enum EcommerceType {

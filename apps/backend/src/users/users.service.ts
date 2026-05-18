@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
+import Papa from 'papaparse';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogsQueryDto } from './audit-logs-query.dto';
@@ -729,5 +730,28 @@ export class UsersService {
         email: user.email,
       },
     });
+  }
+
+  async exportAuditLogsCsv(
+    organizationId: string,
+    query: AuditLogsQueryDto,
+  ): Promise<string> {
+    const page = await this.getAuditLogsPage(organizationId, {
+      ...query,
+      page: 1,
+      limit: 2000,
+    });
+    const rows = page.logs.map((l) => ({
+      id: l.id,
+      action: l.action,
+      resource: l.resource,
+      resourceId: l.resourceId ?? '',
+      userId: l.userId,
+      userEmail: l.userEmail ?? '',
+      userName: l.userName ?? '',
+      createdAt: l.createdAt,
+      metadata: JSON.stringify(l.metadata),
+    }));
+    return `\uFEFF${Papa.unparse(rows)}`;
   }
 }

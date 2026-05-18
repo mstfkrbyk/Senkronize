@@ -14,7 +14,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import { enUS, tr as trLocale } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
   Bar,
@@ -51,7 +52,8 @@ import { useTriggerManualSync } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
+import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { DashboardSummaryDto } from '@/types/dashboard-summary';
 import type { Order, OrderStatus } from '@/types/order';
@@ -133,9 +135,10 @@ function RecentOrderStatusBadge({
 }: {
   status: OrderStatus;
 }): ReactElement {
+  const { t } = useTranslation();
   return (
     <Badge variant="outline" className={orderStatusTone(status)}>
-      {ORDER_STATUS_LABEL_TR[status]}
+      {t(ORDER_STATUS_I18N_KEY[status])}
     </Badge>
   );
 }
@@ -183,7 +186,8 @@ function pendingOrdersTone(count: number): string {
 }
 
 export function DashboardPage(): ReactElement {
-  usePageTitle('Dashboard');
+  const { t, i18n } = useTranslation();
+  usePageTitle(t('dashboard.title'));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { socket } = useSocket();
@@ -248,12 +252,12 @@ export function DashboardPage(): ReactElement {
 
   const ordersCardTitle =
     kpiPeriod === 'default'
-      ? 'Bugünkü siparişler'
+      ? t('dashboard.ordersToday')
       : kpiPeriod === '24h'
-        ? 'Son 24 saat — sipariş'
+        ? t('dashboard.orders24h')
         : kpiPeriod === '7d'
-          ? 'Son 7 gün — sipariş'
-          : 'Bu ay — sipariş';
+          ? t('dashboard.orders7d')
+          : t('dashboard.ordersMonth');
 
   const ordersCount =
     kpiPeriod === 'default' ? dash?.todayOrders : dash?.windowOrders;
@@ -323,11 +327,9 @@ export function DashboardPage(): ReactElement {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Özet
+            {t('dashboard.title')}
           </h1>
-          <p className="text-muted-foreground">
-            Günlük operasyonlarınızın genel görünümü.
-          </p>
+          <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {(
@@ -410,20 +412,20 @@ export function DashboardPage(): ReactElement {
                   <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
                     {(ordersDeltaPct ?? 0) >= 0 ? (
                       <ArrowUpRight
-                        className="h-3.5 w-3.5 text-green-600"
+                        className="h-3.5 w-3.5 text-green-600 dark:text-green-400"
                         aria-hidden
                       />
                     ) : (
                       <ArrowDownRight
-                        className="h-3.5 w-3.5 text-red-600"
+                        className="h-3.5 w-3.5 text-red-600 dark:text-red-400"
                         aria-hidden
                       />
                     )}
                     <span
                       className={
                         (ordersDeltaPct ?? 0) >= 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
                       }
                     >
                       {(ordersDeltaPct ?? 0) >= 0 ? '+' : ''}
@@ -453,7 +455,7 @@ export function DashboardPage(): ReactElement {
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Bekleyen siparişler
+              {t('dashboard.pendingOrders')}
             </CardTitle>
             <div
               className={`rounded-full p-2 ring-2 ${KPI_ICON.orange.ring} bg-background`}
@@ -481,7 +483,9 @@ export function DashboardPage(): ReactElement {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Toplam ürün</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t('dashboard.totalProducts')}
+            </CardTitle>
             <div
               className={`rounded-full p-2 ring-2 ${KPI_ICON.green.ring} bg-background`}
             >
@@ -502,7 +506,7 @@ export function DashboardPage(): ReactElement {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Aktif bağlantılar
+              {t('dashboard.activeConnections')}
             </CardTitle>
             <div
               className={`rounded-full p-2 ring-2 ${KPI_ICON.purple.ring} bg-background`}
@@ -538,7 +542,9 @@ export function DashboardPage(): ReactElement {
           }}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Düşük stok</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {t('dashboard.lowStock')}
+            </CardTitle>
             <div
               className={`rounded-full p-2 ring-2 ${KPI_ICON.sky.ring} bg-background`}
             >
@@ -563,6 +569,75 @@ export function DashboardPage(): ReactElement {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card
+          role="button"
+          tabIndex={0}
+          className="cursor-pointer transition-colors hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => {
+            navigate('/returns');
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/returns');
+            }
+          }}
+        >
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Bu ay iade sayısı
+            </CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.orange.ring} bg-background`}
+            >
+              <Undo2 className={`h-4 w-4 ${KPI_ICON.orange.icon}`} aria-hidden />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <>
+                <p className="text-2xl font-bold tabular-nums">
+                  {dash?.returnsThisMonth?.toLocaleString('tr-TR') ?? '—'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  İade yönetimine gitmek için tıklayın
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">İade oranı</CardTitle>
+            <div
+              className={`rounded-full p-2 ring-2 ${KPI_ICON.purple.ring} bg-background`}
+            >
+              <Undo2 className={`h-4 w-4 ${KPI_ICON.purple.icon}`} aria-hidden />
+            </div>
+          </CardHeader>
+          <CardContent>
+            {kpiLoading ? (
+              <Skeleton className="h-9 w-24" />
+            ) : (
+              <>
+                <p className="text-2xl font-bold tabular-nums">
+                  {dash !== undefined
+                    ? `${String(dash.returnRatePct)}%`
+                    : '—'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Bu ayki siparişlere göre (takvim ayı)
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {dashboardSummaryQuery.isError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           {getApiErrorMessage(dashboardSummaryQuery.error)}
@@ -582,11 +657,11 @@ export function DashboardPage(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle>Haftalık siparişler</CardTitle>
+          <CardTitle>{t('dashboard.weeklyOrders')}</CardTitle>
           <CardDescription>
             {weeklySalesQuery.isError || weeklySalesQuery.isPending
-              ? 'Son 7 gün (örnek veri — rapor yüklenemedi veya bekleniyor)'
-              : 'Son 7 gün (günlük rapor)'}
+              ? t('dashboard.weeklyOrdersDescSample')
+              : t('dashboard.weeklyOrdersDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="h-64 w-full min-h-[14rem] sm:h-72">
@@ -632,8 +707,8 @@ export function DashboardPage(): ReactElement {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Son siparişler</CardTitle>
-            <CardDescription>Son 5 sipariş</CardDescription>
+            <CardTitle>{t('dashboard.recentOrders')}</CardTitle>
+            <CardDescription>{t('dashboard.recentOrdersDesc')}</CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             {recentOrdersQuery.isPending ? (
@@ -660,7 +735,8 @@ export function DashboardPage(): ReactElement {
             recentOrders.length === 0 ? (
               <EmptyState
                 title="Henüz sipariş yok"
-                description="Pazaryeri siparişleri çekildiğinde burada listelenecek."
+                description="Siparişlerinizi görmek için platformlarınızı bağlayın ve senkronizasyonu çalıştırın."
+                secondaryAction={{ label: 'Bağlantılara git', href: '/connections' }}
               />
             ) : null}
             {!recentOrdersQuery.isPending &&
@@ -669,11 +745,11 @@ export function DashboardPage(): ReactElement {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Pazaryeri</TableHead>
-                    <TableHead>Müşteri</TableHead>
-                    <TableHead className="text-right">Tutar</TableHead>
-                    <TableHead>Durum</TableHead>
-                    <TableHead>Tarih</TableHead>
+                    <TableHead>{t('common.platform')}</TableHead>
+                    <TableHead>{t('common.customer')}</TableHead>
+                    <TableHead className="text-right">{t('common.amount')}</TableHead>
+                    <TableHead>{t('common.status')}</TableHead>
+                    <TableHead>{t('common.date')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -703,8 +779,8 @@ export function DashboardPage(): ReactElement {
         <Card>
           <CardHeader className="flex flex-row items-start justify-between">
             <div>
-              <CardTitle>Senkron durumu</CardTitle>
-              <CardDescription>Canlı entegrasyon sağlığı</CardDescription>
+              <CardTitle>{t('dashboard.syncStatus')}</CardTitle>
+              <CardDescription>{t('dashboard.syncStatusDesc')}</CardDescription>
             </div>
             {syncQuery.isFetching ? (
               <RefreshCw
@@ -756,7 +832,7 @@ export function DashboardPage(): ReactElement {
                   const last = row.lastSuccessAt
                     ? formatDistanceToNow(new Date(row.lastSuccessAt), {
                         addSuffix: true,
-                        locale: tr,
+                        locale: i18n.language.startsWith('en') ? enUS : trLocale,
                       })
                     : 'Henüz senkron yok';
                   return (
@@ -776,7 +852,7 @@ export function DashboardPage(): ReactElement {
                             Son senkron: {last}
                           </p>
                           {row.errorCount > 0 ? (
-                            <p className="mt-1 text-xs text-amber-700">
+                            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
                               {row.errorCount} hata kaydı
                             </p>
                           ) : null}

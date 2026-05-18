@@ -30,6 +30,8 @@ export interface Order {
   platformCreatedAt: string;
   syncedAt: string;
   items: OrderItem[];
+  cancellationRequestedAt?: string | null;
+  cancellationRequestNote?: string | null;
 }
 
 export interface OrdersResponse {

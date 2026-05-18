@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 import { WarehouseModule } from '../warehouse/warehouse.module';
 
 import { StockController } from './stock.controller';
@@ -12,7 +13,7 @@ import { StockMovementService } from './stock-movement.service';
 import { StockService } from './stock.service';
 
 @Module({
-  imports: [PrismaModule, WarehouseModule, InAppNotificationModule],
+  imports: [PrismaModule, WarehouseModule, InAppNotificationModule, OutboundWebhookModule],
   controllers: [StockController],
   providers: [
     StockService,

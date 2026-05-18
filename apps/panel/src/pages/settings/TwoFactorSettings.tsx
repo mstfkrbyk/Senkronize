@@ -281,7 +281,7 @@ export function TwoFactorSettings(): ReactElement {
 
           {wizardStep === 1 && setupPayload ? (
             <div className="space-y-4">
-              <div className="flex justify-center rounded-md border bg-white p-3">
+              <div className="flex justify-center rounded-md border border-border bg-card p-3">
                 <img
                   src={setupPayload.qrCodeDataUrl}
                   alt="2FA QR kodu"

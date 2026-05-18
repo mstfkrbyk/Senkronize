@@ -287,9 +287,13 @@ function parseFedexRates(data: unknown): CargoRate[] {
     }
     const currency = typeof total?.currency === 'string' ? total.currency : 'TRY';
     const commit = d.commit as Record<string, unknown> | undefined;
+    const dateDetail =
+      commit && typeof commit.dateDetail === 'object' && commit.dateDetail !== null
+        ? (commit.dateDetail as Record<string, unknown>)
+        : undefined;
     const days =
-      typeof commit?.dateDetail?.dayFormat === 'string'
-        ? Number.parseInt(commit.dateDetail.dayFormat, 10)
+      typeof dateDetail?.dayFormat === 'string'
+        ? Number.parseInt(dateDetail.dayFormat, 10)
         : undefined;
     rates.push({
       serviceCode: service,

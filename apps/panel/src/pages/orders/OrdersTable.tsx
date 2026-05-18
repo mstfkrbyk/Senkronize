@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { Order, OrderStatus } from '@/types/order';
 
@@ -30,9 +33,9 @@ function formatTry(amount: string, currency: string): string {
   }).format(Number(amount));
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
   try {
-    return new Intl.DateTimeFormat('tr-TR', {
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'tr-TR', {
       dateStyle: 'short',
       timeStyle: 'short',
     }).format(new Date(iso));
@@ -65,36 +68,28 @@ function PlatformBadge({ platform }: { platform: string }): ReactElement {
   );
 }
 
-const STATUS_LABEL: Record<OrderStatus, string> = {
-  NEW: 'Yeni',
-  PICKING: 'Hazırlanıyor',
-  INVOICED: 'Faturalandı',
-  SHIPPED: 'Kargoda',
-  DELIVERED: 'Teslim Edildi',
-  CANCELLED: 'İptal',
-  RETURNED: 'İade',
+const ORDER_STATUS_TONE: Record<OrderStatus, string> = {
+  NEW:
+    'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200',
+  PICKING:
+    'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
+  INVOICED:
+    'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100',
+  SHIPPED:
+    'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100',
+  DELIVERED:
+    'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100',
+  CANCELLED:
+    'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200',
+  RETURNED:
+    'border-border bg-muted text-muted-foreground dark:bg-muted/40',
 };
 
 function StatusBadge({ status }: { status: OrderStatus }): ReactElement {
-  const tone: Record<OrderStatus, string> = {
-    NEW:
-      'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200',
-    PICKING:
-      'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
-    INVOICED:
-      'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100',
-    SHIPPED:
-      'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100',
-    DELIVERED:
-      'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100',
-    CANCELLED:
-      'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200',
-    RETURNED:
-      'border-border bg-muted text-muted-foreground dark:bg-muted/40',
-  };
+  const { t } = useTranslation();
   return (
-    <Badge variant="outline" className={tone[status] ?? ''}>
-      {STATUS_LABEL[status] ?? status}
+    <Badge variant="outline" className={ORDER_STATUS_TONE[status] ?? ''}>
+      {t(ORDER_STATUS_I18N_KEY[status])}
     </Badge>
   );
 }
@@ -106,6 +101,8 @@ export function OrdersTable({
   onToggleAllOnPage,
   onRowClick,
 }: Props): ReactElement {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
   const pageIds = orders.map((o) => o.id);
   const allSelected =
     pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
@@ -131,16 +128,20 @@ export function OrdersTable({
                       onCheckedChange={(v) => {
                         onToggleAllOnPage(v === true);
                       }}
-                      aria-label="Bu sayfadaki tüm siparişleri seç"
+                      aria-label={t('common.selectAllOnPage')}
                     />
                   </TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Sipariş No</TableHead>
-                  <TableHead className="hidden lg:table-cell">Müşteri</TableHead>
-                  <TableHead className="text-right">Tutar</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead className="hidden xl:table-cell">Tarih</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[100px]">İşlemler</TableHead>
+                  <TableHead>{t('common.platform')}</TableHead>
+                  <TableHead>{t('common.orderNumber')}</TableHead>
+                  <TableHead className="hidden lg:table-cell">
+                    {t('common.customer')}
+                  </TableHead>
+                  <TableHead className="text-right">{t('common.amount')}</TableHead>
+                  <TableHead>{t('common.status')}</TableHead>
+                  <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
+                  <TableHead className="hidden lg:table-cell w-[100px]">
+                    {t('common.actions')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -183,7 +184,7 @@ export function OrdersTable({
                       <StatusBadge status={order.status} />
                     </TableCell>
                     <TableCell className="hidden text-muted-foreground xl:table-cell">
-                      {formatDate(order.platformCreatedAt)}
+                      {formatDate(order.platformCreatedAt, dateLocale)}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       <button
@@ -194,7 +195,7 @@ export function OrdersTable({
                           onRowClick(order);
                         }}
                       >
-                        Detay
+                        {t('common.detail')}
                       </button>
                     </TableCell>
                   </TableRow>
@@ -250,7 +251,7 @@ export function OrdersTable({
                   {formatTry(order.totalAmount, order.currency)}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDate(order.platformCreatedAt)}
+                  {formatDate(order.platformCreatedAt, dateLocale)}
                 </p>
               </div>
               <Button
@@ -263,7 +264,7 @@ export function OrdersTable({
                   onRowClick(order);
                 }}
               >
-                Detayı aç
+                {t('orders.openDetail')}
               </Button>
             </CardContent>
           </Card>

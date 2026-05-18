@@ -286,4 +286,64 @@ export class EmailService {
     `,
     );
   }
+
+  async sendAccountLockNotification(to: string): Promise<void> {
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Hesap güvenliği: geçici kilit',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Çok sayıda başarısız giriş denemesi</h2>
+        <p>Güvenliğiniz için hesabınız geçici olarak kilitlendi (yaklaşık 15 dakika).</p>
+        <p>Şifrenizi unuttuysanız paneldeki şifre sıfırlama akışını kullanabilirsiniz.</p>
+        <a href="${base}/auth/login"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Panele git
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendNewIpLoginAlert(to: string, ip: string): Promise<void> {
+    const safeIp = ip
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Yeni IP adresinden giriş',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Hesabınıza yeni bir IP üzerinden giriş yapıldı</h2>
+        <p><strong>IP:</strong> ${safeIp}</p>
+        <p>Bu sizseniz bu mesajı yok sayabilirsiniz. Tanımadığınız bir aktiviteyse şifrenizi değiştirin.</p>
+        <a href="${base}/settings/security"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Güvenlik ayarları
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendApiAnomalyAlert(to: string, organizationId: string): Promise<void> {
+    const safeOrg = organizationId
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      'API kullanım uyarısı',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Olağandışı API trafiği</h2>
+        <p>Organizasyon <code>${safeOrg}</code> için dakikalık istek eşiği aşıldı.</p>
+        <p>Otomasyon veya entegrasyonlarınızı gözden geçirmenizi öneririz.</p>
+      </div>
+    `,
+    );
+  }
 }

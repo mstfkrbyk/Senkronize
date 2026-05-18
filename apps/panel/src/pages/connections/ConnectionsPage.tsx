@@ -6,6 +6,7 @@ import {
   ConnectionFormModal,
   type ConnectionFormModalConfig,
 } from '@/components/ConnectionFormModal';
+import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -135,16 +136,13 @@ export function ConnectionsPage(): ReactElement {
           ) : null}
 
           {!mpLoading && !mpError && marketplaceOnly.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-              <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-              <h2 className="text-lg font-medium">Henüz pazaryeri bağlantısı yok</h2>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Pazaryeri hesaplarınızı bağlayarak sipariş ve stok senkronizasyonuna başlayın.
-              </p>
-              <Button
-                type="button"
-                className="mt-6"
-                onClick={() => {
+            <EmptyState
+              icon={Plug}
+              title="Bağlantı yok"
+              description="Pazaryeri hesaplarınızı bağlayarak sipariş ve stok senkronizasyonuna başlayın."
+              action={{
+                label: 'İlk bağlantınızı ekleyin',
+                onClick: () => {
                   setMainTab('marketplace');
                   setModalConfig({
                     kind: 'marketplace',
@@ -152,11 +150,9 @@ export function ConnectionsPage(): ReactElement {
                     listFilter: 'marketplace',
                   });
                   setModalOpen(true);
-                }}
-              >
-                Pazaryeri bağlantısı ekle
-              </Button>
-            </div>
+                },
+              }}
+            />
           ) : null}
 
           {!mpLoading && !mpError && marketplaceOnly.length > 0 ? (
@@ -195,27 +191,22 @@ export function ConnectionsPage(): ReactElement {
           ) : null}
 
           {!mpLoading && !mpError && ecommerceOnly.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-              <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-              <h2 className="text-lg font-medium">Henüz e-ticaret bağlantısı yok</h2>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                T-Soft, Ticimax, WooCommerce, Shopify veya İdeasoft mağazanızı bağlayın.
-              </p>
-              <Button
-                type="button"
-                className="mt-6"
-                onClick={() => {
+            <EmptyState
+              icon={Plug}
+              title="E-ticaret bağlantısı yok"
+              description="T-Soft, Ticimax, WooCommerce, Shopify veya İdeasoft mağazanızı bağlayın."
+              action={{
+                label: 'Mağaza bağlantısı ekle',
+                onClick: () => {
                   setModalConfig({
                     kind: 'marketplace',
                     mode: 'create',
                     listFilter: 'ecommerce',
                   });
                   setModalOpen(true);
-                }}
-              >
-                E-ticaret bağlantısı ekle
-              </Button>
-            </div>
+                },
+              }}
+            />
           ) : null}
 
           {!mpLoading && !mpError && ecommerceOnly.length > 0 ? (
@@ -254,23 +245,18 @@ export function ConnectionsPage(): ReactElement {
           ) : null}
 
           {!erpLoading && !erpIsError && (erpConnections ?? []).length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-              <Plug className="mb-4 h-12 w-12 text-muted-foreground" aria-hidden />
-              <h2 className="text-lg font-medium">Henüz ERP bağlantısı yok</h2>
-              <p className="mt-1 max-w-md text-sm text-muted-foreground">
-                Muhasebe veya stok sistemini bağlayarak fatura ve stok akışını tek yerden yönetin.
-              </p>
-              <Button
-                type="button"
-                className="mt-6"
-                onClick={() => {
+            <EmptyState
+              icon={Plug}
+              title="ERP bağlantısı yok"
+              description="Muhasebe veya stok sisteminizi bağlayarak fatura ve stok akışını tek yerden yönetin."
+              action={{
+                label: 'ERP bağlantısı ekle',
+                onClick: () => {
                   setModalConfig({ kind: 'erp', mode: 'create' });
                   setModalOpen(true);
-                }}
-              >
-                ERP bağlantısı ekle
-              </Button>
-            </div>
+                },
+              }}
+            />
           ) : null}
 
           {!erpLoading && !erpIsError && (erpConnections ?? []).length > 0 ? (

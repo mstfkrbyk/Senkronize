@@ -4,14 +4,44 @@ import { toast } from 'sonner';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
   BuyBoxListingAnalysis,
+  BuyBoxReport,
   BuyBoxSummary,
   BuyBoxWinRateStats,
   CompetitorPriceRow,
   PriceGapAnalysis,
   PriceHistoryEntry,
+  PriceSimulationResult,
   PriceTrendPoint,
   PricingRule,
 } from '@/types/pricing';
+
+export function useBuyBoxReport(enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'buybox-report'],
+    queryFn: async (): Promise<BuyBoxReport> => {
+      const { data } = await api.get<BuyBoxReport>('/pricing/buybox-report');
+      return data;
+    },
+    staleTime: 30_000,
+    enabled,
+  });
+}
+
+export function useSimulatePrice() {
+  return useMutation({
+    mutationFn: async (input: {
+      listingId: string;
+      salePrice: number;
+      costPrice?: number;
+    }): Promise<PriceSimulationResult> => {
+      const { data } = await api.post<PriceSimulationResult>(
+        '/pricing/simulate',
+        input,
+      );
+      return data;
+    },
+  });
+}
 
 export function useBuyBoxSummary(enabled = true) {
   return useQuery({

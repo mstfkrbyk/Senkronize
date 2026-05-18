@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Loader2, Plus, Sparkles } from 'lucide-react';
@@ -92,6 +92,7 @@ function downloadPoCsv(rows: PurchaseOrderDetailDto[]): void {
 export function PurchaseOrdersPage(): ReactElement {
   usePageTitle('Satın alma siparişleri');
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
   const [supplierId, setSupplierId] = useState<string>('');
@@ -100,6 +101,33 @@ export function PurchaseOrdersPage(): ReactElement {
   const [lines, setLines] = useState<PoLineForm[]>([
     { barcode: '', productName: '', quantity: '1', unitCost: '0' },
   ]);
+
+  useEffect(() => {
+    const barcode = searchParams.get('barcode');
+    const name = searchParams.get('name');
+    const qty = searchParams.get('qty');
+    if (!barcode?.trim() || !name?.trim()) {
+      return;
+    }
+    const safeQty =
+      qty !== null && qty !== '' && !Number.isNaN(Number(qty))
+        ? String(Math.max(1, Math.floor(Number(qty))))
+        : '1';
+    setCreateOpen(true);
+    setLines([
+      {
+        barcode: barcode.trim(),
+        productName: name.trim(),
+        quantity: safeQty,
+        unitCost: '0',
+      },
+    ]);
+    const next = new URLSearchParams(searchParams);
+    next.delete('barcode');
+    next.delete('name');
+    next.delete('qty');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const listQuery = useQuery({
     queryKey: ['purchase-orders', page],

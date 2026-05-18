@@ -144,7 +144,7 @@ pub async fn set_tray_indicator(app: AppHandle, state: State<'_, TrayIndicatorSt
         }
         TrayIndicatorMode::Syncing => {
             let app_a = app.clone();
-            let st: TrayIndicatorState = state.inner().clone();
+            let st: TrayIndicatorState = (*state).clone();
             let h = spawn(async move {
                 let frames = [
                     "Senkronize · senkron",

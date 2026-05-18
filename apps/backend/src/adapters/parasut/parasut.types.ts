@@ -37,3 +37,33 @@ export interface ParasutInvoice {
   type: 'sales_invoices';
   attributes: ParasutInvoiceAttributes;
 }
+
+export interface ParasutContactAttributes {
+  name?: string;
+  title?: string;
+  email?: string;
+}
+
+export interface ParasutContact {
+  id: string;
+  type: 'contacts';
+  attributes: ParasutContactAttributes;
+}
+
+export interface ParasutContactsResponse {
+  data: ParasutContact[];
+}
+
+export interface ParasutEInvoiceAttributes {
+  scenario?: string;
+  to?: string;
+  invoice_series?: string;
+  invoice_id?: string;
+  [key: string]: unknown;
+}
+
+export interface ParasutEInvoice {
+  id: string;
+  type: 'e_invoices';
+  attributes: ParasutEInvoiceAttributes;
+}

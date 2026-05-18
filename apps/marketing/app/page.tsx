@@ -84,10 +84,13 @@ export default function HomePage(): ReactElement {
       <main>
         <HeroSection />
         <StatsSection />
+        <PartnerLogosSection />
+        <ComparisonTableSection />
         <FeaturesSection />
         <PricingSection />
         <TestimonialsSection />
         <CTASection />
+        <ExitIntentNewsletter />
       </main>
     </>
   );

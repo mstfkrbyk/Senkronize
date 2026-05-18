@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { api, getApiErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import type { VatReport } from '@/types/vat-report';
 
 interface Args {
@@ -20,8 +20,4 @@ export function useVatReport({ year, month, enabled = true }: Args) {
     },
     enabled,
   });
-}
-
-export function getVatReportErrorMessage(error: unknown): string {
-  return getApiErrorMessage(error);
 }

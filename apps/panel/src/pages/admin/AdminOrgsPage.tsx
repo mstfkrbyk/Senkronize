@@ -239,7 +239,7 @@ export function AdminOrgsPage(): ReactElement {
               setPlanFilter(v);
             }}
           >
-            <SelectTrigger className="w-[180px] bg-white">
+            <SelectTrigger className="w-[180px] bg-background">
               <SelectValue placeholder="Paket" />
             </SelectTrigger>
             <SelectContent>
@@ -261,7 +261,7 @@ export function AdminOrgsPage(): ReactElement {
               setStatusFilter(v);
             }}
           >
-            <SelectTrigger className="w-[180px] bg-white">
+            <SelectTrigger className="w-[180px] bg-background">
               <SelectValue placeholder="Durum" />
             </SelectTrigger>
             <SelectContent>
@@ -300,7 +300,7 @@ export function AdminOrgsPage(): ReactElement {
 
       {!isLoading && !isError && data ? (
         <>
-          <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-md border border-border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>

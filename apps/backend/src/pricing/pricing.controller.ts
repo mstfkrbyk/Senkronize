@@ -29,7 +29,13 @@ import { Permission } from '../auth/permissions';
 import { RequiresPermission } from '../auth/requires-permission.decorator';
 import { RequiresPlan, SubscriptionGuard } from '../common/guards/subscription.guard';
 
-import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
+import type {
+  BuyBoxAnalysisResult,
+  BuyBoxHistoryRow,
+  BuyBoxReportResult,
+  BuyBoxStatus,
+  BuyBoxWinRateStats,
+} from './buybox.service';
 import { CompetitorPriceService } from './competitor-price.service';
 import {
   CreatePricingRuleDto,
@@ -37,6 +43,7 @@ import {
   PriceHistoryQueryDto,
   PricingPlatformQueryDto,
   SchedulePricingRuleDto,
+  SimulatePriceDto,
   SimulatePricingRuleDto,
   UpdatePricingRuleDto,
 } from './pricing.dto';
@@ -191,6 +198,69 @@ export class PricingController {
   ): Promise<BuyBoxWinRateStats> {
     const clamped = Math.min(Math.max(days, 1), 365);
     return this.pricingService.getBuyBoxWinRateStats(org.id, clamped);
+  }
+
+  @Get('buybox-report')
+  @ApiOperation({ summary: 'Toplu BuyBox raporu ve en çok kaybeden listeler' })
+  @ApiResponse({ status: 200, description: 'Rapor' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getBuyBoxReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<BuyBoxReportResult> {
+    return this.pricingService.getBuyBoxReport(org.id);
+  }
+
+  @Get('buybox-status/:listingId')
+  @ApiOperation({ summary: 'Listeleme için BuyBox durumu ve öneri fiyat' })
+  @ApiResponse({ status: 200, description: 'Durum' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getBuyBoxStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('listingId') listingId: string,
+  ): Promise<BuyBoxStatus> {
+    return this.pricingService.detectBuyBoxStatus(org.id, listingId);
+  }
+
+  @Get('buybox-history/:listingId')
+  @ApiOperation({ summary: 'Listeleme için BuyBox geçmişi' })
+  @ApiResponse({ status: 200, description: 'Anlık görüntüler' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getBuyBoxHistoryForListing(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('listingId') listingId: string,
+    @Query('days', new DefaultValuePipe(7), ParseIntPipe) days: number,
+  ): Promise<BuyBoxHistoryRow[]> {
+    const clamped = Math.min(Math.max(days, 1), 365);
+    return this.pricingService.getBuyBoxHistoryForListing(
+      org.id,
+      listingId,
+      clamped,
+    );
+  }
+
+  @Post('simulate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Fiyat simülasyonu (BuyBox ihtimali ve gelir etkisi)' })
+  @ApiResponse({ status: 200, description: 'Sonuç' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async simulatePrice(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: SimulatePriceDto,
+  ): Promise<{
+    currentPrice: number;
+    simulatedPrice: number;
+    marginImpact: {
+      currentMarginPct: number | null;
+      simulatedMarginPct: number | null;
+    };
+    estimatedBuyBoxProbability: number;
+    estimatedRevenueDelta: number;
+    referenceLowestPrice: number;
+  }> {
+    return this.pricingService.simulatePrice(org.id, dto);
   }
 
   @Post('rules/:id/simulate')

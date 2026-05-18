@@ -1,6 +1,7 @@
 import { PlanTier, SubStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -60,4 +61,14 @@ export class AdminSubscriptionsQueryDto {
   @IsOptional()
   @IsEnum(SubStatus)
   status?: SubStatus;
+}
+
+export class BlockedIpMutationDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  ip!: string;
+
+  @IsBoolean()
+  blocked!: boolean;
 }

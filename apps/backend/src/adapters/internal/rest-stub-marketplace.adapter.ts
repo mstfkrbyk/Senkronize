@@ -283,7 +283,7 @@ export class RestStubMarketplaceAdapter implements IMarketplaceAdapter {
         await axiosWithRetry<unknown>(
           {
             method: 'PATCH',
-            url: this.url(this.opts.pathStock),
+            url: this.url(this.opts.pathStock, credentials),
             timeout: 20_000,
             data: {
               items: updates.map((u) => ({ sku: u.barcode, qty: u.quantity })),

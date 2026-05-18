@@ -160,11 +160,22 @@ export function ProductsPage(): ReactElement {
             </p>
           ) : items.length === 0 ? (
             <EmptyState
+              icon={Package}
               title={search.trim() ? 'Filtrelere uygun ürün yok' : 'Henüz ürün yok'}
               description={
                 search.trim()
                   ? 'Arama terimini değiştirerek tekrar deneyin.'
-                  : 'İçe aktarma veya manuel eklemeyle ürün oluşturabilirsiniz.'
+                  : 'İlk ürününüzü içe aktararak veya bağlantılarınızı kurarak kataloğunuzu oluşturun.'
+              }
+              actionSlot={
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <Button type="button" size="sm" asChild>
+                    <Link to="/products/import">İçe aktar</Link>
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" asChild>
+                    <Link to="/connections">Bağlantıları aç</Link>
+                  </Button>
+                </div>
               }
             />
           ) : (

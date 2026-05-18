@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 import { BarChart3 } from 'lucide-react';
 
-import { NAV_ITEMS } from '@/constants/navigation';
+import { NAV_ITEMS, SUPPLY_NAV_ITEMS } from '@/constants/navigation';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -29,54 +29,103 @@ export function SidebarNav(): ReactElement {
     (item) => !item.partnerOnly || orgType === 'PARTNER',
   );
 
-  return (
-    <SidebarGroup>
-      <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
-        {t('nav.menu')}
-      </SidebarGroupLabel>
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {visibleItems.map((item) => {
-            const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              (item.path !== '/' &&
-                location.pathname.startsWith(`${item.path}/`));
+  const visibleSupply = SUPPLY_NAV_ITEMS.filter(
+    (item) => !item.partnerOnly || orgType === 'PARTNER',
+  );
 
-            return (
-              <SidebarMenuItem key={item.path}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={isActive}
-                  tooltip={t(item.labelKey)}
-                >
-                  <NavLink
-                    to={item.path}
-                    data-onboarding={item.path}
-                    onClick={() => {
-                      if (isMobile) {
-                        setOpenMobile(false);
-                      }
-                    }}
+  return (
+    <>
+      <SidebarGroup>
+        <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+          {t('nav.menu')}
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {visibleItems.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.path ||
+                (item.path !== '/' &&
+                  location.pathname.startsWith(`${item.path}/`));
+
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={t(item.labelKey)}
                   >
-                    <Icon className="size-4 shrink-0" />
-                    <span className="truncate">{t(item.labelKey)}</span>
-                    {item.badge === 'canlı' ? (
-                      <SidebarMenuBadge className="bg-accent text-accent-foreground">
-                        {t('nav.live')}
-                      </SidebarMenuBadge>
-                    ) : null}
-                    {item.badge === 'PRO' ? (
-                      <SidebarMenuBadge className="bg-sidebar-primary/20 text-[10px] font-semibold uppercase text-sidebar-primary-foreground">
-                        PRO
-                      </SidebarMenuBadge>
-                    ) : null}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
+                    <NavLink
+                      to={item.path}
+                      data-onboarding={item.path}
+                      onClick={() => {
+                        if (isMobile) {
+                          setOpenMobile(false);
+                        }
+                      }}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      <span className="truncate">{t(item.labelKey)}</span>
+                      {item.badge === 'canlı' ? (
+                        <SidebarMenuBadge className="bg-accent text-accent-foreground">
+                          {t('nav.live')}
+                        </SidebarMenuBadge>
+                      ) : null}
+                      {item.badge === 'PRO' ? (
+                        <SidebarMenuBadge className="bg-sidebar-primary/20 text-[10px] font-semibold uppercase text-sidebar-primary-foreground">
+                          PRO
+                        </SidebarMenuBadge>
+                      ) : null}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup>
+        <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
+          {t('nav.supply')}
+        </SidebarGroupLabel>
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {visibleSupply.map((item) => {
+              const Icon = item.icon;
+              const isActive =
+                location.pathname === item.path ||
+                (item.path !== '/' &&
+                  location.pathname.startsWith(`${item.path}/`));
+
+              return (
+                <SidebarMenuItem key={item.path}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={isActive}
+                    tooltip={t(item.labelKey)}
+                  >
+                    <NavLink
+                      to={item.path}
+                      onClick={() => {
+                        if (isMobile) {
+                          setOpenMobile(false);
+                        }
+                      }}
+                    >
+                      <Icon className="size-4 shrink-0" />
+                      <span className="truncate">{t(item.labelKey)}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+
+      <SidebarGroup>
+        <SidebarGroupContent>
         {userRole === 'SUPER_ADMIN' ? (
           <>
             <SidebarSeparator className="my-2 bg-sidebar-border" />
@@ -99,7 +148,8 @@ export function SidebarNav(): ReactElement {
             </SidebarMenu>
           </>
         ) : null}
-      </SidebarGroupContent>
-    </SidebarGroup>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    </>
   );
 }

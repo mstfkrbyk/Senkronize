@@ -1,9 +1,15 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bell } from 'lucide-react';
+import {
+  Bell,
+  Package,
+  RefreshCw,
+  Settings,
+  ShoppingCart,
+} from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
@@ -29,25 +35,62 @@ import {
 } from '@/store/notifications.store';
 import { toast } from 'sonner';
 
-function typeEmoji(type: InAppNotificationType): string {
-  switch (type) {
-    case 'ORDER_NEW':
-    case 'ORDER_STATUS_CHANGED':
-      return '🛒';
-    case 'STOCK_LOW':
-    case 'STOCK_OUT':
-      return '📦';
-    case 'SYNC_ERROR':
-    case 'PAYMENT_FAILED':
-      return '⚠️';
-    case 'SYNC_SUCCESS':
-      return '✅';
-    case 'PRICE_UPDATED':
-    case 'BUYBOX_WON':
-    case 'BUYBOX_LOST':
-      return '💰';
+type NotificationCategory = 'order' | 'stock' | 'sync' | 'system';
+
+function categoryForType(type: InAppNotificationType): NotificationCategory {
+  if (
+    type === 'ORDER_NEW' ||
+    type === 'ORDER_STATUS_CHANGED' ||
+    type === 'PRICE_UPDATED' ||
+    type === 'BUYBOX_WON' ||
+    type === 'BUYBOX_LOST'
+  ) {
+    return 'order';
+  }
+  if (type === 'STOCK_LOW' || type === 'STOCK_OUT') {
+    return 'stock';
+  }
+  if (
+    type === 'SYNC_SUCCESS' ||
+    type === 'SYNC_ERROR' ||
+    type === 'PAYMENT_FAILED' ||
+    type === 'SUBSCRIPTION_EXPIRING'
+  ) {
+    return 'sync';
+  }
+  return 'system';
+}
+
+function CategoryIcon({
+  category,
+  className,
+}: {
+  category: NotificationCategory;
+  className?: string;
+}): ReactElement {
+  const cnBase = cn('size-4 shrink-0', className);
+  switch (category) {
+    case 'order':
+      return <ShoppingCart className={cnBase} aria-hidden />;
+    case 'stock':
+      return <Package className={cnBase} aria-hidden />;
+    case 'sync':
+      return <RefreshCw className={cnBase} aria-hidden />;
     default:
-      return '🔔';
+      return <Settings className={cnBase} aria-hidden />;
+  }
+}
+
+function categoryLabel(category: NotificationCategory): string {
+  switch (category) {
+    case 'order':
+      return 'Sipariş';
+    case 'stock':
+      return 'Stok uyarısı';
+    case 'sync':
+      return 'Senkronizasyon';
+    default:
+      return 'Sistem';
   }
 }
 
@@ -146,7 +189,9 @@ export function NotificationBell({ className }: Props): ReactElement {
           {badgeCount > 0 ? (
             <Badge
               variant="destructive"
-              className="absolute -right-0.5 -top-0.5 flex size-5 items-center justify-center rounded-full p-0 text-[10px]"
+              className={cn(
+                'absolute -right-0.5 -top-0.5 flex size-5 animate-pulse items-center justify-center rounded-full p-0 text-[10px] shadow-sm ring-2 ring-background',
+              )}
             >
               {badgeCount > 9 ? '9+' : badgeCount}
             </Badge>
@@ -155,7 +200,7 @@ export function NotificationBell({ className }: Props): ReactElement {
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] p-0" sideOffset={8}>
         <div className="flex max-h-96 flex-col">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
             <p className="text-sm font-semibold text-foreground">Bildirimler</p>
             <Button
               type="button"
@@ -177,48 +222,55 @@ export function NotificationBell({ className }: Props): ReactElement {
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                 <p className="text-sm font-medium text-foreground">Henüz bildirim yok</p>
                 <p className="text-xs text-muted-foreground">
-                  Sipariş, stok ve senkronizasyon güncellemeleri burada görünecek.
+                  Sipariş, stok uyarısı, senkronizasyon ve sistem mesajları burada görünecek.
                 </p>
               </div>
             ) : (
-              <ul className="divide-y p-0">
-                {displayList.map((n) => (
-                  <li key={n.id}>
-                    <button
-                      type="button"
-                      className={cn(
-                        'flex w-full gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/60',
-                        !n.isRead && 'border-l-4 border-l-sky-500 bg-sky-50/50 dark:bg-sky-950/20',
-                      )}
-                      onClick={() => handleRowClick(n)}
-                    >
-                      <span className="pt-0.5 text-lg leading-none" aria-hidden>
-                        {typeEmoji(n.type)}
-                      </span>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p
-                          className={cn(
-                            'text-sm leading-tight text-foreground',
-                            !n.isRead && 'font-semibold',
-                          )}
-                        >
-                          {n.title}
-                        </p>
-                        <p className="line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(n.createdAt), {
-                            addSuffix: true,
-                            locale: tr,
-                          })}
-                        </p>
-                      </div>
-                    </button>
-                  </li>
-                ))}
+              <ul className="divide-y divide-border p-0">
+                {displayList.map((n) => {
+                  const cat = categoryForType(n.type);
+                  return (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex w-full gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/60',
+                          !n.isRead &&
+                            'border-l-4 border-l-primary bg-primary/5 dark:bg-primary/10',
+                        )}
+                        onClick={() => handleRowClick(n)}
+                      >
+                        <span className="mt-0.5 flex flex-col items-center gap-1 text-muted-foreground">
+                          <CategoryIcon category={cat} />
+                          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {categoryLabel(cat)}
+                          </span>
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <p
+                            className={cn(
+                              'text-sm leading-tight text-foreground',
+                              !n.isRead && 'font-semibold',
+                            )}
+                          >
+                            {n.title}
+                          </p>
+                          <p className="line-clamp-2 text-xs text-muted-foreground">{n.message}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(n.createdAt), {
+                              addSuffix: true,
+                              locale: tr,
+                            })}
+                          </p>
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </ScrollArea>
-          <div className="border-t px-3 py-2">
+          <div className="border-t border-border px-3 py-2">
             <Button variant="link" className="h-auto w-full p-0 text-sm" asChild>
               <Link to="/notifications" onClick={() => setOpen(false)}>
                 Tüm bildirimleri gör

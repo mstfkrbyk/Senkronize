@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, FileArchive, Loader2, Package, Truck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -33,7 +34,7 @@ import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections'
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { ORDER_STATUS_LABEL_TR } from '@/lib/order-status';
+import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { useOrdersPageStore } from '@/store/tablePages.store';
 import type { Order, OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
 
@@ -105,7 +106,7 @@ function downloadOrdersCsv(rows: Order[]): void {
   URL.revokeObjectURL(url);
 }
 
-const ALL_STATUSES = Object.keys(ORDER_STATUS_LABEL_TR) as OrderStatus[];
+const ALL_STATUSES = Object.keys(ORDER_STATUS_I18N_KEY) as OrderStatus[];
 
 function OrdersPageSkeleton(): ReactElement {
   return (
@@ -118,7 +119,8 @@ function OrdersPageSkeleton(): ReactElement {
 }
 
 export function OrdersPage(): ReactElement {
-  usePageTitle('Siparişler');
+  const { t } = useTranslation();
+  usePageTitle(t('orders.title'));
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
 
@@ -284,11 +286,9 @@ export function OrdersPage(): ReactElement {
     <div className={`space-y-6 ${showSticky ? 'pb-24' : ''}`}>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Siparişler
+          {t('orders.title')}
         </h1>
-        <p className="text-muted-foreground">
-          Pazaryeri siparişlerinizi filtreleyin ve detaylarını görüntüleyin.
-        </p>
+        <p className="text-muted-foreground">{t('orders.subtitle')}</p>
       </div>
 
       <OrderFilters filters={filters} onChange={setFilters} />
@@ -355,7 +355,7 @@ export function OrdersPage(): ReactElement {
       ) : null}
 
       {showSticky ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur dark:shadow-[0_-4px_16px_rgba(0,0,0,0.45)] supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Badge variant="secondary" className="w-fit">
               {selectedOrderIds.length} seçili
@@ -550,7 +550,7 @@ export function OrdersPage(): ReactElement {
               <SelectContent>
                 {ALL_STATUSES.map((st) => (
                   <SelectItem key={st} value={st}>
-                    {ORDER_STATUS_LABEL_TR[st]}
+                    {t(ORDER_STATUS_I18N_KEY[st])}
                   </SelectItem>
                 ))}
               </SelectContent>

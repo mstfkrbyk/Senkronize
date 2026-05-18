@@ -70,7 +70,7 @@ export async function POST(request: Request): Promise<Response> {
       })
     : await resend.contacts.create({
         email,
-        audienceId: audienceId!,
+        audienceId: audienceId as string,
         unsubscribed: false,
       });
 

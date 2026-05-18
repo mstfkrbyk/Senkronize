@@ -23,6 +23,8 @@ import { EmailService } from '../notifications/email/email.service';
 import { SmsService } from '../notifications/sms/sms.service';
 import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache/cache.service';
+import { AnomalyDetectionService } from '../security/anomaly-detection.service';
 import {
   ChangePasswordDto,
   LoginDto,
@@ -55,6 +57,8 @@ export class AuthService {
     private readonly smsService: SmsService,
     private readonly partnerService: PartnerService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly cache: CacheService,
+    private readonly anomalyDetectionService: AnomalyDetectionService,
   ) {}
 
   async register(
@@ -188,6 +192,32 @@ export class AuthService {
       UserRole.OWNER,
       undefined,
     );
+  }
+
+  async handleSuccessfulLogin(email: string): Promise<void> {
+    await this.cache.del(CacheService.key('login_fails', email.toLowerCase()));
+  }
+
+  private async handleFailedLogin(email: string): Promise<void> {
+    const normalized = email.toLowerCase();
+    const key = CacheService.key('login_fails', normalized);
+    const n = await this.cache.incrWithExpire(key, 900);
+    if (n === null || n < 5) {
+      return;
+    }
+    const user = await this.prisma.user.findFirst({
+      where: { email: normalized, deletedAt: null },
+    });
+    if (!user) {
+      return;
+    }
+    const lockedUntil = new Date();
+    lockedUntil.setMinutes(lockedUntil.getMinutes() + 15);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lockedUntil },
+    });
+    await this.emailService.sendAccountLockNotification(user.email);
   }
 
   async issueTokenPair(
