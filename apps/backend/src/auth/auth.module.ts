@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { JwtSignOptions } from '@nestjs/jwt';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { CommonModule } from '../common/common.module';
 import { NotificationModule } from '../notification/notification.module';
 import { PartnerModule } from '../partner/partner.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -12,10 +13,13 @@ import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 import { JwtRefreshStrategy } from './jwt-refresh.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
+import { PermissionGuard } from './permission.guard';
+import { TwoFactorService } from './two-factor.service';
 
 @Module({
   imports: [
     PrismaModule,
+    CommonModule,
     NotificationModule,
     PartnerModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -34,11 +38,13 @@ import { JwtStrategy } from './jwt.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
+    TwoFactorService,
     JwtStrategy,
     JwtRefreshStrategy,
     JwtAuthGuard,
     JwtRefreshAuthGuard,
+    PermissionGuard,
   ],
-  exports: [AuthService, JwtAuthGuard],
+  exports: [AuthService, JwtAuthGuard, PermissionGuard],
 })
 export class AuthModule {}

@@ -31,9 +31,16 @@ import {
   UpdateProfileDto,
 } from './auth.dto';
 import { AuthenticatedUser } from './auth.types';
+import { TwoFactorService } from './two-factor.service';
 
 const BCRYPT_ROUNDS = 10;
 const REFRESH_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
+
+export interface IssueTokenResult {
+  accessToken: string;
+  refreshToken: string;
+  sessionId: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -47,11 +54,12 @@ export class AuthService {
     private readonly emailService: EmailService,
     private readonly smsService: SmsService,
     private readonly partnerService: PartnerService,
+    private readonly twoFactorService: TwoFactorService,
   ) {}
 
   async register(
     dto: RegisterDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<IssueTokenResult> {
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -142,7 +150,7 @@ export class AuthService {
 
     void this.notificationService
       .dispatch({
-        organizationId: newUser.organizationId,
+        organizationId: newUser.organizationId!,
         channel: 'email',
         template: 'welcome',
         payload: {
@@ -153,14 +161,14 @@ export class AuthService {
       })
       .catch((error: unknown) => {
         this.logger.error('Hoş geldin bildirimi kuyruğa eklenemedi', {
-          organizationId: newUser.organizationId,
+          organizationId: newUser.organizationId!,
           error,
         });
       });
 
     void this.emailService.sendWelcome(email, { name: dto.name }).catch((error: unknown) => {
       this.logger.error('Hoş geldin e-postası gönderilemedi', {
-        organizationId: newUser.organizationId,
+        organizationId: newUser.organizationId!,
         error,
       });
     });
@@ -168,7 +176,7 @@ export class AuthService {
     if (newUser.phone) {
       void this.smsService.sendWelcome(newUser.phone, dto.name).catch((error: unknown) => {
         this.logger.error('Hoş geldin SMS gönderilemedi', {
-          organizationId: newUser.organizationId,
+          organizationId: newUser.organizationId!,
           error,
         });
       });
@@ -176,9 +184,19 @@ export class AuthService {
 
     return this.generateTokens(
       newUser.id,
-      newUser.organizationId,
+      newUser.organizationId!,
       UserRole.OWNER,
+      undefined,
     );
+  }
+
+  async issueTokenPair(
+    userId: string,
+    organizationId: string,
+    role: UserRole,
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<IssueTokenResult> {
+    return this.generateTokens(userId, organizationId, role, sessionMeta);
   }
 
   recommendPlan(dto: RecommendPlanDto): {
@@ -232,7 +250,11 @@ export class AuthService {
 
   async login(
     dto: LoginDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<
+    | IssueTokenResult
+    | { requiresTwoFactor: true; tempToken: string }
+  > {
     const user = await this.prisma.user.findFirst({
       where: { email: dto.email.toLowerCase(), deletedAt: null },
       include: { organization: true },
@@ -240,6 +262,8 @@ export class AuthService {
 
     if (
       !user ||
+      !user.organizationId ||
+      !user.organization ||
       user.organization.deletedAt != null ||
       !(await this.comparePasswords(dto.password, user.passwordHash))
     ) {
@@ -255,22 +279,98 @@ export class AuthService {
       );
     }
 
+    if (user.twoFactorEnabled) {
+      const tempToken = await this.jwtService.signAsync(
+        { sub: user.id, type: 'two-factor-pending' },
+        {
+          secret: this.config.getOrThrow<string>('JWT_SECRET'),
+          expiresIn: '5m',
+        },
+      );
+      return { requiresTwoFactor: true, tempToken };
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
     });
 
-    return this.generateTokens(user.id, user.organizationId, user.role);
+    return this.generateTokens(
+      user.id,
+      user.organizationId,
+      user.role,
+      sessionMeta,
+    );
+  }
+
+  async completeTwoFactorLogin(
+    tempToken: string,
+    tfaCode: string,
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<IssueTokenResult> {
+    let payload: { sub: string; type?: string };
+    try {
+      payload = await this.jwtService.verifyAsync<{ sub: string; type?: string }>(
+        tempToken,
+        { secret: this.config.getOrThrow<string>('JWT_SECRET') },
+      );
+    } catch {
+      throw new UnauthorizedException(
+        'Geçersiz veya süresi dolmuş oturum doğrulaması.',
+      );
+    }
+    if (payload.type !== 'two-factor-pending') {
+      throw new UnauthorizedException('Geçersiz oturum doğrulaması.');
+    }
+
+    const valid = await this.twoFactorService.verifyTokenForLogin(
+      payload.sub,
+      tfaCode,
+    );
+    if (!valid) {
+      throw new UnauthorizedException('Geçersiz 2FA kodu');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: payload.sub, deletedAt: null },
+      include: { organization: true },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Kullanıcı bulunamadı.');
+    }
+    if (
+      !user.organizationId ||
+      !user.organization ||
+      user.organization.deletedAt != null ||
+      (user.organization.suspended && user.role !== UserRole.SUPER_ADMIN)
+    ) {
+      throw new UnauthorizedException('Oturum açılamadı.');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return this.generateTokens(
+      user.id,
+      user.organizationId,
+      user.role,
+      sessionMeta,
+    );
   }
 
   async refresh(
     userId: string,
     refreshToken: string,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<IssueTokenResult> {
     const ok = await this.validateRefreshToken(userId, refreshToken);
     if (!ok) {
       throw new UnauthorizedException('Oturum yenilenemedi.');
     }
+
+    await this.touchRefreshSession(userId, refreshToken);
 
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
@@ -281,15 +381,21 @@ export class AuthService {
     }
 
     if (
-      user.organization.suspended &&
-      user.role !== UserRole.SUPER_ADMIN
+      !user.organizationId ||
+      !user.organization ||
+      (user.organization.suspended && user.role !== UserRole.SUPER_ADMIN)
     ) {
       throw new UnauthorizedException('Oturum yenilenemedi.');
     }
 
     await this.deleteRefreshTokenByPlain(userId, refreshToken);
 
-    return this.generateTokens(user.id, user.organizationId, user.role);
+    return this.generateTokens(
+      user.id,
+      user.organizationId,
+      user.role,
+      sessionMeta,
+    );
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
@@ -336,7 +442,7 @@ export class AuthService {
     await this.prisma.auditLog.create({
       data: {
         actorUserId: actor.id,
-        actorOrgId: actor.organizationId,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
         impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
         action: 'auth.password_changed',
         resourceType: 'User',
@@ -426,7 +532,8 @@ export class AuthService {
     userId: string,
     orgId: string,
     role: UserRole,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<IssueTokenResult> {
     const payload = { sub: userId, orgId, role };
     const accessSecret = this.config.getOrThrow<string>('JWT_SECRET');
     const refreshSecret = this.config.getOrThrow<string>('JWT_REFRESH_SECRET');
@@ -445,8 +552,8 @@ export class AuthService {
       expiresIn: refreshExp,
     });
 
-    await this.storeRefreshToken(userId, refreshToken);
-    return { accessToken, refreshToken };
+    const sessionId = await this.storeRefreshToken(userId, refreshToken, sessionMeta);
+    return { accessToken, refreshToken, sessionId };
   }
 
   private async hashPassword(password: string): Promise<string> {
@@ -466,15 +573,53 @@ export class AuthService {
     return d;
   }
 
-  private async storeRefreshToken(userId: string, token: string): Promise<void> {
+  private async storeRefreshToken(
+    userId: string,
+    token: string,
+    meta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<string> {
     const tokenHash = await bcrypt.hash(token, BCRYPT_ROUNDS);
-    await this.prisma.refreshToken.create({
-      data: {
+    const expiresAt = this.refreshTokenExpiresAt();
+    return this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.create({
+        data: {
+          userId,
+          token: tokenHash,
+          expiresAt,
+        },
+      });
+      const session = await tx.userSession.create({
+        data: {
+          userId,
+          token: tokenHash,
+          expiresAt,
+          ipAddress: meta?.ipAddress ?? null,
+          userAgent: meta?.userAgent ?? null,
+        },
+      });
+      return session.id;
+    });
+  }
+
+  private async touchRefreshSession(
+    userId: string,
+    plain: string,
+  ): Promise<void> {
+    const rows = await this.prisma.refreshToken.findMany({
+      where: {
         userId,
-        token: tokenHash,
-        expiresAt: this.refreshTokenExpiresAt(),
+        expiresAt: { gt: new Date() },
       },
     });
+    for (const row of rows) {
+      if (await bcrypt.compare(plain, row.token)) {
+        await this.prisma.userSession.updateMany({
+          where: { userId, token: row.token },
+          data: { lastActiveAt: new Date() },
+        });
+        return;
+      }
+    }
   }
 
   private async deleteRefreshTokenByPlain(
@@ -486,7 +631,12 @@ export class AuthService {
     });
     for (const row of rows) {
       if (await bcrypt.compare(plain, row.token)) {
-        await this.prisma.refreshToken.delete({ where: { id: row.id } });
+        await this.prisma.$transaction([
+          this.prisma.refreshToken.delete({ where: { id: row.id } }),
+          this.prisma.userSession.deleteMany({
+            where: { userId, token: row.token },
+          }),
+        ]);
         return;
       }
     }

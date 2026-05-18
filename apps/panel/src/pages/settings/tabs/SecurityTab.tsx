@@ -18,6 +18,8 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { useAuditLog } from '../hooks/useAuditLog';
 import { AuditLogTable } from './AuditLogTable';
 
+import { TwoFactorSettings } from '../TwoFactorSettings';
+
 export function SecurityTab(): ReactElement {
   const auditQuery = useAuditLog(50);
 
@@ -37,6 +39,8 @@ export function SecurityTab(): ReactElement {
 
   return (
     <div className="space-y-6">
+      <TwoFactorSettings />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Denetim kaydı</CardTitle>

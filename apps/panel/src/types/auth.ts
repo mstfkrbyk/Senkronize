@@ -5,6 +5,7 @@ export interface AuthUserDto {
   phone: string | null;
   role: string;
   organizationId: string;
+  twoFactorEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -34,4 +35,9 @@ export interface MeResponse {
 export interface TokenPair {
   accessToken: string;
   refreshToken: string;
+  sessionId?: string;
 }
+
+export type LoginResponse =
+  | TokenPair
+  | { requiresTwoFactor: true; tempToken: string };

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,51 +22,154 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { Permission } from '../auth/permissions';
+import { RequiresPermission } from '../auth/requires-permission.decorator';
 import { Roles } from '../common/guards/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
 import {
   InviteUserDto,
+  TransferOwnershipDto,
   UpdateNotificationPreferencesDto,
   UpdateUserRoleDto,
 } from './users.dto';
+import { UserInviteService } from './user-invite.service';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly userInviteService: UserInviteService,
+  ) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequiresPermission(Permission.USERS_VIEW)
   @ApiOperation({ summary: 'Organizasyondaki kullanıcıları listele' })
   @ApiResponse({ status: 200, description: 'Kullanıcı listesi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async list(@CurrentOrg() org: CurrentOrgPayload) {
-    return this.usersService.list(org.id);
+    return this.usersService.getOrgUsers(org.id);
+  }
+
+  @Get('invites')
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequiresPermission(Permission.USERS_VIEW)
+  @ApiOperation({ summary: 'Bekleyen davetleri listele' })
+  @ApiResponse({ status: 200, description: 'Davet listesi' })
+  async listInvites(@CurrentOrg() org: CurrentOrgPayload) {
+    return this.userInviteService.listInvites(org.id);
+  }
+
+  @Get('sessions')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktif oturumlarım' })
+  @ApiResponse({ status: 200, description: 'Oturum listesi' })
+  async listSessions(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getActiveSessions(user.id);
   }
 
   @Post('invite')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'E-posta ile kullanıcı oluştur (davet)' })
-  @ApiResponse({ status: 201, description: 'Kullanıcı oluşturuldu' })
+  @RequiresPermission(Permission.USERS_MANAGE)
+  @ApiOperation({ summary: 'E-posta ile kullanıcı davet et' })
+  @ApiResponse({ status: 201, description: 'Davet oluşturuldu' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 403, description: 'Yetki yetersiz' })
-  @ApiResponse({ status: 409, description: 'E-posta zaten kayıtlı' })
+  @ApiResponse({ status: 409, description: 'Çakışma' })
   async invite(
     @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() actor: AuthenticatedUser,
     @Body() dto: InviteUserDto,
   ) {
-    return this.usersService.invite(org.id, dto);
+    return this.userInviteService.inviteUser(
+      org.id,
+      actor.id,
+      dto.email,
+      dto.role,
+    );
+  }
+
+  @Post('invites/:id/resend')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequiresPermission(Permission.USERS_MANAGE)
+  @ApiOperation({ summary: 'Daveti yeniden gönder' })
+  @ApiResponse({ status: 200, description: 'Gönderildi' })
+  async resendInvite(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.userInviteService.resendInvite(org.id, id);
+    return { ok: true };
+  }
+
+  @Delete('invites/:id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequiresPermission(Permission.USERS_MANAGE)
+  @ApiOperation({ summary: 'Daveti iptal et' })
+  @ApiResponse({ status: 200, description: 'İptal edildi' })
+  async cancelInvite(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.userInviteService.cancelInvite(org.id, id);
+    return { ok: true };
+  }
+
+  @Delete('sessions/:sessionId')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Belirli oturumu sonlandır' })
+  @ApiResponse({ status: 200, description: 'Sonlandırıldı' })
+  async revokeSession(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('sessionId') sessionId: string,
+  ): Promise<{ ok: true }> {
+    await this.usersService.revokeSession(user.id, sessionId);
+    return { ok: true };
+  }
+
+  @Delete('sessions')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Tüm diğer oturumları sonlandır' })
+  @ApiResponse({ status: 200, description: 'Sonlandırıldı' })
+  async revokeAllSessions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('exceptSessionId') exceptSessionId?: string,
+  ): Promise<{ ok: true }> {
+    await this.usersService.revokeAllSessions(user.id, exceptSessionId);
+    return { ok: true };
+  }
+
+  @Post('transfer-ownership')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER)
+  @ApiOperation({ summary: 'Organizasyon sahipliğini devret' })
+  @ApiResponse({ status: 200, description: 'Devredildi' })
+  async transferOwnership(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: TransferOwnershipDto,
+  ): Promise<{ ok: true }> {
+    await this.usersService.transferOwnership(org.id, actor.id, dto.newOwnerId);
+    return { ok: true };
   }
 
   @Get('notification-preferences')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Bildirim tercihleri' })
   @ApiResponse({ status: 200, description: 'Tercihler' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async getNotificationPreferences(@CurrentUser() user: AuthenticatedUser) {
     return this.usersService.getNotificationPreferences(
       user.id,
@@ -77,7 +181,6 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Bildirim tercihlerini güncelle' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async updateNotificationPreferences(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateNotificationPreferencesDto,
@@ -94,7 +197,6 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'KVKK veri dışa aktarma talebi' })
   @ApiResponse({ status: 200, description: 'Talep alındı' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async requestDataExport(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ message: string }> {
@@ -106,8 +208,9 @@ export class UsersController {
   }
 
   @Patch(':id/role')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.OWNER)
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequiresPermission(Permission.USERS_MANAGE)
   @ApiOperation({ summary: 'Kullanıcı rolünü güncelle' })
   @ApiResponse({ status: 200, description: 'Rol güncellendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -123,10 +226,11 @@ export class UsersController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.OWNER)
-  @ApiOperation({ summary: 'Kullanıcıyı pasifleştir (soft delete)' })
-  @ApiResponse({ status: 200, description: 'Kullanıcı pasifleştirildi' })
+  @UseGuards(JwtAuthGuard, RolesGuard, PermissionGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @RequiresPermission(Permission.USERS_MANAGE)
+  @ApiOperation({ summary: 'Kullanıcıyı organizasyondan çıkar' })
+  @ApiResponse({ status: 200, description: 'Çıkarıldı' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 403, description: 'Yetki yetersiz' })
   @ApiResponse({ status: 404, description: 'Kullanıcı bulunamadı' })
@@ -135,7 +239,7 @@ export class UsersController {
     @CurrentUser() actor: AuthenticatedUser,
     @Param('id') id: string,
   ): Promise<{ ok: true }> {
-    await this.usersService.softDelete(org.id, actor.id, id);
+    await this.usersService.removeUserFromOrg(org.id, id, actor.id);
     return { ok: true };
   }
 }

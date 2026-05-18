@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -17,8 +18,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { AuthService } from './auth.service';
+import { AuthService, type IssueTokenResult } from './auth.service';
 import {
+  AcceptInviteDto,
   ChangePasswordDto,
   LoginDto,
   RecommendPlanDto,
@@ -26,16 +28,28 @@ import {
   RegisterDto,
   UpdateProfileDto,
 } from './auth.dto';
+import {
+  TwoFactorDisableDto,
+  TwoFactorEnableDto,
+  TwoFactorRegenerateBackupDto,
+  TwoFactorVerifyLoginDto,
+} from './two-factor.dto';
+import { TwoFactorService } from './two-factor.service';
 import { CurrentUser } from './current-user.decorator';
 import { AuthenticatedUser } from './auth.types';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 import { JwtRefreshValidatedUser } from './jwt-refresh.strategy';
+import { UserInviteService } from '../users/user-invite.service';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly twoFactorService: TwoFactorService,
+    private readonly userInviteService: UserInviteService,
+  ) {}
 
   @Throttle({ short: { limit: 5 }, medium: { limit: 5 } })
   @Post('register')
@@ -45,8 +59,39 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'E-posta zaten kayıtlı' })
   async register(
     @Body() dto: RegisterDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
+  ): Promise<IssueTokenResult> {
     return this.authService.register(dto);
+  }
+
+  @Throttle({ short: { limit: 30 }, medium: { limit: 60 } })
+  @Get('invite-preview')
+  @ApiOperation({ summary: 'Organizasyon daveti önizleme (herkese açık)' })
+  @ApiResponse({ status: 200, description: 'Davet bilgisi' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async invitePreview(@Query('token') token: string) {
+    return this.userInviteService.getInvitePreview(token ?? '');
+  }
+
+  @Throttle({ short: { limit: 10 }, medium: { limit: 20 } })
+  @Post('accept-invite')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Organizasyon davetini kabul et' })
+  @ApiResponse({ status: 200, description: 'Oturum açıldı' })
+  @ApiResponse({ status: 400, description: 'Geçersiz istek' })
+  async acceptInvite(
+    @Query('token') token: string,
+    @Body() dto: AcceptInviteDto,
+    @Req() req: Request,
+  ): Promise<IssueTokenResult> {
+    const ipAddress = req.ip ?? req.socket?.remoteAddress ?? undefined;
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
+    return this.userInviteService.acceptInvite(token ?? '', dto.password, dto.name, {
+      ipAddress,
+      userAgent,
+    });
   }
 
   @Post('recommend-plan')
@@ -62,12 +107,102 @@ export class AuthController {
   @Throttle({ short: { limit: 10 }, medium: { limit: 10 } })
   @Post('login')
   @ApiOperation({ summary: 'Giriş' })
-  @ApiResponse({ status: 200, description: 'Token çifti' })
+  @ApiResponse({ status: 200, description: 'Token çifti veya 2FA gerekli' })
   @ApiResponse({ status: 401, description: 'Geçersiz kimlik bilgileri' })
   async login(
     @Body() dto: LoginDto,
-  ): Promise<{ accessToken: string; refreshToken: string }> {
-    return this.authService.login(dto);
+    @Req() req: Request,
+  ): Promise<
+    | IssueTokenResult
+    | { requiresTwoFactor: true; tempToken: string }
+  > {
+    const ipAddress = req.ip ?? req.socket?.remoteAddress ?? undefined;
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
+    return this.authService.login(dto, { ipAddress, userAgent });
+  }
+
+  @Throttle({ short: { limit: 15 }, medium: { limit: 30 } })
+  @Post('2fa/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'İki adımlı doğrulama ile girişi tamamla' })
+  @ApiResponse({ status: 200, description: 'Token çifti' })
+  @ApiResponse({ status: 401, description: 'Geçersiz kod veya jeton' })
+  async verifyTwoFactorLogin(
+    @Body() dto: TwoFactorVerifyLoginDto,
+    @Req() req: Request,
+  ): Promise<IssueTokenResult> {
+    const ipAddress = req.ip ?? req.socket?.remoteAddress ?? undefined;
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
+    return this.authService.completeTwoFactorLogin(
+      dto.tempToken,
+      dto.code,
+      { ipAddress, userAgent },
+    );
+  }
+
+  @Post('2fa/setup')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '2FA kurulumu başlat (QR ve yedek kodlar)' })
+  @ApiResponse({ status: 200, description: 'Kurulum verisi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async setupTwoFactor(@CurrentUser() user: AuthenticatedUser) {
+    return this.twoFactorService.setupTwoFactor(user.id);
+  }
+
+  @Post('2fa/enable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '2FA doğrula ve etkinleştir' })
+  @ApiResponse({ status: 200, description: 'Etkinleştirildi' })
+  @ApiResponse({ status: 400, description: 'Geçersiz veri' })
+  @ApiResponse({ status: 401, description: 'Geçersiz kod' })
+  async enableTwoFactor(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TwoFactorEnableDto,
+  ): Promise<{ ok: true }> {
+    await this.twoFactorService.enableTwoFactor(user, dto.token, dto.backupCodes);
+    return { ok: true };
+  }
+
+  @Post('2fa/disable')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '2FA kapat' })
+  @ApiResponse({ status: 200, description: 'Kapatıldı' })
+  @ApiResponse({ status: 401, description: 'Geçersiz kod' })
+  async disableTwoFactor(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TwoFactorDisableDto,
+  ): Promise<{ ok: true }> {
+    await this.twoFactorService.disableTwoFactor(user, dto.token);
+    return { ok: true };
+  }
+
+  @Post('2fa/regenerate-backup-codes')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yeni yedek kodlar üret (tek sefer gösterilir)' })
+  @ApiResponse({ status: 200, description: 'Yeni düz metin yedek kodlar' })
+  @ApiResponse({ status: 401, description: 'Geçersiz kod' })
+  async regenerateBackupCodes(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TwoFactorRegenerateBackupDto,
+  ): Promise<{ backupCodes: string[] }> {
+    const backupCodes = await this.twoFactorService.regenerateBackupCodes(
+      user,
+      dto.token,
+    );
+    return { backupCodes };
   }
 
   @Throttle({ short: { limit: 20 }, medium: { limit: 60 } })
@@ -79,8 +214,16 @@ export class AuthController {
   async refresh(
     @Body() dto: RefreshTokenDto,
     @Req() req: Request & { user: JwtRefreshValidatedUser },
-  ): Promise<{ accessToken: string; refreshToken: string }> {
-    return this.authService.refresh(req.user.id, dto.refreshToken);
+  ): Promise<IssueTokenResult> {
+    const ipAddress = req.ip ?? req.socket?.remoteAddress ?? undefined;
+    const userAgent =
+      typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent']
+        : undefined;
+    return this.authService.refresh(req.user.id, dto.refreshToken, {
+      ipAddress,
+      userAgent,
+    });
   }
 
   @Post('logout')
@@ -113,6 +256,7 @@ export class AuthController {
         phone: user.phone,
         role: user.role,
         organizationId: user.organizationId,
+        twoFactorEnabled: user.twoFactorEnabled,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
       },

@@ -16,10 +16,12 @@ import { validateSync } from 'class-validator';
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../notifications/email/email.service';
 import { SmsService } from '../notifications/sms/sms.service';
+import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './auth.dto';
+import { TwoFactorService } from './two-factor.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -48,7 +50,36 @@ describe('AuthService', () => {
         findMany: jest.fn(),
         delete: jest.fn(),
       },
-      $transaction: jest.fn(),
+      $transaction: jest
+        .fn()
+        .mockImplementation(
+          async (cb: (tx: Record<string, { create: jest.Mock }>) => Promise<unknown>) => {
+            const tx = {
+              organization: {
+                create: jest.fn().mockResolvedValue({
+                  id: 'org-def',
+                  slug: 'def',
+                  name: 'Def',
+                }),
+              },
+              user: {
+                create: jest.fn().mockResolvedValue({
+                  id: 'user-def',
+                  organizationId: 'org-def',
+                  phone: null,
+                }),
+              },
+              subscription: { create: jest.fn().mockResolvedValue({}) },
+              refreshToken: {
+                create: jest.fn().mockResolvedValue({ id: 'rt-def' }),
+              },
+              userSession: {
+                create: jest.fn().mockResolvedValue({ id: 'sess-def' }),
+              },
+            };
+            return cb(tx);
+          },
+        ),
     };
 
     jwtSignAsync = jest
@@ -56,13 +87,15 @@ describe('AuthService', () => {
       .mockResolvedValueOnce('access-token')
       .mockResolvedValueOnce('refresh-token');
 
+    const jwtVerifyAsync = jest.fn();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: PrismaService, useValue: prisma },
         {
           provide: JwtService,
-          useValue: { signAsync: jwtSignAsync },
+          useValue: { signAsync: jwtSignAsync, verifyAsync: jwtVerifyAsync },
         },
         {
           provide: ConfigService,
@@ -95,6 +128,17 @@ describe('AuthService', () => {
           provide: SmsService,
           useValue: { sendWelcome: jest.fn().mockResolvedValue(undefined) },
         },
+        {
+          provide: PartnerService,
+          useValue: {
+            validateInviteToken: jest.fn(),
+            completeClientOnboarding: jest.fn(),
+          },
+        },
+        {
+          provide: TwoFactorService,
+          useValue: { verifyTokenForLogin: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -104,28 +148,43 @@ describe('AuthService', () => {
   it('register: başarılı kayıt access ve refresh token döner', async () => {
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.organization.findFirst.mockResolvedValue(null);
-    prisma.$transaction.mockImplementation(
-      async (cb: (tx: typeof prisma) => Promise<unknown>) => {
-        const tx = {
-          organization: {
-            create: jest.fn().mockResolvedValue({
-              id: 'org-1',
-              slug: 'acme-abc',
-              name: 'Acme',
-            }),
-          },
-          user: {
-            create: jest.fn().mockResolvedValue({
-              id: 'user-1',
-              organizationId: 'org-1',
-              phone: null,
-            }),
-          },
-          subscription: { create: jest.fn().mockResolvedValue({}) },
-        };
-        return cb(tx as unknown as typeof prisma);
-      },
-    );
+    prisma.$transaction
+      .mockReset()
+      .mockImplementationOnce(
+        async (cb: (tx: Record<string, { create: jest.Mock }>) => Promise<unknown>) => {
+          const tx = {
+            organization: {
+              create: jest.fn().mockResolvedValue({
+                id: 'org-1',
+                slug: 'acme-abc',
+                name: 'Acme',
+              }),
+            },
+            user: {
+              create: jest.fn().mockResolvedValue({
+                id: 'user-1',
+                organizationId: 'org-1',
+                phone: null,
+              }),
+            },
+            subscription: { create: jest.fn().mockResolvedValue({}) },
+          };
+          return cb(tx as Record<string, { create: jest.Mock }>);
+        },
+      )
+      .mockImplementationOnce(
+        async (cb: (tx: Record<string, { create: jest.Mock }>) => Promise<unknown>) => {
+          const tx = {
+            refreshToken: {
+              create: jest.fn().mockResolvedValue({ id: 'rt1' }),
+            },
+            userSession: {
+              create: jest.fn().mockResolvedValue({ id: 'sess-reg' }),
+            },
+          };
+          return cb(tx as Record<string, { create: jest.Mock }>);
+        },
+      );
 
     const result = await service.register({
       email: 'New@Example.com',
@@ -143,11 +202,12 @@ describe('AuthService', () => {
     expect(result).toEqual({
       accessToken: 'access-token',
       refreshToken: 'refresh-token',
+      sessionId: 'sess-reg',
     });
     expect(prisma.user.findFirst).toHaveBeenCalledWith({
       where: { email: 'new@example.com', deletedAt: null },
     });
-    expect(prisma.refreshToken.create).toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
   });
 
   it('register: aynı e-posta ConflictException', async () => {
@@ -277,6 +337,7 @@ describe('AuthService', () => {
       passwordHash: '$2b$10$stored',
       organizationId: 'org-1',
       role: UserRole.OWNER,
+      twoFactorEnabled: false,
       organization: { deletedAt: null, suspended: false },
     });
     (bcrypt.compare as jest.Mock).mockResolvedValue(false);
@@ -299,6 +360,7 @@ describe('AuthService', () => {
       passwordHash: '$2b$10$stored',
       organizationId: 'org-2',
       role: UserRole.OWNER,
+      twoFactorEnabled: false,
       organization: { deletedAt: null, suspended: false },
     });
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
@@ -311,11 +373,39 @@ describe('AuthService', () => {
     expect(result).toEqual({
       accessToken: 'access-2',
       refreshToken: 'refresh-2',
+      sessionId: 'sess-def',
     });
     expect(prisma.user.update).toHaveBeenCalledWith({
       where: { id: 'u2' },
       data: { lastLoginAt: expect.any(Date) },
     });
-    expect(prisma.refreshToken.create).toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalled();
+  });
+
+  it('login: 2FA etkinse geçici jeton döner, oturum henüz tamamlanmaz', async () => {
+    jwtSignAsync.mockReset().mockResolvedValueOnce('temp-2fa-jwt');
+
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'u-2fa',
+      email: '2fa@example.com',
+      passwordHash: '$2b$10$stored',
+      organizationId: 'org-2fa',
+      role: UserRole.OWNER,
+      twoFactorEnabled: true,
+      organization: { deletedAt: null, suspended: false },
+    });
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+    const result = await service.login({
+      email: '2fa@example.com',
+      password: 'correct',
+    });
+
+    expect(result).toEqual({
+      requiresTwoFactor: true,
+      tempToken: 'temp-2fa-jwt',
+    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });

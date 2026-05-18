@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEmail,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -29,6 +30,13 @@ export class InviteUserDto {
   @ApiProperty({ enum: ASSIGNABLE_ROLES })
   @IsIn(ASSIGNABLE_ROLES)
   role: UserRole;
+}
+
+export class TransferOwnershipDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  newOwnerId: string;
 }
 
 export class UpdateUserRoleDto {

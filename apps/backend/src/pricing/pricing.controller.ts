@@ -24,6 +24,9 @@ import { PlanTier, Marketplace } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionGuard } from '../auth/permission.guard';
+import { Permission } from '../auth/permissions';
+import { RequiresPermission } from '../auth/requires-permission.decorator';
 import { RequiresPlan, SubscriptionGuard } from '../common/guards/subscription.guard';
 
 import type { BuyBoxAnalysisResult, BuyBoxWinRateStats } from './buybox.service';
@@ -43,7 +46,7 @@ import { PricingService } from './pricing.service';
 @ApiTags('pricing')
 @ApiBearerAuth()
 @RequiresPlan(PlanTier.PRO)
-@UseGuards(JwtAuthGuard, SubscriptionGuard)
+@UseGuards(JwtAuthGuard, SubscriptionGuard, PermissionGuard)
 @Controller('pricing')
 export class PricingController {
   constructor(
@@ -94,6 +97,7 @@ export class PricingController {
   }
 
   @Patch('rules/:id/schedule')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @ApiOperation({ summary: 'Kural zamanlaması (tarih, gün, saat)' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
@@ -116,6 +120,7 @@ export class PricingController {
   }
 
   @Post('rules')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Yeni fiyat kuralı' })
   @ApiResponse({ status: 201, description: 'Oluşturuldu' })
@@ -129,6 +134,7 @@ export class PricingController {
   }
 
   @Patch('rules/:id')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @ApiOperation({ summary: 'Fiyat kuralını güncelle' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
@@ -142,6 +148,7 @@ export class PricingController {
   }
 
   @Delete('rules/:id')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @ApiOperation({ summary: 'Fiyat kuralını sil (soft-delete)' })
   @ApiResponse({ status: 200, description: 'Silindi' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
@@ -187,6 +194,7 @@ export class PricingController {
   }
 
   @Post('rules/:id/simulate')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Kural simülasyonu (fiyat değiştirmeden öneri)' })
   @ApiResponse({ status: 200, description: 'Simülasyon sonucu' })
@@ -217,6 +225,7 @@ export class PricingController {
   }
 
   @Post('run')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Aktif kuralları kuyrukta çalıştır' })
   @ApiResponse({ status: 201, description: 'İş kuyruğa eklendi' })
@@ -228,6 +237,7 @@ export class PricingController {
   }
 
   @Post('manual')
+  @RequiresPermission(Permission.PRICING_EDIT)
   @ApiOperation({ summary: 'Manuel fiyat güncelleme (kuyruk)' })
   @ApiResponse({ status: 200, description: 'Kuyruğa eklendi' })
   @ApiResponse({ status: 404, description: 'Listing bulunamadı' })

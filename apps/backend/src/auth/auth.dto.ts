@@ -133,6 +133,19 @@ export class LoginDto {
   password: string;
 }
 
+export class AcceptInviteDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty()
   @IsString()

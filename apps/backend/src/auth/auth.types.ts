@@ -7,7 +7,9 @@ export interface JwtPayload {
   impersonatedOrgId?: string;
 }
 
-export type AuthenticatedUser = User & {
+/** JWT ile doğrulanmış panel kullanıcısı — her zaman org bağlıdır */
+export type AuthenticatedUser = Omit<User, 'organization' | 'organizationId'> & {
+  organizationId: string;
   organization: Organization;
   currentOrgId: string;
   isImpersonating: boolean;

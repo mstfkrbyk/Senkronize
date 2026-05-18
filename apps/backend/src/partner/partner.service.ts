@@ -122,11 +122,20 @@ export class PartnerService {
       include: { organization: true },
     });
 
-    if (clientUser?.organization.deletedAt != null) {
+    if (
+      clientUser?.organization &&
+      clientUser.organization.deletedAt != null
+    ) {
       throw new BadRequestException('Bu e-postaya ait organizasyon bulunamadı.');
     }
 
     if (clientUser) {
+      if (!clientUser.organizationId) {
+        throw new BadRequestException(
+          'Bu e-posta kayıtlı ancak organizasyon bilgisi eksik.',
+        );
+      }
+
       if (clientUser.organizationId === partnerOrgId) {
         throw new BadRequestException('Kendi organizasyonunuzu davet edemezsiniz.');
       }

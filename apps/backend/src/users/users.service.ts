@@ -8,6 +8,7 @@ import {
 import {
   type NotificationPreference,
   Prisma,
+  type UserSession,
   UserRole,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -22,6 +23,30 @@ import {
 } from './users.dto';
 
 const BCRYPT_ROUNDS = 10;
+
+export interface OrgUserWithActivity {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  role: UserRole;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  lastActivityAt: Date;
+}
+
+function maxDate(
+  a: Date | null | undefined,
+  b: Date | null | undefined,
+): Date | null {
+  if (!a) {
+    return b ?? null;
+  }
+  if (!b) {
+    return a;
+  }
+  return a > b ? a : b;
+}
 
 export interface AuditLogListItem {
   id: string;
@@ -301,23 +326,54 @@ export class UsersService {
     return { logs: items, total, page, limit };
   }
 
-  async list(organizationId: string) {
-    return this.prisma.user.findMany({
+  async getOrgUsers(organizationId: string): Promise<OrgUserWithActivity[]> {
+    const users = await this.prisma.user.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        role: true,
-        lastLoginAt: true,
-        createdAt: true,
-      },
+    });
+    if (users.length === 0) {
+      return [];
+    }
+    const ids = users.map((u) => u.id);
+    const agg = await this.prisma.userSession.groupBy({
+      by: ['userId'],
+      where: { userId: { in: ids } },
+      _max: { lastActiveAt: true },
+    });
+    const sessionMax = new Map(
+      agg.map((row) => [row.userId, row._max.lastActiveAt]),
+    );
+    return users.map((u) => {
+      const sessionLast = sessionMax.get(u.id) ?? null;
+      const combined = maxDate(u.lastLoginAt, sessionLast);
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        phone: u.phone,
+        role: u.role,
+        lastLoginAt: u.lastLoginAt,
+        createdAt: u.createdAt,
+        lastActivityAt: combined ?? u.createdAt,
+      };
     });
   }
 
-  async invite(organizationId: string, dto: InviteUserDto) {
+  async list(organizationId: string): Promise<OrgUserWithActivity[]> {
+    return this.getOrgUsers(organizationId);
+  }
+
+  async invite(
+    organizationId: string,
+    dto: InviteUserDto,
+  ): Promise<{
+    id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    createdAt: Date;
+    message: string;
+  }> {
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -354,39 +410,223 @@ export class UsersService {
     };
   }
 
+  async updateUserRole(
+    organizationId: string,
+    targetUserId: string,
+    newRole: UserRole,
+    requestingUserId: string,
+  ): Promise<void> {
+    if (requestingUserId === targetUserId) {
+      throw new BadRequestException('Kendi rolünüzü bu uçtan değiştiremezsiniz.');
+    }
+
+    if (newRole === UserRole.OWNER) {
+      throw new BadRequestException(
+        'Sahip rolü yalnızca “Sahipliği devret” işlemi ile aktarılabilir.',
+      );
+    }
+
+    const [actor, target] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: requestingUserId, organizationId, deletedAt: null },
+      }),
+      this.prisma.user.findFirst({
+        where: { id: targetUserId, organizationId, deletedAt: null },
+      }),
+    ]);
+    if (!actor || !target) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    if (target.role === UserRole.OWNER) {
+      throw new ForbiddenException('Sahip kullanıcının rolü bu uçtan değiştirilemez.');
+    }
+
+    if (actor.role === UserRole.ADMIN) {
+      if (target.role === UserRole.ADMIN) {
+        throw new ForbiddenException('Başka bir yöneticinin rolünü değiştiremezsiniz.');
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { role: newRole },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: requestingUserId,
+        actorOrgId: organizationId,
+        impersonatedOrgId: null,
+        action: 'users.role_changed',
+        resourceType: 'User',
+        resourceId: targetUserId,
+        metadata: { newRole },
+      },
+    });
+  }
+
+  async removeUserFromOrg(
+    organizationId: string,
+    targetUserId: string,
+    requestingUserId: string,
+  ): Promise<void> {
+    if (requestingUserId === targetUserId) {
+      throw new BadRequestException('Kendi hesabınızı bu uçtan çıkaramazsınız.');
+    }
+
+    const [actor, target] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: requestingUserId, organizationId, deletedAt: null },
+      }),
+      this.prisma.user.findFirst({
+        where: { id: targetUserId, organizationId, deletedAt: null },
+      }),
+    ]);
+    if (!actor || !target) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    if (target.role === UserRole.OWNER) {
+      throw new ForbiddenException('Sahip kullanıcı organizasyondan çıkarılamaz.');
+    }
+    if (actor.role === UserRole.ADMIN && target.role === UserRole.ADMIN) {
+      throw new ForbiddenException('Başka bir yöneticiyi çıkaramazsınız.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.refreshToken.deleteMany({ where: { userId: targetUserId } });
+      await tx.userSession.deleteMany({ where: { userId: targetUserId } });
+      await tx.notificationPreference.deleteMany({
+        where: { userId: targetUserId },
+      });
+      await tx.user.update({
+        where: { id: targetUserId },
+        data: { organizationId: null },
+      });
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: requestingUserId,
+        actorOrgId: organizationId,
+        impersonatedOrgId: null,
+        action: 'users.removed_from_org',
+        resourceType: 'User',
+        resourceId: targetUserId,
+        metadata: {},
+      },
+    });
+  }
+
+  async transferOwnership(
+    organizationId: string,
+    currentOwnerId: string,
+    newOwnerId: string,
+  ): Promise<void> {
+    if (currentOwnerId === newOwnerId) {
+      throw new BadRequestException('Geçersiz hedef kullanıcı.');
+    }
+
+    const [current, next] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: {
+          id: currentOwnerId,
+          organizationId,
+          role: UserRole.OWNER,
+          deletedAt: null,
+        },
+      }),
+      this.prisma.user.findFirst({
+        where: { id: newOwnerId, organizationId, deletedAt: null },
+      }),
+    ]);
+    if (!current || !next) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: currentOwnerId },
+        data: { role: UserRole.ADMIN },
+      }),
+      this.prisma.user.update({
+        where: { id: newOwnerId },
+        data: { role: UserRole.OWNER },
+      }),
+    ]);
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: currentOwnerId,
+        actorOrgId: organizationId,
+        impersonatedOrgId: null,
+        action: 'users.ownership_transferred',
+        resourceType: 'Organization',
+        resourceId: organizationId,
+        metadata: { newOwnerId },
+      },
+    });
+  }
+
+  async getActiveSessions(userId: string): Promise<UserSession[]> {
+    const now = new Date();
+    return this.prisma.userSession.findMany({
+      where: { userId, expiresAt: { gt: now } },
+      orderBy: { lastActiveAt: 'desc' },
+    });
+  }
+
+  async revokeSession(userId: string, sessionId: string): Promise<void> {
+    const session = await this.prisma.userSession.findFirst({
+      where: { id: sessionId, userId },
+    });
+    if (!session) {
+      throw new NotFoundException('Oturum bulunamadı.');
+    }
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.deleteMany({
+        where: { userId, token: session.token },
+      }),
+      this.prisma.userSession.delete({ where: { id: session.id } }),
+    ]);
+  }
+
+  async revokeAllSessions(
+    userId: string,
+    exceptCurrentSessionId?: string,
+  ): Promise<void> {
+    const sessions = await this.prisma.userSession.findMany({
+      where: {
+        userId,
+        ...(exceptCurrentSessionId
+          ? { id: { not: exceptCurrentSessionId } }
+          : {}),
+      },
+    });
+    await this.prisma.$transaction(async (tx) => {
+      for (const s of sessions) {
+        await tx.refreshToken.deleteMany({
+          where: { userId, token: s.token },
+        });
+        await tx.userSession.delete({ where: { id: s.id } });
+      }
+    });
+  }
+
   async updateRole(
     organizationId: string,
     actorUserId: string,
     targetUserId: string,
     dto: UpdateUserRoleDto,
   ) {
-    if (actorUserId === targetUserId) {
-      throw new BadRequestException('Kendi rolünüzü bu uçtan değiştiremezsiniz.');
-    }
-
-    const target = await this.prisma.user.findFirst({
+    await this.updateUserRole(
+      organizationId,
+      targetUserId,
+      dto.role,
+      actorUserId,
+    );
+    return this.prisma.user.findFirstOrThrow({
       where: { id: targetUserId, organizationId, deletedAt: null },
-    });
-    if (!target) {
-      throw new NotFoundException('Kullanıcı bulunamadı.');
-    }
-
-    if (target.role === UserRole.OWNER && dto.role !== UserRole.OWNER) {
-      const owners = await this.prisma.user.count({
-        where: {
-          organizationId,
-          role: UserRole.OWNER,
-          deletedAt: null,
-        },
-      });
-      if (owners <= 1) {
-        throw new BadRequestException('Son sahip kullanıcının rolü değiştirilemez.');
-      }
-    }
-
-    return this.prisma.user.update({
-      where: { id: targetUserId },
-      data: { role: dto.role },
       select: {
         id: true,
         email: true,
@@ -402,24 +642,7 @@ export class UsersService {
     actorUserId: string,
     targetUserId: string,
   ): Promise<void> {
-    if (actorUserId === targetUserId) {
-      throw new BadRequestException('Kendi hesabınızı bu uçtan silemezsiniz.');
-    }
-
-    const target = await this.prisma.user.findFirst({
-      where: { id: targetUserId, organizationId, deletedAt: null },
-    });
-    if (!target) {
-      throw new NotFoundException('Kullanıcı bulunamadı.');
-    }
-    if (target.role === UserRole.OWNER) {
-      throw new ForbiddenException('Sahip kullanıcı silinemez.');
-    }
-
-    await this.prisma.user.update({
-      where: { id: targetUserId },
-      data: { deletedAt: new Date() },
-    });
+    await this.removeUserFromOrg(organizationId, targetUserId, actorUserId);
   }
 
   async getNotificationPreferences(
@@ -472,6 +695,10 @@ export class UsersService {
     ]);
 
     if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    if (!user.organizationId) {
       throw new NotFoundException('Kullanıcı bulunamadı.');
     }
 

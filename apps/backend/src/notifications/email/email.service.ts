@@ -109,6 +109,32 @@ export class EmailService {
     );
   }
 
+  async sendOrganizationUserInvite(
+    to: string,
+    data: { organizationName: string; inviteUrl: string },
+  ): Promise<void> {
+    const safeOrg = data.organizationName
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      `${data.organizationName} sizi Senkronize ekibine davet ediyor`,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Organizasyon daveti</h2>
+        <p><strong>${safeOrg}</strong> sizi panele davet etti.</p>
+        <p>Bu bağlantı 48 saat geçerlidir. Hesabınızı oluşturmak veya mevcut hesabınızla katılmak için aşağıdaki düğmeyi kullanın.</p>
+        <a href="${data.inviteUrl.replace(/"/g, '%22')}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Daveti kabul et
+        </a>
+        <p style="color:#666;font-size:13px;margin-top:24px">Bağlantı çalışmıyorsa şu adresi tarayıcıya yapıştırın:<br/>${data.inviteUrl.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</p>
+      </div>
+    `,
+    );
+  }
+
   async sendInvoice(to: string, data: InvoiceEmailData): Promise<void> {
     const html = this.templateService.renderInvoice(data);
     await this.send(

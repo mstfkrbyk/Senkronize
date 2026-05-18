@@ -24,7 +24,12 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       where: { id: payload.sub, deletedAt: null },
       include: { organization: true },
     });
-    if (!user || user.organization.deletedAt != null) {
+    if (
+      !user ||
+      !user.organizationId ||
+      !user.organization ||
+      user.organization.deletedAt != null
+    ) {
       throw new UnauthorizedException();
     }
 
@@ -80,6 +85,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
 
     return {
       ...user,
+      organizationId: user.organizationId,
+      organization: user.organization,
       currentOrgId: payload.impersonatedOrgId ?? payload.orgId,
       isImpersonating: !!payload.impersonatedOrgId,
     };
