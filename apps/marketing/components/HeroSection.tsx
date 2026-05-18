@@ -42,7 +42,7 @@ export function HeroSection(): ReactElement {
                   className="mt-1 block text-primary"
                   variants={fadeUp}
                 >
-                  Tek Yerden Yönetin
+                  Tek Panelden Yönetin
                 </motion.span>
               </motion.h1>
             </motion.div>
@@ -52,8 +52,8 @@ export function HeroSection(): ReactElement {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25, duration: 0.5 }}
             >
-              Trendyol, Hepsiburada ve daha fazlası — stok, fiyat, sipariş hepsi
-              tek panelden, gerçek zamanlı.
+              Trendyol, Hepsiburada, N11 ve daha fazlası — gerçek zamanlı stok,
+              fiyat ve sipariş yönetimi.
             </motion.p>
             <motion.div
               className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
@@ -62,7 +62,7 @@ export function HeroSection(): ReactElement {
               transition={{ delay: 0.35, duration: 0.5 }}
             >
               <Button size="lg" className="h-12 px-8 text-base" asChild>
-                <a href={`${panel}/register`}>14 Gün Ücretsiz Dene</a>
+                <a href={`${panel}/register`}>Ücretsiz Deneyin</a>
               </Button>
               <Button size="lg" variant="ghost" className="h-12 gap-2" asChild>
                 <Link href="#demo">
@@ -78,13 +78,16 @@ export function HeroSection(): ReactElement {
               transition={{ delay: 0.5, duration: 0.5 }}
             >
               <span>
-                <strong className="text-foreground">500+</strong> mağaza
+                <strong className="text-foreground">10+</strong> pazaryeri &
+                ERP entegrasyonu
               </span>
               <span>
-                <strong className="text-foreground">2M+</strong> sipariş işlendi
+                <strong className="text-foreground">Webhook</strong> ile anlık
+                senkron
               </span>
               <span>
-                <strong className="text-foreground">99.9%</strong> uptime
+                <strong className="text-foreground">14 gün</strong> ücretsiz
+                deneme
               </span>
             </motion.div>
           </div>

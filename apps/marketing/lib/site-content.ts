@@ -1,13 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
 import {
-  BarChart2,
-  Package,
-  Shield,
-  TrendingUp,
+  Laptop,
+  LayoutGrid,
+  Receipt,
+  Sparkles,
   Users,
   Zap,
 } from 'lucide-react';
 
+/** Ana sayfa özellik kartları */
 export const FEATURES: {
   icon: LucideIcon;
   title: string;
@@ -15,39 +16,84 @@ export const FEATURES: {
 }[] = [
   {
     icon: Zap,
-    title: 'Gerçek Zamanlı Sync',
-    desc: 'Stok ve fiyat değişiklikleri anında tüm kanallara yansır.',
+    title: 'Gerçek Zamanlı Senkronizasyon',
+    desc: 'Webhook tabanlı stok ve fiyat güncellemeleri saniyeler içinde tüm kanallara yansır.',
   },
   {
-    icon: TrendingUp,
-    title: 'BuyBox Optimizasyonu',
-    desc: 'AI destekli fiyatlandırma ile rakiplerinizin önüne geçin.',
+    icon: LayoutGrid,
+    title: 'Tüm Pazaryerlerinde Tek Panel',
+    desc: 'Trendyol, Hepsiburada, N11 ve daha fazlası — sipariş ve operasyon tek ekranda.',
   },
   {
-    icon: Package,
-    title: 'Merkezi Stok',
-    desc: 'Tüm pazaryerlerindeki stoğunuzu tek noktadan görün ve yönetin.',
+    icon: Receipt,
+    title: 'Otomatik ERP Faturalama',
+    desc: 'Sipariş oluştuğunda BizimHesap, Paraşüt, Logo Tiger ve diğer ERP’lere otomatik aktarım.',
   },
   {
-    icon: BarChart2,
-    title: 'Detaylı Raporlar',
-    desc: 'Satış analizleri ve trend raporları ile kararlarınızı veriye dayandırın.',
+    icon: Sparkles,
+    title: 'AI BuyBox Optimizasyonu',
+    desc: 'PRO planda rekabetçi fiyat ve kâr koruma kurallarıyla BuyBox şansınızı artırın.',
   },
   {
     icon: Users,
-    title: 'Partner Sistemi',
-    desc: 'Ajanslar için özel panel — müşterilerinizi tek yerden yönetin.',
+    title: 'Partner / Bayi Sistemi',
+    desc: 'Ajanslar müşteri hesaplarını güvenli şekilde yönetir; beyaz etiket ile kendi markanızla sunun.',
   },
   {
-    icon: Shield,
-    title: 'Güvenli & KVKK Uyumlu',
-    desc: 'Verileriniz TR sunucularında, AES-256 şifreleme ile korunur.',
+    icon: Laptop,
+    title: 'Tauri Masaüstü Köprüsü',
+    desc: 'On‑premise ERP ve yerel ağlar için Windows ve macOS masaüstü uygulaması ile güvenli bağlantı.',
+  },
+];
+
+/** /features sayfası — detaylı bölümler */
+export const FEATURE_PAGE_SECTIONS: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}[] = [
+  {
+    icon: Zap,
+    title: 'Gerçek Zamanlı Senkronizasyon',
+    description:
+      'Webhook tabanlı mimari ile stok ve fiyat değişiklikleri saniyeler içinde pazaryerlerine iletilir. Periyodik tarama yerine anlık tetikleyicilerle operasyon yükünüz azalır.',
+  },
+  {
+    icon: LayoutGrid,
+    title: 'Tüm Pazaryerlerinde Tek Panel',
+    description:
+      'Trendyol, Hepsiburada, N11, Çiçeksepeti, Amazon.com.tr, PTT AVM ve 10+ entegrasyonu tek arayüzden yönetin. Sipariş, iade ve katalog akışları merkezileşir.',
+  },
+  {
+    icon: Receipt,
+    title: 'Otomatik ERP Entegrasyonu',
+    description:
+      'Sipariş onaylandığında faturalama ve muhasebe kayıtları BizimHesap, Paraşüt, Logo Tiger, Mikro ERP ve Luca gibi sistemlere otomatik düşer; manuel veri girişi ortadan kalkar.',
+  },
+  {
+    icon: Sparkles,
+    title: 'AI BuyBox Optimizasyonu',
+    description:
+      'PRO planda yapay zekâ destekli fiyat önerileri, rakip ve marj kurallarıyla BuyBox’ı hedeflerken kârlılığınızı korursunuz.',
+  },
+  {
+    icon: Users,
+    title: 'Partner / Bayi Sistemi',
+    description:
+      'Ajanslar ve çözüm ortakları müşteri organizasyonlarına güvenli erişimle hizmet verir. İzlenebilirlik ve denetim için yetkilendirme katmanları hazırdır.',
+  },
+  {
+    icon: Laptop,
+    title: 'Masaüstü Uygulaması',
+    description:
+      'Tauri ile geliştirilen masaüstü uygulama, şirket içi ERP ve kapalı ağ senaryolarında güvenli köprü sağlar; bulut paneli ile birlikte çalışır.',
   },
 ];
 
 export interface Plan {
   name: string;
-  price: number;
+  /** Aylık liste fiyatı (KDV hariç) */
+  monthlyPrice: number;
   period: string;
   features: string[];
   cta: string;
@@ -58,46 +104,124 @@ export interface Plan {
 export const PLANS: Plan[] = [
   {
     name: 'Başlangıç',
-    price: 499,
+    monthlyPrice: 799,
     period: '/ay',
     features: [
-      '2 pazaryeri bağlantısı',
-      '500 ürün',
-      'Manuel senkronizasyon',
+      '1 pazaryeri bağlantısı',
+      '500 sipariş / ay',
+      'Temel stok senkronizasyonu',
+      '1 kullanıcı',
       'E-posta desteği',
     ],
-    cta: 'Başlayın',
+    cta: 'Ücretsiz Deneyin',
     highlighted: false,
   },
   {
-    name: 'Gelişim',
-    price: 999,
+    name: 'Büyüme',
+    monthlyPrice: 1499,
     period: '/ay',
     features: [
-      '5 pazaryeri',
-      '2.000 ürün',
-      'Otomatik senkronizasyon',
-      'ERP entegrasyonu',
+      '5 pazaryeri bağlantısı',
+      '5.000 sipariş / ay',
+      'Gerçek zamanlı webhook senkronizasyonu',
+      '1 ERP bağlantısı',
+      '5 kullanıcı',
       'Öncelikli destek',
+      'Raporlama',
     ],
-    cta: 'Başlayın',
-    highlighted: false,
+    cta: 'Ücretsiz Deneyin',
+    highlighted: true,
+    badge: 'En Popüler',
   },
   {
     name: 'Pro',
-    price: 1999,
+    monthlyPrice: 2999,
     period: '/ay',
     features: [
-      'Sınırsız pazaryeri',
-      'Sınırsız ürün',
-      'BuyBox optimizasyonu',
-      'AI fiyatlandırma',
-      '7/24 destek',
-      'Özel müdür',
+      'Sınırsız pazaryeri bağlantısı',
+      'Sınırsız sipariş',
+      'AI BuyBox optimizasyonu',
+      'Sınırsız ERP bağlantısı',
+      'Sınırsız kullanıcı',
+      'Partner / bayi sistemi',
+      'API erişimi',
+      '7/24 öncelikli destek',
     ],
-    cta: '14 Gün Ücretsiz Dene',
-    highlighted: true,
-    badge: 'En Popüler',
+    cta: 'Ücretsiz Deneyin',
+    highlighted: false,
+  },
+];
+
+/** Fiyat karşılaştırma tablosu hücre tipleri */
+export type ComparisonCell = 'check' | 'dash' | string;
+
+export interface PricingComparisonRow {
+  label: string;
+  baslangic: ComparisonCell;
+  buyume: ComparisonCell;
+  pro: ComparisonCell;
+}
+
+export const PRICING_COMPARISON: PricingComparisonRow[] = [
+  {
+    label: 'Pazaryeri bağlantısı',
+    baslangic: '1',
+    buyume: '5',
+    pro: 'Sınırsız',
+  },
+  {
+    label: 'Sipariş / ay',
+    baslangic: '500',
+    buyume: '5.000',
+    pro: 'Sınırsız',
+  },
+  {
+    label: 'Gerçek zamanlı webhook senk.',
+    baslangic: 'dash',
+    buyume: 'check',
+    pro: 'check',
+  },
+  {
+    label: 'ERP bağlantısı',
+    baslangic: 'dash',
+    buyume: '1',
+    pro: 'Sınırsız',
+  },
+  {
+    label: 'Kullanıcı',
+    baslangic: '1',
+    buyume: '5',
+    pro: 'Sınırsız',
+  },
+  {
+    label: 'Raporlama',
+    baslangic: 'dash',
+    buyume: 'check',
+    pro: 'check',
+  },
+  {
+    label: 'AI BuyBox optimizasyonu',
+    baslangic: 'dash',
+    buyume: 'dash',
+    pro: 'check',
+  },
+  {
+    label: 'Partner / bayi sistemi',
+    baslangic: 'dash',
+    buyume: 'dash',
+    pro: 'check',
+  },
+  {
+    label: 'API erişimi',
+    baslangic: 'dash',
+    buyume: 'dash',
+    pro: 'check',
+  },
+  {
+    label: 'Destek',
+    baslangic: 'E-posta',
+    buyume: 'Öncelikli',
+    pro: '7/24 öncelikli',
   },
 ];
 
@@ -129,19 +253,56 @@ export const TESTIMONIALS: {
 
 export const PRICING_FAQ: { q: string; a: string }[] = [
   {
-    q: 'Deneme süresi nasıl işliyor?',
-    a: '14 gün boyunca tüm özelliklere erişebilirsiniz. Kredi kartı gerekmez.',
+    q: '14 gün ücretsiz deneme nasıl çalışır?',
+    a: 'Kayıt sonrası 14 gün boyunca seçtiğiniz planın özelliklerini deneyebilirsiniz. Kredi kartı gerekmez; süre bitiminde ücretlendirme için sizden onay alınır.',
+  },
+  {
+    q: 'Yıllık faturalamada %20 indirim nasıl uygulanır?',
+    a: 'Yıllık ödeme seçildiğinde aylık liste fiyatına göre %20 indirimli eşdeğer aylık tutar gösterilir; toplam tutar yıllık faturalanır. Fiyatlar KDV hariçtir.',
+  },
+  {
+    q: 'Hangi pazaryeri ve ERP’ler destekleniyor?',
+    a: 'Trendyol, Hepsiburada, N11, Çiçeksepeti, Amazon.com.tr, PTT AVM; T-Soft, Ticimax, WooCommerce, Shopify, İdeasoft; BizimHesap, Paraşüt, Logo Tiger, Mikro ERP, Luca ve daha fazlası için entegrasyon yol haritası mevcuttur.',
   },
   {
     q: 'Aboneliği iptal edebilir miyim?',
-    a: 'İstediğiniz zaman iptal edebilirsiniz. İptal sonrası dönem bitimine kadar hizmet açık kalır.',
+    a: 'Evet. İstediğiniz zaman iptal edebilirsiniz; dönem sonuna kadar hizmetiniz açık kalır.',
   },
   {
-    q: 'ERP entegrasyonu hangi plandan itibaren?',
-    a: 'Gelişim planından itibaren BizimHesap ve T-Soft entegrasyonu mevcuttur.',
+    q: 'AI BuyBox hangi planda?',
+    a: 'AI destekli BuyBox optimizasyonu Pro planda sunulur. Büyüme planında gelişmiş webhook senkronizasyonu ve raporlama yer alır.',
   },
   {
-    q: 'Fatura kesilebiliyor mu?',
-    a: 'Evet, kurumsal müşterilerimize e-fatura kesilmektedir.',
+    q: 'Kurumsal faturalama yapılıyor mu?',
+    a: 'Kurumsal müşterilerimize e-fatura ve sözleşmeli kurulum seçenekleri sunulmaktadır.',
+  },
+];
+
+export const BLOG_POSTS: {
+  slug: string;
+  title: string;
+  date: string;
+  excerpt: string;
+}[] = [
+  {
+    slug: 'trendyol-buybox',
+    title: "Trendyol'da BuyBox Nasıl Kazanılır?",
+    date: 'Mayıs 2026',
+    excerpt:
+      'Rekabetçi fiyatlama, teslimat performansı ve stok doğruluğunun BuyBox kazanmak için nasıl bir araya geldiğini özetliyoruz.',
+  },
+  {
+    slug: 'erp-entegrasyon-onemi',
+    title: 'E-ticaret ERP Entegrasyonu: Neden Önemli?',
+    date: 'Nisan 2026',
+    excerpt:
+      'Çok kanallı satışta muhasebe hatalarını azaltmak ve operasyonu ölçeklemek için ERP bağlantısının rolü.',
+  },
+  {
+    slug: 'cok-kanalli-satis',
+    title: 'Çok Kanallı Satış Stratejisi',
+    date: 'Mart 2026',
+    excerpt:
+      'Pazaryeri dağılımı, stok tekilleştirme ve senkron politikalarıyla sürdürülebilir büyüme ipuçları.',
   },
 ];

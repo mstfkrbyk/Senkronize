@@ -1,18 +1,29 @@
 import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 
-import { FeaturesSection } from '@/components/FeaturesSection';
+import { ProductFeaturesSections } from '@/components/ProductFeaturesSections';
+
+const ogDescription =
+  'Gerçek zamanlı webhook senkronizasyonu, çoklu pazaryeri paneli, otomatik ERP faturalama, AI BuyBox, partner sistemi ve Tauri masaüstü köprüsü.';
 
 export const metadata: Metadata = {
-  title: 'Özellikler',
-  description:
-    'Gerçek zamanlı senkron, BuyBox optimizasyonu, merkezi stok, raporlar, partner paneli ve KVKK uyumlu güvenlik.',
+  title: 'Özellikler — Pazaryeri ve ERP Entegrasyonu',
+  description: ogDescription,
   keywords: [
     'pazaryeri senkronizasyon',
-    'buybox',
-    'merkezi stok',
+    'webhook sync',
+    'buybox optimizasyonu',
     'erp entegrasyon',
+    'tauri masaüstü',
+    'partner paneli',
   ],
+  openGraph: {
+    title: 'Özellikler | Senkronize',
+    description: ogDescription,
+    type: 'website',
+    locale: 'tr_TR',
+    url: '/features',
+  },
 };
 
 export default function FeaturesPage(): ReactElement {
@@ -24,12 +35,12 @@ export default function FeaturesPage(): ReactElement {
             Özellikler
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
-            Senkronize ile pazaryeri operasyonlarınızı tek panelden yönetin;
-            otomasyon ve görünürlük bir arada.
+            Türkiye pazaryerleri ve ERP ekosistemi için tasarlanmış entegrasyon
+            katmanı: tek panel, gerçek zamanlı veri ve ajans dostu yönetim.
           </p>
         </div>
       </section>
-      <FeaturesSection />
+      <ProductFeaturesSections />
     </main>
   );
 }

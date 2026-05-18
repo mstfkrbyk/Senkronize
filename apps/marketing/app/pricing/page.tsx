@@ -4,21 +4,31 @@ import type { ReactElement } from 'react';
 import { PricingSection } from '@/components/PricingSection';
 import { PRICING_FAQ } from '@/lib/site-content';
 
+const ogDescription =
+  'Başlangıç, Büyüme ve Pro planlarıyla şeffaf fiyatlandırma. Yıllık ödemede %20 indirim, 14 gün ücretsiz deneme, karşılaştırma tablosu ve SSS.';
+
 export const metadata: Metadata = {
-  title: 'Fiyatlandırma',
-  description:
-    'Senkronize paketleri ve şeffaf fiyatlar. 14 gün ücretsiz deneme, KDV bilgisi ve sık sorulan sorular.',
+  title: 'Fiyatlandırma — Paketler ve Karşılaştırma',
+  description: ogDescription,
   keywords: [
     'senkronize fiyat',
     'pazaryeri entegrasyon fiyat',
     'e-ticaret SaaS fiyatlandırma',
+    'trendyol entegrasyon ücreti',
   ],
+  openGraph: {
+    title: 'Fiyatlandırma | Senkronize',
+    description: ogDescription,
+    type: 'website',
+    locale: 'tr_TR',
+    url: '/pricing',
+  },
 };
 
 export default function PricingPage(): ReactElement {
   return (
     <main>
-      <PricingSection spacious />
+      <PricingSection spacious showComparison />
       <section className="border-t border-border bg-[#F9FAFB] py-16 sm:py-20">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <h2 className="text-center text-2xl font-bold text-[#111827] sm:text-3xl">
