@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   BrowserRouter,
@@ -9,39 +9,111 @@ import {
 } from 'react-router-dom';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { PageLoader } from '@/components/PageLoader';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
-import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
-import { AdminLayout } from '@/pages/admin/AdminLayout';
-import { AdminOrgDetailPage } from '@/pages/admin/AdminOrgDetailPage';
-import { AdminOrgsPage } from '@/pages/admin/AdminOrgsPage';
-import { AdminSubscriptionsPage } from '@/pages/admin/AdminSubscriptionsPage';
-import { AuditLogPage } from '@/pages/audit/AuditLogPage';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
-import { ConnectionsPage } from '@/pages/connections/ConnectionsPage';
-import { DashboardPage } from '@/pages/dashboard/DashboardPage';
-import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
-import { ListingsPage } from '@/pages/listings/ListingsPage';
-import { MigrationPage } from '@/pages/migration/MigrationPage';
-import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
-import { NotFoundPage } from '@/pages/NotFoundPage';
-import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
-import { OrdersPage } from '@/pages/orders/OrdersPage';
-import { PartnerPage } from '@/pages/partner/PartnerPage';
-import { PricingPage } from '@/pages/pricing/PricingPage';
-import { ProductDetailPage } from '@/pages/products/ProductDetailPage';
-import { ProductImportPage } from '@/pages/products/ProductImportPage';
-import { ProductsPage } from '@/pages/products/ProductsPage';
-import { ReportsPage } from '@/pages/reports/ReportsPage';
-import { SettingsPage } from '@/pages/settings/SettingsPage';
-import { StockManagementPage } from '@/pages/stock/StockManagementPage';
-import { SyncLogsPage } from '@/pages/sync-logs/SyncLogsPage';
 import { useThemeStore } from '@/store/theme.store';
+
+const InviteAcceptPage = lazy(() =>
+  import('@/pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
+);
+const NotFoundPage = lazy(() =>
+  import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
+);
+const OnboardingPage = lazy(() =>
+  import('@/pages/onboarding/OnboardingPage').then((m) => ({
+    default: m.OnboardingPage,
+  })),
+);
+const AdminLayout = lazy(() =>
+  import('@/pages/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })),
+);
+const AdminDashboardPage = lazy(() =>
+  import('@/pages/admin/AdminDashboardPage').then((m) => ({
+    default: m.AdminDashboardPage,
+  })),
+);
+const AdminOrgsPage = lazy(() =>
+  import('@/pages/admin/AdminOrgsPage').then((m) => ({ default: m.AdminOrgsPage })),
+);
+const AdminOrgDetailPage = lazy(() =>
+  import('@/pages/admin/AdminOrgDetailPage').then((m) => ({
+    default: m.AdminOrgDetailPage,
+  })),
+);
+const AdminSubscriptionsPage = lazy(() =>
+  import('@/pages/admin/AdminSubscriptionsPage').then((m) => ({
+    default: m.AdminSubscriptionsPage,
+  })),
+);
+const AuditLogPage = lazy(() =>
+  import('@/pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
+);
+const ConnectionsPage = lazy(() =>
+  import('@/pages/connections/ConnectionsPage').then((m) => ({
+    default: m.ConnectionsPage,
+  })),
+);
+const DashboardPage = lazy(() =>
+  import('@/pages/dashboard/DashboardPage').then((m) => ({
+    default: m.DashboardPage,
+  })),
+);
+const ListingsPage = lazy(() =>
+  import('@/pages/listings/ListingsPage').then((m) => ({ default: m.ListingsPage })),
+);
+const MigrationPage = lazy(() =>
+  import('@/pages/migration/MigrationPage').then((m) => ({
+    default: m.MigrationPage,
+  })),
+);
+const NotificationsPage = lazy(() =>
+  import('@/pages/notifications/NotificationsPage').then((m) => ({
+    default: m.NotificationsPage,
+  })),
+);
+const OrdersPage = lazy(() =>
+  import('@/pages/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })),
+);
+const PartnerPage = lazy(() =>
+  import('@/pages/partner/PartnerPage').then((m) => ({ default: m.PartnerPage })),
+);
+const PricingPage = lazy(() =>
+  import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })),
+);
+const ProductDetailPage = lazy(() =>
+  import('@/pages/products/ProductDetailPage').then((m) => ({
+    default: m.ProductDetailPage,
+  })),
+);
+const ProductImportPage = lazy(() =>
+  import('@/pages/products/ProductImportPage').then((m) => ({
+    default: m.ProductImportPage,
+  })),
+);
+const ProductsPage = lazy(() =>
+  import('@/pages/products/ProductsPage').then((m) => ({ default: m.ProductsPage })),
+);
+const ReportsPage = lazy(() =>
+  import('@/pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })),
+);
+const SettingsPage = lazy(() =>
+  import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
+const StockManagementPage = lazy(() =>
+  import('@/pages/stock/StockManagementPage').then((m) => ({
+    default: m.StockManagementPage,
+  })),
+);
+const SyncLogsPage = lazy(() =>
+  import('@/pages/sync-logs/SyncLogsPage').then((m) => ({ default: m.SyncLogsPage })),
+);
 
 function SystemThemeListener(): null {
   useEffect(() => {
@@ -64,7 +136,8 @@ export default function App(): ReactElement {
       <BrowserRouter>
         <SystemThemeListener />
         <Toaster position="top-center" richColors closeButton />
-        <Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
             <Route
               path="/invite/:token"
               element={
@@ -102,8 +175,14 @@ export default function App(): ReactElement {
               >
                 <Route index element={<AdminDashboardPage />} />
                 <Route path="organizations" element={<AdminOrgsPage />} />
-                <Route path="organizations/:orgId" element={<AdminOrgDetailPage />} />
-                <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
+                <Route
+                  path="organizations/:orgId"
+                  element={<AdminOrgDetailPage />}
+                />
+                <Route
+                  path="subscriptions"
+                  element={<AdminSubscriptionsPage />}
+                />
               </Route>
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
@@ -122,7 +201,10 @@ export default function App(): ReactElement {
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />
                 <Route path="/partner" element={<PartnerPage />} />
-                <Route path="/settings/subscription" element={<SettingsPage />} />
+                <Route
+                  path="/settings/subscription"
+                  element={<SettingsPage />}
+                />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>
@@ -134,7 +216,8 @@ export default function App(): ReactElement {
                 </ErrorBoundary>
               }
             />
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );

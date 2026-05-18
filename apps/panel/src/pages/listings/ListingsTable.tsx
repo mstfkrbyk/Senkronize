@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
-import { Banknote, Boxes, MoreHorizontal, Package } from 'lucide-react';
+import { Banknote, Boxes, MoreHorizontal } from 'lucide-react';
 
+import { ProductImage } from '@/components/ProductImage';
 import { StockBadge } from '@/components/StockBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,23 +42,13 @@ function formatTryFromDecimal(value: string): string {
 }
 
 function ListingThumb({ urls }: { urls: string[] }): ReactElement {
-  const [failed, setFailed] = useState(false);
   const url = urls[0];
-  if (!url || failed) {
-    return (
-      <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted/40">
-        <Package className="h-5 w-5 text-muted-foreground" aria-hidden />
-      </div>
-    );
-  }
   return (
-    <img
+    <ProductImage
       src={url}
       alt=""
-      className="h-10 w-10 rounded-md border object-cover"
-      onError={() => {
-        setFailed(true);
-      }}
+      size={40}
+      className="h-10 w-10 rounded-md"
     />
   );
 }

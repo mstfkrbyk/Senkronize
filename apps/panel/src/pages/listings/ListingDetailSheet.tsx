@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { ProductImage } from '@/components/ProductImage';
 import { StockBadge } from '@/components/StockBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -391,11 +392,12 @@ export function ListingDetailSheet({
               ) : (
                 <div className="grid grid-cols-3 gap-2">
                   {(active ?? listing).imageUrls.map((url) => (
-                    <img
+                    <ProductImage
                       key={url}
                       src={url}
-                      alt=""
-                      className="aspect-square rounded-md border object-cover"
+                      alt="Ürün görseli"
+                      fluid
+                      className="aspect-square w-full max-h-32 rounded-md object-cover"
                     />
                   ))}
                 </div>
