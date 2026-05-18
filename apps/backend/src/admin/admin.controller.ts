@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   DefaultValuePipe,
@@ -247,6 +248,9 @@ export class AdminController {
     });
     if (!org) {
       throw new NotFoundException('Organizasyon bulunamadı');
+    }
+    if (query.format !== 'csv') {
+      throw new BadRequestException('Yalnızca format=csv desteklenir');
     }
     return this.usersService.exportAuditLogsCsv(organizationId, query);
   }
