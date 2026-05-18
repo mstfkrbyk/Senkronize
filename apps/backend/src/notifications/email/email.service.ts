@@ -128,6 +128,33 @@ export class EmailService {
     );
   }
 
+  async sendOutOfStockWeeklyReport(
+    to: string,
+    name: string,
+    totalZeroStock: number,
+    sampleProductNames: string[],
+  ): Promise<void> {
+    const samples =
+      sampleProductNames.length > 0
+        ? `<ul style="padding-left:18px">${sampleProductNames
+            .map((n) => `<li style="margin-bottom:4px">${n}</li>`)
+            .join('')}</ul>`
+        : '<p>Örnek listelenemedi.</p>';
+    await this.send(
+      to,
+      `Haftalık stok özeti: ${totalZeroStock} listelemede stok sıfır`,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Merhaba ${name},</h2>
+        <p>Stoku <strong>0</strong> olan <strong>${totalZeroStock}</strong> pazaryeri listelemeniz var.</p>
+        <p>Örnek ürünler:</p>
+        ${samples}
+        <p style="color:#666;font-size:14px">Panele giriş yaparak stoklarınızı güncelleyebilirsiniz.</p>
+      </div>
+    `,
+    );
+  }
+
   async sendJobFailureAlert(
     to: string,
     detail: {

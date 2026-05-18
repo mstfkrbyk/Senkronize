@@ -42,7 +42,9 @@ export class CreatedApiKeyResponseDto {
   @ApiProperty()
   name!: string;
 
-  @ApiProperty({ description: 'Gösterim için kayıtlı önek (hex parçasının ilk 8 karakteri)' })
+  @ApiProperty({
+    description: 'Gösterim için kayıtlı önek (tam anahtarın ilk 12 karakteri, örn. sk_live_xxxx)',
+  })
   keyPrefix!: string;
 
   @ApiProperty({

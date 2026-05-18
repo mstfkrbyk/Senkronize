@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -16,11 +18,12 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtOrApiKeyGuard } from '../api-key/jwt-or-api-key.guard';
 
 import {
   BulkUpdateDto,
   ListingQueryDto,
+  RetrySyncJobDto,
   UpdatePriceDto,
   UpdateStockDto,
 } from './listing.dto';
@@ -37,7 +40,7 @@ export class ListingController {
   constructor(private readonly listingService: ListingService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Listeleme listesi' })
   @ApiResponse({ status: 200, description: 'Sayfalı liste' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -49,7 +52,7 @@ export class ListingController {
   }
 
   @Get('summary')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Listeleme özeti' })
   @ApiResponse({ status: 200, description: 'Özet' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -60,7 +63,7 @@ export class ListingController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Listeleme detayı' })
   @ApiResponse({ status: 200, description: 'Detay' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -73,7 +76,7 @@ export class ListingController {
   }
 
   @Post('sync')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Pazaryeri listelemelerini kuyruğa senkronize et' })
   @ApiResponse({ status: 201, description: 'İşler kuyruğa eklendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -90,8 +93,22 @@ export class ListingController {
     };
   }
 
+  @Post('retry-job')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Başarısız kuyruk işini denetim kaydından yeniden kuyruğa al' })
+  @ApiResponse({ status: 201, description: 'İş yeniden kuyruğa eklendi' })
+  @ApiResponse({ status: 400, description: 'Geçersiz istek' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async retryFailedJob(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: RetrySyncJobDto,
+  ): Promise<{ jobId: string }> {
+    return this.listingService.retryFromAuditLog(org.id, dto.auditLogId);
+  }
+
   @Post('bulk-update')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Toplu stok ve fiyat güncelleme (barkod bazlı)' })
   @ApiResponse({ status: 200, description: 'Güncellenen listeleme sayısı' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -103,7 +120,7 @@ export class ListingController {
   }
 
   @Patch(':id/price')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Listeleme fiyatını güncelle (kuyruk + optimistik DB)' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -123,7 +140,7 @@ export class ListingController {
   }
 
   @Patch(':id/stock')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Listeleme stokunu güncelle (kuyruk + optimistik DB)' })
   @ApiResponse({ status: 200, description: 'Güncellendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })

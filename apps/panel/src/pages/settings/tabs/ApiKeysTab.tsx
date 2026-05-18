@@ -162,6 +162,7 @@ export function ApiKeysTab(): ReactElement {
               <TableRow>
                 <TableHead>İsim</TableHead>
                 <TableHead>Önek</TableHead>
+                <TableHead>Oluşturulma</TableHead>
                 <TableHead>Son kullanım</TableHead>
                 <TableHead className="text-right">İşlemler</TableHead>
               </TableRow>
@@ -169,7 +170,7 @@ export function ApiKeysTab(): ReactElement {
             <TableBody>
               {(keysQuery.data ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
                     Henüz API anahtarı yok.
                   </TableCell>
                 </TableRow>
@@ -178,6 +179,9 @@ export function ApiKeysTab(): ReactElement {
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">{row.name}</TableCell>
                     <TableCell className="font-mono text-xs">{row.keyPrefix}…</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatDate(row.createdAt)}
+                    </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(row.lastUsedAt)}
                     </TableCell>

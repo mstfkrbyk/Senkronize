@@ -62,6 +62,31 @@ function buildAuditActionWhere(
     : { equals: rawAction };
 }
 
+const SYNC_QUEUE_JOB_NAMES = [
+  'pull-orders',
+  'pull-listings',
+  'push-stock',
+  'push-price',
+] as const;
+
+function buildSyncAuditWhere(): Prisma.AuditLogWhereInput {
+  return {
+    OR: [
+      { action: { startsWith: 'sync_' } },
+      {
+        AND: [
+          { action: 'queue.job_failed' },
+          {
+            OR: SYNC_QUEUE_JOB_NAMES.map((name) => ({
+              metadata: { path: ['jobName'], equals: name },
+            })),
+          },
+        ],
+      },
+    ],
+  };
+}
+
 const NOTIFICATION_PREF_BOOLEAN_KEYS = [
   'newOrder',
   'stockAlert',
@@ -108,18 +133,31 @@ export class UsersService {
     organizationId: string,
     limit: number,
     actionFilter?: string,
+    syncOnly?: boolean,
   ): Promise<AuditLogListItem[]> {
     const take = Math.min(Math.max(limit, 1), 100);
     const actionWhere = buildAuditActionWhere(actionFilter);
 
+    const tenantWhere: Prisma.AuditLogWhereInput = {
+      OR: [
+        { actorOrgId: organizationId },
+        { impersonatedOrgId: organizationId },
+      ],
+    };
+
+    const clauses: Prisma.AuditLogWhereInput[] = [tenantWhere];
+    if (syncOnly === true) {
+      clauses.push(buildSyncAuditWhere());
+    }
+    if (actionWhere) {
+      clauses.push({ action: actionWhere });
+    }
+
+    const where: Prisma.AuditLogWhereInput =
+      clauses.length === 1 ? clauses[0] : { AND: clauses };
+
     const logs = await this.prisma.auditLog.findMany({
-      where: {
-        OR: [
-          { actorOrgId: organizationId },
-          { impersonatedOrgId: organizationId },
-        ],
-        ...(actionWhere ? { action: actionWhere } : {}),
-      },
+      where,
       orderBy: { createdAt: 'desc' },
       take,
     });

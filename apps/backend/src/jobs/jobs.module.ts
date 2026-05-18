@@ -20,6 +20,7 @@ import { ErpSyncProcessor } from './erp-sync.processor';
 import { MarketplacePullProcessor } from './marketplace-pull.processor';
 import { MarketplacePushProcessor } from './marketplace-push.processor';
 import { PricingProcessor } from './pricing.processor';
+import { StockAlertTask } from './stock-alert.task';
 import { SyncSchedulerTask } from './sync-scheduler.task';
 
 @Module({
@@ -44,6 +45,7 @@ import { SyncSchedulerTask } from './sync-scheduler.task';
     ImageProcessor,
     BuyBoxFetchTask,
     SyncSchedulerTask,
+    StockAlertTask,
   ],
 })
 export class JobsModule {}

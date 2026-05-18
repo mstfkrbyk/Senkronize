@@ -26,6 +26,33 @@ function extractOrganizationId(data: unknown): string | undefined {
   return typeof orgId === 'string' ? orgId : undefined;
 }
 
+function jobReplayMetadata(job: Job): Record<string, unknown> {
+  const d = job.data;
+  if (typeof d !== 'object' || d === null) {
+    return {};
+  }
+  const data = d as Record<string, unknown>;
+  const meta: Record<string, unknown> = {};
+  if (typeof data.platform === 'string') {
+    meta.platform = data.platform;
+  }
+  if (typeof data.type === 'string') {
+    meta.jobDataType = data.type;
+  }
+  if (typeof data.since === 'string') {
+    meta.since = data.since;
+  }
+  if (Array.isArray(data.resourceIds)) {
+    meta.resourceIds = data.resourceIds.filter(
+      (x): x is string => typeof x === 'string',
+    );
+  }
+  if (data.payload !== undefined && data.payload !== null) {
+    meta.payload = data.payload;
+  }
+  return meta;
+}
+
 @Injectable()
 export class MarketplaceJobFailureHandler {
   private readonly logger = new Logger(MarketplaceJobFailureHandler.name);
@@ -68,6 +95,7 @@ export class MarketplaceJobFailureHandler {
           attemptsMade: job.attemptsMade,
           maxAttempts: job.opts.attempts ?? null,
           failedReason: error.message.slice(0, 2000),
+          ...jobReplayMetadata(job),
         },
       },
     });

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ApiKeyModule } from '../api-key/api-key.module';
 import { AuthModule } from '../auth/auth.module';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { NotificationModule } from '../notification/notification.module';
@@ -8,7 +9,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
 @Module({
-  imports: [AuthModule, NotificationModule],
+  imports: [ApiKeyModule, AuthModule, NotificationModule],
   controllers: [UsersController, AuditLogController, AuditLogsController],
   providers: [UsersService, RolesGuard],
 })

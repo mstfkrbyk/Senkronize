@@ -1,8 +1,8 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
+import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -12,26 +12,40 @@ import type {
   CreatedApiKeyResponseDto,
 } from './api-key.dto';
 
-function sha256Hex(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
+const BCRYPT_ROUNDS = 10;
+const API_KEY_PREFIX = 'sk_live_';
+const PREFIX_LEN = 12;
+
+function readHeader(
+  req: Request,
+  name: 'authorization' | 'x-api-key',
+): string | undefined {
+  const raw = req.headers[name];
+  if (Array.isArray(raw)) {
+    return typeof raw[0] === 'string' ? raw[0] : undefined;
+  }
+  return typeof raw === 'string' ? raw : undefined;
+}
+
+function extractRawApiKeyFromRequest(req: Request): string | null {
+  const xApi = readHeader(req, 'x-api-key');
+  if (xApi?.startsWith(API_KEY_PREFIX)) {
+    return xApi.trim();
+  }
+  const authz = readHeader(req, 'authorization');
+  if (
+    typeof authz === 'string' &&
+    authz.startsWith('Bearer ') &&
+    authz.slice(7).trim().startsWith(API_KEY_PREFIX)
+  ) {
+    return authz.slice(7).trim();
+  }
+  return null;
 }
 
 @Injectable()
 export class ApiKeyService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {}
-
-  private keyPrefixForSecret(secretHex: string): string {
-    return secretHex.slice(0, 8);
-  }
-
-  private buildRawKey(secretHex: string): string {
-    const isProd = this.config.get<string>('NODE_ENV') === 'production';
-    const envPart = isProd ? 'live' : 'test';
-    return `skr_${envPart}_${secretHex}`;
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async listActive(organizationId: string): Promise<ApiKeyListItemDto[]> {
     const rows = await this.prisma.apiKey.findMany({
@@ -55,9 +69,9 @@ export class ApiKeyService {
     name: string,
   ): Promise<CreatedApiKeyResponseDto> {
     const secretHex = randomBytes(16).toString('hex');
-    const rawKey = this.buildRawKey(secretHex);
-    const keyHash = sha256Hex(rawKey);
-    const keyPrefix = this.keyPrefixForSecret(secretHex);
+    const rawKey = `${API_KEY_PREFIX}${secretHex}`;
+    const keyHash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
+    const keyPrefix = rawKey.substring(0, PREFIX_LEN);
 
     const row = await this.prisma.apiKey.create({
       data: {
@@ -90,21 +104,31 @@ export class ApiKeyService {
    * Passport custom strategy: doğrula ve `request.user` için payload üret.
    */
   async authenticateRequest(req: Request): Promise<ApiKeyAuthUser | null> {
-    const rawHeader = req.headers['x-api-key'];
-    const token = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
-    if (typeof token !== 'string' || token.length < 16 || !token.startsWith('skr_')) {
+    const token = extractRawApiKeyFromRequest(req);
+    if (token == null || token.length < PREFIX_LEN + 8) {
       return null;
     }
 
-    const keyHash = sha256Hex(token);
-    const row = await this.prisma.apiKey.findFirst({
+    const prefix = token.substring(0, PREFIX_LEN);
+    const candidates = await this.prisma.apiKey.findMany({
       where: {
-        keyHash,
+        keyPrefix: prefix,
         isActive: true,
         organization: { deletedAt: null },
       },
       include: { organization: true },
+      take: 8,
     });
+
+    let row: (typeof candidates)[0] | null = null;
+    for (const c of candidates) {
+      const match = await bcrypt.compare(token, c.keyHash);
+      if (match) {
+        row = c;
+        break;
+      }
+    }
+
     if (!row) {
       return null;
     }

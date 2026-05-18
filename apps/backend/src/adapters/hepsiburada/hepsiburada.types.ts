@@ -1,32 +1,3 @@
-export interface HepsiburadaOrderItem {
-  lineItemId: string;
-  merchantSku: string;
-  productName: string;
-  quantity: number;
-  price: number;
-  tax: number;
-  barcode: string;
-}
-
-export interface HepsiburadaOrder {
-  orderNumber: string;
-  status: string;
-  customerId: string;
-  customerName: string;
-  orderDate: string; // ISO
-  lineItems: HepsiburadaOrderItem[];
-  totalPrice: number;
-  shippingDetails?: { trackingNumber?: string; providerName?: string };
-}
-
-export interface HepsiburadaOrdersResponse {
-  data: {
-    orders: HepsiburadaOrder[];
-    pageCount: number;
-    totalCount: number;
-  };
-}
-
 export interface HepsiburadaListing {
   hepsiburadaSku: string;
   merchantSku: string;
@@ -45,4 +16,33 @@ export interface HepsiburadaListingsResponse {
     pageCount: number;
     totalCount: number;
   };
+}
+
+/** OMS — ödemesi tamamlanmış kalemler (satır bazlı) */
+export interface HepsiburadaMoney {
+  amount?: number;
+  currency?: string;
+}
+
+export interface HepsiburadaOmsLineItem {
+  id?: string;
+  orderNumber?: string;
+  orderId?: string;
+  status?: string;
+  customerName?: string;
+  merchantSKU?: string;
+  sku?: string;
+  productBarcode?: string;
+  barcode?: string;
+  quantity?: number;
+  orderDate?: string;
+  name?: string;
+  unitPrice?: HepsiburadaMoney;
+  totalPrice?: HepsiburadaMoney;
+  cargoCompany?: string;
+}
+
+export interface HepsiburadaOmsPaged {
+  items: HepsiburadaOmsLineItem[];
+  totalCount: number;
 }

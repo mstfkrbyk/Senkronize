@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 
+import { ApiKeyModule } from '../api-key/api-key.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 import { ListingController } from './listing.controller';
 import { ListingService } from './listing.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [ApiKeyModule, PrismaModule],
   controllers: [ListingController],
   providers: [ListingService],
   exports: [ListingService],

@@ -1,4 +1,4 @@
-/** `request.user` when authenticated via X-Api-Key */
+/** `request.user` when authenticated via API key (Bearer sk_live_* veya X-Api-Key) */
 export interface ApiKeyAuthUser {
   currentOrgId: string;
   isImpersonating: false;

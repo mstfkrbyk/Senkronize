@@ -1,5 +1,10 @@
 import { InjectQueue } from '@nestjs/bull';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Marketplace, Prisma, type Listing } from '@prisma/client';
 import type { Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
@@ -16,6 +21,24 @@ import type {
 } from '../queue/queue.types';
 
 import type { BulkUpdateItemDto, ListingQueryDto } from './listing.dto';
+
+function auditLogMetadata(
+  meta: Prisma.JsonValue,
+): Record<string, unknown> {
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return {};
+  }
+  return meta as Record<string, unknown>;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (x): x is string => typeof x === 'string' && x.length > 0,
+  );
+}
 
 export type SerializedListing = Omit<Listing, 'salePrice' | 'listPrice'> & {
   salePrice: string;
@@ -410,5 +433,111 @@ export class ListingService {
       }
     }
     return { updated };
+  }
+
+  async retryFromAuditLog(
+    organizationId: string,
+    auditLogId: string,
+  ): Promise<{ jobId: string }> {
+    const log = await this.prisma.auditLog.findFirst({
+      where: {
+        id: auditLogId,
+        OR: [
+          { actorOrgId: organizationId },
+          { impersonatedOrgId: organizationId },
+        ],
+        action: 'queue.job_failed',
+      },
+    });
+    if (!log) {
+      throw new NotFoundException('Kayıt bulunamadı veya yeniden denenemez');
+    }
+    const meta = auditLogMetadata(log.metadata);
+    const metaOrgId = meta.organizationId;
+    if (typeof metaOrgId !== 'string' || metaOrgId !== organizationId) {
+      throw new ForbiddenException('Bu kayıt için yetkiniz yok');
+    }
+    const jobName = typeof meta.jobName === 'string' ? meta.jobName : '';
+    const platformRaw = typeof meta.platform === 'string' ? meta.platform : '';
+    const marketplaceValues = Object.values(Marketplace) as string[];
+    if (!platformRaw || !marketplaceValues.includes(platformRaw)) {
+      throw new BadRequestException('Kayıtta platform bilgisi eksik veya geçersiz');
+    }
+    const platform = platformRaw as Marketplace;
+
+    if (jobName === 'pull-listings') {
+      const job = await this.marketplacePullQueue.add(
+        'pull-listings',
+        { organizationId, platform, type: 'listings' },
+        JOB_DEFAULT_OPTIONS,
+      );
+      return { jobId: String(job.id) };
+    }
+    if (jobName === 'pull-orders') {
+      const since = typeof meta.since === 'string' ? meta.since : undefined;
+      const job = await this.marketplacePullQueue.add(
+        'pull-orders',
+        {
+          organizationId,
+          platform,
+          type: 'orders',
+          ...(since ? { since } : {}),
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+      return { jobId: String(job.id) };
+    }
+    if (jobName === 'push-stock') {
+      const resourceIds = normalizeStringArray(meta.resourceIds);
+      if (resourceIds.length === 0) {
+        throw new BadRequestException('Yeniden deneme için barkod listesi eksik');
+      }
+      const payload =
+        meta.payload != null &&
+        typeof meta.payload === 'object' &&
+        !Array.isArray(meta.payload)
+          ? (meta.payload as Record<string, unknown>)
+          : undefined;
+      const job = await this.marketplacePushQueue.add(
+        'push-stock',
+        {
+          organizationId,
+          platform,
+          type: 'stock',
+          resourceIds,
+          payload,
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+      return { jobId: String(job.id) };
+    }
+    if (jobName === 'push-price') {
+      const resourceIds = normalizeStringArray(meta.resourceIds);
+      if (resourceIds.length === 0) {
+        throw new BadRequestException('Yeniden deneme için barkod listesi eksik');
+      }
+      const payload =
+        meta.payload != null &&
+        typeof meta.payload === 'object' &&
+        !Array.isArray(meta.payload)
+          ? (meta.payload as Record<string, unknown>)
+          : undefined;
+      const job = await this.marketplacePushQueue.add(
+        'push-price',
+        {
+          organizationId,
+          platform,
+          type: 'price',
+          resourceIds,
+          payload,
+        },
+        JOB_DEFAULT_OPTIONS,
+      );
+      return { jobId: String(job.id) };
+    }
+
+    throw new BadRequestException(
+      'Bu iş türü için otomatik yeniden deneme desteklenmiyor',
+    );
   }
 }

@@ -100,3 +100,9 @@ export class BulkUpdateDto {
   @Type(() => BulkUpdateItemDto)
   items!: BulkUpdateItemDto[];
 }
+
+export class RetrySyncJobDto {
+  @IsString()
+  @IsNotEmpty()
+  auditLogId!: string;
+}

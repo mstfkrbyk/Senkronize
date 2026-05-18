@@ -6,7 +6,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { JwtOrApiKeyGuard } from '../api-key/jwt-or-api-key.guard';
 import { SyncStatusService } from './sync-status.service';
 import type { SyncHealthStatus } from './sync-status.types';
 
@@ -17,7 +17,7 @@ export class SyncStatusController {
   constructor(private readonly syncStatusService: SyncStatusService) {}
 
   @Get('status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Pazaryeri entegrasyon sağlık durumu' })
   @ApiResponse({ status: 200, description: 'Bağlantı durumları' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
@@ -28,7 +28,7 @@ export class SyncStatusController {
   }
 
   @Post(':connectionId/trigger')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Bağlantı için manuel senkron kuyruğa al' })
   @ApiResponse({ status: 200, description: 'İşler kuyruğa eklendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
