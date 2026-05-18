@@ -123,7 +123,10 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(LoggerMiddleware)
-      .exclude({ path: 'api/v1/health', method: RequestMethod.GET })
+      .exclude(
+        { path: 'health', method: RequestMethod.GET },
+        { path: 'api/v1/health', method: RequestMethod.GET },
+      )
       .forRoutes('*');
   }
 }

@@ -16,7 +16,6 @@ const config: Config = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/../src/$1',
   },
-  transformIgnorePatterns: [],
 };
 
 export default config;
