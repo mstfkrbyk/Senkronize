@@ -60,11 +60,11 @@ type RateLimiterState = { tokens: number; lastTs: number };
 // Rate limit per platform (basit in-memory token bucket)
 const rateLimiters = new Map<string, RateLimiterState>();
 
-export async function withRateLimit(
+export async function withRateLimit<T = void>(
   platform: string,
   requestsPerMinute: number,
-  fn: () => Promise<void>,
-): Promise<void> {
+  fn: () => Promise<T>,
+): Promise<T> {
   const now = Date.now();
   const prev = rateLimiters.get(platform) ?? {
     tokens: requestsPerMinute,
@@ -90,7 +90,7 @@ export async function withRateLimit(
 
   tokens -= 1;
   rateLimiters.set(platform, { tokens, lastTs });
-  await fn();
+  return await fn();
 }
 
 // Platform bazlı rate limit konfigürasyonu (istek / dakika)
@@ -107,5 +107,14 @@ export const PLATFORM_RATE_LIMITS: Record<string, number> = {
   IDEASOFT: 60,
   TSOFT: 60,
   TICIMAX: 60,
+  GETIR: 45,
+  GRATIS: 40,
+  BOYNER: 30,
+  MORHIPO: 35,
+  DOLAP: 40,
+  EBAY: 50,
+  ETSY: 40,
+  TEMU: 20,
+  SAHIBINDEN: 30,
   DEFAULT: 30,
 };

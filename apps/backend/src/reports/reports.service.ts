@@ -56,6 +56,15 @@ const MARKETPLACE_LABEL_TR: Record<Marketplace, string> = {
   [Marketplace.TICIMAX]: 'Ticimax',
   [Marketplace.WOOCOMMERCE]: 'WooCommerce',
   [Marketplace.SHOPIFY]: 'Shopify',
+  [Marketplace.GETIR]: 'Getir',
+  [Marketplace.GRATIS]: 'Gratis',
+  [Marketplace.BOYNER]: 'Boyner',
+  [Marketplace.MORHIPO]: 'Morhipo',
+  [Marketplace.DOLAP]: 'Dolap',
+  [Marketplace.EBAY]: 'eBay',
+  [Marketplace.ETSY]: 'Etsy',
+  [Marketplace.TEMU]: 'Temu',
+  [Marketplace.SAHIBINDEN]: 'Sahibinden',
 };
 
 @Injectable()

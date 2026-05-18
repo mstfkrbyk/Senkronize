@@ -96,6 +96,30 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.SHOPIFY) {
       return creds.shopDomain ?? null;
     }
+    if (platform === Marketplace.GETIR) {
+      return creds.merchantId ?? null;
+    }
+    if (platform === Marketplace.GRATIS || platform === Marketplace.MORHIPO) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.BOYNER) {
+      return creds.clientId ?? null;
+    }
+    if (platform === Marketplace.DOLAP) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.EBAY) {
+      return creds.clientId ?? creds.sellerId ?? null;
+    }
+    if (platform === Marketplace.ETSY) {
+      return creds.shopId ?? null;
+    }
+    if (platform === Marketplace.TEMU) {
+      return creds.appKey ?? null;
+    }
+    if (platform === Marketplace.SAHIBINDEN) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
     return null;
   }
 
