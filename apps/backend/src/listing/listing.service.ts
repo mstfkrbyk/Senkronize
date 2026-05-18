@@ -56,6 +56,10 @@ export class ListingService {
       deletedAt: null,
       ...(query.platform !== undefined && { platform: query.platform }),
       ...(query.approved !== undefined && { approved: query.approved }),
+      ...(query.lastSyncAtSince !== undefined &&
+        query.lastSyncAtSince.trim().length > 0 && {
+          lastSyncAt: { gte: new Date(query.lastSyncAtSince) },
+        }),
       ...(query.search && {
         OR: [
           {

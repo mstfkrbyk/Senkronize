@@ -97,6 +97,15 @@ export const MARKETPLACE_OPTIONS: MarketplaceOption[] = [
     ],
   },
   {
+    id: 'PAZARAMA',
+    label: 'Pazarama',
+    logo: '🛒',
+    fields: [
+      { key: 'apiKey', label: 'API Key (Client)', type: 'password', required: true },
+      { key: 'supplierId', label: 'Tedarikçi ID', type: 'text', required: true },
+    ],
+  },
+  {
     id: 'WOOCOMMERCE',
     label: 'WooCommerce',
     logo: '🛒',

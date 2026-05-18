@@ -11,12 +11,16 @@ export interface HealthStatus {
   localErpConnected: boolean;
   lastSyncAt: string | null;
   version: string;
+  ordersLast24h?: number | null;
+  listingsSyncedLast24h?: number | null;
 }
 
 export interface SyncResult {
   success: boolean;
   message: string;
   syncedAt: string;
+  /** Yoksa `success` alanından türetilir */
+  level?: 'INFO' | 'ERROR' | 'SUCCESS' | 'WARN';
 }
 
 export interface LocalErpTestResult {

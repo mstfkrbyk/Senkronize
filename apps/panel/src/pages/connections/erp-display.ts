@@ -123,6 +123,33 @@ export const ERP_OPTIONS: ErpOption[] = [
     ],
   },
   {
+    id: 'NETSIS',
+    label: 'Netsis',
+    logo: '🏢',
+    fields: [
+      {
+        key: 'baseUrl',
+        label: 'Sunucu URL',
+        type: 'text',
+        placeholder: 'http://192.168.1.10',
+        required: true,
+      },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+      {
+        key: 'password',
+        label: 'Şifre',
+        type: 'password',
+        required: true,
+      },
+      {
+        key: 'databaseAlias',
+        label: 'Veritabanı (Alias)',
+        type: 'text',
+        required: true,
+      },
+    ],
+  },
+  {
     id: 'LUCA',
     label: 'Luca Muhasebe',
     logo: '☁️',

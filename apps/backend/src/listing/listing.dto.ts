@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -25,6 +26,10 @@ export class ListingQueryDto {
   @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   approved?: boolean;
+
+  @IsOptional()
+  @IsDateString()
+  lastSyncAtSince?: string;
 
   @IsOptional()
   @IsString()

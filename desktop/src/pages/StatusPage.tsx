@@ -23,10 +23,38 @@ export function StatusPage(): ReactElement {
 
   const connected = health?.cloudConnected === true;
 
+  const lastSyncLog = syncLogs[0];
+
   const lastSyncAt = useMemo(() => {
-    const first = syncLogs.find((l) => l.success);
-    return first?.syncedAt ?? health?.lastSyncAt ?? null;
-  }, [health?.lastSyncAt, syncLogs]);
+    return lastSyncLog?.syncedAt ?? health?.lastSyncAt ?? null;
+  }, [health?.lastSyncAt, lastSyncLog?.syncedAt]);
+
+  const lastSyncResultLabel = useMemo(() => {
+    if (!lastSyncLog) {
+      return '—';
+    }
+    if (lastSyncLog.level === 'WARN') {
+      return 'Uyarı';
+    }
+    if (lastSyncLog.level === 'INFO') {
+      return 'Bilgi';
+    }
+    return lastSyncLog.success ? 'Başarılı' : 'Başarısız';
+  }, [lastSyncLog]);
+
+  const summary24 = useMemo(() => {
+    if (!connected) {
+      return 'Buluta bağlanınca özet güncellenir.';
+    }
+    if (
+      health &&
+      typeof health.ordersLast24h === 'number' &&
+      typeof health.listingsSyncedLast24h === 'number'
+    ) {
+      return `Son 24 saat: ${health.ordersLast24h} sipariş alındı, ${health.listingsSyncedLast24h} stok güncellendi`;
+    }
+    return 'Son 24 saat özeti için “Sağlık Kontrolü”ne basın.';
+  }, [connected, health]);
 
   async function refreshHealth(): Promise<void> {
     if (!token) return;
@@ -78,9 +106,16 @@ export function StatusPage(): ReactElement {
           <span style={{ fontWeight: 650 }}>Organizasyon:</span> {token?.orgName ?? '—'}
         </div>
         <div style={{ fontSize: 13, color: '#334155' }}>
-          <span style={{ fontWeight: 650 }}>Son senkron:</span> {lastSyncAt ?? '—'}
+          <span style={{ fontWeight: 650 }}>Son senkron zamanı:</span> {lastSyncAt ?? '—'}
+        </div>
+        <div style={{ fontSize: 13, color: '#334155' }}>
+          <span style={{ fontWeight: 650 }}>Son senkron sonucu:</span> {lastSyncResultLabel}
         </div>
       </div>
+
+      <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+        {summary24}
+      </p>
 
       <ConnectionStatus health={health} />
 

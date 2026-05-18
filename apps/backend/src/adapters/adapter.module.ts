@@ -10,7 +10,9 @@ import { LucaAdapter } from './luca/luca.adapter';
 import { LogoAdapter } from './logo/logo.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { N11Adapter } from './n11/n11.adapter';
+import { NetsisAdapter } from './netsis/netsis.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
+import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
@@ -35,8 +37,10 @@ import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
     TsoftAdapter,
     TicimaxAdapter,
     PttavmAdapter,
+    PazaramaAdapter,
     WoocommerceAdapter,
     ShopifyAdapter,
+    NetsisAdapter,
     AdapterRegistry,
   ],
   exports: [
@@ -55,8 +59,10 @@ import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
     TsoftAdapter,
     TicimaxAdapter,
     PttavmAdapter,
+    PazaramaAdapter,
     WoocommerceAdapter,
     ShopifyAdapter,
+    NetsisAdapter,
   ],
 })
 export class AdapterModule {}

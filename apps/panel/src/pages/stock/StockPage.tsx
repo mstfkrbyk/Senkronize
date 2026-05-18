@@ -32,15 +32,6 @@ import { useLowStock, useStock } from './hooks/useStock';
 
 const PAGE_SIZE = 20;
 
-const EXTRA_MARKETPLACE_FILTERS: { id: string; label: string }[] = [
-  { id: 'N11', label: 'n11' },
-  { id: 'AMAZON_TR', label: 'Amazon TR' },
-  { id: 'CICEKSEPETI', label: 'Çiçeksepeti' },
-  { id: 'IDEASOFT', label: 'İdeasoft' },
-  { id: 'PTTAVM', label: 'PTT AVM' },
-  { id: 'PAZARAMA', label: 'Pazarama' },
-];
-
 function isStockAlertPayload(
   data: unknown,
 ): data is { barcode: string; quantity: number } {
@@ -164,11 +155,6 @@ export function StockPage(): ReactElement {
             <SelectContent>
               <SelectItem value="all">Tümü</SelectItem>
               {MARKETPLACE_OPTIONS.map((m) => (
-                <SelectItem key={m.id} value={m.id}>
-                  {m.label}
-                </SelectItem>
-              ))}
-              {EXTRA_MARKETPLACE_FILTERS.map((m) => (
                 <SelectItem key={m.id} value={m.id}>
                   {m.label}
                 </SelectItem>

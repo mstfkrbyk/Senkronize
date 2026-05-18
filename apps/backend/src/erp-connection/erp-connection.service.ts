@@ -72,7 +72,7 @@ export class ErpConnectionService {
     if (erpType === ErpType.PARASUT) {
       return creds.companyId ?? null;
     }
-    if (erpType === ErpType.LOGO || erpType === ErpType.MIKRO) {
+    if (erpType === ErpType.LOGO || erpType === ErpType.MIKRO || erpType === ErpType.NETSIS) {
       return creds.baseUrl ?? null;
     }
     if (erpType === ErpType.LUCA) {

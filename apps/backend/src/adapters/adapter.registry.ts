@@ -10,7 +10,9 @@ import { LucaAdapter } from './luca/luca.adapter';
 import { LogoAdapter } from './logo/logo.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { N11Adapter } from './n11/n11.adapter';
+import { NetsisAdapter } from './netsis/netsis.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
+import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
@@ -38,8 +40,10 @@ export class AdapterRegistry {
     private readonly tsoft: TsoftAdapter,
     private readonly ticimax: TicimaxAdapter,
     private readonly pttavm: PttavmAdapter,
+    private readonly pazarama: PazaramaAdapter,
     private readonly woocommerce: WoocommerceAdapter,
     private readonly shopify: ShopifyAdapter,
+    private readonly netsis: NetsisAdapter,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
@@ -51,6 +55,7 @@ export class AdapterRegistry {
       ['TSOFT', tsoft],
       ['TICIMAX', ticimax],
       ['PTTAVM', pttavm],
+      ['PAZARAMA', pazarama],
       ['WOOCOMMERCE', woocommerce],
       ['SHOPIFY', shopify],
     ]);
@@ -62,6 +67,7 @@ export class AdapterRegistry {
       ['LUCA', luca],
       ['TSOFT', tsoft],
       ['TICIMAX', ticimax],
+      ['NETSIS', netsis],
     ]);
   }
 

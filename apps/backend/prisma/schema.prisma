@@ -73,6 +73,7 @@ enum ErpType {
   LOGO
   MIKRO
   LUCA
+  NETSIS
 }
 
 enum EcommerceType {

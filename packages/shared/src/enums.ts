@@ -43,7 +43,8 @@ export type ErpType =
   | 'TICIMAX'
   | 'LOGO'
   | 'MIKRO'
-  | 'LUCA';
+  | 'LUCA'
+  | 'NETSIS';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType = 'TICIMAX' | 'TSOFT';
