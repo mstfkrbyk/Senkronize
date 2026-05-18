@@ -71,6 +71,7 @@ export class MarketplacePullProcessor {
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,
+        { ordersProcessed: orders.length },
       );
       this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
         count: orders.length,
@@ -167,6 +168,7 @@ export class MarketplacePullProcessor {
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,
+        { listingsProcessed: all.length },
       );
       this.eventService.emit(organizationId, WS_EVENTS.LISTING_SYNCED, {
         count: all.length,

@@ -299,6 +299,8 @@ model MarketplaceConnection {
   syncErrorCount   Int          @default(0)
   lastErrorAt      DateTime?
   lastErrorMessage String?
+  /// Son başarılı sync özet meta (ör. işlenen sipariş/listing sayısı)
+  lastSyncMeta     Json?
   webhookSecret    String? // platform'dan gelen webhook doğrulaması için
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt

@@ -6,8 +6,11 @@ import type { Job } from 'bull';
 import type { Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_MARKETPLACE_PUSH, QUEUE_PRICING } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PUSH,
+  QUEUE_PRICING,
+} from '../queue/queue.constants';
 import type {
   MarketplacePushJobData,
   PricingRunRulesJobData,
@@ -88,7 +91,7 @@ export class PricingProcessor {
               listPrice: Number(listing.listPrice),
             },
           },
-          STANDARD_QUEUE_JOB_OPTIONS,
+          JOB_DEFAULT_OPTIONS,
         );
 
         await this.prisma.$transaction([

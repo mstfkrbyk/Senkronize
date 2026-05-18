@@ -16,7 +16,11 @@ import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_MARKETPLACE_PUSH, QUEUE_PRICING } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PUSH,
+  QUEUE_PRICING,
+} from '../queue/queue.constants';
 import type {
   MarketplacePushJobData,
   PricingRunRulesJobData,
@@ -359,7 +363,7 @@ export class PricingService {
         resourceIds: [dto.barcode],
         payload: { salePrice: dto.salePrice, listPrice: dto.listPrice },
       },
-      STANDARD_QUEUE_JOB_OPTIONS,
+      JOB_DEFAULT_OPTIONS,
     );
 
     await this.prisma.listing.update({

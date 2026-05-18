@@ -127,4 +127,40 @@ export class EmailService {
     `,
     );
   }
+
+  async sendJobFailureAlert(
+    to: string,
+    detail: {
+      queueLabel: string;
+      jobName: string;
+      organizationId?: string;
+      errorMessage: string;
+      jobId?: string;
+    },
+  ): Promise<void> {
+    const orgLine = detail.organizationId
+      ? `<p><strong>Organizasyon:</strong> ${detail.organizationId}</p>`
+      : '';
+    const jobIdLine = detail.jobId
+      ? `<p><strong>Job ID:</strong> ${detail.jobId}</p>`
+      : '';
+    await this.send(
+      to,
+      `[Senkronize] Kuyruk hatası: ${detail.queueLabel} / ${detail.jobName}`,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Pazaryeri kuyruk işi kalıcı olarak başarısız</h2>
+        <p><strong>Kuyruk:</strong> ${detail.queueLabel}</p>
+        <p><strong>İş adı:</strong> ${detail.jobName}</p>
+        ${orgLine}
+        ${jobIdLine}
+        <p><strong>Hata:</strong> ${detail.errorMessage
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</p>
+        <p style="color:#666;font-size:14px">Bu bildirim, iş tüm yeniden denemeler sonunda başarısız kaldığında gönderilir.</p>
+      </div>
+    `,
+    );
+  }
 }

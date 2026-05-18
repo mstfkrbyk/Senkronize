@@ -5,8 +5,11 @@ import type { Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_MARKETPLACE_PULL, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PULL,
+  QUEUE_MARKETPLACE_PUSH,
+} from '../queue/queue.constants';
 import type {
   MarketplacePullJobData,
   MarketplacePushJobData,
@@ -210,7 +213,7 @@ export class ListingService {
           platform: conn.platform,
           type: 'listings',
         },
-        STANDARD_QUEUE_JOB_OPTIONS,
+        JOB_DEFAULT_OPTIONS,
       );
       jobIds.push(String(job.id));
     }
@@ -238,7 +241,7 @@ export class ListingService {
         resourceIds: [listing.barcode],
         payload: { salePrice, listPrice },
       },
-      STANDARD_QUEUE_JOB_OPTIONS,
+      JOB_DEFAULT_OPTIONS,
     );
     await this.prisma.listing.update({
       where: { id: listing.id },
@@ -269,7 +272,7 @@ export class ListingService {
         resourceIds: [listing.barcode],
         payload: { quantity },
       },
-      STANDARD_QUEUE_JOB_OPTIONS,
+      JOB_DEFAULT_OPTIONS,
     );
     await this.prisma.$transaction(async (tx) => {
       await tx.listing.update({

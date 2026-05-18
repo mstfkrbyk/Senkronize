@@ -107,6 +107,7 @@ export class MarketplaceConnectionService {
       platform: row.platform,
       isActive: row.isActive,
       lastSyncAt: row.lastSyncAt,
+      lastSyncMeta: row.lastSyncMeta,
       syncErrorCount: row.syncErrorCount,
       lastErrorAt: row.lastErrorAt,
       lastErrorMessage: row.lastErrorMessage,

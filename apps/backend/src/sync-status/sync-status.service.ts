@@ -1,12 +1,14 @@
 import { InjectQueue } from '@nestjs/bull';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Marketplace } from '@prisma/client';
+import { Marketplace, Prisma } from '@prisma/client';
 import type { Queue } from 'bull';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { PrismaService } from '../prisma/prisma.service';
-import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PULL,
+} from '../queue/queue.constants';
 import type { MarketplacePullJobData } from '../queue/queue.types';
 import type { SyncHealthStatus } from './sync-status.types';
 
@@ -32,6 +34,7 @@ export class SyncStatusService {
   async recordSuccess(
     organizationId: string,
     platform: Marketplace,
+    meta?: { ordersProcessed?: number; listingsProcessed?: number },
   ): Promise<void> {
     const conn = await this.prisma.marketplaceConnection.findFirst({
       where: {
@@ -51,6 +54,9 @@ export class SyncStatusService {
         syncErrorCount: 0,
         lastErrorAt: null,
         lastErrorMessage: null,
+        ...(meta !== undefined
+          ? { lastSyncMeta: meta as Prisma.InputJsonValue }
+          : {}),
       },
     });
     const status: SyncHealthStatus = {
@@ -144,7 +150,7 @@ export class SyncStatusService {
         platform,
         type: 'orders',
       },
-      STANDARD_QUEUE_JOB_OPTIONS,
+      JOB_DEFAULT_OPTIONS,
     );
     await this.marketplacePullQueue.add(
       'pull-listings',
@@ -153,7 +159,7 @@ export class SyncStatusService {
         platform,
         type: 'listings',
       },
-      STANDARD_QUEUE_JOB_OPTIONS,
+      JOB_DEFAULT_OPTIONS,
     );
     this.eventService.emit(organizationId, WS_EVENTS.SYNC_TRIGGER, {
       connectionId,

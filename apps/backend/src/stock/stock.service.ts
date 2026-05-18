@@ -4,8 +4,10 @@ import { type Marketplace, Prisma } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
-import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PUSH,
+} from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 
 import type { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
@@ -159,7 +161,7 @@ export class StockService {
           resourceIds: dto.updates.map((u) => u.barcode),
           payload: { updates: updatesPayload },
         },
-        STANDARD_QUEUE_JOB_OPTIONS,
+        JOB_DEFAULT_OPTIONS,
       );
       jobIds.push(String(job.id));
     }

@@ -10,6 +10,11 @@ import type {
 } from '@senkronize/shared';
 
 import {
+  axiosWithRetry,
+  PLATFORM_RATE_LIMITS,
+  withRateLimit,
+} from '../../common/utils/http-retry';
+import {
   TRENDYOL_BASE_URL,
   TRENDYOL_PRODUCTS,
   TRENDYOL_SELLER_ORDERS,
@@ -22,6 +27,8 @@ import type {
   TrendyolOrdersResponse,
   TrendyolProductsResponse,
 } from './trendyol.types';
+
+const BATCH_DELAY_MS = 100;
 
 @Injectable()
 export class TrendyolAdapter implements IMarketplaceAdapter {
@@ -149,19 +156,38 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret);
+    const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
+    const url = `${TRENDYOL_BASE_URL}${path}`;
+    const rpm =
+      PLATFORM_RATE_LIMITS.TRENDYOL ?? PLATFORM_RATE_LIMITS.DEFAULT;
+    const batches = chunkArray(updates, 100);
 
-    const batches = chunk(updates, 100);
-    for (const batch of batches) {
-      await client.put(
-        trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId),
-        {
-          items: batch.map((u) => ({
-            barcode: u.barcode,
-            quantity: u.quantity,
-          })),
-        },
-      );
+    for (let i = 0; i < batches.length; i++) {
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+      const batch = batches[i]!;
+      await withRateLimit('TRENDYOL', rpm, async () => {
+        await axiosWithRetry(
+          {
+            method: 'PUT',
+            url,
+            auth: { username: apiKey, password: apiSecret },
+            headers: {
+              'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 15_000,
+            data: {
+              items: batch.map((u) => ({
+                barcode: u.barcode,
+                quantity: u.quantity,
+              })),
+            },
+          },
+          {},
+        );
+      });
     }
   }
 
@@ -170,28 +196,46 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret);
+    const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
+    const url = `${TRENDYOL_BASE_URL}${path}`;
+    const rpm =
+      PLATFORM_RATE_LIMITS.TRENDYOL ?? PLATFORM_RATE_LIMITS.DEFAULT;
+    const batches = chunkArray(updates, 100);
 
-    const batches = chunk(updates, 100);
-    for (const batch of batches) {
-      await client.put(
-        trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId),
-        {
-          items: batch.map((u) => ({
-            barcode: u.barcode,
-            salePrice: u.salePrice,
-            listPrice: u.listPrice,
-          })),
-        },
-      );
+    for (let i = 0; i < batches.length; i++) {
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+      const batch = batches[i]!;
+      await withRateLimit('TRENDYOL', rpm, async () => {
+        await axiosWithRetry(
+          {
+            method: 'PUT',
+            url,
+            auth: { username: apiKey, password: apiSecret },
+            headers: {
+              'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 15_000,
+            data: {
+              items: batch.map((u) => ({
+                barcode: u.barcode,
+                salePrice: u.salePrice,
+                listPrice: u.listPrice,
+              })),
+            },
+          },
+          {},
+        );
+      });
     }
   }
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    result.push(arr.slice(i, i + size));
-  }
-  return result;
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  return Array.from(
+    { length: Math.ceil(arr.length / size) },
+    (_, i) => arr.slice(i * size, (i + 1) * size),
+  );
 }

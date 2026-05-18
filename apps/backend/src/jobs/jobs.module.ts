@@ -11,6 +11,11 @@ import { ProductModule } from '../product/product.module';
 import { SyncStatusModule } from '../sync-status/sync-status.module';
 
 import { BuyBoxFetchTask } from './buybox-fetch.task';
+import {
+  MarketplaceJobFailureHandler,
+  MarketplacePullDlqHooks,
+  MarketplacePushDlqHooks,
+} from './dlq.processor';
 import { ErpSyncProcessor } from './erp-sync.processor';
 import { MarketplacePullProcessor } from './marketplace-pull.processor';
 import { MarketplacePushProcessor } from './marketplace-push.processor';
@@ -29,6 +34,9 @@ import { SyncSchedulerTask } from './sync-scheduler.task';
     ProductModule,
   ],
   providers: [
+    MarketplaceJobFailureHandler,
+    MarketplacePullDlqHooks,
+    MarketplacePushDlqHooks,
     MarketplacePullProcessor,
     MarketplacePushProcessor,
     ErpSyncProcessor,

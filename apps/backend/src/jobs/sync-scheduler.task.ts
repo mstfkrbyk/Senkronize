@@ -5,7 +5,10 @@ import { SubStatus } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
+import {
+  JOB_DEFAULT_OPTIONS,
+  QUEUE_MARKETPLACE_PULL,
+} from '../queue/queue.constants';
 import type { MarketplacePullJobData } from '../queue/queue.types';
 
 @Injectable()
@@ -41,11 +44,7 @@ export class SyncSchedulerTask {
           type: 'orders',
           since: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
         },
-        {
-          attempts: 2,
-          removeOnComplete: { count: 100 },
-          removeOnFail: { count: 50 },
-        },
+        JOB_DEFAULT_OPTIONS,
       );
       queued += 1;
     }
@@ -70,11 +69,7 @@ export class SyncSchedulerTask {
           platform: conn.platform,
           type: 'stock',
         },
-        {
-          attempts: 2,
-          removeOnComplete: { count: 50 },
-          removeOnFail: { count: 50 },
-        },
+        JOB_DEFAULT_OPTIONS,
       );
     }
 
