@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 import { readThroughCache } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
+import { CurrencyService } from '../currency/currency.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -117,6 +119,30 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.SHOPEE]: 'Shopee',
   [Marketplace.TOKOPEDIA]: 'Tokopedia',
   [Marketplace.MEESHO]: 'Meesho',
+  [Marketplace.OTTO]: 'Otto Market',
+  [Marketplace.ZALANDO]: 'Zalando',
+  [Marketplace.BOLCOM]: 'Bol.com',
+  [Marketplace.EMAG]: 'eMAG',
+  [Marketplace.IDEALO]: 'Idealo',
+  [Marketplace.REALDE]: 'Real.de',
+  [Marketplace.ZARA]: 'Zara Online',
+  [Marketplace.DECATHLON]: 'Decathlon TR',
+  [Marketplace.HEPSIBURADA_PREMIUM]: 'Hepsiburada Premium',
+  [Marketplace.TRENDYOL_PREMIUM]: 'Trendyol Premium',
+  [Marketplace.PAZARAMA_PREMIUM]: 'Pazarama Premium',
+  [Marketplace.N11_PRO]: 'N11 Pro',
+  [Marketplace.AMAZON_AE]: 'Amazon UAE',
+  [Marketplace.NAMSHI]: 'Namshi',
+  [Marketplace.CARREFOUR_ME]: 'Carrefour ME',
+  [Marketplace.JUMIA]: 'Jumia',
+  [Marketplace.DARAZ]: 'Daraz',
+  [Marketplace.FLIPKART]: 'Flipkart',
+  [Marketplace.SNAPDEAL]: 'Snapdeal',
+  [Marketplace.MYNTRA]: 'Myntra',
+  [Marketplace.RAKUTEN]: 'Rakuten',
+  [Marketplace.QOO10]: 'Qoo10',
+  [Marketplace.LAZADA_PH]: 'Lazada PH',
+  [Marketplace.MERCADOLIBRE]: 'Mercado Libre',
 };
 
 @Injectable()
@@ -124,6 +150,7 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly currencyService: CurrencyService,
   ) {}
 
   async getDashboardSummary(
@@ -168,6 +195,8 @@ export class ReportsService {
       prevWindowStart = new Date(windowStart.getTime() - lenMs);
     }
 
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
     const [
       todayOrders,
       yesterdayOrders,
@@ -178,6 +207,8 @@ export class ReportsService {
       lowStockCount,
       windowOrders,
       windowOrdersPrev,
+      returnsThisMonth,
+      ordersThisMonth,
     ] = await Promise.all([
       this.prisma.order.count({
         where: {
@@ -240,6 +271,19 @@ export class ReportsService {
           },
         },
       }),
+      this.prisma.return.count({
+        where: {
+          organizationId,
+          deletedAt: null,
+          requestedAt: { gte: monthStart, lte: now },
+        },
+      }),
+      this.prisma.order.count({
+        where: {
+          ...orderBase,
+          platformCreatedAt: { gte: monthStart, lte: now },
+        },
+      }),
     ]);
 
     let todayOrdersDelta = 0;
@@ -260,6 +304,11 @@ export class ReportsService {
       );
     }
 
+    const returnRatePct =
+      ordersThisMonth === 0
+        ? 0
+        : Math.round((returnsThisMonth / ordersThisMonth) * 1000) / 10;
+
     return {
       todayOrders,
       todayOrdersDelta,
@@ -271,6 +320,8 @@ export class ReportsService {
       windowOrders,
       windowOrdersPrev,
       windowOrdersDeltaPct,
+      returnsThisMonth,
+      returnRatePct,
     };
     });
   }
@@ -345,23 +396,32 @@ export class ReportsService {
     startDate: Date,
     endDate: Date,
   ): Promise<PlatformReportRow[]> {
-    const rows = await this.prisma.order.groupBy({
-      by: ['platform'],
-      where: {
-        organizationId,
-        deletedAt: null,
-        platformCreatedAt: { gte: startDate, lte: endDate },
-        status: { notIn: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
-      },
-      _count: { _all: true },
-      _sum: { totalAmount: true },
-    });
+    const cacheKey = CacheService.key(
+      'reports',
+      'platform',
+      organizationId,
+      startDate.toISOString(),
+      endDate.toISOString(),
+    );
+    return readThroughCache(this.cache, cacheKey, 600, async () => {
+      const rows = await this.prisma.order.groupBy({
+        by: ['platform'],
+        where: {
+          organizationId,
+          deletedAt: null,
+          platformCreatedAt: { gte: startDate, lte: endDate },
+          status: { notIn: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+        },
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      });
 
-    return rows.map((r) => ({
-      platform: r.platform,
-      orderCount: r._count._all,
-      revenue: Number(r._sum.totalAmount ?? 0),
-    }));
+      return rows.map((r) => ({
+        platform: r.platform,
+        orderCount: r._count._all,
+        revenue: Number(r._sum.totalAmount ?? 0),
+      }));
+    });
   }
 
   async getTopProducts(
@@ -450,7 +510,7 @@ export class ReportsService {
       params.to.toISOString(),
       params.platform ?? 'all',
     );
-    return readThroughCache(this.cache, cacheKey, 1800, async () => {
+    return readThroughCache<ProfitReportDto>(this.cache, cacheKey, 1800, async () => {
     const orderWhere: Prisma.OrderWhereInput = {
       organizationId,
       deletedAt: null,
@@ -459,16 +519,18 @@ export class ReportsService {
       ...(params.platform ? { platform: params.platform } : {}),
     };
 
-    const [revenueAgg, byPlatformRows, orderItems] = await Promise.all([
-      this.prisma.order.aggregate({
+    const prefs =
+      await this.currencyService.getOrgCurrencyPrefs(organizationId);
+
+    const [orders, orderItems] = await Promise.all([
+      this.prisma.order.findMany({
         where: orderWhere,
-        _sum: { totalAmount: true },
-      }),
-      this.prisma.order.groupBy({
-        by: ['platform'],
-        where: orderWhere,
-        _count: { _all: true },
-        _sum: { totalAmount: true },
+        select: {
+          totalAmount: true,
+          currency: true,
+          platformCreatedAt: true,
+          platform: true,
+        },
       }),
       this.prisma.orderItem.findMany({
         where: {
@@ -480,27 +542,96 @@ export class ReportsService {
           productName: true,
           quantity: true,
           unitPrice: true,
+          order: {
+            select: { currency: true, platformCreatedAt: true },
+          },
         },
       }),
     ]);
 
-    const totalRevenue = Number(revenueAgg._sum.totalAmount ?? 0);
-    const estimatedProfit = totalRevenue * 0.2;
-    const profitMargin =
-      totalRevenue > 0 ? (estimatedProfit / totalRevenue) * 100 : 0;
+    const conversions = await Promise.all(
+      orders.map(async (o) => {
+        const cur = (o.currency ?? 'TRY').trim().toUpperCase();
+        const raw = Number(o.totalAmount);
+        const conv = await this.currencyService.orderAmountToTryForReport(
+          new Decimal(raw),
+          cur,
+          o.platformCreatedAt,
+          prefs,
+        );
+        return { o, cur, raw, conv };
+      }),
+    );
 
-    const byPlatform = byPlatformRows.map((r) => ({
-      platform: r.platform,
-      revenue: Number(r._sum.totalAmount ?? 0),
-      orderCount: r._count._all,
-    }));
+    let totalRevenueTry = 0;
+    let ordersWithApproximateTryConversion = 0;
+    const originalMap = new Map<string, { totalOriginal: number; orderCount: number }>();
+    const byPlatformMap = new Map<
+      Marketplace,
+      { revenue: number; orderCount: number }
+    >();
+
+    for (const { o, cur, raw, conv } of conversions) {
+      totalRevenueTry += conv.tryAmount;
+      if (conv.usedDirect) {
+        ordersWithApproximateTryConversion++;
+      }
+      const prevOrig = originalMap.get(cur) ?? {
+        totalOriginal: 0,
+        orderCount: 0,
+      };
+      prevOrig.totalOriginal += raw;
+      prevOrig.orderCount += 1;
+      originalMap.set(cur, prevOrig);
+
+      const prevPl = byPlatformMap.get(o.platform) ?? {
+        revenue: 0,
+        orderCount: 0,
+      };
+      prevPl.revenue += conv.tryAmount;
+      prevPl.orderCount += 1;
+      byPlatformMap.set(o.platform, prevPl);
+    }
+
+    const byPlatform = Array.from(byPlatformMap.entries()).map(
+      ([platform, row]) => ({
+        platform,
+        revenue: row.revenue,
+        orderCount: row.orderCount,
+      }),
+    );
+
+    const revenueByOriginalCurrency = Array.from(originalMap.entries())
+      .map(([currency, v]) => ({
+        currency,
+        totalOriginal: v.totalOriginal,
+        orderCount: v.orderCount,
+      }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
+
+    const estimatedProfit = totalRevenueTry * 0.2;
+    const profitMargin =
+      totalRevenueTry > 0 ? (estimatedProfit / totalRevenueTry) * 100 : 0;
+
+    const lineConversions = await Promise.all(
+      orderItems.map(async (it) => {
+        const cur = (it.order.currency ?? 'TRY').trim().toUpperCase();
+        const lineOrig = Number(it.unitPrice) * it.quantity;
+        const conv = await this.currencyService.orderAmountToTryForReport(
+          new Decimal(lineOrig),
+          cur,
+          it.order.platformCreatedAt,
+          prefs,
+        );
+        return { it, lineTry: conv.tryAmount };
+      }),
+    );
 
     const aggByBarcode = new Map<
       string,
       { revenue: number; quantity: number; nameHint: string | null }
     >();
-    for (const it of orderItems) {
-      const lineRevenue = Number(it.unitPrice) * it.quantity;
+    for (const { it, lineTry } of lineConversions) {
       const prev = aggByBarcode.get(it.barcode);
       const nameHint =
         it.productName && it.productName.trim().length > 0
@@ -508,12 +639,12 @@ export class ReportsService {
           : null;
       if (!prev) {
         aggByBarcode.set(it.barcode, {
-          revenue: lineRevenue,
+          revenue: lineTry,
           quantity: it.quantity,
           nameHint,
         });
       } else {
-        prev.revenue += lineRevenue;
+        prev.revenue += lineTry;
         prev.quantity += it.quantity;
         if (!prev.nameHint && nameHint) {
           prev.nameHint = nameHint;
@@ -544,8 +675,7 @@ export class ReportsService {
     const topProducts = sortedBarcodes.map((barcode) => {
       const row = aggByBarcode.get(barcode)!;
       const fromProduct = productNameByBarcode.get(barcode);
-      const name =
-        row.nameHint ?? fromProduct ?? barcode;
+      const name = row.nameHint ?? fromProduct ?? barcode;
       return {
         name,
         barcode,
@@ -555,7 +685,10 @@ export class ReportsService {
     });
 
     return {
-      totalRevenue,
+      totalRevenueTry,
+      totalRevenue: totalRevenueTry,
+      revenueByOriginalCurrency,
+      ordersWithApproximateTryConversion,
       estimatedProfit,
       profitMargin,
       byPlatform,

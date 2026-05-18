@@ -66,8 +66,16 @@ function normalizeProductRows(data: unknown): { rows: unknown[]; total?: number 
 
 @Injectable()
 export class PazaramaAdapter implements IMarketplaceAdapter {
-  readonly platform = 'PAZARAMA';
+  readonly platform: string = 'PAZARAMA';
   private readonly logger = new Logger(PazaramaAdapter.name);
+
+  /** Pazarama Premium vb. ek başlıklar */
+  protected extraApiHeaders(
+    credentials: Record<string, string>,
+  ): Record<string, string> {
+    void credentials;
+    return {};
+  }
 
   private async getToken(credentials: Record<string, string>): Promise<string> {
     const apiKey = credentials.apiKey;
@@ -98,6 +106,7 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        ...this.extraApiHeaders(credentials),
       },
       timeout: 15_000,
     });

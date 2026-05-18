@@ -93,7 +93,31 @@ export type Marketplace =
   | 'LAZADA'
   | 'SHOPEE'
   | 'TOKOPEDIA'
-  | 'MEESHO';
+  | 'MEESHO'
+  | 'OTTO'
+  | 'ZALANDO'
+  | 'BOLCOM'
+  | 'EMAG'
+  | 'IDEALO'
+  | 'REALDE'
+  | 'ZARA'
+  | 'DECATHLON'
+  | 'HEPSIBURADA_PREMIUM'
+  | 'TRENDYOL_PREMIUM'
+  | 'PAZARAMA_PREMIUM'
+  | 'N11_PRO'
+  | 'AMAZON_AE'
+  | 'NAMSHI'
+  | 'CARREFOUR_ME'
+  | 'JUMIA'
+  | 'DARAZ'
+  | 'FLIPKART'
+  | 'SNAPDEAL'
+  | 'MYNTRA'
+  | 'RAKUTEN'
+  | 'QOO10'
+  | 'LAZADA_PH'
+  | 'MERCADOLIBRE';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -135,6 +159,7 @@ export type CargoProvider =
   | 'PTT_KARGO'
   | 'UPS'
   | 'DHL'
+  | 'FEDEX'
   | 'SENDEO'
   | 'HEPSIJET'
   | 'TRENDYOL_EXPRESS';

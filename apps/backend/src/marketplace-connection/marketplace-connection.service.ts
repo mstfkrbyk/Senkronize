@@ -155,7 +155,7 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.OZON) {
       return creds.clientId ?? null;
     }
-    if (platform === Marketplace.AMAZON_EU) {
+    if (platform === Marketplace.AMAZON_EU || platform === Marketplace.AMAZON_AE) {
       return creds.sellerId ?? creds.marketplaceId ?? null;
     }
     if (platform === Marketplace.CDISCOUNT) {
@@ -209,7 +209,9 @@ export class MarketplaceConnectionService {
     }
     if (
       platform === Marketplace.ALIBABA ||
-      platform === Marketplace.LAZADA
+      platform === Marketplace.LAZADA ||
+      platform === Marketplace.DARAZ ||
+      platform === Marketplace.LAZADA_PH
     ) {
       return creds.appKey ?? null;
     }
@@ -232,6 +234,57 @@ export class MarketplaceConnectionService {
     }
     if (platform === Marketplace.GITTIGIDIYOR) {
       return creds.clientId ?? creds.sellerId ?? null;
+    }
+    if (
+      platform === Marketplace.NAMSHI ||
+      platform === Marketplace.SNAPDEAL ||
+      platform === Marketplace.QOO10
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.CARREFOUR_ME) {
+      return creds.clientId ?? null;
+    }
+    if (platform === Marketplace.JUMIA) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.FLIPKART ||
+      platform === Marketplace.MYNTRA ||
+      platform === Marketplace.MERCADOLIBRE
+    ) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : creds.clientId ?? null;
+    }
+    if (platform === Marketplace.RAKUTEN) {
+      return creds.licenseKey ?? null;
+    }
+    if (platform === Marketplace.HEPSIBURADA_PREMIUM) {
+      return creds.username ?? creds.merchantId ?? null;
+    }
+    if (platform === Marketplace.TRENDYOL_PREMIUM) {
+      return creds.sellerId ?? null;
+    }
+    if (platform === Marketplace.PAZARAMA_PREMIUM) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.N11_PRO) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.OTTO ||
+      platform === Marketplace.ZALANDO ||
+      platform === Marketplace.IDEALO ||
+      platform === Marketplace.ZARA
+    ) {
+      return creds.clientId ?? null;
+    }
+    if (
+      platform === Marketplace.BOLCOM ||
+      platform === Marketplace.EMAG ||
+      platform === Marketplace.REALDE ||
+      platform === Marketplace.DECATHLON
+    ) {
+      return creds.clientId ?? creds.username ?? creds.apiKey ?? null;
     }
     return null;
   }
@@ -458,6 +511,27 @@ export class MarketplaceConnectionService {
       where: {
         organizationId,
         platform,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+    if (!row) {
+      return null;
+    }
+    return this.parseCredentialsRecord(row.credentialsEnc);
+  }
+
+  /**
+   * İş kuyruğu: belirli bağlantı kimliği için şifreli kimlik bilgisini çözer.
+   */
+  async getDecryptedCredentialsForConnection(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<Record<string, string> | null> {
+    const row = await this.prisma.marketplaceConnection.findFirst({
+      where: {
+        id: connectionId,
+        organizationId,
         deletedAt: null,
         isActive: true,
       },

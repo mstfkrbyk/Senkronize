@@ -32,13 +32,22 @@ const BATCH_DELAY_MS = 100;
 
 @Injectable()
 export class TrendyolAdapter implements IMarketplaceAdapter {
-  readonly platform = 'TRENDYOL';
+  readonly platform: string = 'TRENDYOL';
   private readonly logger = new Logger(TrendyolAdapter.name);
+
+  /** Premium / kanal başlıkları (alt sınıflar override eder) */
+  protected extraTrendyolHeaders(
+    credentials: Record<string, string>,
+  ): Record<string, string> {
+    void credentials;
+    return {};
+  }
 
   private getClient(
     sellerId: string,
     apiKey: string,
     apiSecret: string,
+    credentials: Record<string, string>,
   ): AxiosInstance {
     return axios.create({
       baseURL: TRENDYOL_BASE_URL,
@@ -46,9 +55,18 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       headers: {
         'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
         'Content-Type': 'application/json',
+        ...this.extraTrendyolHeaders(credentials),
       },
       timeout: 15_000,
     });
+  }
+
+  private trendyolRpm(): number {
+    return (
+      PLATFORM_RATE_LIMITS[this.platform] ??
+      PLATFORM_RATE_LIMITS.TRENDYOL ??
+      PLATFORM_RATE_LIMITS.DEFAULT
+    );
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
@@ -57,7 +75,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       if (!sellerId || !apiKey || !apiSecret) {
         return false;
       }
-      const client = this.getClient(sellerId, apiKey, apiSecret);
+      const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
       await client.get(trendyolSellerPath(TRENDYOL_SHIPMENT_PROVIDERS, sellerId));
       return true;
     } catch (error) {
@@ -73,7 +91,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret);
+    const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
 
     const startDate = since
       ? since.getTime()
@@ -123,7 +141,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret);
+    const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
 
     const { data } = await client.get<TrendyolProductsResponse>(
       trendyolSellerPath(TRENDYOL_PRODUCTS, sellerId),
@@ -158,8 +176,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     const { sellerId, apiKey, apiSecret } = credentials;
     const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
     const url = `${TRENDYOL_BASE_URL}${path}`;
-    const rpm =
-      PLATFORM_RATE_LIMITS.TRENDYOL ?? PLATFORM_RATE_LIMITS.DEFAULT;
+    const rpm = this.trendyolRpm();
     const batches = chunkArray(updates, 100);
 
     for (let i = 0; i < batches.length; i++) {
@@ -167,7 +184,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
       const batch = batches[i]!;
-      await withRateLimit('TRENDYOL', rpm, async () => {
+      await withRateLimit(this.platform, rpm, async () => {
         await axiosWithRetry(
           {
             method: 'PUT',
@@ -176,6 +193,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
             headers: {
               'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
               'Content-Type': 'application/json',
+              ...this.extraTrendyolHeaders(credentials),
             },
             timeout: 15_000,
             data: {
@@ -198,8 +216,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     const { sellerId, apiKey, apiSecret } = credentials;
     const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
     const url = `${TRENDYOL_BASE_URL}${path}`;
-    const rpm =
-      PLATFORM_RATE_LIMITS.TRENDYOL ?? PLATFORM_RATE_LIMITS.DEFAULT;
+    const rpm = this.trendyolRpm();
     const batches = chunkArray(updates, 100);
 
     for (let i = 0; i < batches.length; i++) {
@@ -207,7 +224,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
       const batch = batches[i]!;
-      await withRateLimit('TRENDYOL', rpm, async () => {
+      await withRateLimit(this.platform, rpm, async () => {
         await axiosWithRetry(
           {
             method: 'PUT',
@@ -216,6 +233,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
             headers: {
               'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
               'Content-Type': 'application/json',
+              ...this.extraTrendyolHeaders(credentials),
             },
             timeout: 15_000,
             data: {

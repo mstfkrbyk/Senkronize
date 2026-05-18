@@ -116,6 +116,30 @@ enum Marketplace {
   SHOPEE
   TOKOPEDIA
   MEESHO
+  OTTO
+  ZALANDO
+  BOLCOM
+  EMAG
+  IDEALO
+  REALDE
+  ZARA
+  DECATHLON
+  HEPSIBURADA_PREMIUM
+  TRENDYOL_PREMIUM
+  PAZARAMA_PREMIUM
+  N11_PRO
+  AMAZON_AE
+  NAMSHI
+  CARREFOUR_ME
+  JUMIA
+  DARAZ
+  FLIPKART
+  SNAPDEAL
+  MYNTRA
+  RAKUTEN
+  QOO10
+  LAZADA_PH
+  MERCADOLIBRE
 }
 
 enum PricingStrategy {
@@ -168,6 +192,7 @@ enum CargoProvider {
   PTT_KARGO
   UPS
   DHL
+  FEDEX
   SENDEO
   HEPSIJET
   TRENDYOL_EXPRESS
@@ -208,6 +233,16 @@ enum OrderStatus {
   RETURNED
 }
 
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  IN_TRANSIT
+  RECEIVED
+  REFUNDED
+  REJECTED
+  COMPLETED
+}
+
 enum ReportType {
   ORDERS
   PRODUCTS
@@ -238,6 +273,15 @@ enum StockCountSessionStatus {
 enum StockCountMode {
   FULL
   PARTIAL
+}
+
+enum POStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
 }
 
 enum NotificationType {
@@ -303,6 +347,14 @@ model Organization {
   onboardingCompleted Boolean   @default(false)
   type                OrgType
   logoUrl             String?
+  /// Panel ve raporlarda varsayılan para birimi (ISO 4217)
+  defaultCurrency            String   @default("TRY")
+  /// true ise `currencyManualRates` değerleri TCMB kurlarına göre önceliklidir
+  currencyPreferManualRates  Boolean  @default(false)
+  /// TCMB dışı sabit kurlar: { "USD": 34.5, "EUR": 37.2 } — 1 birim = X TRY
+  currencyManualRates          Json?
+  /// Organizasyon için TCMB otomatik kurlarını kullan (false = yalnızca manuel)
+  currencyTcmbEnabled        Boolean  @default(true)
   createdAt           DateTime  @default(now())
   deletedAt           DateTime?
 
@@ -342,6 +394,26 @@ model Organization {
   apiKeys                   ApiKey[]
   userInvites               UserInvite[]
   savedReports              SavedReport[]
+  suppliers                 Supplier[]
+  purchaseOrders            PurchaseOrder[]
+  returns                   Return[]
+  productCategories         ProductCategory[]
+  platformCategoryMappings  PlatformCategoryMapping[]
+  productMatches            ProductMatch[]
+  webhookEndpoints          WebhookEndpoint[]
+}
+
+/// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
+model ExchangeRate {
+  id             String   @id @default(cuid())
+  baseCurrency   String
+  targetCurrency String
+  rate           Decimal  @db.Decimal(18, 6)
+  source         String   @default("TCMB")
+  fetchedAt      DateTime @default(now())
+
+  @@unique([baseCurrency, targetCurrency, fetchedAt])
+  @@index([baseCurrency, targetCurrency])
 }
 
 model ApiKey {
@@ -396,6 +468,51 @@ model WebhookLog {
   @@index([organizationId, createdAt])
 }
 
+enum DeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  RETRYING
+}
+
+/// Giden (outbound) müşteri webhook uç noktası
+model WebhookEndpoint {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  url            String
+  secret         String
+  events         String[]
+  isActive       Boolean   @default(true)
+  retryCount     Int       @default(3)
+  timeoutMs      Int       @default(5000)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deliveries   WebhookDelivery[]
+
+  @@index([organizationId])
+}
+
+model WebhookDelivery {
+  id           String         @id @default(cuid())
+  endpointId   String
+  event        String
+  payload      Json
+  statusCode   Int?
+  responseBody String?
+  duration     Int?
+  attempt      Int            @default(1)
+  status       DeliveryStatus
+  createdAt    DateTime       @default(now())
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, status])
+  @@index([createdAt])
+}
+
 model User {
   id               String         @id @default(cuid())
   organizationId   String?
@@ -407,6 +524,8 @@ model User {
   role             UserRole
   permissions      Json           @default("{}")
   lastLoginAt      DateTime?
+  /// Başarısız giriş eşiği sonrası geçici kilit (UTC)
+  lockedUntil      DateTime?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   deletedAt        DateTime?
@@ -597,6 +716,69 @@ model CargoConnection {
   @@unique([organizationId, provider])
 }
 
+/// Hiyerarşik iç ürün kategorisi (tenant bazlı)
+model ProductCategory {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  parentId       String?
+  level          Int       @default(0)
+  sortOrder      Int       @default(0)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children     ProductCategory[] @relation("CategoryHierarchy")
+  products     Product[]
+  platformMappings PlatformCategoryMapping[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, parentId])
+}
+
+/// İç kategori ↔ pazaryeri kategori eşlemesi
+model PlatformCategoryMapping {
+  id                   String       @id @default(cuid())
+  organizationId       String
+  internalCategoryId   String
+  platform             Marketplace
+  platformCategoryId   String
+  platformCategoryName String
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  internalCategory ProductCategory @relation(fields: [internalCategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, internalCategoryId, platform])
+  @@index([organizationId, platform])
+}
+
+/// Merkezi ürün ↔ pazaryeri listeleme barkodu eşlemesi
+model ProductMatch {
+  id              String       @id @default(cuid())
+  organizationId  String
+  masterProductId String
+  platformBarcode String
+  platform        Marketplace
+  platformSku     String?
+  confidence      Float        @default(1)
+  isConfirmed     Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  masterProduct Product      @relation("ProductMasterMatches", fields: [masterProductId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, platformBarcode, platform])
+  @@index([organizationId, masterProductId])
+}
+
 // Merkezi ürün kataloğu (ERP veya manuel)
 model Product {
   id             String        @id @default(cuid())
@@ -608,22 +790,29 @@ model Product {
   description    String?
   brand          String?
   category       String?
+  categoryId     String?
   costPrice      Decimal?      @db.Decimal(12, 2)
+  reorderPoint   Int? // min stok seviyesi
+  reorderQty     Int? // sipariş miktarı
+  leadTimeDays   Int? // tedarik süresi (gün)
   tags           String[]      @default([])
   imageUrls      String[]
   isActive       Boolean       @default(true)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
+  productCategory ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   variants       ProductVariant[]
   listings       Listing[]
   stockEntries   StockEntry[]
   reservations   Reservation[]
   stockCountItems StockCountItem[]
+  masterProductMatches ProductMatch[] @relation("ProductMasterMatches")
 
   @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([organizationId, createdAt])
+  @@index([organizationId, categoryId])
 }
 
 model ProductVariant {
@@ -805,7 +994,10 @@ model Order {
   createdAt           DateTime     @default(now())
   updatedAt           DateTime     @updatedAt
   deletedAt           DateTime?
+  cancellationRequestedAt DateTime?
+  cancellationRequestNote String?
   items               OrderItem[]
+  returns             Return[]
 
   @@unique([organizationId, platform, platformOrderId])
   @@index([organizationId])
@@ -831,6 +1023,46 @@ model OrderItem {
 
   @@index([orderId])
   @@index([organizationId])
+}
+
+model Return {
+  id               String       @id @default(cuid())
+  organizationId   String
+  orderId          String
+  platform         Marketplace
+  platformReturnId String?      @unique
+  status           ReturnStatus
+  reason           String?
+  items            ReturnItem[]
+  refundAmount     Decimal?     @db.Decimal(12, 2)
+  refundStatus     String?
+  requestedAt      DateTime
+  resolvedAt       DateTime?
+  notes            String?
+  statusLog        Json?
+  stockRestoredAt  DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([orderId])
+}
+
+model ReturnItem {
+  id        String  @id @default(cuid())
+  returnId  String
+  barcode   String
+  quantity  Int
+  reason    String?
+  condition String?
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId])
 }
 
 model Reservation {
@@ -1065,4 +1297,63 @@ model SavedReport {
   creator      User         @relation(fields: [createdBy], references: [id], onDelete: Restrict)
 
   @@index([organizationId])
+}
+
+model Supplier {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  contactName    String?
+  email          String?
+  phone          String?
+  address        String?
+  taxNumber      String?
+  notes          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@index([organizationId])
+}
+
+model PurchaseOrder {
+  id             String    @id @default(cuid())
+  organizationId String
+  supplierId     String
+  orderNumber    String
+  status         POStatus
+  totalAmount    Decimal   @db.Decimal(12, 2)
+  currency       String    @default("TRY")
+  expectedDate   DateTime?
+  receivedAt     DateTime?
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  items        PurchaseOrderItem[]
+
+  @@unique([organizationId, orderNumber])
+  @@index([organizationId, status])
+}
+
+model PurchaseOrderItem {
+  id              String  @id @default(cuid())
+  purchaseOrderId String
+  barcode         String
+  productName     String
+  quantity        Int
+  orderedQty      Int
+  receivedQty     Int     @default(0)
+  unitCost        Decimal @db.Decimal(12, 2)
+  totalCost       Decimal @db.Decimal(12, 2)
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@index([purchaseOrderId])
 }

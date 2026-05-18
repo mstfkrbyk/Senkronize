@@ -22,8 +22,16 @@ import type {
 
 @Injectable()
 export class HepsiburadaAdapter implements IMarketplaceAdapter {
-  readonly platform = 'HEPSIBURADA';
+  readonly platform: string = 'HEPSIBURADA';
   private readonly logger = new Logger(HepsiburadaAdapter.name);
+
+  /** Premium / kurumsal kanallar için ek HTTP başlıkları (alt sınıflar override eder) */
+  protected extraHttpHeaders(
+    credentials: Record<string, string>,
+  ): Record<string, string> {
+    void credentials;
+    return {};
+  }
 
   private resolveMerchantId(credentials: Record<string, string>): string {
     const fromField =
@@ -37,25 +45,35 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     return (fromField ?? fromUser ?? '').trim();
   }
 
-  private getListingClient(username: string, password: string): AxiosInstance {
+  private getListingClient(
+    username: string,
+    password: string,
+    credentials: Record<string, string>,
+  ): AxiosInstance {
     return axios.create({
       baseURL: HEPSIBURADA_LISTING_BASE_URL,
       auth: { username, password },
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': `Senkronize/${HEPSIBURADA_INTEGRATION_ID}`,
+        ...this.extraHttpHeaders(credentials),
       },
       timeout: 30_000,
     });
   }
 
-  private getOmsClient(username: string, password: string): AxiosInstance {
+  private getOmsClient(
+    username: string,
+    password: string,
+    credentials: Record<string, string>,
+  ): AxiosInstance {
     return axios.create({
       baseURL: HEPSIBURADA_OMS_BASE_URL,
       auth: { username, password },
       headers: {
         'Content-Type': 'application/json',
         'User-Agent': `Senkronize/${HEPSIBURADA_INTEGRATION_ID}`,
+        ...this.extraHttpHeaders(credentials),
       },
       timeout: 30_000,
     });
@@ -69,7 +87,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
         return false;
       }
       const merchantId = this.resolveMerchantId(credentials);
-      const client = this.getListingClient(username, password);
+      const client = this.getListingClient(username, password, credentials);
       const path =
         merchantId.length > 0
           ? `/listings/merchantid/${encodeURIComponent(merchantId)}/listings`
@@ -93,7 +111,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     if (!merchantId) {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
-    const client = this.getOmsClient(username, password);
+    const client = this.getOmsClient(username, password, credentials);
     return this.fetchOmsOrdersPaged(client, merchantId, since);
   }
 
@@ -237,7 +255,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const { username, password } = credentials;
     const merchantId = this.resolveMerchantId(credentials);
-    const client = this.getListingClient(username, password);
+    const client = this.getListingClient(username, password, credentials);
     const path =
       merchantId.length > 0
         ? `/listings/merchantid/${encodeURIComponent(merchantId)}/listings`
@@ -279,7 +297,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     if (!merchantId) {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
-    const client = this.getListingClient(username, password);
+    const client = this.getListingClient(username, password, credentials);
     const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/stock-uploads`;
     const batches = chunk(updates, 50);
     for (const batch of batches) {
@@ -300,7 +318,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     if (!merchantId) {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
-    const client = this.getListingClient(username, password);
+    const client = this.getListingClient(username, password, credentials);
     const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/price-uploads`;
     const batches = chunk(updates, 50);
     for (const batch of batches) {
