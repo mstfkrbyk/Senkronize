@@ -12,107 +12,74 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { TSOFT_API_PATH } from './tsoft.constants';
-import type { TsoftOrderRow, TsoftProductRow } from './tsoft.types';
+import { TSOFT_TOKEN_PATH, tsoftApiBase } from './tsoft.constants';
 
-const TSOFT_STATUS_MAP: Record<string, string> = {
-  '1': 'NEW',
-  '2': 'PICKING',
-  '3': 'SHIPPED',
-  '5': 'DELIVERED',
-  '7': 'CANCELLED',
-};
-
-const DEFAULT_PAGE_SIZE = 50;
+const DEFAULT_LIST_PAGE_SIZE = 50;
 const MAX_PRODUCT_PAGES = 80;
-
-function normalizeStoreBase(storeUrl: string): string {
-  return storeUrl.trim().replace(/\/+$/, '');
-}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-function toNum(v: string | number | undefined): number {
-  if (v === undefined) {
-    return 0;
-  }
-  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function toStr(v: string | number | undefined): string {
-  if (v === undefined) {
-    return '';
-  }
-  return String(v);
-}
-
-function extractOrdersPayload(data: unknown): TsoftOrderRow[] {
-  if (Array.isArray(data)) {
-    return data as TsoftOrderRow[];
-  }
-  if (!isRecord(data)) {
-    return [];
-  }
-  const candidates: unknown[] = [
-    data.orders,
-    data.order,
-    data.data,
-    data.items,
-  ];
-  for (const c of candidates) {
-    if (Array.isArray(c)) {
-      return c as TsoftOrderRow[];
-    }
-    if (isRecord(c)) {
-      const inner = c.orders ?? c.order ?? c.items;
-      if (Array.isArray(inner)) {
-        return inner as TsoftOrderRow[];
-      }
-    }
-  }
-  return [];
-}
-
-function extractProductsPayload(data: unknown): TsoftProductRow[] {
-  if (Array.isArray(data)) {
-    return data as TsoftProductRow[];
-  }
-  if (!isRecord(data)) {
-    return [];
-  }
-  const candidates: unknown[] = [
-    data.products,
-    data.product,
-    data.data,
-    data.items,
-  ];
-  for (const c of candidates) {
-    if (Array.isArray(c)) {
-      return c as TsoftProductRow[];
-    }
-    if (isRecord(c)) {
-      const inner = c.products ?? c.product ?? c.items;
-      if (Array.isArray(inner)) {
-        return inner as TsoftProductRow[];
-      }
-    }
-  }
-  return [];
-}
-
-function extractTotal(data: unknown, fallback: number): number {
-  if (!isRecord(data)) {
-    return fallback;
-  }
-  const raw =
-    data.total ??
-    (isRecord(data.data) ? data.data.total : undefined) ??
-    data.total_count;
-  const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
+function toFiniteNumber(v: unknown, fallback = 0): number {
+  const n =
+    typeof v === 'number' ? v : parseFloat(String(v ?? '').replace(',', '.'));
   return Number.isFinite(n) ? n : fallback;
+}
+
+function unwrapOrderRows(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (!isRecord(payload)) {
+    return [];
+  }
+  const keys = ['orders', 'data', 'items', 'order'] as const;
+  for (const k of keys) {
+    const v = payload[k];
+    if (Array.isArray(v)) {
+      return v;
+    }
+    if (isRecord(v)) {
+      const inner = v.orders ?? v.items ?? v.data;
+      if (Array.isArray(inner)) {
+        return inner;
+      }
+    }
+  }
+  return [];
+}
+
+function unwrapProductRows(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) {
+    return payload;
+  }
+  if (!isRecord(payload)) {
+    return [];
+  }
+  const keys = ['products', 'data', 'items', 'product'] as const;
+  for (const k of keys) {
+    const v = payload[k];
+    if (Array.isArray(v)) {
+      return v;
+    }
+    if (isRecord(v)) {
+      const inner = v.products ?? v.items ?? v.data;
+      if (Array.isArray(inner)) {
+        return inner;
+      }
+    }
+  }
+  return [];
+}
+
+function totalFromPayload(payload: unknown, itemsLen: number): number {
+  if (!isRecord(payload)) {
+    return itemsLen;
+  }
+  const raw = payload.totalCount ?? payload.total;
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10);
+  return Number.isFinite(n) ? n : itemsLen;
 }
 
 @Injectable()
@@ -121,16 +88,40 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
   readonly erpType = 'TSOFT';
   private readonly logger = new Logger(TsoftAdapter.name);
 
-  private getClient(storeUrl: string, apiKey: string): AxiosInstance {
-    const base = `${normalizeStoreBase(storeUrl)}${TSOFT_API_PATH}`;
-    return axios.create({
-      baseURL: base,
-      headers: {
-        'X-Oc-Merchant-Id': apiKey,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+  private normalizeStoreUrl(storeUrl: string): string {
+    return storeUrl.trim().replace(/\/+$/, '');
+  }
+
+  private async getToken(credentials: Record<string, string>): Promise<string> {
+    const storeUrl = this.normalizeStoreUrl(credentials.storeUrl ?? '');
+    const apiKey = credentials.apiKey?.trim() ?? '';
+    const apiSecret = credentials.apiSecret?.trim() ?? '';
+    const base = tsoftApiBase(storeUrl);
+    const body = new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: apiKey,
+      client_secret: apiSecret,
+    });
+    const { data } = await axios.post<{ access_token?: string }>(
+      `${base}${TSOFT_TOKEN_PATH}`,
+      body,
+      {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 10_000,
       },
-      timeout: 25_000,
+    );
+    const token = data.access_token;
+    if (!token) {
+      throw new Error('T-Soft: access_token alanı yok');
+    }
+    return token;
+  }
+
+  private getClient(storeUrl: string, token: string): AxiosInstance {
+    return axios.create({
+      baseURL: tsoftApiBase(this.normalizeStoreUrl(storeUrl)),
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15_000,
     });
   }
 
@@ -138,12 +129,12 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
     try {
       const storeUrl = credentials.storeUrl?.trim();
       const apiKey = credentials.apiKey?.trim();
-      if (!storeUrl || !apiKey) {
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!storeUrl || !apiKey || !apiSecret) {
         return false;
       }
-      const client = this.getClient(storeUrl, apiKey);
-      const { status } = await client.get('/sale/ordercount');
-      return status === 200;
+      await this.getToken(credentials);
+      return true;
     } catch (error) {
       this.logger.warn('T-Soft bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
@@ -158,28 +149,107 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
   ): Promise<MarketplaceOrder[]> {
     const storeUrl = credentials.storeUrl?.trim();
     const apiKey = credentials.apiKey?.trim();
-    if (!storeUrl || !apiKey) {
+    const apiSecret = credentials.apiSecret?.trim();
+    if (!storeUrl || !apiKey || !apiSecret) {
       return [];
     }
-    const client = this.getClient(storeUrl, apiKey);
-    const params: Record<string, string> = {};
-    if (since) {
-      const pad = (n: number): string => (n < 10 ? `0${n}` : String(n));
-      const d = since;
-      params.start_date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-    let data: unknown;
     try {
-      const res = await client.get<unknown>('/sale/order', { params });
-      data = res.data;
+      const token = await this.getToken(credentials);
+      const client = this.getClient(storeUrl, token);
+      const startDate = since
+        ? since.toISOString().split('T')[0]
+        : new Date(Date.now() - 7 * 86_400_000).toISOString().split('T')[0];
+      const { data } = await client.get<unknown>('/orders', {
+        params: { startDate, pageIndex: 0, pageSize: 100 },
+      });
+      const rows = unwrapOrderRows(data);
+      return rows
+        .map((row) =>
+          isRecord(row) ? this.mapOrderRow(row) : null,
+        )
+        .filter((o): o is MarketplaceOrder => o !== null);
     } catch (error) {
       this.logger.warn('T-Soft sipariş listesi alınamadı', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
       return [];
     }
-    const rows = extractOrdersPayload(data);
-    return rows.map((o) => this.mapOrder(o));
+  }
+
+  private mapOrderRow(o: Record<string, unknown>): MarketplaceOrder | null {
+    const orderId = String(o.id ?? o.orderId ?? '');
+    if (!orderId) {
+      return null;
+    }
+    const status = String(o.status ?? o.orderStatus ?? 'NEW');
+    const customer = isRecord(o.customer) ? o.customer : {};
+    const fullFromParts = `${String(customer.firstName ?? '')} ${String(customer.lastName ?? '')}`.trim();
+    const customerName =
+      String(customer.fullName ?? '').trim() || fullFromParts || '—';
+    const rawLines = o.orderItems ?? o.items;
+    const lines = Array.isArray(rawLines) ? rawLines : [];
+    const items = lines.map((li, idx) => {
+      const row = isRecord(li) ? li : {};
+      const sku = String(
+        row.barcode ?? row.sku ?? row.productCode ?? orderId,
+      );
+      const qty = toFiniteNumber(row.quantity, 0);
+      const unit = toFiniteNumber(row.price ?? row.unitPrice, 0);
+      const platformItemId = String(
+        row.id ?? row.orderItemId ?? `${orderId}-${idx}`,
+      );
+      const nameRaw = row.name ?? row.productName;
+      return {
+        sku,
+        barcode: sku,
+        quantity: Math.max(0, Math.round(qty)),
+        unitPrice: unit,
+        platformItemId,
+        productName: nameRaw != null ? String(nameRaw) : undefined,
+      };
+    });
+    const totalAmount = toFiniteNumber(o.totalPrice ?? o.total, 0);
+    const currency = String(o.currency ?? 'TRY') || 'TRY';
+    const createdRaw = o.createdAt ?? o.orderDate;
+    const createdAt =
+      typeof createdRaw === 'string' || typeof createdRaw === 'number'
+        ? new Date(createdRaw).toISOString()
+        : new Date().toISOString();
+    return {
+      platformOrderId: orderId,
+      status,
+      customerName,
+      items,
+      totalAmount,
+      currency,
+      createdAt,
+    };
+  }
+
+  private mapProductRow(p: Record<string, unknown>): MarketplaceListing {
+    const id = String(p.id ?? p.productId ?? '');
+    const barcode = String(p.barcode ?? p.sku ?? p.productCode ?? id);
+    const title = String(p.name ?? p.productName ?? p.title ?? barcode);
+    const salePrice = toFiniteNumber(p.salePrice ?? p.price, 0);
+    const listPrice = toFiniteNumber(
+      p.listPrice ?? p.compareAtPrice ?? p.regularPrice ?? salePrice,
+      salePrice,
+    );
+    const qty = Math.max(
+      0,
+      Math.round(toFiniteNumber(p.stockAmount ?? p.stock, 0)),
+    );
+    const active = p.isActive === true || p.isActive === undefined;
+    return {
+      platformProductId: id || barcode,
+      barcode,
+      title,
+      quantity: qty,
+      salePrice,
+      listPrice,
+      approved: active,
+      images: [],
+    };
   }
 
   async getListings(
@@ -188,22 +258,35 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const storeUrl = credentials.storeUrl?.trim();
     const apiKey = credentials.apiKey?.trim();
-    if (!storeUrl || !apiKey) {
+    const apiSecret = credentials.apiSecret?.trim();
+    if (!storeUrl || !apiKey || !apiSecret) {
       return {
         items: [],
         total: 0,
         page,
-        pageSize: DEFAULT_PAGE_SIZE,
+        pageSize: DEFAULT_LIST_PAGE_SIZE,
       };
     }
-    const client = this.getClient(storeUrl, apiKey);
-    const apiPage = page + 1;
-    let data: unknown;
     try {
-      const res = await client.get<unknown>('/product', {
-        params: { page: apiPage, limit: DEFAULT_PAGE_SIZE },
-      });
-      data = res.data;
+      const token = await this.getToken(credentials);
+      const { data } = await this
+        .getClient(storeUrl, token)
+        .get<unknown>('/products', {
+          params: {
+            pageIndex: page,
+            pageSize: DEFAULT_LIST_PAGE_SIZE,
+            isActive: true,
+          },
+        });
+      const rows = unwrapProductRows(data).filter(isRecord);
+      const items = rows.map((r) => this.mapProductRow(r));
+      const total = totalFromPayload(data, page * DEFAULT_LIST_PAGE_SIZE + items.length);
+      return {
+        items,
+        total,
+        page,
+        pageSize: DEFAULT_LIST_PAGE_SIZE,
+      };
     } catch (error) {
       this.logger.warn('T-Soft ürün listesi alınamadı', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
@@ -212,21 +295,9 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
         items: [],
         total: 0,
         page,
-        pageSize: DEFAULT_PAGE_SIZE,
+        pageSize: DEFAULT_LIST_PAGE_SIZE,
       };
     }
-    const rows = extractProductsPayload(data);
-    const items = rows.map((p) => this.mapListing(p));
-    const total = extractTotal(
-      data,
-      page * DEFAULT_PAGE_SIZE + items.length,
-    );
-    return {
-      items,
-      total,
-      page,
-      pageSize: DEFAULT_PAGE_SIZE,
-    };
   }
 
   async updateStock(
@@ -238,37 +309,17 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
     }
     const storeUrl = credentials.storeUrl?.trim();
     const apiKey = credentials.apiKey?.trim();
-    if (!storeUrl || !apiKey) {
-      throw new Error('T-Soft: storeUrl ve apiKey zorunludur');
+    const apiSecret = credentials.apiSecret?.trim();
+    if (!storeUrl || !apiKey || !apiSecret) {
+      throw new Error('T-Soft: storeUrl, apiKey ve apiSecret zorunludur');
     }
-    const client = this.getClient(storeUrl, apiKey);
-    const idMap = await this.resolveProductIdsByBarcodes(
-      credentials,
-      updates.map((u) => u.barcode),
-    );
-    for (const u of updates) {
-      const key = this.barcodeKey(u.barcode);
-      const pid = idMap.get(key);
-      if (!pid) {
-        this.logger.warn('T-Soft stok güncelleme: barkod için ürün id bulunamadı', {
-          barcode: u.barcode,
-        });
-        continue;
-      }
-      try {
-        await client.put(`/product/${pid}/quantity`, {
-          quantity: u.quantity,
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Bilinmeyen hata';
-        this.logger.error('T-Soft stok güncelleme başarısız', {
-          productId: pid,
-          error: message,
-        });
-        throw new Error(`T-Soft stok güncellenemedi: ${message}`);
-      }
-    }
+    const token = await this.getToken(credentials);
+    await this.getClient(storeUrl, token).post('/stock/update', {
+      stocks: updates.map((u) => ({
+        barcode: u.barcode,
+        stockAmount: u.quantity,
+      })),
+    });
   }
 
   async updatePrice(
@@ -280,38 +331,18 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
     }
     const storeUrl = credentials.storeUrl?.trim();
     const apiKey = credentials.apiKey?.trim();
-    if (!storeUrl || !apiKey) {
-      throw new Error('T-Soft: storeUrl ve apiKey zorunludur');
+    const apiSecret = credentials.apiSecret?.trim();
+    if (!storeUrl || !apiKey || !apiSecret) {
+      throw new Error('T-Soft: storeUrl, apiKey ve apiSecret zorunludur');
     }
-    const client = this.getClient(storeUrl, apiKey);
-    const idMap = await this.resolveProductIdsByBarcodes(
-      credentials,
-      updates.map((u) => u.barcode),
-    );
-    for (const u of updates) {
-      const key = this.barcodeKey(u.barcode);
-      const pid = idMap.get(key);
-      if (!pid) {
-        this.logger.warn('T-Soft fiyat güncelleme: barkod için ürün id bulunamadı', {
-          barcode: u.barcode,
-        });
-        continue;
-      }
-      try {
-        await client.put(`/product/${pid}/price`, {
-          price: u.salePrice,
-          list_price: u.listPrice,
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Bilinmeyen hata';
-        this.logger.error('T-Soft fiyat güncelleme başarısız', {
-          productId: pid,
-          error: message,
-        });
-        throw new Error(`T-Soft fiyat güncellenemedi: ${message}`);
-      }
-    }
+    const token = await this.getToken(credentials);
+    await this.getClient(storeUrl, token).post('/price/update', {
+      prices: updates.map((u) => ({
+        barcode: u.barcode,
+        salePrice: u.salePrice,
+        listPrice: u.listPrice,
+      })),
+    });
   }
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
@@ -346,7 +377,9 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
     _credentials: Record<string, string>,
     _invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
   ): Promise<ErpInvoice> {
-    throw new NotImplementedException('T-Soft fatura oluşturma henüz desteklenmiyor');
+    throw new NotImplementedException(
+      'T-Soft fatura oluşturma henüz desteklenmiyor',
+    );
   }
 
   async getInvoices(
@@ -354,99 +387,5 @@ export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
     _since?: Date,
   ): Promise<ErpInvoice[]> {
     return [];
-  }
-
-  private mapOrder(o: TsoftOrderRow): MarketplaceOrder {
-    const orderId = toStr(o.order_id ?? o.id);
-    const statusRaw = toStr(o.status_id ?? o.status);
-    const status = TSOFT_STATUS_MAP[statusRaw] ?? 'NEW';
-    const first = (o.firstname ?? '').trim();
-    const last = (o.lastname ?? '').trim();
-    const customerName = `${first} ${last}`.trim() || '—';
-    const lines = o.products ?? o.product ?? [];
-    const items = lines.map((l) => {
-      const sku = (l.model ?? l.sku ?? '').trim() || orderId;
-      const barcode = (l.model ?? l.sku ?? sku).trim();
-      return {
-        sku,
-        barcode,
-        quantity: Math.max(0, Math.round(toNum(l.quantity))),
-        unitPrice: toNum(l.price),
-        platformItemId: toStr(l.order_product_id ?? l.product_id ?? sku),
-        productName: l.name,
-      };
-    });
-    return {
-      platformOrderId: orderId,
-      status,
-      customerName,
-      items,
-      totalAmount: toNum(o.total),
-      currency: (o.currency_code ?? 'TRY').trim() || 'TRY',
-      createdAt: o.date_added
-        ? new Date(o.date_added).toISOString()
-        : new Date().toISOString(),
-    };
-  }
-
-  private mapListing(p: TsoftProductRow): MarketplaceListing {
-    const id = toStr(p.product_id ?? p.id);
-    const model = (p.model ?? p.sku ?? id).trim();
-    const title = (p.name ?? model).trim() || model;
-    const qty = Math.max(0, Math.round(toNum(p.quantity)));
-    const price = toNum(p.price);
-    const approved = p.status === undefined || String(p.status) === '1';
-    const img = p.image ?? p.thumb;
-    const images = img ? [img] : [];
-    return {
-      platformProductId: id,
-      barcode: model || id,
-      title,
-      quantity: qty,
-      salePrice: price,
-      listPrice: price,
-      approved,
-      images,
-    };
-  }
-
-  private barcodeKey(barcode: string): string {
-    return barcode.trim().toLowerCase();
-  }
-
-  private async resolveProductIdsByBarcodes(
-    credentials: Record<string, string>,
-    barcodes: string[],
-  ): Promise<Map<string, string>> {
-    const wanted = new Set(
-      barcodes.map((b) => this.barcodeKey(b)).filter((k) => k.length > 0),
-    );
-    const out = new Map<string, string>();
-    if (wanted.size === 0) {
-      return out;
-    }
-    let page = 0;
-    for (let i = 0; i < MAX_PRODUCT_PAGES; i += 1) {
-      const batch = await this.getListings(credentials, page);
-      for (const l of batch.items) {
-        const k = this.barcodeKey(l.barcode);
-        const k2 = this.barcodeKey(l.platformProductId);
-        if (wanted.has(k)) {
-          out.set(k, l.platformProductId);
-        }
-        if (wanted.has(k2)) {
-          out.set(k2, l.platformProductId);
-        }
-      }
-      if (
-        batch.items.length === 0 ||
-        batch.items.length < batch.pageSize ||
-        out.size >= wanted.size
-      ) {
-        break;
-      }
-      page += 1;
-    }
-    return out;
   }
 }
