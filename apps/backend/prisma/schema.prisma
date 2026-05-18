@@ -182,6 +182,7 @@ model ApiKey {
   updatedAt      DateTime     @updatedAt
 
   @@index([organizationId])
+  @@index([keyPrefix])
 }
 
 model WebhookEvent {
@@ -218,6 +219,19 @@ model User {
   refreshTokens RefreshToken[]
 
   notificationPreference NotificationPreference?
+  pushSubscriptions      PushSubscription[]
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  keys      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model NotificationPreference {

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { api } from '@/lib/api';
 
 interface NotificationPrefs {
@@ -30,11 +31,11 @@ type PrefToggleKey =
   | 'paymentAlert'
   | 'syncError'
   | 'emailEnabled'
-  | 'smsEnabled'
-  | 'pushEnabled';
+  | 'smsEnabled';
 
 export function NotificationsTab(): ReactElement {
   const queryClient = useQueryClient();
+  const { subscribe, unsubscribe, isSupported } = usePushNotifications();
 
   const prefsQuery = useQuery({
     queryKey: ['notification-preferences'],
@@ -42,6 +43,14 @@ export function NotificationsTab(): ReactElement {
       const { data } = await api.get<NotificationPrefs>(
         '/users/notification-preferences',
       );
+      return data;
+    },
+  });
+
+  const pushStatusQuery = useQuery({
+    queryKey: ['push-subscription-status'],
+    queryFn: async (): Promise<{ subscribed: boolean }> => {
+      const { data } = await api.get<{ subscribed: boolean }>('/push/status');
       return data;
     },
   });
@@ -61,8 +70,43 @@ export function NotificationsTab(): ReactElement {
     },
   });
 
+  const browserPushMutation = useMutation({
+    mutationFn: async (enable: boolean): Promise<void> => {
+      if (enable) {
+        const ok = await subscribe();
+        if (!ok) {
+          throw new Error('Tarayıcı bildirimleri etkinleştirilemedi.');
+        }
+        await api.patch<NotificationPrefs>('/users/notification-preferences', {
+          pushEnabled: true,
+        });
+        return;
+      }
+      await unsubscribe();
+      await api.patch<NotificationPrefs>('/users/notification-preferences', {
+        pushEnabled: false,
+      });
+    },
+    onSuccess: (_, enable) => {
+      void queryClient.invalidateQueries({ queryKey: ['push-subscription-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });
+      toast.success(
+        enable ? 'Tarayıcı bildirimleri açıldı.' : 'Tarayıcı bildirimleri kapatıldı.',
+      );
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : 'İşlem başarısız.';
+      toast.error(msg);
+    },
+  });
+
   const prefs = prefsQuery.data;
-  const busy = prefsQuery.isLoading || updatePrefs.isPending;
+  const pushSubscribed = pushStatusQuery.data?.subscribed ?? false;
+  const busy =
+    prefsQuery.isLoading ||
+    updatePrefs.isPending ||
+    pushStatusQuery.isLoading ||
+    browserPushMutation.isPending;
 
   const setPref = (key: PrefToggleKey, value: boolean): void => {
     updatePrefs.mutate({ [key]: value });
@@ -174,21 +218,31 @@ export function NotificationsTab(): ReactElement {
               />
             </div>
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="n-push">Push</Label>
-                <Badge variant="secondary" className="text-xs">
-                  Beta
-                </Badge>
+              <div className="flex max-w-[min(100%,18rem)] flex-col gap-0.5 sm:max-w-none">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="n-browser-push">Tarayıcı bildirimleri</Label>
+                  <Badge variant="secondary" className="text-xs">
+                    Beta
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Bu cihazda anlık uyarı almak için izin verin. HTTPS veya localhost gerekir.
+                </p>
               </div>
               <Switch
-                id="n-push"
-                checked={prefs.pushEnabled}
-                disabled={busy}
+                id="n-browser-push"
+                checked={pushSubscribed}
+                disabled={busy || !isSupported}
                 onCheckedChange={(v) => {
-                  setPref('pushEnabled', v);
+                  browserPushMutation.mutate(v);
                 }}
               />
             </div>
+            {!isSupported ? (
+              <p className="text-xs text-muted-foreground">
+                Bu tarayıcı web push desteklemiyor.
+              </p>
+            ) : null}
           </div>
         </div>
       ) : null}

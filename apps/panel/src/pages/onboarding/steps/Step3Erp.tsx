@@ -51,7 +51,7 @@ export function Step3Erp({
           className="h-auto shrink-0 self-end px-0 text-muted-foreground md:self-start"
           onClick={onSkip}
         >
-          Şimdilik Atla
+          Şimdi değil
         </Button>
       </div>
       <CardContent className="space-y-6 px-0 pt-6 md:px-6">

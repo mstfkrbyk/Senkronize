@@ -19,6 +19,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../notifications/email/email.service';
+import { SmsService } from '../notifications/sms/sms.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ChangePasswordDto,
@@ -41,6 +42,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly notificationService: NotificationService,
     private readonly emailService: EmailService,
+    private readonly smsService: SmsService,
   ) {}
 
   async register(
@@ -120,6 +122,15 @@ export class AuthService {
         error,
       });
     });
+
+    if (newUser.phone) {
+      void this.smsService.sendWelcome(newUser.phone, dto.name).catch((error: unknown) => {
+        this.logger.error('Hoş geldin SMS gönderilemedi', {
+          organizationId: newUser.organizationId,
+          error,
+        });
+      });
+    }
 
     return this.generateTokens(
       newUser.id,
