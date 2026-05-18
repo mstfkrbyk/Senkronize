@@ -91,8 +91,10 @@ export type CargoProvider =
   | 'MNG'
   | 'SURAT'
   | 'PTT'
+  | 'PTT_KARGO'
   | 'UPS'
   | 'DHL'
+  | 'SENDEO'
   | 'HEPSIJET'
   | 'TRENDYOL_EXPRESS';
 

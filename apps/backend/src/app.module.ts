@@ -8,6 +8,7 @@ import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './common/cache/cache.module';
+import { CargoModule } from './cargo/cargo.module';
 import { CommonModule } from './common/common.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { EventModule } from './event/event.module';
@@ -55,6 +56,7 @@ import { WebhookModule } from './webhook/webhook.module';
     PushModule,
     CommonModule,
     CacheModule,
+    CargoModule,
     AdapterModule,
     MarketplaceConnectionModule,
     ErpConnectionModule,

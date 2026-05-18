@@ -37,6 +37,15 @@ export interface TrendyolWebhookJobData {
   webhookEventId: string;
 }
 
+/** WebhookLog tabanlı işleme — notification-dispatch kuyruğu */
+export interface WebhookLogJobData {
+  webhookLogId: string;
+}
+
+export type NotificationDispatchJobData =
+  | TrendyolWebhookJobData
+  | WebhookLogJobData;
+
 /** pricing-engine job payload */
 export interface PricingRunRulesJobData {
   organizationId: string;

@@ -124,8 +124,10 @@ enum CargoProvider {
   MNG
   SURAT
   PTT
+  PTT_KARGO
   UPS
   DHL
+  SENDEO
   HEPSIJET
   TRENDYOL_EXPRESS
 }
@@ -203,6 +205,7 @@ model Organization {
   priceHistories            PriceHistory[]
   buyBoxSnapshots           BuyBoxSnapshot[]
   webhookEvents             WebhookEvent[]
+  webhookLogs               WebhookLog[]
   notificationPreferences   NotificationPreference[]
   apiKeys                   ApiKey[]
 }
@@ -238,6 +241,25 @@ model WebhookEvent {
 
   @@index([organizationId, processed])
   @@index([organizationId, platform])
+}
+
+/// Gelen pazaryeri webhook kaydı (imza sonrası); idempotency için payloadHash benzersizdir.
+model WebhookLog {
+  id               String        @id @default(cuid())
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  platform         String
+  eventType        String
+  payload          Json
+  payloadHash      String
+  status           String // received | processed | failed | skipped
+  errorMessage     String?
+  processedAt      DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@unique([platform, payloadHash])
+  @@index([platform, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 model User {

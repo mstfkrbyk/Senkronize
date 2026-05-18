@@ -73,6 +73,14 @@ async function bootstrap(): Promise<void> {
       'X-Api-Key',
       'x-api-key',
       'x-signature',
+      'x-trendyol-signature',
+      'x-hb-signature',
+      'x-shopify-hmac-sha256',
+      'x-shopify-shop-domain',
+      'x-shopify-topic',
+      'x-wc-webhook-signature',
+      'x-wc-webhook-source',
+      'x-amz-sns-message-type',
     ],
   });
 
@@ -108,6 +116,7 @@ async function bootstrap(): Promise<void> {
     .addTag('listings', 'Listelemeler')
     .addTag('pricing', 'Fiyatlandırma ve BuyBox')
     .addTag('reports', 'Raporlar')
+    .addTag('cargo', 'Kargo entegrasyonları')
     .addTag('partner', 'Partner/bayi sistemi')
     .addTag('admin', 'Super admin')
     .addTag('sync', 'Senkronizasyon durumu')
