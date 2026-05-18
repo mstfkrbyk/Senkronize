@@ -75,6 +75,13 @@ enum Marketplace {
   TEKNOSA
   KOTON
   MAVI
+  ALLEGRO
+  WILDBERRIES
+  OZON
+  NOON
+  AMAZON_EU
+  CDISCOUNT
+  KAUFLAND
 }
 
 enum PricingStrategy {
@@ -167,6 +174,21 @@ enum OrderStatus {
   RETURNED
 }
 
+enum NotificationType {
+  ORDER_NEW
+  ORDER_STATUS_CHANGED
+  STOCK_LOW
+  STOCK_OUT
+  SYNC_SUCCESS
+  SYNC_ERROR
+  PRICE_UPDATED
+  BUYBOX_WON
+  BUYBOX_LOST
+  SUBSCRIPTION_EXPIRING
+  PAYMENT_FAILED
+  SYSTEM
+}
+
 model Organization {
   id                  String    @id @default(cuid())
   slug                String    @unique
@@ -207,6 +229,7 @@ model Organization {
   webhookEvents             WebhookEvent[]
   webhookLogs               WebhookLog[]
   notificationPreferences   NotificationPreference[]
+  inAppNotifications        InAppNotification[]
   apiKeys                   ApiKey[]
 }
 
@@ -281,6 +304,27 @@ model User {
 
   notificationPreference NotificationPreference?
   pushSubscriptions      PushSubscription[]
+  inAppNotifications       InAppNotification[]
+}
+
+model InAppNotification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           NotificationType
+  title          String
+  message        String
+  link           String?
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  metadata       Json?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isRead, createdAt])
+  @@index([userId, isRead])
 }
 
 model PushSubscription {

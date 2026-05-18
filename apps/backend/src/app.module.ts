@@ -21,6 +21,7 @@ import { ListingModule } from './listing/listing.module';
 import { MigrationModule } from './migration/migration.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
+import { InAppNotificationModule } from './notifications/in-app/in-app-notification.module';
 import { EmailModule } from './notifications/email/email.module';
 import { PushModule } from './notifications/push/push.module';
 import { SmsModule } from './notifications/sms/sms.module';
@@ -78,6 +79,7 @@ import { WebhookModule } from './webhook/webhook.module';
     HealthModule,
     SyncStatusModule,
     NotificationModule,
+    InAppNotificationModule,
     SubscriptionModule,
     PartnerModule,
     ImpersonationModule,

@@ -24,6 +24,7 @@ import { MarketplacePushProcessor } from './marketplace-push.processor';
 import { PricingProcessor } from './pricing.processor';
 import { StockAlertTask } from './stock-alert.task';
 import { SyncSchedulerTask } from './sync-scheduler.task';
+import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { SyncSchedulerTask } from './sync-scheduler.task';
     PricingModule,
     ImageModule,
     ProductModule,
+    InAppNotificationModule,
   ],
   providers: [
     MarketplaceJobFailureHandler,

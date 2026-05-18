@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { NotificationBell } from '@/components/topbar/NotificationBell';
+import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,9 +96,7 @@ export function TopBar(): ReactElement {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <div className="md:hidden">
-          <NotificationBell />
-        </div>
+        <NotificationBell />
         <Button
           type="button"
           variant="ghost"

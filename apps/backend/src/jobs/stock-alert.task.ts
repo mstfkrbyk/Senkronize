@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { UserRole } from '@prisma/client';
+import { NotificationType, UserRole } from '@prisma/client';
 
 import { EmailService } from '../notifications/email/email.service';
+import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class StockAlertTask {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly inAppNotificationService: InAppNotificationService,
   ) {}
 
   @Cron('0 8 * * *')
@@ -86,6 +88,23 @@ export class StockAlertTask {
         admin.name ?? 'Merhaba',
         lowProducts.map((p) => ({ name: p.title, stock: p.quantity })),
       );
+
+      try {
+        await this.inAppNotificationService.create({
+          organizationId,
+          type: NotificationType.STOCK_LOW,
+          title: 'Düşük stok uyarısı',
+          message: `${String(totalLow)} ürün kritik stok seviyesinin altında (≤5).`,
+          link: '/stock',
+          metadata: { sampleTitles: lowProducts.map((p) => p.title) },
+        });
+      } catch (notifyErr) {
+        this.logger.warn('In-app stok bildirimi oluşturulamadı', {
+          organizationId,
+          message:
+            notifyErr instanceof Error ? notifyErr.message : 'unknown',
+        });
+      }
 
       this.logger.log(`${org.name}: ${String(totalLow)} düşük stok uyarısı e-postası gönderildi`);
     }

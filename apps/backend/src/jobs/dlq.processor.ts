@@ -1,11 +1,12 @@
 import { OnQueueFailed, Processor } from '@nestjs/bull';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { UserRole } from '@prisma/client';
+import { NotificationType, UserRole } from '@prisma/client';
 import type { Job } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../notifications/email/email.service';
+import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import {
   QUEUE_MARKETPLACE_PULL,
   QUEUE_MARKETPLACE_PUSH,
@@ -61,6 +62,7 @@ export class MarketplaceJobFailureHandler {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
+    private readonly inAppNotificationService: InAppNotificationService,
   ) {}
 
   async handle(queueLabel: string, job: Job, err: unknown): Promise<void> {
@@ -103,6 +105,29 @@ export class MarketplaceJobFailureHandler {
     const maxAttempts = job.opts.attempts ?? 1;
     if (job.attemptsMade < maxAttempts) {
       return;
+    }
+
+    if (organizationId) {
+      try {
+        await this.inAppNotificationService.create({
+          organizationId,
+          type: NotificationType.SYNC_ERROR,
+          title: 'Senkronizasyon hatası',
+          message: `${queueLabel} — ${job.name}: ${error.message.slice(0, 400)}`,
+          link: '/sync-logs',
+          metadata: {
+            jobId: job.id != null ? String(job.id) : null,
+            queue: queueLabel,
+            jobName: job.name,
+          },
+        });
+      } catch (notifyErr) {
+        this.logger.warn('In-app sync hata bildirimi oluşturulamadı', {
+          organizationId,
+          message:
+            notifyErr instanceof Error ? notifyErr.message : 'unknown',
+        });
+      }
     }
 
     const alertTo = this.configService.get<string>('OPS_ALERT_EMAIL')?.trim();

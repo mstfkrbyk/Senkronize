@@ -27,6 +27,7 @@ import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { InviteAcceptPage } from '@/pages/InviteAcceptPage';
 import { ListingsPage } from '@/pages/listings/ListingsPage';
 import { MigrationPage } from '@/pages/migration/MigrationPage';
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { OnboardingPage } from '@/pages/onboarding/OnboardingPage';
 import { OrdersPage } from '@/pages/orders/OrdersPage';
@@ -108,6 +109,7 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />

@@ -1,7 +1,7 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Marketplace } from '@prisma/client';
+import { Marketplace, NotificationType } from '@prisma/client';
 import type { Job, Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
@@ -11,6 +11,7 @@ import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { OrderService } from '../order/order.service';
+import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_IMAGE, QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
@@ -33,6 +34,7 @@ export class MarketplacePullProcessor {
     private readonly eventService: EventService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly inAppNotificationService: InAppNotificationService,
     @InjectQueue(QUEUE_IMAGE)
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
   ) {}
@@ -90,6 +92,23 @@ export class MarketplacePullProcessor {
           totalAmount: order.totalAmount.toString(),
           createdAt: order.createdAt.toISOString(),
         });
+        try {
+          await this.inAppNotificationService.create({
+            organizationId,
+            type: NotificationType.ORDER_NEW,
+            title: 'Yeni sipariş',
+            message: `${String(platform)} — No: ${order.platformOrderId} · ${order.customerName}`,
+            link: '/orders',
+            metadata: { orderId: order.id, platform: String(platform) },
+          });
+        } catch (notifyErr) {
+          this.logger.warn('In-app bildirim oluşturulamadı', {
+            organizationId,
+            orderId: order.id,
+            message:
+              notifyErr instanceof Error ? notifyErr.message : 'unknown',
+          });
+        }
       }
       await this.syncStatusService.recordSuccess(
         organizationId,
