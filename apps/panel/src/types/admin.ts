@@ -7,12 +7,46 @@ export type SubStatus =
   | 'CANCELLED'
   | 'EXPIRED';
 
+export interface DailySignupPoint {
+  date: string;
+  count: number;
+}
+
+export interface PlanCountEntry {
+  plan: OrgPlanTier;
+  count: number;
+}
+
 export interface AdminPlatformStats {
-  totalOrgs: number;
-  activeSubscriptions: number;
-  totalConnections: number;
-  totalOrders: number;
-  trialOrgs: number;
+  totalOrganizations: number;
+  activeOrganizations: number;
+  inactiveOrganizations: number;
+  totalUsers: number;
+  planDistribution: PlanCountEntry[];
+  trialActiveOrganizations: number;
+  newRegistrationsLast30Days: number;
+  ordersThisMonthCount: number;
+  activeMarketplaceConnections: number;
+  platformHealthScore: number;
+  dailyNewRegistrations: DailySignupPoint[];
+}
+
+export interface RevenuePlanShare {
+  plan: OrgPlanTier;
+  monthlyRevenueKurus: number;
+  organizationCount: number;
+}
+
+export interface RevenueMonthPoint {
+  monthKey: string;
+  revenueKurus: number;
+}
+
+export interface AdminRevenueStats {
+  mrrKurus: number;
+  projectedArrKurus: number;
+  planRevenueDistribution: RevenuePlanShare[];
+  last12MonthsRevenue: RevenueMonthPoint[];
 }
 
 export interface AdminOrgListResponse {
@@ -26,6 +60,7 @@ export interface AdminOrganizationRow {
   id: string;
   name: string;
   slug: string;
+  taxNumber: string | null;
   suspended: boolean;
   createdAt: string;
   subscription: {
@@ -36,7 +71,111 @@ export interface AdminOrganizationRow {
   _count: {
     users: number;
     marketplaceConnections: number;
+    orders: number;
   };
+  lastActivityAt: string | null;
+}
+
+export interface AdminActivityItem {
+  id: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  actorUserId: string;
+  actorOrgId: string;
+  impersonatedOrgId: string | null;
+  createdAt: string;
+}
+
+export interface AdminPlatformHealthRow {
+  platform: string;
+  activeConnections: number;
+  errorRate24h: number;
+  averageSyncDurationMs: number | null;
+  lastSyncAt: string | null;
+}
+
+export interface AdminHealthStats {
+  platforms: AdminPlatformHealthRow[];
+}
+
+export interface AdminOrgDetailUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
+export interface AdminOrgDetailConnection {
+  id: string;
+  platform: string;
+  isActive: boolean;
+  lastSyncAt: string | null;
+  syncErrorCount: number;
+  lastErrorAt: string | null;
+}
+
+export interface AdminOrgDetailOrder {
+  id: string;
+  platform: string;
+  platformOrderId: string;
+  status: string;
+  customerName: string;
+  totalAmount: string;
+  currency: string;
+  createdAt: string;
+}
+
+export interface AdminOrgDetailAuditEntry {
+  id: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  actorUserId: string;
+  actorOrgId: string;
+  impersonatedOrgId: string | null;
+  createdAt: string;
+}
+
+export interface AdminOrgDetailPayment {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  plan: OrgPlanTier;
+  createdAt: string;
+}
+
+export interface AdminOrganizationDetailResponse {
+  organization: {
+    id: string;
+    slug: string;
+    name: string;
+    taxNumber: string | null;
+    taxOffice: string | null;
+    address: string | null;
+    city: string | null;
+    website: string | null;
+    type: string;
+    suspended: boolean;
+    onboardingCompleted: boolean;
+    createdAt: string;
+  };
+  subscription: {
+    plan: OrgPlanTier;
+    status: SubStatus;
+    trialEndsAt: string | null;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    nextBillingAt: string | null;
+  } | null;
+  users: AdminOrgDetailUser[];
+  marketplaceConnections: AdminOrgDetailConnection[];
+  recentOrders: AdminOrgDetailOrder[];
+  recentAuditLogs: AdminOrgDetailAuditEntry[];
+  payments: AdminOrgDetailPayment[];
 }
 
 export interface AdminSubscriptionRow {

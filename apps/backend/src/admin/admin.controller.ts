@@ -3,10 +3,10 @@ import {
   Controller,
   DefaultValuePipe,
   Get,
-  NotFoundException,
   Param,
   ParseIntPipe,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -16,29 +16,28 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Prisma, SubStatus, type Organization } from '@prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Prisma } from '@prisma/client';
+
 import { CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
-import { AdminSubscriptionsQueryDto, UpdateOrgStatusDto } from './admin.dto';
+import {
+  AdminOrganizationsQueryDto,
+  AdminSubscriptionsQueryDto,
+  ChangeOrganizationPlanDto,
+  SuspendOrganizationDto,
+} from './admin.dto';
 import { SuperAdminGuard } from './admin.guard';
-
-const ADMIN_ORG_LIST_INCLUDE = Prisma.validator<Prisma.OrganizationInclude>()({
-  _count: {
-    select: {
-      users: { where: { deletedAt: null } },
-      marketplaceConnections: { where: { deletedAt: null } },
-    },
-  },
-  subscription: {
-    select: { plan: true, status: true, trialEndsAt: true },
-  },
-});
-
-type AdminOrganizationListItem = Prisma.OrganizationGetPayload<{
-  include: typeof ADMIN_ORG_LIST_INCLUDE;
-}>;
+import { AdminService } from './admin.service';
+import type {
+  ActivityItem,
+  HealthStats,
+  OrganizationDetail,
+  PaginatedOrganizations,
+  PlatformStats,
+  RevenueStats,
+} from './admin.types';
 
 const ADMIN_SUBSCRIPTION_LIST_INCLUDE =
   Prisma.validator<Prisma.SubscriptionInclude>()({
@@ -54,45 +53,111 @@ type AdminSubscriptionListItem = Prisma.SubscriptionGetPayload<{
 @Controller('admin')
 @UseGuards(JwtAuthGuard, SuperAdminGuard)
 export class AdminController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminService: AdminService,
+  ) {}
+
+  @Get('stats/platform')
+  @ApiOperation({ summary: 'Platform istatistikleri (genişletilmiş)' })
+  @ApiResponse({ status: 200, description: 'Özet' })
+  async getPlatformStats(): Promise<PlatformStats> {
+    return this.adminService.getPlatformStats();
+  }
+
+  @Get('stats/revenue')
+  @ApiOperation({ summary: 'Gelir ve MRR özeti' })
+  @ApiResponse({ status: 200, description: 'Gelir' })
+  async getRevenueStats(): Promise<RevenueStats> {
+    return this.adminService.getRevenueStats();
+  }
 
   @Get('organizations')
-  @ApiOperation({ summary: 'Tüm organizasyonlar (sayfalı)' })
+  @ApiOperation({ summary: 'Organizasyonlar (sayfalı, filtreli)' })
   @ApiResponse({ status: 200, description: 'Liste' })
   async getOrganizations(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query() query: AdminOrganizationsQueryDto,
+  ): Promise<PaginatedOrganizations> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const plan = query.plan;
+    return this.adminService.getActiveOrganizations(
+      page,
+      limit,
+      query.search,
+      plan,
+      query.status,
+    );
+  }
+
+  @Get('organizations/:id')
+  @ApiOperation({ summary: 'Organizasyon detayı' })
+  @ApiResponse({ status: 200, description: 'Detay' })
+  async getOrganizationDetail(
+    @Param('id') id: string,
+  ): Promise<OrganizationDetail> {
+    return this.adminService.getOrganizationDetail(id);
+  }
+
+  @Post('organizations/:id/suspend')
+  @ApiOperation({ summary: 'Organizasyonu askıya al' })
+  @ApiResponse({ status: 200, description: 'Askıya alındı' })
+  async suspendOrganization(
+    @Param('id') id: string,
+    @Body() body: SuspendOrganizationDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.suspendOrganization(id, body.reason, actor);
+    return { ok: true };
+  }
+
+  @Post('organizations/:id/unsuspend')
+  @ApiOperation({ summary: 'Askıyı kaldır' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async unsuspendOrganization(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.unsuspendOrganization(id, actor);
+    return { ok: true };
+  }
+
+  @Post('organizations/:id/impersonate')
+  @ApiOperation({ summary: 'Organizasyon adına geçici oturum jetonu' })
+  @ApiResponse({ status: 200, description: 'JWT' })
+  async impersonateOrganization(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ token: string }> {
+    return this.adminService.impersonateOrganization(id, actor);
+  }
+
+  @Get('activity')
+  @ApiOperation({ summary: 'Son platform aktiviteleri (audit)' })
+  @ApiResponse({ status: 200, description: 'Kayıtlar' })
+  async getRecentActivity(
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
-    @Query('search') search?: string,
-  ): Promise<{
-    orgs: AdminOrganizationListItem[];
-    total: number;
-    page: number;
-    limit: number;
-  }> {
-    const take = Math.min(Math.max(limit, 1), 100);
-    const skip = (Math.max(page, 1) - 1) * take;
+  ): Promise<ActivityItem[]> {
+    return this.adminService.getRecentActivity(limit);
+  }
 
-    const where: Prisma.OrganizationWhereInput = {
-      deletedAt: null,
-      ...(search && search.trim().length > 0
-        ? {
-            name: { contains: search.trim(), mode: 'insensitive' },
-          }
-        : {}),
-    };
+  @Get('health')
+  @ApiOperation({ summary: 'Pazaryeri bağlantı sağlığı (özet)' })
+  @ApiResponse({ status: 200, description: 'Sağlık' })
+  async getPlatformHealth(): Promise<HealthStats> {
+    return this.adminService.getPlatformHealthStats();
+  }
 
-    const [orgs, total] = await Promise.all([
-      this.prisma.organization.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: ADMIN_ORG_LIST_INCLUDE,
-      }),
-      this.prisma.organization.count({ where }),
-    ]);
-
-    return { orgs, total, page: Math.max(page, 1), limit: take };
+  @Patch('organizations/:id/plan')
+  @ApiOperation({ summary: 'Abonelik paketini değiştir' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async changePlan(
+    @Param('id') id: string,
+    @Body() body: ChangeOrganizationPlanDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.changePlan(id, body.plan, body.reason, actor);
+    return { ok: true };
   }
 
   @Get('subscriptions')
@@ -111,78 +176,5 @@ export class AdminController {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-  }
-
-  @Get('stats')
-  @ApiOperation({ summary: 'Platform istatistikleri' })
-  @ApiResponse({ status: 200, description: 'Özet' })
-  async getPlatformStats(): Promise<{
-    totalOrgs: number;
-    activeSubscriptions: number;
-    totalConnections: number;
-    totalOrders: number;
-    trialOrgs: number;
-  }> {
-    const [
-      totalOrgs,
-      activeSubscriptions,
-      totalConnections,
-      totalOrders,
-      trialOrgs,
-    ] = await Promise.all([
-      this.prisma.organization.count({ where: { deletedAt: null } }),
-      this.prisma.subscription.count({ where: { status: SubStatus.ACTIVE } }),
-      this.prisma.marketplaceConnection.count({
-        where: { isActive: true, deletedAt: null },
-      }),
-      this.prisma.order.count({ where: { deletedAt: null } }),
-      this.prisma.subscription.count({ where: { status: SubStatus.TRIAL } }),
-    ]);
-    return {
-      totalOrgs,
-      activeSubscriptions,
-      totalConnections,
-      totalOrders,
-      trialOrgs,
-    };
-  }
-
-  @Patch('organizations/:id/status')
-  @ApiOperation({ summary: 'Organizasyon askıya al / aktif et' })
-  @ApiResponse({ status: 200, description: 'Güncellendi' })
-  async updateOrgStatus(
-    @Param('id') id: string,
-    @Body() body: UpdateOrgStatusDto,
-    @CurrentUser() actor: AuthenticatedUser,
-  ): Promise<Organization> {
-    const existing = await this.prisma.organization.findFirst({
-      where: { id, deletedAt: null },
-    });
-    if (!existing) {
-      throw new NotFoundException('Organizasyon bulunamadı.');
-    }
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const org = await tx.organization.update({
-        where: { id },
-        data: { suspended: body.suspended },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: actor.id,
-          actorOrgId: actor.organizationId,
-          impersonatedOrgId: null,
-          action: body.suspended
-            ? 'admin.organization_suspended'
-            : 'admin.organization_unsuspended',
-          resourceType: 'Organization',
-          resourceId: id,
-          metadata: { suspended: body.suspended },
-        },
-      });
-      return org;
-    });
-
-    return updated;
   }
 }

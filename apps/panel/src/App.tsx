@@ -17,6 +17,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
 import { AdminLayout } from '@/pages/admin/AdminLayout';
+import { AdminOrgDetailPage } from '@/pages/admin/AdminOrgDetailPage';
 import { AdminOrgsPage } from '@/pages/admin/AdminOrgsPage';
 import { AdminSubscriptionsPage } from '@/pages/admin/AdminSubscriptionsPage';
 import { AuditLogPage } from '@/pages/audit/AuditLogPage';
@@ -98,6 +99,7 @@ export default function App(): ReactElement {
               >
                 <Route index element={<AdminDashboardPage />} />
                 <Route path="organizations" element={<AdminOrgsPage />} />
+                <Route path="organizations/:orgId" element={<AdminOrgDetailPage />} />
                 <Route path="subscriptions" element={<AdminSubscriptionsPage />} />
               </Route>
               <Route element={<DashboardLayout />}>

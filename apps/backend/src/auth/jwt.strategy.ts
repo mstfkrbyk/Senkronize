@@ -39,26 +39,35 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     if (payload.impersonatedOrgId) {
-      const rel = await this.prisma.partnerRelationship.findUnique({
-        where: {
-          partnerOrgId_clientOrgId: {
-            partnerOrgId: user.organizationId,
-            clientOrgId: payload.impersonatedOrgId,
+      if (user.role === UserRole.SUPER_ADMIN) {
+        const clientOrg = await this.prisma.organization.findFirst({
+          where: { id: payload.impersonatedOrgId, deletedAt: null },
+        });
+        if (!clientOrg) {
+          throw new UnauthorizedException();
+        }
+      } else {
+        const rel = await this.prisma.partnerRelationship.findUnique({
+          where: {
+            partnerOrgId_clientOrgId: {
+              partnerOrgId: user.organizationId,
+              clientOrgId: payload.impersonatedOrgId,
+            },
           },
-        },
-      });
-      if (
-        !rel ||
-        rel.status !== PartnerStatus.ACTIVE ||
-        !rel.canImpersonate
-      ) {
-        throw new UnauthorizedException();
-      }
-      const clientOrg = await this.prisma.organization.findFirst({
-        where: { id: payload.impersonatedOrgId, deletedAt: null },
-      });
-      if (!clientOrg) {
-        throw new UnauthorizedException();
+        });
+        if (
+          !rel ||
+          rel.status !== PartnerStatus.ACTIVE ||
+          !rel.canImpersonate
+        ) {
+          throw new UnauthorizedException();
+        }
+        const clientOrg = await this.prisma.organization.findFirst({
+          where: { id: payload.impersonatedOrgId, deletedAt: null },
+        });
+        if (!clientOrg) {
+          throw new UnauthorizedException();
+        }
       }
     }
 
