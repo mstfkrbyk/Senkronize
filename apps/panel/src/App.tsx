@@ -116,6 +116,11 @@ const DashboardPage = lazy(() =>
 const ListingsPage = lazy(() =>
   import('@/pages/listings/ListingsPage').then((m) => ({ default: m.ListingsPage })),
 );
+const ListingDetailPage = lazy(() =>
+  import('@/pages/listings/ListingDetailPage').then((m) => ({
+    default: m.ListingDetailPage,
+  })),
+);
 const MigrationPage = lazy(() =>
   import('@/pages/migration/MigrationPage').then((m) => ({
     default: m.MigrationPage,
@@ -349,6 +354,7 @@ export default function App(): ReactElement {
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/returns" element={<ReturnsPage />} />
+                <Route path="/listings/:id" element={<ListingDetailPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
                 <Route path="/products/import" element={<ProductImportPage />} />
                 <Route path="/product-matching" element={<ProductMatchingPage />} />
