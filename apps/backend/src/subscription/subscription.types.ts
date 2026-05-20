@@ -1,4 +1,4 @@
-import type { PlanTier } from '@prisma/client';
+import type { OrgProductLine, PlanTier } from '@prisma/client';
 
 export interface UsageStatBucket {
   used: number;
@@ -7,6 +7,7 @@ export interface UsageStatBucket {
 
 export interface UsageOverview {
   plan: PlanTier;
+  orgProducts: OrgProductLine[];
   usage: {
     marketplaces: UsageStatBucket;
     products: UsageStatBucket;

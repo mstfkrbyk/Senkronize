@@ -11,7 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrgType, PlanTier, UserRole } from '@prisma/client';
+import { AccountingMode, OrgType, PlanTier, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import type { DeepMockProxy } from 'jest-mock-extended';
 import { mockDeep } from 'jest-mock-extended';
@@ -28,6 +28,7 @@ import { AnomalyDetectionService } from '../../security/anomaly-detection.servic
 import { IpGeolocationService } from '../../security/ip-geolocation.service';
 import { SecurityNotificationService } from '../../security/security-notification.service';
 import { PostHogService } from '../../analytics/posthog.service';
+import { SubscriptionService } from '../../subscription/subscription.service';
 import { RegisterDto } from '../auth.dto';
 import { AuthService } from '../auth.service';
 import { PasswordPolicyService } from '../password-policy.service';
@@ -208,6 +209,12 @@ describe('AuthService', () => {
           provide: PostHogService,
           useValue: { capture: jest.fn() },
         },
+        {
+          provide: SubscriptionService,
+          useValue: {
+            getOrgProducts: jest.fn().mockResolvedValue([]),
+          },
+        },
       ],
     }).compile();
 
@@ -215,6 +222,53 @@ describe('AuthService', () => {
   });
 
   describe('register', () => {
+    it('ACCOUNTING seçiminde organizasyon accountingMode NATIVE ile oluşur', async () => {
+      prismaService.user.findFirst.mockResolvedValue(null);
+      prismaService.organization.findFirst.mockResolvedValue(null);
+      const orgCreate = jest.fn().mockResolvedValue({
+        id: 'org-acc',
+        slug: 'acme-acc',
+        name: 'Muhasebe A.Ş.',
+      });
+      prismaService.$transaction
+        .mockReset()
+        .mockImplementationOnce(async (arg: unknown) => {
+          const tx = {
+            organization: { create: orgCreate },
+            user: {
+              create: jest.fn().mockResolvedValue({
+                id: 'user-acc',
+                organizationId: 'org-acc',
+                phone: null,
+              }),
+            },
+            subscription: { create: jest.fn().mockResolvedValue({}) },
+          };
+          return (arg as (t: typeof tx) => Promise<unknown>)(tx);
+        });
+
+      await service.register({
+        email: 'acc@example.com',
+        password: 'Secret123!',
+        name: 'Muhasebe',
+        phone: '05001112233',
+        companyName: 'Muhasebe A.Ş.',
+        taxNumber: '1111111111',
+        taxOffice: 'Kadıköy',
+        address: 'Adres',
+        city: 'İstanbul',
+        productSelection: 'ACCOUNTING',
+      });
+
+      expect(orgCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            accountingMode: AccountingMode.NATIVE,
+          }),
+        }),
+      );
+    });
+
     it('yeni kullanıcı ve organizasyon oluşturup token döndürmeli', async () => {
       prismaService.user.findFirst.mockResolvedValue(null);
       prismaService.organization.findFirst.mockResolvedValue(null);

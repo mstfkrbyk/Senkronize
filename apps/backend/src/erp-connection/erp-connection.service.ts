@@ -8,6 +8,10 @@ import { ErpType, type ErpConnection } from '@prisma/client';
 import type { ERPConnectionResult } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import {
+  setOrganizationAccountingModeExternal,
+  syncOrganizationAccountingModeFromErp,
+} from '../common/accounting-mode';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +21,7 @@ import type {
   TestErpConnectionDto,
   UpdateErpConnectionDto,
 } from './erp-connection.dto';
+import { validateAndNormalizeErpCredentials } from './erp-credentials.schema';
 
 export type PublicErpConnection = Omit<ErpConnection, 'credentialsEnc'> & {
   accountLabel: string | null;
@@ -64,7 +69,7 @@ export class ErpConnectionService {
       return null;
     }
     if (erpType === ErpType.BIZIMHESAP) {
-      return creds.companyId ?? null;
+      return creds.defaultCustomerCode ?? creds.apiVersion ?? null;
     }
     if (erpType === ErpType.TSOFT) {
       return creds.storeUrl ?? null;
@@ -204,8 +209,12 @@ export class ErpConnectionService {
     if (existing && existing.deletedAt === null) {
       throw new ConflictException('Bu ERP için zaten aktif bir bağlantı mevcut');
     }
+    const normalizedCredentials = validateAndNormalizeErpCredentials(
+      dto.erpType,
+      dto.credentials,
+    );
     const credentialsEnc = this.encryptionService.encrypt(
-      JSON.stringify(dto.credentials),
+      JSON.stringify(normalizedCredentials),
     );
     if (existing) {
       const row = await this.prisma.erpConnection.update({
@@ -223,6 +232,9 @@ export class ErpConnectionService {
         organizationId,
         row.id,
       );
+      if (row.isActive) {
+        await setOrganizationAccountingModeExternal(this.prisma, organizationId);
+      }
       return this.toPublic(row);
     }
     const row = await this.prisma.erpConnection.create({
@@ -236,6 +248,7 @@ export class ErpConnectionService {
       organizationId,
       row.id,
     );
+    await setOrganizationAccountingModeExternal(this.prisma, organizationId);
     return this.toPublic(row);
   }
 
@@ -331,8 +344,12 @@ export class ErpConnectionService {
     if (!this.adapterRegistry.hasErpAdapter(dto.erpType)) {
       return { success: false, connected: false };
     }
+    const normalizedCredentials = validateAndNormalizeErpCredentials(
+      dto.erpType,
+      dto.credentials,
+    );
     const adapter = this.adapterRegistry.getErp(dto.erpType);
-    const result = await adapter.testConnection(dto.credentials);
+    const result = await adapter.testConnection(normalizedCredentials);
     return { ...result, connected: result.success };
   }
 
@@ -356,7 +373,8 @@ export class ErpConnectionService {
           merged[k] = v.trim();
         }
       }
-      credentialsEnc = this.encryptionService.encrypt(JSON.stringify(merged));
+      const normalized = validateAndNormalizeErpCredentials(row.erpType, merged);
+      credentialsEnc = this.encryptionService.encrypt(JSON.stringify(normalized));
     }
     const updated = await this.prisma.erpConnection.update({
       where: { id: row.id },
@@ -365,6 +383,11 @@ export class ErpConnectionService {
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
     });
+    if (updated.isActive) {
+      await setOrganizationAccountingModeExternal(this.prisma, organizationId);
+    } else {
+      await syncOrganizationAccountingModeFromErp(this.prisma, organizationId);
+    }
     return this.toPublic(updated);
   }
 
@@ -379,6 +402,7 @@ export class ErpConnectionService {
       where: { id: row.id },
       data: { deletedAt: new Date() },
     });
+    await syncOrganizationAccountingModeFromErp(this.prisma, organizationId);
   }
 
   /**

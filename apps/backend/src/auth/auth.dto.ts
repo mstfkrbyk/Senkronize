@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OrgType, PlanTier } from '@prisma/client';
+import type { ProductSelection } from '../common/product-lines';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -154,6 +156,16 @@ export class RegisterDto {
   @IsOptional()
   @IsEnum(PlanTier)
   plan?: PlanTier;
+
+  @ApiPropertyOptional({
+    description: 'Kayıt sırasında seçilen ürün hattı',
+    enum: ['ACCOUNTING', 'INTEGRATION', 'BUNDLE'],
+    example: 'BUNDLE',
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['ACCOUNTING', 'INTEGRATION', 'BUNDLE'])
+  productSelection?: ProductSelection;
 }
 
 export class RecommendPlanDto {

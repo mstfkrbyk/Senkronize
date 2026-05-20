@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { SubscriptionModule } from '../subscription/subscription.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { JwtSignOptions } from '@nestjs/jwt';
 import { JwtModule } from '@nestjs/jwt';
@@ -26,6 +27,7 @@ import { TwoFactorService } from './two-factor.service';
     PrismaModule,
     CommonModule,
     forwardRef(() => SecurityModule),
+    forwardRef(() => SubscriptionModule),
     NotificationModule,
     PartnerModule,
     forwardRef(() => UsersModule),

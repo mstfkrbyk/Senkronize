@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
   UnauthorizedException,
+  forwardRef,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -40,6 +42,12 @@ import { PasswordPolicyService } from './password-policy.service';
 import { SessionService, type TokenPair } from './session.service';
 import { parseDeviceInfo } from './session.utils';
 import { TwoFactorService } from './two-factor.service';
+import {
+  productSelectionToInitialAccountingMode,
+  resolveOrganizationAccountingMode,
+} from '../common/accounting-mode';
+import { productSelectionToProductLines } from '../common/product-lines';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 const BCRYPT_ROUNDS = 10;
 
@@ -69,6 +77,8 @@ export class AuthService {
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly securityNotification: SecurityNotificationService,
     private readonly posthog: PostHogService,
+    @Inject(forwardRef(() => SubscriptionService))
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   async register(dto: RegisterDto): Promise<IssueTokenResult> {
@@ -129,6 +139,10 @@ export class AuthService {
           website: dto.website?.trim() || null,
           referralCode:
             (partnerOrgIdFromInvite ?? dto.referralCode?.trim()) || null,
+          productLines: productSelectionToProductLines(dto.productSelection),
+          accountingMode: productSelectionToInitialAccountingMode(
+            dto.productSelection,
+          ),
         },
       });
 
@@ -204,6 +218,7 @@ export class AuthService {
 
     this.posthog.capture(newUser.id, 'user_registered', {
       plan: selectedPlan,
+      productSelection: dto.productSelection,
       referralCode:
         (partnerOrgIdFromInvite ?? dto.referralCode?.trim()) || undefined,
     });
@@ -661,6 +676,18 @@ export class AuthService {
     });
     const { subscription, ...rest } = org;
     const plan = this.resolveUiPlanTier(subscription);
+    const orgProducts = await this.subscriptionService.getOrgProducts(org.id);
+    const activeErpCount = await this.prisma.erpConnection.count({
+      where: {
+        organizationId: org.id,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+    const accountingMode = resolveOrganizationAccountingMode(
+      org.accountingMode,
+      activeErpCount,
+    );
     const policy = await this.passwordPolicy.getOrgPolicy(org.id);
     const ageStatus = this.passwordPolicy.getPasswordAgeStatus(
       user.passwordChangedAt,
@@ -676,6 +703,8 @@ export class AuthService {
       createdAt: rest.createdAt,
       onboardingCompleted: rest.onboardingCompleted,
       plan,
+      orgProducts,
+      accountingMode,
       require2FA: org.require2FA,
       passwordPolicy: {
         minLength: policy.minLength,

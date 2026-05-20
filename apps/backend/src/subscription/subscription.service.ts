@@ -43,6 +43,10 @@ import type {
   UsageStats,
 } from './subscription.types';
 import {
+  resolveOrgProductLines,
+  type ResolvedOrgProductLine,
+} from '../common/product-lines';
+import {
   PLAN_TIER_RANK,
   dbLimitsForPlan,
   effectiveLimit,
@@ -109,6 +113,17 @@ export class SubscriptionService {
     organizationId: string,
   ): Promise<void> {
     await this.cache.del(CacheKeys.subscription(organizationId));
+  }
+
+  async getOrgProducts(organizationId: string): Promise<ResolvedOrgProductLine[]> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { productLines: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    return resolveOrgProductLines(org.productLines);
   }
 
   async getSubscription(organizationId: string): Promise<Subscription> {
@@ -519,8 +534,11 @@ export class SubscriptionService {
         )
       : null;
 
+    const orgProducts = await this.getOrgProducts(organizationId);
+
     return {
       plan: sub.plan,
+      orgProducts,
       usage: {
         marketplaces: { used: marketplaceCount, limit: marketplaceLimit },
         products: { used: productCount, limit: productLimit },

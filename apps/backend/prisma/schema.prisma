@@ -42,6 +42,18 @@ enum BillingPeriod {
   YEARLY
 }
 
+/// Organizasyonun satın aldığı ürün hatları (BUNDLE = her ikisi, JSON'da genişletilir)
+enum OrgProductLine {
+  INTEGRATION
+  ACCOUNTING
+}
+
+/// Ön muhasebe kaynağı: yerel modül veya harici ERP
+enum AccountingMode {
+  NATIVE
+  EXTERNAL_ERP
+}
+
 enum PaymentStatus {
   PENDING
   SUCCESS
@@ -888,6 +900,10 @@ model Organization {
   passwordMaxAgeDays        Int       @default(90)
   /// Panel dashboard widget düzeni (sıra, görünürlük, boyut)
   dashboardWidgets          Json?
+  /// Aktif ürün hatları: ["INTEGRATION"], ["ACCOUNTING"] veya ikisi (BUNDLE)
+  productLines              Json      @default("[\"INTEGRATION\",\"ACCOUNTING\"]")
+  /// null = entegrasyon odaklı kayıt; aktif ERP ile EXTERNAL_ERP'ye geçer
+  accountingMode            AccountingMode?
   createdAt                 DateTime  @default(now())
   deletedAt                 DateTime?
 

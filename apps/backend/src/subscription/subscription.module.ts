@@ -22,7 +22,7 @@ import { TrialService } from './trial.service';
     }),
     forwardRef(() => PaymentModule),
     InvoiceModule,
-    AuthModule,
+    forwardRef(() => AuthModule),
     EventModule,
     InAppNotificationModule,
     PartnerModule,

@@ -55,6 +55,11 @@ describe('SubscriptionService', () => {
     subscription: {
       findUnique: jest.fn(),
     },
+    organization: {
+      findFirst: jest.fn().mockResolvedValue({
+        productLines: ['INTEGRATION', 'ACCOUNTING'],
+      }),
+    },
     order: { count: jest.fn() },
     marketplaceConnection: { count: jest.fn() },
     product: { count: jest.fn() },
@@ -74,6 +79,9 @@ describe('SubscriptionService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    prisma.organization.findFirst.mockResolvedValue({
+      productLines: ['INTEGRATION', 'ACCOUNTING'],
+    });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -132,6 +140,16 @@ describe('SubscriptionService', () => {
       expect(limit).toBe(PLAN_LIMITS.GELISIM.marketplaces);
     });
 
+    it('getOrgProducts — yalnızca muhasebe hattı döner', async () => {
+      prisma.organization.findFirst.mockResolvedValue({
+        productLines: ['ACCOUNTING'],
+      });
+
+      const lines = await service.getOrgProducts(orgId);
+
+      expect(lines).toEqual(['ACCOUNTING']);
+    });
+
     it('effectiveMarketplaceLimit — DB değeri varsa onu kullanır', () => {
       const limit = service.effectiveMarketplaceLimit({
         ...baseSubscription,
@@ -156,6 +174,7 @@ describe('SubscriptionService', () => {
       const overview = await service.getUsageOverview(orgId);
 
       expect(overview.plan).toBe(PlanTier.BASLANGIC);
+      expect(overview.orgProducts).toEqual(['INTEGRATION', 'ACCOUNTING']);
       expect(overview.usage.marketplaces.used).toBe(2);
       expect(overview.usage.marketplaces.limit).toBe(
         PLAN_LIMITS.BASLANGIC.marketplaces,
