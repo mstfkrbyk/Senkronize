@@ -803,13 +803,29 @@ export class OrderService {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
-    const [todayOrders, pendingOrders, revenueAgg, byPlatform, byStatus] =
-      await Promise.all([
+    const [
+      todayOrders,
+      todayRevenueAgg,
+      pendingOrders,
+      revenueAgg,
+      totalAmountAgg,
+      totalCount,
+      cancelReturnCount,
+      byPlatform,
+      byStatus,
+    ] = await Promise.all([
         this.prisma.order.count({
           where: {
             ...baseWhere,
             platformCreatedAt: { gte: startOfToday },
           },
+        }),
+        this.prisma.order.aggregate({
+          where: {
+            ...baseWhere,
+            platformCreatedAt: { gte: startOfToday },
+          },
+          _sum: { totalAmount: true },
         }),
         this.prisma.order.count({
           where: {
@@ -832,6 +848,17 @@ export class OrderService {
           },
           _sum: { totalAmount: true },
         }),
+        this.prisma.order.aggregate({
+          where: baseWhere,
+          _sum: { totalAmount: true },
+        }),
+        this.prisma.order.count({ where: baseWhere }),
+        this.prisma.order.count({
+          where: {
+            ...baseWhere,
+            status: { in: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+          },
+        }),
         this.prisma.order.groupBy({
           by: ['platform'],
           where: baseWhere,
@@ -847,6 +874,18 @@ export class OrderService {
     const totalRevenue = revenueAgg._sum.totalAmount
       ? Number(revenueAgg._sum.totalAmount)
       : 0;
+    const todayRevenue = todayRevenueAgg._sum.totalAmount
+      ? Number(todayRevenueAgg._sum.totalAmount)
+      : 0;
+    const totalAmountSum = totalAmountAgg._sum.totalAmount
+      ? Number(totalAmountAgg._sum.totalAmount)
+      : 0;
+    const cancelReturnRate =
+      totalCount > 0
+        ? Math.round((cancelReturnCount / totalCount) * 1000) / 10
+        : 0;
+    const averageOrderValue =
+      totalCount > 0 ? Math.round((totalAmountSum / totalCount) * 100) / 100 : 0;
 
     const byPlatformRecord: Record<string, number> = {};
     for (const row of byPlatform) {
@@ -860,11 +899,34 @@ export class OrderService {
 
     return {
       todayOrders,
+      todayRevenue,
       pendingOrders,
       totalRevenue,
+      cancelReturnRate,
+      averageOrderValue,
       byPlatform: byPlatformRecord,
       byStatus: byStatusRecord,
     };
+  }
+
+  async shipOrder(
+    organizationId: string,
+    orderId: string,
+    dto: { cargoProvider?: CargoProvider; trackingNumber?: string },
+  ): Promise<SerializedOrder> {
+    const result = await this.bulkShip(organizationId, [
+      {
+        orderId,
+        cargoProvider: dto.cargoProvider,
+        trackingNumber: dto.trackingNumber,
+      },
+    ]);
+    if (result.success === 0) {
+      throw new NotFoundException(
+        result.errors[0]?.message ?? 'Sipariş kargoya verilemedi',
+      );
+    }
+    return this.findOne(organizationId, orderId);
   }
 
   async requestOrderCancellation(

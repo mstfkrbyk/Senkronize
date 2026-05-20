@@ -1,6 +1,7 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
   ConflictException,
+  BadRequestException,
   Injectable,
   Logger,
   NotFoundException,
@@ -121,6 +122,91 @@ export class ReturnService {
       STANDARD_QUEUE_JOB_OPTIONS,
     );
     return { jobId: String(job.id) };
+  }
+
+  async createFromOrder(
+    organizationId: string,
+    orderId: string,
+    dto: {
+      items: { orderItemId: string; quantity: number }[];
+      reason: string;
+      notes?: string;
+    },
+  ): Promise<ReturnDetailDto> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new ConflictException('İptal edilmiş sipariş için iade oluşturulamaz');
+    }
+    if (dto.items.length === 0) {
+      throw new BadRequestException('En az bir ürün seçin');
+    }
+
+    const itemMap = new Map(order.items.map((i) => [i.id, i]));
+    const returnItems: { barcode: string; quantity: number; reason: string | null }[] =
+      [];
+
+    for (const sel of dto.items) {
+      const orderItem = itemMap.get(sel.orderItemId);
+      if (!orderItem) {
+        throw new BadRequestException('Geçersiz sipariş kalemi');
+      }
+      if (sel.quantity < 1 || sel.quantity > orderItem.quantity) {
+        throw new BadRequestException(
+          `${orderItem.productName ?? orderItem.sku} için geçersiz adet`,
+        );
+      }
+      returnItems.push({
+        barcode: orderItem.barcode,
+        quantity: sel.quantity,
+        reason: dto.reason,
+      });
+    }
+
+    const requestedAt = new Date();
+    const status = ReturnStatus.REQUESTED;
+    const initialLog = this.mergeStatusLog(null, {
+      at: requestedAt.toISOString(),
+      status,
+      note: 'Manuel iade oluşturuldu',
+    });
+
+    const refundTotal = dto.items.reduce((sum, sel) => {
+      const item = itemMap.get(sel.orderItemId)!;
+      return sum + Number(item.unitPrice) * sel.quantity;
+    }, 0);
+
+    const created = await this.prisma.return.create({
+      data: {
+        organizationId,
+        orderId: order.id,
+        platform: order.platform,
+        status,
+        reason: dto.reason,
+        notes: dto.notes?.trim() || null,
+        refundAmount: new Prisma.Decimal(refundTotal),
+        requestedAt,
+        statusLog: initialLog,
+        items: {
+          create: returnItems,
+        },
+      },
+    });
+
+    if (order.status !== OrderStatus.RETURNED) {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.RETURNED },
+      });
+    }
+
+    await this.cache.invalidateReportsForOrg(organizationId);
+    return this.getReturnDetail(organizationId, created.id);
   }
 
   async upsertFromPlatform(

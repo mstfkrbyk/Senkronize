@@ -59,8 +59,11 @@ export interface OrdersResponse {
 
 export interface OrderSummaryDto {
   todayOrders: number;
+  todayRevenue: number;
   pendingOrders: number;
   totalRevenue: number;
+  cancelReturnRate: number;
+  averageOrderValue: number;
   byPlatform: Record<string, number>;
   byStatus: Record<string, number>;
 }

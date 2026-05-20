@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/table';
 import { ORDER_STATUS_CONFIG, orderStatusTone } from '@/lib/order-status';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { CARGO_PROVIDER_OPTIONS, normalizeCargoProviderKey } from '@/lib/cargo-providers';
 import { formatDateWithTimezone, getStoredTimezone } from '@/lib/timezone';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { Order, OrderStatus } from '@/types/order';
@@ -32,6 +33,19 @@ interface Props {
   onDownloadInvoice?: (order: Order) => void;
   labelLoadingId?: string | null;
   invoiceLoadingId?: string | null;
+}
+
+function cargoLabel(provider: string | null): string {
+  if (!provider?.trim()) {
+    return '—';
+  }
+  const key = normalizeCargoProviderKey(provider);
+  const found = CARGO_PROVIDER_OPTIONS.find((o) => o.value === key);
+  return found?.label ?? provider;
+}
+
+function itemCount(order: Order): number {
+  return order.items.reduce((sum, item) => sum + item.quantity, 0);
 }
 
 function formatTry(amount: string, currency: string): string {
@@ -128,8 +142,10 @@ export function OrdersTable({
               <TableHead className="hidden lg:table-cell">
                 {t('common.customer')}
               </TableHead>
+              <TableHead className="hidden md:table-cell text-right">Ürün</TableHead>
               <TableHead className="text-right">{t('common.amount')}</TableHead>
               <TableHead>{t('common.status')}</TableHead>
+              <TableHead className="hidden lg:table-cell">Kargo</TableHead>
               <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
               {showActions ? (
                 <TableHead className="hidden lg:table-cell w-[120px]">
@@ -171,11 +187,17 @@ export function OrdersTable({
                   {order.platformOrderId}
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">{order.customerName}</TableCell>
+                <TableCell className="hidden text-right tabular-nums md:table-cell">
+                  {itemCount(order)}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {formatTry(order.totalAmount, order.currency)}
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={order.status} />
+                </TableCell>
+                <TableCell className="hidden max-w-[120px] truncate text-sm lg:table-cell">
+                  {cargoLabel(order.cargoProvider)}
                 </TableCell>
                 <TableCell className="hidden text-muted-foreground xl:table-cell">
                   {formatDate(order.platformCreatedAt, dateLocale)}

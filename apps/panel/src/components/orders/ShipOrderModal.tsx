@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import type { CargoProvider } from '@senkronize/shared';
 
@@ -96,29 +96,48 @@ export function ShipOrderModal({
   }, [open, order, providerOptions]);
 
   const shipMutation = useMutation({
-    mutationFn: async (): Promise<BulkResult> => {
-      const items = targetOrderIds.map((orderId) => ({
-        orderId,
+    mutationFn: async (): Promise<void> => {
+      const payload = {
         cargoProvider,
         ...(trackingNumber.trim().length > 0
           ? { trackingNumber: trackingNumber.trim() }
           : {}),
-      }));
-      const { data } = await api.post<BulkResult>('/orders/bulk/ship', { items });
-      return data;
+      };
+
+      if (isBulk) {
+        const items = targetOrderIds.map((orderId) => ({
+          orderId,
+          cargoProvider,
+          ...(trackingNumber.trim().length > 0
+            ? { trackingNumber: trackingNumber.trim() }
+            : {}),
+        }));
+        const { data } = await api.post<BulkResult>('/orders/bulk/ship', { items });
+        if (data.failed > 0) {
+          throw new Error(
+            `${String(data.success)} başarılı, ${String(data.failed)} başarısız`,
+          );
+        }
+        return;
+      }
+
+      if (!order) {
+        throw new Error('Sipariş bulunamadı');
+      }
+      await api.patch(`/orders/${order.id}/ship`, payload);
     },
-    onSuccess: (result) => {
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       if (order) {
         void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', order.id] });
       }
-      if (result.failed > 0) {
-        toast.warning(
-          `${String(result.success)} başarılı, ${String(result.failed)} başarısız`,
-        );
-      } else {
-        toast.success(isBulk ? 'Siparişler kargoya verildi' : 'Sipariş kargoya verildi');
-      }
+      toast.success(
+        isBulk ? 'Siparişler kargoya verildi' : 'Sipariş kargoya verildi',
+        {
+          description: 'Müşteriye e-posta bildirimi gönderildi.',
+          icon: <Mail className="h-4 w-4" aria-hidden />,
+        },
+      );
       onOpenChange(false);
       onSuccess?.();
     },
@@ -161,6 +180,9 @@ export function ShipOrderModal({
                 ))}
               </SelectContent>
             </Select>
+            {!isBulk && compareRatesQuery.isLoading ? (
+              <p className="text-xs text-muted-foreground">Bağlı kargo firmaları yükleniyor…</p>
+            ) : null}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="ship-tracking">Takip numarası (opsiyonel)</Label>
@@ -170,7 +192,7 @@ export function ShipOrderModal({
               onChange={(e) => {
                 setTrackingNumber(e.target.value);
               }}
-              placeholder="733102837461"
+              placeholder="Otomatik alınabilir"
               autoComplete="off"
             />
           </div>

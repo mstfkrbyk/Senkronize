@@ -142,7 +142,7 @@
       "status": "Durum",
       "dateRange": "Tarih aralığı",
       "search": "Arama",
-      "searchPlaceholder": "Müşteri veya sipariş no",
+      "searchPlaceholder": "Sipariş no, müşteri adı veya SKU",
       "cargoProvider": "Kargo firması",
       "cargoPlaceholder": "Örn. Aras, Yurtiçi",
       "amountRange": "Tutar aralığı"

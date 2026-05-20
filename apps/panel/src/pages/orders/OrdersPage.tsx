@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, FileArchive, Loader2, Package, Tag, Truck } from 'lucide-react';
+import { Download, FileArchive, Loader2, Package, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import type { CargoProvider } from '@senkronize/shared';
 
-import { ShipOrderModal } from '@/components/ShipOrderModal';
+import { ShipOrderModal } from '@/components/orders/ShipOrderModal';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
@@ -38,6 +38,7 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { CARGO_PROVIDER_OPTIONS } from '@/lib/cargo-providers';
+import { downloadOrdersExcel } from '@/lib/order-export';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { useOrdersPageStore } from '@/store/tablePages.store';
 import type {
@@ -47,13 +48,19 @@ import type {
   OrderStatus,
 } from '@/types/order';
 
+import { OrdersKpiRow } from './OrdersKpiRow';
+import {
+  ORDER_DATE_PRESET_LABELS,
+  resolveOrderDatePreset,
+  type OrderDatePreset,
+} from './orderDatePresets';
 import {
   buildOrderFilterConfig,
   ORDER_FILTER_DEFAULTS,
   ORDER_PAGE_SIZE,
 } from './orderFilters.config';
 import { OrdersTable } from './OrdersTable';
-import { useOrders } from './hooks/useOrders';
+import { useOrders, useOrderSummary } from './hooks/useOrders';
 
 const PAGE_SIZE_DEFAULT = ORDER_PAGE_SIZE;
 
@@ -103,49 +110,6 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
-function escapeCsvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function downloadOrdersCsv(rows: Order[]): void {
-  const headers = [
-    'platform',
-    'siparis_no',
-    'musteri',
-    'tutar',
-    'para_birimi',
-    'durum',
-    'kargo_firmasi',
-    'takip_no',
-    'tarih',
-  ];
-  const lines = [
-    headers.join(','),
-    ...rows.map((o) =>
-      [
-        escapeCsvCell(o.platform),
-        escapeCsvCell(o.platformOrderId),
-        escapeCsvCell(o.customerName),
-        escapeCsvCell(o.totalAmount),
-        escapeCsvCell(o.currency),
-        escapeCsvCell(o.status),
-        escapeCsvCell(o.cargoProvider ?? ''),
-        escapeCsvCell(o.cargoTrackingNumber ?? ''),
-        escapeCsvCell(o.platformCreatedAt),
-      ].join(','),
-    ),
-  ];
-  const blob = new Blob([`\ufeff${lines.join('\n')}`], {
-    type: 'text/csv;charset=utf-8;',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `siparisler-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 const ALL_STATUSES = Object.keys(ORDER_STATUS_I18N_KEY) as OrderStatus[];
 
 function OrdersPageSkeleton(): ReactElement {
@@ -172,8 +136,35 @@ export function OrdersPage(): ReactElement {
     [urlFilters],
   );
 
+  const [datePreset, setDatePreset] = useState<OrderDatePreset>('custom');
+
+  const applyDatePreset = useCallback(
+    (preset: OrderDatePreset): void => {
+      setDatePreset(preset);
+      if (preset === 'custom') {
+        return;
+      }
+      const range = resolveOrderDatePreset(preset);
+      if (range) {
+        setUrlFilters({
+          startDate: range.startDate,
+          endDate: range.endDate,
+          page: 1,
+        });
+      }
+    },
+    [setUrlFilters],
+  );
+
+  useEffect(() => {
+    if (!urlFilters.startDate && !urlFilters.endDate) {
+      setDatePreset('custom');
+    }
+  }, [urlFilters.startDate, urlFilters.endDate]);
+
   const handleFilterChange = useCallback(
     (values: Record<string, unknown>): void => {
+      setDatePreset('custom');
       setUrlFilters({
         ...(values as typeof ORDER_FILTER_DEFAULTS),
         page: 1,
@@ -201,6 +192,7 @@ export function OrdersPage(): ReactElement {
   const [erpConnectionId, setErpConnectionId] = useState('');
 
   const { data, isLoading, isError, error, refetch } = useOrders(filters);
+  const summaryQuery = useOrderSummary();
   const connectionsQuery = useMarketplaceConnections();
   const erpConnectionsQuery = useErpConnections();
   const syncToErpMutation = useSyncOrderToErp();
@@ -408,6 +400,24 @@ export function OrdersPage(): ReactElement {
         <p className="text-muted-foreground">{t('orders.subtitle')}</p>
       </div>
 
+      <OrdersKpiRow summary={summaryQuery.data} loading={summaryQuery.isPending} />
+
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(ORDER_DATE_PRESET_LABELS) as OrderDatePreset[]).map((preset) => (
+          <Button
+            key={preset}
+            type="button"
+            size="sm"
+            variant={datePreset === preset ? 'default' : 'outline'}
+            onClick={() => {
+              applyDatePreset(preset);
+            }}
+          >
+            {ORDER_DATE_PRESET_LABELS[preset]}
+          </Button>
+        ))}
+      </div>
+
       <AdvancedFilters
         filters={orderFilterConfig}
         values={urlFilters}
@@ -530,9 +540,9 @@ export function OrdersPage(): ReactElement {
                 {bulkLabelsMutation.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 ) : (
-                  <Tag className="h-3.5 w-3.5" aria-hidden />
+                  <FileArchive className="h-3.5 w-3.5" aria-hidden />
                 )}
-                Etiketleri yazdır
+                Etiket ZIP indir
               </Button>
               <Button
                 type="button"
@@ -592,16 +602,16 @@ export function OrdersPage(): ReactElement {
                   if (!data) {
                     return;
                   }
-                  downloadOrdersCsv(data.items.filter((o) => selectedIdSet.has(o.id)));
+                  downloadOrdersExcel(data.items.filter((o) => selectedIdSet.has(o.id)));
                   track('orders_exported', {
                     count: selectedRows.length,
-                    format: 'csv',
+                    format: 'excel',
                   });
-                  toast.success('CSV indirildi');
+                  toast.success('Excel dosyası indirildi');
                 }}
               >
                 <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
-                {t('orders.bulk.exportCsv')}
+                Excel&apos;e aktar
               </Button>
               <Button
                 type="button"

@@ -32,13 +32,16 @@ import {
   BulkUpdateOrderStatusDto,
   CancellationRequestDto,
   CancelOrderDto,
+  CreateOrderReturnDto,
   OrderQueryDto,
   type OrderSummaryDto,
+  ShipOrderDto,
   UpdateOrderStatusDto,
 } from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
 import type { BulkResult, SerializedOrderNote } from './order.types';
 import { ShippingLabelService } from './shipping-label.service';
+import { ReturnService, type ReturnDetailDto } from '../return/return.service';
 
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -47,6 +50,7 @@ export class OrderController {
   constructor(
     private readonly orderService: OrderService,
     private readonly shippingLabelService: ShippingLabelService,
+    private readonly returnService: ReturnService,
   ) {}
 
   @Get('summary')
@@ -145,6 +149,32 @@ export class OrderController {
       type: 'application/zip',
       disposition: `attachment; filename="etiketler-${org.id.slice(-6)}.zip"`,
     });
+  }
+
+  @Patch(':id/ship')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Siparişi kargoya ver' })
+  @ApiResponse({ status: 200, description: 'Kargoya verildi' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async shipOrder(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: ShipOrderDto,
+  ): Promise<SerializedOrder> {
+    return this.orderService.shipOrder(org.id, id, dto);
+  }
+
+  @Post(':id/returns')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş için iade oluştur' })
+  @ApiResponse({ status: 201, description: 'İade oluşturuldu' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async createReturn(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateOrderReturnDto,
+  ): Promise<ReturnDetailDto> {
+    return this.returnService.createFromOrder(org.id, id, dto);
   }
 
   @Patch(':id/status')

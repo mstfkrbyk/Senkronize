@@ -306,10 +306,62 @@ export class CancellationRequestDto {
   note?: string;
 }
 
+export class ShipOrderDto {
+  @ApiPropertyOptional({ enum: CargoProvider, description: 'Kargo firması' })
+  @IsOptional()
+  @IsEnum(CargoProvider)
+  cargoProvider?: CargoProvider;
+
+  @ApiPropertyOptional({ description: 'Kargo takip numarası' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  trackingNumber?: string;
+}
+
+export class CreateOrderReturnItemDto {
+  @ApiProperty({ description: 'Sipariş kalemi kimliği' })
+  @IsString()
+  @MinLength(1)
+  orderItemId!: string;
+
+  @ApiProperty({ description: 'İade adedi', minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+export class CreateOrderReturnDto {
+  @ApiProperty({ type: [CreateOrderReturnItemDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOrderReturnItemDto)
+  items!: CreateOrderReturnItemDto[];
+
+  @ApiProperty({
+    description: 'İade nedeni',
+    example: 'DAMAGED',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  reason!: string;
+
+  @ApiPropertyOptional({ description: 'Ek notlar' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
+}
+
 export interface OrderSummaryDto {
   todayOrders: number;
+  todayRevenue: number;
   pendingOrders: number;
   totalRevenue: number;
+  cancelReturnRate: number;
+  averageOrderValue: number;
   byPlatform: Record<string, number>;
   byStatus: Record<string, number>;
 }
