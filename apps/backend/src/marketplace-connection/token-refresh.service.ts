@@ -7,8 +7,10 @@ import { refreshIdeasoftAccessToken } from '../adapters/ecommerce/ideasoft/ideas
 import { refreshEbayAccessToken } from '../adapters/ebay/ebay.oauth';
 import { refreshEtsyAccessToken } from '../adapters/etsy/etsy.oauth';
 import { refreshLazadaAccessToken } from '../adapters/lazada/lazada.oauth';
+import { refreshMercadolibreAccessToken } from '../adapters/mercadolibre/mercadolibre.oauth';
 import { refreshShopeeAccessToken } from '../adapters/shopee/shopee.oauth';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { MarketplaceOAuthService } from '../common/oauth/marketplace-oauth.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -20,6 +22,7 @@ const OAUTH_PLATFORMS: Marketplace[] = [
   Marketplace.IDEASOFT,
   Marketplace.LAZADA,
   Marketplace.SHOPEE,
+  Marketplace.MERCADOLIBRE,
 ];
 
 function parseCredentialsRecord(
@@ -81,6 +84,7 @@ export class TokenRefreshService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
+    private readonly marketplaceOAuth: MarketplaceOAuthService,
   ) {}
 
   /** Süresi dolmak üzere olan tokenları yeniler; güncel kimlik bilgisini döner. */
@@ -96,7 +100,15 @@ export class TokenRefreshService {
     if (!shouldRefreshToken(credentials)) {
       return credentials;
     }
-    const refreshed = await this.refreshPlatformTokens(platform, credentials);
+    const refreshed =
+      connectionId &&
+      (platform === Marketplace.LAZADA || platform === Marketplace.SHOPEE)
+        ? await this.marketplaceOAuth.refreshAndCacheTokens(
+            platform,
+            connectionId,
+            credentials,
+          )
+        : await this.refreshPlatformTokens(platform, credentials);
     if (connectionId) {
       await this.persistCredentials(connectionId, organizationId, credentials, refreshed);
     }
@@ -127,7 +139,14 @@ export class TokenRefreshService {
         continue;
       }
       try {
-        const updated = await this.refreshPlatformTokens(conn.platform, creds);
+        const updated =
+          conn.platform === Marketplace.LAZADA || conn.platform === Marketplace.SHOPEE
+            ? await this.marketplaceOAuth.refreshAndCacheTokens(
+                conn.platform,
+                conn.id,
+                creds,
+              )
+            : await this.refreshPlatformTokens(conn.platform, creds);
         await this.persistCredentials(conn.id, conn.organizationId, creds, updated);
         refreshed += 1;
       } catch (error) {
@@ -165,6 +184,9 @@ export class TokenRefreshService {
     }
     if (platform === Marketplace.SHOPEE) {
       return this.refreshShopee(credentials);
+    }
+    if (platform === Marketplace.MERCADOLIBRE) {
+      return this.refreshMercadolibre(credentials);
     }
     return credentials;
   }
@@ -253,6 +275,28 @@ export class TokenRefreshService {
       ...credentials,
       ...tokensToCredentialPatch(tokens),
     };
+  }
+
+  private async refreshMercadolibre(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const clientId = credentials.clientId?.trim() ?? '';
+    const clientSecret = credentials.clientSecret?.trim() ?? '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error('MercadoLibre: clientId, clientSecret ve refreshToken zorunludur');
+    }
+    const tokens = await refreshMercadolibreAccessToken(
+      clientId,
+      clientSecret,
+      refreshToken,
+    );
+    const patch = tokensToCredentialPatch(tokens);
+    if (tokens.userId) {
+      patch.sellerId = tokens.userId;
+      patch.userId = tokens.userId;
+    }
+    return { ...credentials, ...patch };
   }
 
   private async refreshEtsy(

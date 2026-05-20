@@ -82,6 +82,32 @@ export class PlatformWebhookController {
   }
 
   @Public()
+  @Post('lazada/:connectionId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Lazada sipariş webhook (bağlantı kimliği)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async lazada(
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    return this.handleByConnection(Marketplace.LAZADA, connectionId, headers, req);
+  }
+
+  @Public()
+  @Post('shopee/:connectionId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Shopee sipariş webhook (bağlantı kimliği)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async shopee(
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    return this.handleByConnection(Marketplace.SHOPEE, connectionId, headers, req);
+  }
+
+  @Public()
   @Post('ticimax/:connectionId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

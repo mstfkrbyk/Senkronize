@@ -20,9 +20,8 @@ import {
   parseMoney,
   throwSyncFailed,
 } from '../stub-helpers';
-import { lazadaSign } from './lazada.oauth';
-
-const LAZADA_BASE = 'https://api.lazada.com.my/rest';
+import { LAZADA_ORDER_BATCH_SIZE } from './lazada.constants';
+import { buildLazadaAuthorizeUrl, lazadaBusinessApiBase, lazadaSign } from './lazada.oauth';
 
 function unwrapLazadaData(data: unknown): unknown {
   if (!isRecord(data)) {
@@ -43,6 +42,18 @@ export class LazadaAdapter implements IMarketplaceAdapter {
 
   constructor(private readonly encryptionService: EncryptionService) {
     void this.encryptionService;
+  }
+
+  getAuthorizationUrl(
+    credentials: Record<string, string>,
+    state: string,
+    redirectUri: string,
+  ): string {
+    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim() ?? '';
+    if (!appKey) {
+      throw new Error('Lazada: appKey zorunludur');
+    }
+    return buildLazadaAuthorizeUrl(appKey, redirectUri, state);
   }
 
   private rpm(): number {
@@ -66,6 +77,10 @@ export class LazadaAdapter implements IMarketplaceAdapter {
     return { appKey, appSecret, accessToken };
   }
 
+  private apiBase(credentials: Record<string, string>): string {
+    return lazadaBusinessApiBase(credentials);
+  }
+
   private async invoke<T>(
     credentials: Record<string, string>,
     apiName: string,
@@ -85,7 +100,7 @@ export class LazadaAdapter implements IMarketplaceAdapter {
     const data = await axiosWithRetry<unknown>(
       {
         method,
-        url: `${LAZADA_BASE}${apiName}`,
+        url: `${this.apiBase(credentials)}${apiName}`,
         timeout: 25_000,
         params: { ...signParams, sign },
       },
@@ -160,6 +175,27 @@ export class LazadaAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private extractOrderRows(page: unknown): unknown[] {
+    if (Array.isArray(page)) {
+      return page;
+    }
+    if (isRecord(page) && Array.isArray(page.orders)) {
+      return page.orders;
+    }
+    return [];
+  }
+
+  private extractOrderId(row: unknown): string | null {
+    if (!isRecord(row)) {
+      return null;
+    }
+    const idRaw = row.order_id ?? row.order_number ?? row.id;
+    if (idRaw === undefined || idRaw === null) {
+      return null;
+    }
+    return String(idRaw);
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       await withRateLimit('LAZADA', this.rpm(), async () => {
@@ -179,52 +215,31 @@ export class LazadaAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const orders: MarketplaceOrder[] = [];
-      const statuses = ['pending', 'shipped'] as const;
-      for (const status of statuses) {
+      const orderIdSet = new Set<string>();
+      const timeFilters: Array<Record<string, string>> = since
+        ? [
+            { create_after: since.toISOString() },
+            { update_after: since.toISOString() },
+          ]
+        : [{}];
+
+      for (const timeFilter of timeFilters) {
         let offset = 0;
         const limit = 100;
         for (;;) {
           const params: Record<string, string> = {
-            status,
             limit: String(limit),
             offset: String(offset),
+            ...timeFilter,
           };
-          if (since) {
-            params.created_after = since.toISOString();
-          }
           const page = await withRateLimit('LAZADA', this.rpm(), async () =>
             this.invoke<unknown>(credentials, '/orders/get', params),
           );
-          const rows = Array.isArray(page)
-            ? page
-            : isRecord(page) && Array.isArray(page.orders)
-              ? page.orders
-              : [];
-          if (rows.length === 0) {
-            break;
-          }
+          const rows = this.extractOrderRows(page);
           for (const row of rows) {
-            if (!isRecord(row)) {
-              continue;
-            }
-            const orderId = row.order_id ?? row.order_number ?? row.id;
-            if (orderId === undefined || orderId === null) {
-              continue;
-            }
-            const itemsData = await withRateLimit('LAZADA', this.rpm(), async () =>
-              this.invoke<unknown>(credentials, '/orders/items/get', {
-                order_id: String(orderId),
-              }),
-            );
-            const lines = Array.isArray(itemsData)
-              ? itemsData
-              : isRecord(itemsData) && Array.isArray(itemsData.order_items)
-                ? itemsData.order_items
-                : [];
-            const mapped = this.mapOrder(row, lines);
-            if (mapped) {
-              orders.push(mapped);
+            const id = this.extractOrderId(row);
+            if (id) {
+              orderIdSet.add(id);
             }
           }
           if (rows.length < limit) {
@@ -233,10 +248,69 @@ export class LazadaAdapter implements IMarketplaceAdapter {
           offset += limit;
         }
       }
+
+      const orderIds = [...orderIdSet];
+      if (orderIds.length === 0) {
+        return [];
+      }
+
+      const orders: MarketplaceOrder[] = [];
+      for (let i = 0; i < orderIds.length; i += LAZADA_ORDER_BATCH_SIZE) {
+        const chunk = orderIds.slice(i, i + LAZADA_ORDER_BATCH_SIZE);
+        const detailPage = await withRateLimit('LAZADA', this.rpm(), async () =>
+          this.invoke<unknown>(credentials, '/orders/get', {
+            order_ids: JSON.stringify(chunk),
+          }),
+        );
+        const detailRows = this.extractOrderRows(detailPage);
+        const rowById = new Map<string, Record<string, unknown>>();
+        for (const row of detailRows) {
+          const id = this.extractOrderId(row);
+          if (id && isRecord(row)) {
+            rowById.set(id, row);
+          }
+        }
+
+        for (const orderId of chunk) {
+          const row =
+            rowById.get(orderId) ??
+            (isRecord(detailPage) && isRecord(detailPage[orderId])
+              ? (detailPage[orderId] as Record<string, unknown>)
+              : { order_id: orderId });
+          const itemsData = await withRateLimit('LAZADA', this.rpm(), async () =>
+            this.invoke<unknown>(credentials, '/orders/items/get', {
+              order_id: orderId,
+            }),
+          );
+          const lines = Array.isArray(itemsData)
+            ? itemsData
+            : isRecord(itemsData) && Array.isArray(itemsData.order_items)
+              ? itemsData.order_items
+              : [];
+          const mapped = this.mapOrder(row, lines);
+          if (mapped) {
+            orders.push(mapped);
+          }
+        }
+      }
       return orders;
     } catch (error) {
       throwSyncFailed(this.platform, 'getOrders', error);
     }
+  }
+
+  async registerWebhook(
+    credentials: Record<string, string>,
+    callbackUrl: string,
+  ): Promise<void> {
+    await withRateLimit('LAZADA', this.rpm(), async () => {
+      await this.invoke<unknown>(
+        credentials,
+        '/api/webhook/create',
+        { url: callbackUrl },
+        'POST',
+      );
+    });
   }
 
   async getListings(

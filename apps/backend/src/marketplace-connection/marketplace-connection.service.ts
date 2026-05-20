@@ -12,6 +12,7 @@ import { Marketplace, type MarketplaceConnection } from '@prisma/client';
 
 import { PostHogService } from '../analytics/posthog.service';
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { LazadaAdapter } from '../adapters/lazada/lazada.adapter';
 import { ShopifyAdapter } from '../adapters/shopify/shopify.adapter';
 import { WoocommerceAdapter } from '../adapters/woocommerce/woocommerce.adapter';
 import { EncryptionService } from '../common/encryption/encryption.service';
@@ -741,6 +742,14 @@ export class MarketplaceConnectionService {
       if (adapter instanceof ShopifyAdapter) {
         await adapter.registerInboundWebhooks(credentials, webhookUrl);
       }
+      return;
+    }
+    if (platform === Marketplace.LAZADA) {
+      const adapter = this.adapterRegistry.get('LAZADA');
+      if (adapter instanceof LazadaAdapter) {
+        await adapter.registerWebhook(credentials, webhookUrl);
+      }
+      return;
     }
   }
 

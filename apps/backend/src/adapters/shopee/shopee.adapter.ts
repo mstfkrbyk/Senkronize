@@ -1,5 +1,3 @@
-import { createHmac } from 'node:crypto';
-
 import { Injectable, Logger } from '@nestjs/common';
 import type {
   IMarketplaceAdapter,
@@ -22,20 +20,12 @@ import {
   parseMoney,
   throwSyncFailed,
 } from '../stub-helpers';
-
-const SHOPEE_BASE = 'https://partner.shopeemobile.com';
-
-function shopeeSign(
-  partnerKey: string,
-  partnerId: string,
-  path: string,
-  timestamp: number,
-  accessToken: string,
-  shopId: string,
-): string {
-  const base = `${partnerId}${path}${timestamp}${accessToken}${shopId}`;
-  return createHmac('sha256', partnerKey).update(base, 'utf8').digest('hex');
-}
+import {
+  SHOPEE_ORDER_BATCH_SIZE,
+  SHOPEE_ORDER_SYNC_STATUSES,
+  SHOPEE_PARTNER_BASE,
+} from './shopee.constants';
+import { buildShopeeAuthorizeUrl, shopeeSign } from './shopee.oauth';
 
 function unwrapShopeeResponse(data: unknown): Record<string, unknown> {
   if (!isRecord(data)) {
@@ -57,6 +47,22 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
 
   constructor(private readonly encryptionService: EncryptionService) {
     void this.encryptionService;
+  }
+
+  getAuthorizationUrl(
+    credentials: Record<string, string>,
+    redirectUri: string,
+  ): string {
+    const partnerId = credentials.partnerId?.trim() ?? '';
+    const partnerKey =
+      credentials.partnerKey?.trim() ??
+      credentials.apiSecret?.trim() ??
+      credentials.secretKey?.trim() ??
+      '';
+    if (!partnerId || !partnerKey) {
+      throw new Error('Shopee: partnerId ve partnerKey zorunludur');
+    }
+    return buildShopeeAuthorizeUrl(partnerId, partnerKey, redirectUri);
   }
 
   private rpm(): number {
@@ -85,23 +91,32 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
   private signedQuery(
     credentials: Record<string, string>,
     path: string,
+    withShopToken = true,
   ): {
     partner_id: string;
     timestamp: string;
-    access_token: string;
-    shop_id: string;
+    access_token?: string;
+    shop_id?: string;
     sign: string;
   } {
     const { partnerId, partnerKey, accessToken, shopId } = this.requireCreds(credentials);
     const timestamp = Math.floor(Date.now() / 1000);
-    const sign = shopeeSign(partnerKey, partnerId, path, timestamp, accessToken, shopId);
-    return {
+    const sign = withShopToken
+      ? shopeeSign(path, timestamp, partnerId, partnerKey, accessToken, shopId)
+      : shopeeSign(path, timestamp, partnerId, partnerKey);
+    const base = {
       partner_id: partnerId,
       timestamp: String(timestamp),
-      access_token: accessToken,
-      shop_id: shopId,
       sign,
     };
+    if (withShopToken) {
+      return {
+        ...base,
+        access_token: accessToken,
+        shop_id: shopId,
+      };
+    }
+    return base;
   }
 
   private async get<T>(
@@ -113,7 +128,7 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     const data = await axiosWithRetry<unknown>(
       {
         method: 'GET',
-        url: `${SHOPEE_BASE}${path}`,
+        url: `${SHOPEE_PARTNER_BASE}${path}`,
         timeout: 25_000,
         params: query,
       },
@@ -131,7 +146,7 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     const data = await axiosWithRetry<unknown>(
       {
         method: 'POST',
-        url: `${SHOPEE_BASE}${path}`,
+        url: `${SHOPEE_PARTNER_BASE}${path}`,
         timeout: 25_000,
         params: query,
         headers: { 'Content-Type': 'application/json' },
@@ -209,6 +224,49 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private async collectOrderSns(
+    credentials: Record<string, string>,
+    timeRangeField: 'create_time' | 'update_time',
+    timeFrom: number,
+    timeTo: number,
+    orderStatus: string,
+  ): Promise<string[]> {
+    const orderSns: string[] = [];
+    let cursor = '';
+    for (;;) {
+      const params: Record<string, string> = {
+        time_range_field: timeRangeField,
+        time_from: String(timeFrom),
+        time_to: String(timeTo),
+        page_size: String(SHOPEE_ORDER_BATCH_SIZE),
+        order_status: orderStatus,
+      };
+      if (cursor.length > 0) {
+        params.cursor = cursor;
+      }
+      const listPage = await withRateLimit('SHOPEE', this.rpm(), async () =>
+        this.get<Record<string, unknown>>(
+          credentials,
+          '/api/v2/order/get_order_list',
+          params,
+        ),
+      );
+      const list = Array.isArray(listPage.order_list) ? listPage.order_list : [];
+      for (const entry of list) {
+        if (isRecord(entry) && typeof entry.order_sn === 'string') {
+          orderSns.push(entry.order_sn);
+        }
+      }
+      const more = listPage.more === true;
+      const next = typeof listPage.next_cursor === 'string' ? listPage.next_cursor : '';
+      if (!more || next.length === 0) {
+        break;
+      }
+      cursor = next;
+    }
+    return orderSns;
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       await withRateLimit('SHOPEE', this.rpm(), async () => {
@@ -232,50 +290,31 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       const timeFrom = since
         ? Math.floor(since.getTime() / 1000)
         : now - 7 * 24 * 3600;
-      const orderSns: string[] = [];
-      let cursor = '';
+      const orderSnSet = new Set<string>();
 
-      for (;;) {
-        const params: Record<string, string> = {
-          time_range_field: 'create_time',
-          time_from: String(timeFrom),
-          time_to: String(now),
-          page_size: '50',
-          order_status: 'READY_TO_SHIP',
-        };
-        if (cursor.length > 0) {
-          params.cursor = cursor;
-        }
-        const listPage = await withRateLimit('SHOPEE', this.rpm(), async () =>
-          this.get<Record<string, unknown>>(
+      for (const timeRangeField of ['create_time', 'update_time'] as const) {
+        for (const orderStatus of SHOPEE_ORDER_SYNC_STATUSES) {
+          const sns = await this.collectOrderSns(
             credentials,
-            '/api/v2/order/get_order_list',
-            params,
-          ),
-        );
-        const list = Array.isArray(listPage.order_list) ? listPage.order_list : [];
-        for (const entry of list) {
-          if (isRecord(entry) && typeof entry.order_sn === 'string') {
-            orderSns.push(entry.order_sn);
+            timeRangeField,
+            timeFrom,
+            now,
+            orderStatus,
+          );
+          for (const sn of sns) {
+            orderSnSet.add(sn);
           }
         }
-        const more = listPage.more === true;
-        const next =
-          typeof listPage.next_cursor === 'string' ? listPage.next_cursor : '';
-        if (!more || next.length === 0) {
-          break;
-        }
-        cursor = next;
       }
 
+      const orderSns = [...orderSnSet];
       if (orderSns.length === 0) {
         return [];
       }
 
       const orders: MarketplaceOrder[] = [];
-      const chunkSize = 50;
-      for (let i = 0; i < orderSns.length; i += chunkSize) {
-        const chunk = orderSns.slice(i, i + chunkSize);
+      for (let i = 0; i < orderSns.length; i += SHOPEE_ORDER_BATCH_SIZE) {
+        const chunk = orderSns.slice(i, i + SHOPEE_ORDER_BATCH_SIZE);
         const detail = await withRateLimit('SHOPEE', this.rpm(), async () =>
           this.get<Record<string, unknown>>(credentials, '/api/v2/order/get_order_detail', {
             order_sn_list: chunk.join(','),

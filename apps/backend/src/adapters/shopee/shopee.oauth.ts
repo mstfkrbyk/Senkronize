@@ -3,13 +3,30 @@ import { createHmac } from 'node:crypto';
 import axios from 'axios';
 
 import { isRecord } from '../stub-helpers';
-
-const SHOPEE_BASE = 'https://partner.shopeemobile.com';
+import { SHOPEE_ACCESS_TOKEN_TTL_SEC, SHOPEE_PARTNER_BASE } from './shopee.constants';
 
 export interface ShopeeOAuthTokens {
   accessToken: string;
   refreshToken: string;
   tokenExpiresAt: number;
+}
+
+export type ShopeeTokenResult = ShopeeOAuthTokens;
+
+/** Shopee Open API v2 imza (partner veya shop erişim tokenı). */
+export function shopeeSign(
+  path: string,
+  timestamp: number,
+  partnerId: string,
+  partnerKey: string,
+  accessToken?: string,
+  shopId?: number | string,
+): string {
+  let base = `${partnerId}${path}${timestamp}`;
+  if (accessToken && shopId !== undefined && shopId !== null && String(shopId).length > 0) {
+    base += `${accessToken}${shopId}`;
+  }
+  return createHmac('sha256', partnerKey).update(base, 'utf8').digest('hex');
 }
 
 export function shopeePublicSign(
@@ -18,8 +35,24 @@ export function shopeePublicSign(
   path: string,
   timestamp: number,
 ): string {
-  const base = `${partnerId}${path}${timestamp}`;
-  return createHmac('sha256', partnerKey).update(base, 'utf8').digest('hex');
+  return shopeeSign(path, timestamp, partnerId, partnerKey);
+}
+
+export function buildShopeeAuthorizeUrl(
+  partnerId: string,
+  partnerKey: string,
+  redirectUri: string,
+): string {
+  const path = '/api/v2/shop/auth_partner';
+  const timestamp = Math.floor(Date.now() / 1000);
+  const sign = shopeePublicSign(partnerKey, partnerId, path, timestamp);
+  const params = new URLSearchParams({
+    partner_id: partnerId,
+    timestamp: String(timestamp),
+    sign,
+    redirect: redirectUri,
+  });
+  return `${SHOPEE_PARTNER_BASE}${path}?${params.toString()}`;
 }
 
 function mapShopeeTokenPayload(data: unknown, fallbackRefreshToken?: string): ShopeeOAuthTokens {
@@ -43,7 +76,7 @@ function mapShopeeTokenPayload(data: unknown, fallbackRefreshToken?: string): Sh
       ? data.expire_in
       : typeof data.expires_in === 'number' && Number.isFinite(data.expires_in)
         ? data.expires_in
-        : 14_400;
+        : SHOPEE_ACCESS_TOKEN_TTL_SEC;
   return {
     accessToken,
     refreshToken,
@@ -72,7 +105,7 @@ async function shopeeAuthPost(
   const timestamp = Math.floor(Date.now() / 1000);
   const sign = shopeePublicSign(partnerKey, partnerId, path, timestamp);
   const { data } = await axios.post<unknown>(
-    `${SHOPEE_BASE}${path}`,
+    `${SHOPEE_PARTNER_BASE}${path}`,
     body,
     {
       params: {
@@ -93,7 +126,7 @@ export async function exchangeShopeeAuthorizationCode(
   partnerKey: string,
   code: string,
   shopId: string,
-): Promise<ShopeeOAuthTokens> {
+): Promise<ShopeeTokenResult> {
   const envelope = await shopeeAuthPost('/api/v2/auth/token/get', partnerId, partnerKey, {
     code,
     partner_id: Number(partnerId),
@@ -107,8 +140,8 @@ export async function refreshShopeeAccessToken(
   partnerId: string,
   partnerKey: string,
   refreshToken: string,
-  shopId: string,
-): Promise<ShopeeOAuthTokens> {
+  shopId: number | string,
+): Promise<ShopeeTokenResult> {
   const envelope = await shopeeAuthPost(
     '/api/v2/auth/access_token/get',
     partnerId,
