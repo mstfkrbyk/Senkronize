@@ -1,8 +1,9 @@
 import type { ReactElement } from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useMutation } from '@tanstack/react-query';
 import {
+  AlertCircle,
   CheckCircle2,
   Download,
   FileSpreadsheet,
@@ -12,6 +13,7 @@ import {
 import Papa from 'papaparse';
 import { toast } from 'sonner';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -30,7 +32,7 @@ import {
 } from '@/components/ui/table';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import type { ImportResult } from '@/types/product';
+import type { ImportPreviewRow, ImportResult } from '@/types/product';
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -41,12 +43,62 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+function normalizeKey(key: string): string {
+  return key.replace(/^\uFEFF/, '').trim().toLowerCase();
+}
+
+function rowGet(row: Record<string, string>, keys: string[]): string {
+  for (const want of keys) {
+    const nk = normalizeKey(want);
+    for (const [col, val] of Object.entries(row)) {
+      if (normalizeKey(col) === nk && val.trim()) {
+        return val.trim();
+      }
+    }
+  }
+  return '';
+}
+
+function validateRow(row: Record<string, string>, lineNumber: number): ImportPreviewRow {
+  const errors: string[] = [];
+  const barcode = rowGet(row, ['barcode', 'barkod']);
+  const name = rowGet(row, ['name', 'ad', 'title', 'baslik']);
+  const salePrice = rowGet(row, ['saleprice', 'satisfiyati']);
+  const listPrice = rowGet(row, ['listprice', 'listefiyati']);
+  const stock = rowGet(row, ['stock', 'stok']);
+
+  if (!barcode) {
+    errors.push('Barkod zorunlu');
+  }
+  if (!name) {
+    errors.push('Ürün adı zorunlu');
+  }
+  if (salePrice && Number.isNaN(Number.parseFloat(salePrice.replace(',', '.')))) {
+    errors.push('Satış fiyatı geçersiz');
+  }
+  if (listPrice && Number.isNaN(Number.parseFloat(listPrice.replace(',', '.')))) {
+    errors.push('Liste fiyatı geçersiz');
+  }
+  if (stock && !Number.isFinite(Number.parseInt(stock, 10))) {
+    errors.push('Stok geçersiz');
+  }
+
+  return { row, lineNumber, valid: errors.length === 0, errors };
+}
+
+const STEPS = [
+  'Şablon',
+  'Dosya',
+  'Önizleme',
+  'Onay',
+] as const;
+
 export function ProductImportPage(): ReactElement {
   usePageTitle('Ürün İçe Aktarma');
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [file, setFile] = useState<File | null>(null);
-  const [previewRows, setPreviewRows] = useState<Record<string, string>[]>([]);
+  const [previewRows, setPreviewRows] = useState<ImportPreviewRow[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
@@ -59,21 +111,35 @@ export function ProductImportPage(): ReactElement {
         header: true,
         skipEmptyLines: 'greedy',
       });
-      const rows = (parsed.data ?? []).filter((r) =>
-        Object.values(r).some((v) => String(v).trim().length > 0),
-      );
-      setPreviewRows(rows.slice(0, 5));
+      const rows: ImportPreviewRow[] = [];
+      let lineNo = 1;
+      for (const raw of parsed.data ?? []) {
+        lineNo += 1;
+        const hasData = Object.values(raw).some((v) => String(v).trim().length > 0);
+        if (!hasData) {
+          continue;
+        }
+        rows.push(validateRow(raw, lineNo));
+      }
+      setPreviewRows(rows);
+      setStep(3);
     };
     reader.readAsText(f, 'UTF-8');
   }, []);
 
+  const validCount = useMemo(
+    () => previewRows.filter((r) => r.valid).length,
+    [previewRows],
+  );
+  const invalidCount = previewRows.length - validCount;
+
   const downloadTemplate = useCallback(async () => {
-    const res = await api.get<Blob>('/products/template', {
+    const res = await api.get<Blob>('/products/import/template', {
       responseType: 'blob',
     });
     downloadBlob(
       new Blob([res.data], { type: 'text/csv;charset=utf-8;' }),
-      'senkronize-urun-varyant-sablonu.csv',
+      'urun-sablonu.csv',
     );
     toast.success('Şablon indirildi');
   }, []);
@@ -87,7 +153,7 @@ export function ProductImportPage(): ReactElement {
     },
     onSuccess: (data) => {
       setImportResult(data);
-      setStep(3);
+      setStep(4);
       toast.success('İçe aktarma tamamlandı');
     },
     onError: (err) => {
@@ -96,30 +162,37 @@ export function ProductImportPage(): ReactElement {
   });
 
   const previewHeaders =
-    previewRows.length > 0 ? Object.keys(previewRows[0] ?? {}) : [];
+    previewRows.length > 0
+      ? Object.keys(previewRows[0]?.row ?? {})
+      : [];
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">CSV ile ürün içe aktar</h1>
         <p className="text-muted-foreground text-sm">
-          Şablonu indirin, doldurun ve dosyayı yükleyin.
+          Şablonu indirin, doldurun, önizleyin ve onaylayın.
         </p>
       </div>
 
-      <div className="flex gap-2">
-        {[1, 2, 3].map((s) => (
-          <div
-            key={s}
-            className={`flex-1 rounded-md border px-3 py-2 text-center text-sm font-medium ${
-              step === s
-                ? 'border-accent bg-accent/10 text-accent-foreground'
-                : 'border-border text-muted-foreground'
-            }`}
-          >
-            {s}. {s === 1 ? 'Şablon' : s === 2 ? 'Dosya' : 'Sonuç'}
-          </div>
-        ))}
+      <div className="grid grid-cols-4 gap-2">
+        {STEPS.map((label, idx) => {
+          const n = (idx + 1) as 1 | 2 | 3 | 4;
+          return (
+            <div
+              key={label}
+              className={`rounded-md border px-2 py-2 text-center text-xs font-medium sm:text-sm ${
+                step === n
+                  ? 'border-accent bg-accent/10 text-accent-foreground'
+                  : step > n
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    : 'border-border text-muted-foreground'
+              }`}
+            >
+              {n}. {label}
+            </div>
+          );
+        })}
       </div>
 
       {step === 1 ? (
@@ -130,7 +203,7 @@ export function ProductImportPage(): ReactElement {
               Şablon indir
             </CardTitle>
             <CardDescription>
-              Ürün ve varyant CSV şablonunu bilgisayarınıza kaydedin.
+              Ürün CSV şablonunu bilgisayarınıza kaydedin.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -141,7 +214,7 @@ export function ProductImportPage(): ReactElement {
               }}
             >
               <FileSpreadsheet className="mr-2 size-4" />
-              CSV şablonunu indir
+              CSV şablonu indir
             </Button>
             <Button type="button" variant="secondary" onClick={() => { setStep(2); }}>
               Devam et
@@ -158,14 +231,14 @@ export function ProductImportPage(): ReactElement {
               Dosya yükle
             </CardTitle>
             <CardDescription>
-              CSV dosyasını sürükleyip bırakın veya seçin. İlk 5 veri satırı önizlenir.
+              CSV veya Excel (CSV) dosyasını sürükleyip bırakın veya seçin.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <input
               ref={fileInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.xlsx,application/vnd.ms-excel"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -208,13 +281,30 @@ export function ProductImportPage(): ReactElement {
                 {file ? file.name : 'Henüz dosya seçilmedi'}
               </p>
             </div>
+            <Button type="button" variant="outline" onClick={() => { setStep(1); }}>
+              Geri
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
+      {step === 3 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Önizleme</CardTitle>
+            <CardDescription>
+              {validCount} geçerli, {invalidCount} hatalı satır
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
             {previewRows.length > 0 && previewHeaders.length > 0 ? (
-              <div className="overflow-x-auto rounded-md border">
+              <div className="max-h-80 overflow-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      {previewHeaders.map((h) => (
+                      <TableHead className="w-16">Satır</TableHead>
+                      <TableHead className="w-20">Durum</TableHead>
+                      {previewHeaders.slice(0, 6).map((h) => (
                         <TableHead key={h} className="whitespace-nowrap text-xs">
                           {h}
                         </TableHead>
@@ -222,11 +312,24 @@ export function ProductImportPage(): ReactElement {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {previewRows.map((row, idx) => (
-                      <TableRow key={idx}>
-                        {previewHeaders.map((h) => (
-                          <TableCell key={h} className="max-w-[200px] truncate text-xs">
-                            {row[h] ?? ''}
+                    {previewRows.map((pr) => (
+                      <TableRow
+                        key={pr.lineNumber}
+                        className={pr.valid ? '' : 'bg-destructive/5'}
+                      >
+                        <TableCell className="text-xs">{pr.lineNumber}</TableCell>
+                        <TableCell>
+                          {pr.valid ? (
+                            <Badge variant="outline" className="border-emerald-300 text-emerald-800">
+                              Geçerli
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive">Hatalı</Badge>
+                          )}
+                        </TableCell>
+                        {previewHeaders.slice(0, 6).map((h) => (
+                          <TableCell key={h} className="max-w-[140px] truncate text-xs">
+                            {pr.row[h] ?? ''}
                           </TableCell>
                         ))}
                       </TableRow>
@@ -235,9 +338,45 @@ export function ProductImportPage(): ReactElement {
                 </Table>
               </div>
             ) : null}
-
+            {invalidCount > 0 ? (
+              <div className="text-destructive flex items-start gap-2 text-sm">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  Hatalı satırlar içe aktarmada atlanabilir. Devam etmeden önce
+                  dosyayı düzeltmeniz önerilir.
+                </span>
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => { setStep(1); }}>
+              <Button type="button" variant="outline" onClick={() => { setStep(2); }}>
+                Geri
+              </Button>
+              <Button
+                type="button"
+                disabled={!file || validCount === 0}
+                onClick={() => { setStep(4); }}
+              >
+                Onaya geç
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 4 && !importResult ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Onay</CardTitle>
+            <CardDescription>
+              {validCount} geçerli satır içe aktarılacak.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <p className="text-sm">
+              Dosya: <span className="font-medium">{file?.name ?? '—'}</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => { setStep(3); }}>
                 Geri
               </Button>
               <Button
@@ -252,10 +391,10 @@ export function ProductImportPage(): ReactElement {
                 {importMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 size-4 animate-spin" />
-                    Yükleniyor…
+                    İçe aktarılıyor…
                   </>
                 ) : (
-                  'İçe aktar'
+                  'İçe aktarmayı başlat'
                 )}
               </Button>
             </div>
@@ -263,7 +402,7 @@ export function ProductImportPage(): ReactElement {
         </Card>
       ) : null}
 
-      {step === 3 && importResult ? (
+      {step === 4 && importResult ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">

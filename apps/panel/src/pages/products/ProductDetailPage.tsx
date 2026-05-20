@@ -4,7 +4,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { ArrowLeft, Loader2, Trash2, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  Copy,
+  Loader2,
+  Percent,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -19,11 +26,19 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -39,7 +54,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
+import { ProductImagesTab } from '@/pages/products/components/ProductImagesTab';
+import { ProductPerformanceTab } from '@/pages/products/components/ProductPerformanceTab';
 import type {
+  BulkPriceUpdateForm,
   ImportResult,
   ProductDetailPayload,
   ProductVariantDto,
@@ -82,30 +100,29 @@ function formatDate(iso: string): string {
   }
 }
 
-function VariantControls({
+function VariantInlineCell({
   productId,
   variant,
+  field,
   onSaved,
 }: {
   productId: string;
   variant: ProductVariantDto;
+  field: 'stock' | 'price';
   onSaved: () => void;
 }): ReactElement {
-  const [stock, setStock] = useState(String(variant.stock));
-  const [price, setPrice] = useState(
-    variant.price === null || variant.price === undefined
-      ? ''
-      : String(variant.price),
-  );
+  const initial =
+    field === 'stock'
+      ? String(variant.stock)
+      : variant.price === null || variant.price === undefined
+        ? ''
+        : String(variant.price);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(initial);
 
   useEffect(() => {
-    setStock(String(variant.stock));
-    setPrice(
-      variant.price === null || variant.price === undefined
-        ? ''
-        : String(variant.price),
-    );
-  }, [variant.id, variant.stock, variant.price]);
+    setValue(initial);
+  }, [initial]);
 
   const patchMutation = useMutation({
     mutationFn: async (body: Record<string, unknown>) => {
@@ -113,69 +130,244 @@ function VariantControls({
     },
     onSuccess: () => {
       onSaved();
+      setEditing(false);
     },
     onError: (e) => {
       toast.error(getApiErrorMessage(e));
     },
   });
 
-  const persistFields = useCallback(() => {
-    const stockNum = Number.parseInt(stock, 10);
-    const priceTrim = price.trim();
-    const priceNum =
-      priceTrim === '' ? null : Number.parseFloat(priceTrim.replace(',', '.'));
+  const persist = (): void => {
+    if (field === 'stock') {
+      const n = Number.parseInt(value, 10);
+      patchMutation.mutate({
+        stock: Number.isFinite(n) ? n : variant.stock,
+      });
+      return;
+    }
+    const trim = value.trim();
+    const n = trim === '' ? null : Number.parseFloat(trim.replace(',', '.'));
     patchMutation.mutate({
-      stock: Number.isFinite(stockNum) ? stockNum : variant.stock,
-      price:
-        priceTrim === ''
-          ? null
-          : Number.isFinite(priceNum)
-            ? priceNum
-            : undefined,
+      price: trim === '' ? null : Number.isFinite(n) ? n : undefined,
     });
-  }, [patchMutation, price, stock, variant.stock]);
+  };
+
+  if (!editing) {
+    return (
+      <TableCell
+        className="cursor-pointer tabular-nums"
+        onClick={() => { setEditing(true); }}
+      >
+        {field === 'stock'
+          ? variant.stock.toLocaleString('tr-TR')
+          : formatMoney(variant.price)}
+      </TableCell>
+    );
+  }
 
   return (
-    <>
-      <TableCell className="w-[100px]">
-        <Input
-          className="h-8"
-          inputMode="numeric"
-          value={stock}
-          onChange={(e) => { setStock(e.target.value); }}
-          onBlur={() => {
-            persistFields();
-          }}
-        />
-      </TableCell>
-      <TableCell className="w-[120px]">
-        <Input
-          className="h-8"
-          inputMode="decimal"
-          value={price}
-          onChange={(e) => { setPrice(e.target.value); }}
-          onBlur={() => {
-            persistFields();
-          }}
-        />
-      </TableCell>
-      <TableCell>
-        <Switch
-          checked={variant.isActive}
-          onCheckedChange={(checked) => {
-            patchMutation.mutate(
-              { isActive: checked },
-              {
-                onSuccess: () => {
-                  toast.success('Durum güncellendi');
-                  onSaved();
-                },
-              },
-            );
-          }}
-        />
-      </TableCell>
-    </>
+    <TableCell>
+      <Input
+        className="h-8"
+        autoFocus
+        inputMode={field === 'stock' ? 'numeric' : 'decimal'}
+        value={value}
+        onChange={(e) => { setValue(e.target.value); }}
+        onBlur={() => { persist(); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            persist();
+          }
+          if (e.key === 'Escape') {
+            setValue(initial);
+            setEditing(false);
+          }
+        }}
+      />
+    </TableCell>
+  );
+}
+
+function CopyVariantDialog({
+  productId,
+  source,
+  onCreated,
+}: {
+  productId: string;
+  source: ProductVariantDto;
+  onCreated: () => void;
+}): ReactElement {
+  const attrs = parseAttributes(source.attributes);
+  const [open, setOpen] = useState(false);
+  const [sku, setSku] = useState(`${source.sku}-KOPYA`);
+  const [renk, setRenk] = useState(attrs.Renk ?? '');
+  const [beden, setBeden] = useState(attrs.Beden ?? '');
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const nextAttrs: Record<string, string> = { ...attrs };
+      if (renk.trim()) {
+        nextAttrs.Renk = renk.trim();
+      }
+      if (beden.trim()) {
+        nextAttrs.Beden = beden.trim();
+      }
+      const priceNum =
+        source.price === null || source.price === undefined
+          ? undefined
+          : Number(source.price);
+      await api.post(`/products/${productId}/variants`, {
+        sku: sku.trim(),
+        barcode: source.barcode,
+        title: [renk.trim(), beden.trim()].filter(Boolean).join(' / ') || source.title,
+        attributes: nextAttrs,
+        stock: source.stock,
+        ...(Number.isFinite(priceNum) ? { price: priceNum } : {}),
+        imageUrl: source.imageUrl,
+        isActive: source.isActive,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Varyant kopyalandı');
+      setOpen(false);
+      onCreated();
+    },
+    onError: (e) => {
+      toast.error(getApiErrorMessage(e));
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" title="Varyanttan kopyala">
+          <Copy className="size-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Varyanttan kopyala</DialogTitle>
+          <DialogDescription>
+            Renk ve bedeni değiştirin; diğer bilgiler kaynak varyanttan alınır.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="copy-sku">SKU</Label>
+            <Input id="copy-sku" value={sku} onChange={(e) => { setSku(e.target.value); }} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="copy-renk">Renk</Label>
+            <Input id="copy-renk" value={renk} onChange={(e) => { setRenk(e.target.value); }} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="copy-beden">Beden</Label>
+            <Input id="copy-beden" value={beden} onChange={(e) => { setBeden(e.target.value); }} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            disabled={!sku.trim() || mutation.isPending}
+            onClick={() => { mutation.mutate(); }}
+          >
+            Oluştur
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkVariantPriceDialog({
+  productId,
+  onDone,
+}: {
+  productId: string;
+  onDone: () => void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<BulkPriceUpdateForm>({
+    updateType: 'percentage',
+    value: 10,
+    direction: 'increase',
+    applyToField: 'salePrice',
+    previewCount: 0,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.patch<{ updated: number }>(
+        `/products/${productId}/variants/bulk-price`,
+        {
+          updateType: form.updateType,
+          value: form.value,
+          direction: form.direction,
+        },
+      );
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.updated} varyant fiyatı güncellendi`);
+      setOpen(false);
+      onDone();
+    },
+    onError: (e) => {
+      toast.error(getApiErrorMessage(e));
+    },
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <Percent className="mr-2 size-4" />
+          Toplu fiyat
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Toplu varyant fiyat güncelleme</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <Select
+            value={form.updateType}
+            onValueChange={(v) => {
+              setForm((f) => ({
+                ...f,
+                updateType: v as BulkPriceUpdateForm['updateType'],
+              }));
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="percentage">Yüzde</SelectItem>
+              <SelectItem value="fixed">Sabit</SelectItem>
+              <SelectItem value="set">Belirle</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            inputMode="decimal"
+            value={String(form.value)}
+            onChange={(e) => {
+              const n = Number.parseFloat(e.target.value.replace(',', '.'));
+              setForm((f) => ({ ...f, value: Number.isFinite(n) ? n : 0 }));
+            }}
+          />
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            disabled={mutation.isPending}
+            onClick={() => { mutation.mutate(); }}
+          >
+            Uygula
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -400,6 +592,8 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
       <Tabs defaultValue="variants">
         <TabsList>
           <TabsTrigger value="variants">Varyantlar</TabsTrigger>
+          <TabsTrigger value="images">Görseller</TabsTrigger>
+          <TabsTrigger value="performance">Performans</TabsTrigger>
           <TabsTrigger value="listings">Listingler</TabsTrigger>
           <TabsTrigger value="stock">Stok hareketi</TabsTrigger>
         </TabsList>
@@ -413,6 +607,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
               </div>
               <div className="flex flex-wrap gap-2">
                 <AddVariantDialog productId={productId} onCreated={invalidate} />
+                <BulkVariantPriceDialog productId={productId} onDone={invalidate} />
                 <input
                   ref={variantCsvRef}
                   type="file"
@@ -444,64 +639,101 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Varyant</TableHead>
-                      <TableHead>Özellikler</TableHead>
+                      <TableHead>Renk</TableHead>
+                      <TableHead>Beden</TableHead>
+                      <TableHead>Barkod</TableHead>
                       <TableHead>Stok</TableHead>
-                      <TableHead>Fiyat</TableHead>
-                      <TableHead>Aktif</TableHead>
-                      <TableHead className="w-[52px]" />
+                      <TableHead>Satış fiyatı</TableHead>
+                      <TableHead>Durum</TableHead>
+                      <TableHead className="w-[88px]" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {variants.map((v) => (
+                    {variants.map((v) => {
+                      const attrs = parseAttributes(v.attributes);
+                      return (
                       <TableRow key={v.id}>
-                        <TableCell className="max-w-[220px]">
-                          <div className="font-medium">{v.title}</div>
-                          <div className="text-muted-foreground text-xs font-mono">
-                            {v.sku}
-                          </div>
+                        <TableCell>{attrs.Renk ?? '—'}</TableCell>
+                        <TableCell>{attrs.Beden ?? '—'}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {v.barcode ?? '—'}
                         </TableCell>
-                        <TableCell>
-                          {Object.entries(parseAttributes(v.attributes)).map(
-                            ([k, val]) => (
-                              <span key={k} className="mr-2 text-xs">
-                                <span className="text-muted-foreground">{k}:</span>{' '}
-                                {val}
-                              </span>
-                            ),
-                          )}
-                        </TableCell>
-                        <VariantControls
+                        <VariantInlineCell
                           productId={productId}
                           variant={v}
+                          field="stock"
+                          onSaved={invalidate}
+                        />
+                        <VariantInlineCell
+                          productId={productId}
+                          variant={v}
+                          field="price"
                           onSaved={invalidate}
                         />
                         <TableCell>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  'Bu varyantı silmek istediğinize emin misiniz?',
-                                )
-                              ) {
-                                deleteVariantMutation.mutate(v.id);
-                              }
+                          <Switch
+                            checked={v.isActive}
+                            onCheckedChange={(checked) => {
+                              void api
+                                .patch(`/products/${productId}/variants/${v.id}`, {
+                                  isActive: checked,
+                                })
+                                .then(() => {
+                                  toast.success('Durum güncellendi');
+                                  invalidate();
+                                })
+                                .catch((e: unknown) => {
+                                  toast.error(getApiErrorMessage(e));
+                                });
                             }}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-0">
+                            <CopyVariantDialog
+                              productId={productId}
+                              source={v}
+                              onCreated={invalidate}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    'Bu varyantı silmek istediğinize emin misiniz?',
+                                  )
+                                ) {
+                                  deleteVariantMutation.mutate(v.id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="images" className="mt-4">
+          <ProductImagesTab
+            productId={productId}
+            imageUrls={product.imageUrls ?? []}
+            onChanged={invalidate}
+          />
+        </TabsContent>
+
+        <TabsContent value="performance" className="mt-4">
+          <ProductPerformanceTab productId={productId} />
         </TabsContent>
 
         <TabsContent value="listings" className="mt-4">

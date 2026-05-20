@@ -15,6 +15,7 @@ import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.cons
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 
+import type { ProductAnalyticsResponse } from './product-analytics.types';
 import {
   CreateProductDto,
   ProductQueryDto,
@@ -584,6 +585,159 @@ export class ProductService {
     });
     await this.cache.invalidateProductsForOrg(organizationId);
     return updated;
+  }
+
+  async reorderImages(
+    organizationId: string,
+    productId: string,
+    imageUrls: string[],
+  ): Promise<Product> {
+    const product = await this.findOne(organizationId, productId);
+    const existing = new Set(product.imageUrls ?? []);
+    for (const url of imageUrls) {
+      if (!existing.has(url)) {
+        throw new BadRequestException('Geçersiz görsel URL');
+      }
+    }
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { imageUrls },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return updated;
+  }
+
+  async removeImageAtIndex(
+    organizationId: string,
+    productId: string,
+    imageIndex: number,
+  ): Promise<Product> {
+    const product = await this.findOne(organizationId, productId);
+    const urls = [...(product.imageUrls ?? [])];
+    if (imageIndex < 0 || imageIndex >= urls.length) {
+      throw new NotFoundException('Görsel bulunamadı');
+    }
+    urls.splice(imageIndex, 1);
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { imageUrls: urls },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return updated;
+  }
+
+  async getProductAnalytics(
+    organizationId: string,
+    productId: string,
+    days: number,
+  ): Promise<ProductAnalyticsResponse> {
+    const product = await this.findOne(organizationId, productId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { organizationId, productId, deletedAt: null },
+      select: { barcode: true },
+    });
+    const barcodes = [
+      product.barcode,
+      ...variants
+        .map((v) => v.barcode)
+        .filter((b): b is string => typeof b === 'string' && b.length > 0),
+    ];
+    const uniqueBarcodes = [...new Set(barcodes)];
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
+
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        organizationId,
+        barcode: { in: uniqueBarcodes },
+        order: {
+          deletedAt: null,
+          createdAt: { gte: since },
+        },
+      },
+      select: {
+        quantity: true,
+        unitPrice: true,
+        order: { select: { platform: true, createdAt: true } },
+      },
+    });
+
+    const dailyMap = new Map<string, { quantity: number; revenue: number }>();
+    const platformMap = new Map<string, { quantity: number; revenue: number }>();
+    let totalSales = 0;
+    let totalRevenue = 0;
+
+    for (const item of orderItems) {
+      const day = item.order.createdAt.toISOString().slice(0, 10);
+      const qty = item.quantity;
+      const rev = qty * Number(item.unitPrice);
+      totalSales += qty;
+      totalRevenue += rev;
+
+      const dayRow = dailyMap.get(day) ?? { quantity: 0, revenue: 0 };
+      dayRow.quantity += qty;
+      dayRow.revenue += rev;
+      dailyMap.set(day, dayRow);
+
+      const plat = item.order.platform;
+      const platRow = platformMap.get(plat) ?? { quantity: 0, revenue: 0 };
+      platRow.quantity += qty;
+      platRow.revenue += rev;
+      platformMap.set(plat, platRow);
+    }
+
+    const dailySales = [...dailyMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, row]) => ({
+        date,
+        quantity: row.quantity,
+        revenue: Math.round(row.revenue * 100) / 100,
+      }));
+
+    let bestDay: { date: string; quantity: number } | null = null;
+    for (const row of dailySales) {
+      if (!bestDay || row.quantity > bestDay.quantity) {
+        bestDay = { date: row.date, quantity: row.quantity };
+      }
+    }
+
+    const priceRows = await this.prisma.priceHistory.findMany({
+      where: {
+        organizationId,
+        barcode: product.barcode,
+        appliedAt: { gte: since },
+      },
+      orderBy: { appliedAt: 'asc' },
+      select: { appliedAt: true, newPrice: true, platform: true },
+    });
+
+    const priceHistory = priceRows.map((r) => ({
+      date: r.appliedAt.toISOString(),
+      price: Number(r.newPrice),
+      platform: r.platform,
+    }));
+
+    const dayCount = Math.max(1, days);
+    return {
+      days,
+      dailySales,
+      kpis: {
+        totalSales,
+        totalRevenue: Math.round(totalRevenue * 100) / 100,
+        averageDailySales: Math.round((totalSales / dayCount) * 100) / 100,
+        bestDay,
+      },
+      platformDistribution: [...platformMap.entries()].map(
+        ([platform, row]) => ({
+          platform,
+          quantity: row.quantity,
+          revenue: Math.round(row.revenue * 100) / 100,
+        }),
+      ),
+      priceHistory,
+    };
   }
 
   async setReorderPoint(

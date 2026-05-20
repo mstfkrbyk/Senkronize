@@ -8,6 +8,7 @@ import { Prisma, type ProductVariant } from '@prisma/client';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import type { BulkVariantPriceUpdateDto } from './product-bulk.dto';
 import type { BulkVariantItemDto, CreateVariantDto, UpdateVariantDto } from './product-variant.dto';
 
 function toDecimal(value: number | null | undefined): Prisma.Decimal | null {
@@ -203,6 +204,50 @@ export class ProductVariantService {
     });
     await this.cache.invalidateProductsForOrg(organizationId);
     return { created, updated };
+  }
+
+  async bulkUpdateVariantPrices(
+    organizationId: string,
+    productId: string,
+    dto: BulkVariantPriceUpdateDto,
+  ): Promise<{ updated: number }> {
+    await this.assertProductInOrg(organizationId, productId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        organizationId,
+        productId,
+        deletedAt: null,
+        ...(dto.variantIds?.length ? { id: { in: dto.variantIds } } : {}),
+      },
+      select: { id: true, price: true },
+    });
+
+    let updated = 0;
+    for (const row of variants) {
+      const current =
+        row.price !== null && row.price !== undefined
+          ? Number(row.price)
+          : 0;
+      const base = current > 0 ? current : 0.01;
+      let next = base;
+      if (dto.updateType === 'set') {
+        next = Math.max(0.01, dto.value);
+      } else {
+        const sign = dto.direction === 'decrease' ? -1 : 1;
+        if (dto.updateType === 'fixed') {
+          next = Math.max(0.01, base + sign * dto.value);
+        } else {
+          next = Math.max(0.01, base * (1 + (sign * dto.value) / 100));
+        }
+      }
+      await this.prisma.productVariant.update({
+        where: { id: row.id },
+        data: { price: new Prisma.Decimal(next) },
+      });
+      updated += 1;
+    }
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { updated };
   }
 
   private async assertProductInOrg(

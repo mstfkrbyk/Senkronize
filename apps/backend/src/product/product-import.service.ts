@@ -323,14 +323,79 @@ export class ProductImportService {
     return result;
   }
 
-  async exportProductsToCsv(organizationId: string): Promise<string> {
+  async exportSimpleImportTemplateCsv(): Promise<string> {
+    return (
+      '\uFEFFbarcode,sku,name,category,salePrice,listPrice,stock,description\n' +
+      '8690001,SKU-001,Örnek Ürün,Elektronik,199.90,299.90,50,Ürün açıklaması\n'
+    );
+  }
+
+  async exportProductsToCsv(
+    organizationId: string,
+    options?: { productIds?: string[]; columns?: string[] },
+  ): Promise<string> {
+    const defaultColumns = [
+      'barcode',
+      'sku',
+      'name',
+      'category',
+      'salePrice',
+      'listPrice',
+      'stock',
+      'description',
+      'brand',
+      'costPrice',
+    ];
+    const columns =
+      options?.columns?.length && options.columns.length > 0
+        ? options.columns
+        : defaultColumns;
+
     const products = await this.prisma.product.findMany({
-      where: { organizationId, deletedAt: null },
+      where: {
+        organizationId,
+        deletedAt: null,
+        ...(options?.productIds?.length
+          ? { id: { in: options.productIds } }
+          : {}),
+      },
       include: {
         variants: { where: { deletedAt: null } },
+        listings: {
+          where: { deletedAt: null },
+          select: { salePrice: true, listPrice: true },
+          take: 1,
+          orderBy: { updatedAt: 'desc' },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (options?.columns?.length) {
+      const lines = [columns.join(',')];
+      for (const p of products) {
+        const listing = p.listings[0];
+        const stock = p.variants.reduce((sum, v) => sum + v.stock, 0);
+        const rowMap: Record<string, string> = {
+          barcode: p.barcode,
+          sku: p.sku ?? '',
+          name: p.name,
+          category: p.category ?? '',
+          salePrice: listing?.salePrice?.toString() ?? '',
+          listPrice: listing?.listPrice?.toString() ?? '',
+          stock: String(stock),
+          description: p.description ?? '',
+          brand: p.brand ?? '',
+          costPrice: p.costPrice?.toString() ?? '',
+        };
+        lines.push(
+          columns
+            .map((col) => this.escapeCsvField(rowMap[col] ?? ''))
+            .join(','),
+        );
+      }
+      return lines.join('\n');
+    }
 
     const productHeader = [
       'sku',

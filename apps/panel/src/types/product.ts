@@ -63,6 +63,50 @@ export interface ProductDetailStock {
   updatedAt: string;
 }
 
+export interface BulkPriceUpdateForm {
+  updateType: 'fixed' | 'percentage' | 'set';
+  value: number;
+  direction: 'increase' | 'decrease';
+  applyToField: 'salePrice' | 'listPrice' | 'both';
+  previewCount: number;
+}
+
+export type ProductExportColumn =
+  | 'barcode'
+  | 'sku'
+  | 'name'
+  | 'category'
+  | 'salePrice'
+  | 'listPrice'
+  | 'stock'
+  | 'description'
+  | 'brand'
+  | 'costPrice';
+
+export interface ProductAnalyticsResponse {
+  days: number;
+  dailySales: { date: string; quantity: number; revenue: number }[];
+  kpis: {
+    totalSales: number;
+    totalRevenue: number;
+    averageDailySales: number;
+    bestDay: { date: string; quantity: number } | null;
+  };
+  platformDistribution: {
+    platform: string;
+    quantity: number;
+    revenue: number;
+  }[];
+  priceHistory: { date: string; price: number; platform: string }[];
+}
+
+export interface ImportPreviewRow {
+  row: Record<string, string>;
+  lineNumber: number;
+  valid: boolean;
+  errors: string[];
+}
+
 export interface ProductDetailPayload {
   product: {
     id: string;

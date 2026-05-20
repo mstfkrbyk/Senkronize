@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Param,
   Patch,
   Post,
+  ParseIntPipe,
   Query,
   StreamableFile,
   UploadedFile,
@@ -29,6 +31,17 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ImageService } from '../image/image.service';
 
+import type { ProductAnalyticsResponse } from './product-analytics.types';
+import {
+  BulkCategoryAssignDto,
+  BulkPlatformSyncDto,
+  BulkPriceUpdateDto,
+  BulkProductIdsDto,
+  BulkStockUpdateDto,
+  BulkVariantPriceUpdateDto,
+  ReorderProductImagesDto,
+} from './product-bulk.dto';
+import { ProductBulkService } from './product-bulk.service';
 import type { ImportResult } from './product-import.types';
 import { ProductImportService } from './product-import.service';
 import {
@@ -70,6 +83,7 @@ export class ProductController {
     private readonly productService: ProductService,
     private readonly productVariantService: ProductVariantService,
     private readonly productImportService: ProductImportService,
+    private readonly productBulkService: ProductBulkService,
     private readonly imageService: ImageService,
   ) {}
 
@@ -122,18 +136,97 @@ export class ProductController {
     });
   }
 
+  @Get('import/template')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Basit ürün içe aktarma CSV şablonu' })
+  @ApiResponse({ status: 200, description: 'CSV şablonu' })
+  async downloadImportTemplate(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<StreamableFile> {
+    void org.id;
+    const csv = await this.productImportService.exportSimpleImportTemplateCsv();
+    return new StreamableFile(Buffer.from(csv, 'utf-8'), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="urun-sablonu.csv"',
+    });
+  }
+
   @Get('export')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Tüm ürün ve varyantları CSV olarak dışa aktar' })
+  @ApiOperation({ summary: 'Ürünleri CSV olarak dışa aktar' })
   @ApiResponse({ status: 200, description: 'CSV dosyası' })
   async exportProducts(
     @CurrentOrg() org: CurrentOrgPayload,
+    @Query('ids') ids?: string,
+    @Query('columns') columns?: string,
   ): Promise<StreamableFile> {
-    const csv = await this.productImportService.exportProductsToCsv(org.id);
-    return new StreamableFile(Buffer.from(`\ufeff${csv}`, 'utf-8'), {
+    const productIds = ids
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const columnList = columns
+      ?.split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    const csv = await this.productImportService.exportProductsToCsv(org.id, {
+      productIds,
+      columns: columnList,
+    });
+    const body = csv.startsWith('\uFEFF') ? csv : `\uFEFF${csv}`;
+    return new StreamableFile(Buffer.from(body, 'utf-8'), {
       type: 'text/csv; charset=utf-8',
       disposition: 'attachment; filename="urunler.csv"',
     });
+  }
+
+  @Post('bulk/price')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürünlerin listing fiyatlarını toplu güncelle' })
+  async bulkPrice(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkPriceUpdateDto,
+  ): Promise<{ updated: number; previewCount: number }> {
+    return this.productBulkService.bulkUpdatePrices(org.id, dto);
+  }
+
+  @Post('bulk/stock')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürün varyant stoklarını toplu güncelle' })
+  async bulkStock(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkStockUpdateDto,
+  ): Promise<{ updated: number }> {
+    return this.productBulkService.bulkUpdateStock(org.id, dto);
+  }
+
+  @Post('bulk/category')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürünlere kategori ata' })
+  async bulkCategory(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkCategoryAssignDto,
+  ): Promise<{ updated: number }> {
+    return this.productBulkService.bulkAssignCategory(org.id, dto);
+  }
+
+  @Post('bulk/delete')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürünleri sil (soft delete)' })
+  async bulkDelete(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkProductIdsDto,
+  ): Promise<{ deleted: number }> {
+    return this.productBulkService.bulkDelete(org.id, dto.productIds);
+  }
+
+  @Post('bulk/sync-platforms')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürünleri pazaryerlerine gönder' })
+  async bulkSyncPlatforms(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkPlatformSyncDto,
+  ): Promise<{ queued: number }> {
+    return this.productBulkService.bulkSyncPlatforms(org.id, dto);
   }
 
   @Post('import')
@@ -197,6 +290,40 @@ export class ProductController {
     @Param('id') id: string,
   ): Promise<ProductDetailPayload> {
     return this.productService.getProductDetail(org.id, id);
+  }
+
+  @Get(':id/analytics')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün satış ve fiyat analitiği' })
+  async getAnalytics(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
+  ): Promise<ProductAnalyticsResponse> {
+    const safeDays = Math.min(365, Math.max(1, days));
+    return this.productService.getProductAnalytics(org.id, id, safeDays);
+  }
+
+  @Post(':id/images/reorder')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün görsellerinin sırasını güncelle' })
+  async reorderImages(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: ReorderProductImagesDto,
+  ): Promise<Product> {
+    return this.productService.reorderImages(org.id, id, dto.imageUrls);
+  }
+
+  @Delete(':id/images/:imageIndex')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün görselini sil' })
+  async deleteImage(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Param('imageIndex', ParseIntPipe) imageIndex: number,
+  ): Promise<Product> {
+    return this.productService.removeImageAtIndex(org.id, id, imageIndex);
   }
 
   @Get(':id/variants')
@@ -281,6 +408,21 @@ export class ProductController {
     @Body() dto: CreateVariantDto,
   ) {
     return this.productVariantService.createVariant(org.id, id, dto);
+  }
+
+  @Patch(':id/variants/bulk-price')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Varyant fiyatlarını toplu güncelle' })
+  async bulkVariantPrice(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: BulkVariantPriceUpdateDto,
+  ): Promise<{ updated: number }> {
+    return this.productVariantService.bulkUpdateVariantPrices(
+      org.id,
+      id,
+      dto,
+    );
   }
 
   @Patch(':id/variants/:variantId')
