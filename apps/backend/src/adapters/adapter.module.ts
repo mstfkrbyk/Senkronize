@@ -55,8 +55,10 @@ import { CiceksepetiEvModule } from './ciceksepeti-ev/ciceksepeti-ev.module';
 import { CeneoModule } from './ceneo/ceneo.module';
 import { CimriModule } from './cimri/cimri.module';
 import { CoupangModule } from './coupang/coupang.module';
+import { CultBeautyModule } from './cult-beauty/cult-beauty.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { DefactoModule } from './defacto/defacto.module';
+import { DeliverooModule } from './deliveroo/deliveroo.module';
 import { DhgateModule } from './dhgate/dhgate.module';
 import { DobaModule } from './doba/doba.module';
 import { DopingModule } from './doping/doping.module';
@@ -95,7 +97,9 @@ import { GmarketModule } from './gmarket/gmarket.module';
 import { GrabMartModule } from './grab-mart/grab-mart.module';
 import { GittigidiyorModule } from './gittigidiyor/gittigidiyor.module';
 import { GratisModule } from './gratis/gratis.module';
+import { HellofreshModule } from './hellofresh/hellofresh.module';
 import { HeurekaModule } from './heureka/heureka.module';
+import { IherbModule } from './iherb/iherb.module';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
 import { HepsiburadaPremiumModule } from './hepsiburada-premium/hepsiburada-premium.module';
 import { HepsiexpressModule } from './hepsiexpress/hepsiexpress.module';
@@ -132,6 +136,7 @@ import { LazadaModule } from './lazada/lazada.module';
 import { LazadaPhModule } from './lazada-ph/lazada-ph.module';
 import { LaredouteModule } from './laredoute/laredoute.module';
 import { LcwaikikiModule } from './lcwaikiki/lcwaikiki.module';
+import { LookfantasticModule } from './lookfantastic/lookfantastic.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
 import { LidlModule } from './lidl/lidl.module';
@@ -165,6 +170,7 @@ import { MysoftModule } from './mysoft/mysoft.module';
 import { MyntraModule } from './myntra/myntra.module';
 import { N11Adapter } from './n11/n11.adapter';
 import { N11ProModule } from './n11-pro/n11-pro.module';
+import { NotinoModule } from './notino/notino.module';
 import { NamshiModule } from './namshi/namshi.module';
 import { NetsisAdapter } from './netsis/netsis.adapter';
 import { NebimAdapter } from './nebim/nebim.adapter';
@@ -197,6 +203,7 @@ import { RakutenModule } from './rakuten/rakuten.module';
 import { RealdeModule } from './realde/realde.module';
 import { ReverbModule } from './reverb/reverb.module';
 import { RobomarktModule } from './robomarkt/robomarkt.module';
+import { RossmannTrModule } from './rossmann-tr/rossmann-tr.module';
 import { SahibindenPremiumModule } from './sahibinden-premium/sahibinden-premium.module';
 import { SendoModule } from './sendo/sendo.module';
 import { SheinModule } from './shein/shein.module';
@@ -236,6 +243,7 @@ import { ToptaneviModule } from './toptanevi/toptanevi.module';
 import { TradeindiaModule } from './tradeindia/tradeindia.module';
 import { TemuModule } from './temu/temu.module';
 import { TrendyolGoModule } from './trendyol-go/trendyol-go.module';
+import { TrendyolGroceriesModule } from './trendyol-groceries/trendyol-groceries.module';
 import { TrendyolMillaModule } from './trendyol-milla/trendyol-milla.module';
 import { TrendyolIntModule } from './trendyol-int/trendyol-int.module';
 import { TrendyolPremiumModule } from './trendyol-premium/trendyol-premium.module';
@@ -251,7 +259,9 @@ import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { TokopediaModule } from './tokopedia/tokopedia.module';
 import { UniposModule } from './unipos/unipos.module';
+import { UberEatsModule } from './uber-eats/uber-eats.module';
 import { UzumModule } from './uzum/uzum.module';
+import { VitacostModule } from './vitacost/vitacost.module';
 import { VatanModule } from './vatan/vatan.module';
 import { VendureModule } from './vendure/vendure.module';
 import { VeepeeModule } from './veepee/veepee.module';
@@ -293,7 +303,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CeneoModule,
     DustinModule,
     EllosModule,
+    HellofreshModule,
     HeurekaModule,
+    IherbModule,
     KomplettModule,
     MumzworldModule,
     OlxModule,
@@ -335,7 +347,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CiceksepetiEvModule,
     CimriModule,
     CoupangModule,
+    CultBeautyModule,
     DefactoModule,
+    DeliverooModule,
     DopingModule,
     DarazModule,
     DecathlonModule,
@@ -373,8 +387,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GratisModule,
     HepsiburadaPremiumModule,
     HepsiexpressModule,
+    HellofreshModule,
     HizliresmiModule,
     HarveyNormanModule,
+    IherbModule,
     IdealoModule,
     IndiamartModule,
     IdefixModule,
@@ -404,6 +420,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LaredouteModule,
     LetgoModule,
     LcwaikikiModule,
+    LookfantasticModule,
     LidyanaModule,
     LidlModule,
     LinioModule,
@@ -432,6 +449,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MydealModule,
     MyntraModule,
     N11ProModule,
+    NotinoModule,
     NamshiModule,
     NoonModule,
     NoonSaModule,
@@ -458,6 +476,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RealdeModule,
     ReverbModule,
     RobomarktModule,
+    RossmannTrModule,
     SahibindenModule,
     SahibindenB2bModule,
     SahibindenProModule,
@@ -498,13 +517,16 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TakealotModule,
     TokopediaModule,
     TrendyolGoModule,
+    TrendyolGroceriesModule,
     TrendyolIntModule,
     TrendyolMillaModule,
     TrendyolSecondHandModule,
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
+    UberEatsModule,
     UzumModule,
+    VitacostModule,
     VatanModule,
     VendureModule,
     VeepeeModule,
@@ -626,7 +648,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CiceksepetiEvModule,
     CimriModule,
     CoupangModule,
+    CultBeautyModule,
     DefactoModule,
+    DeliverooModule,
     DopingModule,
     DarazModule,
     DecathlonModule,
@@ -664,8 +688,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GratisModule,
     HepsiburadaPremiumModule,
     HepsiexpressModule,
+    HellofreshModule,
     HizliresmiModule,
     HarveyNormanModule,
+    IherbModule,
     IdealoModule,
     IndiamartModule,
     IdefixModule,
@@ -695,6 +721,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LaredouteModule,
     LetgoModule,
     LcwaikikiModule,
+    LookfantasticModule,
     LidyanaModule,
     LidlModule,
     LinioModule,
@@ -723,6 +750,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MydealModule,
     MyntraModule,
     N11ProModule,
+    NotinoModule,
     NamshiModule,
     NoonModule,
     NoonSaModule,
@@ -749,6 +777,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RealdeModule,
     ReverbModule,
     RobomarktModule,
+    RossmannTrModule,
     SahibindenModule,
     SahibindenB2bModule,
     SahibindenProModule,
@@ -789,13 +818,16 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TakealotModule,
     TokopediaModule,
     TrendyolGoModule,
+    TrendyolGroceriesModule,
     TrendyolIntModule,
     TrendyolMillaModule,
     TrendyolSecondHandModule,
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
+    UberEatsModule,
     UzumModule,
+    VitacostModule,
     VatanModule,
     VendureModule,
     VeepeeModule,

@@ -249,7 +249,17 @@ export type Marketplace =
   | 'SPOCKET'
   | 'OBERLO'
   | 'AUTODS'
-  | 'DOBA';
+  | 'DOBA'
+  | 'CULT_BEAUTY'
+  | 'LOOKFANTASTIC'
+  | 'NOTINO'
+  | 'IHERB'
+  | 'VITACOST'
+  | 'HELLOFRESH'
+  | 'DELIVEROO'
+  | 'UBER_EATS'
+  | 'ROSSMANN_TR'
+  | 'TRENDYOL_GROCERIES';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

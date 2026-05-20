@@ -230,6 +230,16 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.OBERLO]: 'Oberlo',
   [Marketplace.AUTODS]: 'AutoDS',
   [Marketplace.DOBA]: 'Doba',
+  [Marketplace.CULT_BEAUTY]: 'Cult Beauty',
+  [Marketplace.LOOKFANTASTIC]: 'Lookfantastic',
+  [Marketplace.NOTINO]: 'Notino',
+  [Marketplace.IHERB]: 'iHerb',
+  [Marketplace.VITACOST]: 'Vitacost',
+  [Marketplace.HELLOFRESH]: 'HelloFresh',
+  [Marketplace.DELIVEROO]: 'Deliveroo',
+  [Marketplace.UBER_EATS]: 'Uber Eats',
+  [Marketplace.ROSSMANN_TR]: 'Rossmann TR',
+  [Marketplace.TRENDYOL_GROCERIES]: 'Trendyol Groceries',
 };
 
 @Injectable()
