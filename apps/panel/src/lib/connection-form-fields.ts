@@ -326,6 +326,24 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  AMERICANAS: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MAGALU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  LINIO: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  FALABELLA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  GRAB_MART: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2)',
+      type: 'password',
+      required: true,
+    },
+  ],
+  GOTO_BUSINESS: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  CENTRAL_ONLINE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  AKULAKU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  HIZLIRESMI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  TICIMAX_MP: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  IKAS_MP: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -1836,6 +1854,17 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'TRADEME',
   'LAMODA',
   'YANDEX_MARKET',
+  'AMERICANAS',
+  'MAGALU',
+  'LINIO',
+  'FALABELLA',
+  'GRAB_MART',
+  'GOTO_BUSINESS',
+  'CENTRAL_ONLINE',
+  'AKULAKU',
+  'HIZLIRESMI',
+  'TICIMAX_MP',
+  'IKAS_MP',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

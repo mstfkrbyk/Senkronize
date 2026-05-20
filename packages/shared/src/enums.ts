@@ -187,7 +187,18 @@ export type Marketplace =
   | 'KASPI'
   | 'UZUM'
   | 'JIOMART'
-  | 'NOON_SA';
+  | 'NOON_SA'
+  | 'AMERICANAS'
+  | 'MAGALU'
+  | 'LINIO'
+  | 'FALABELLA'
+  | 'GRAB_MART'
+  | 'GOTO_BUSINESS'
+  | 'CENTRAL_ONLINE'
+  | 'AKULAKU'
+  | 'HIZLIRESMI'
+  | 'TICIMAX_MP'
+  | 'IKAS_MP';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

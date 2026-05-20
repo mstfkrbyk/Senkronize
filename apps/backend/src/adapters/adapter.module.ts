@@ -9,6 +9,8 @@ import { AsosModule } from './asos/asos.module';
 import { AlibabaModule } from './alibaba/alibaba.module';
 import { AlibabaTrModule } from './alibaba-tr/alibaba-tr.module';
 import { AkinonModule } from './akinon/akinon.module';
+import { AkulakuModule } from './akulaku/akulaku.module';
+import { AmericanasModule } from './americanas/americanas.module';
 import { ArcelikModule } from './arcelik/arcelik.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
 import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
@@ -27,6 +29,7 @@ import { BlibliModule } from './blibli/blibli.module';
 import { BukalapakModule } from './bukalapak/bukalapak.module';
 import { BoynerModule } from './boyner/boyner.module';
 import { CatchAuModule } from './catch-au/catch-au.module';
+import { CentralOnlineModule } from './central-online/central-online.module';
 import { CarrefoursaModule } from './carrefoursa/carrefoursa.module';
 import { CarrefourMeModule } from './carrefour-me/carrefour-me.module';
 import { CdiscountModule } from './cdiscount/cdiscount.module';
@@ -51,6 +54,7 @@ import { FlipkartModule } from './flipkart/flipkart.module';
 import { FnacModule } from './fnac/fnac.module';
 import { FruugoModule } from './fruugo/fruugo.module';
 import { FaprikaModule } from './faprika/faprika.module';
+import { FalabellaModule } from './falabella/falabella.module';
 import { FloModule } from './flo/flo.module';
 import { FuudyModule } from './fuudy/fuudy.module';
 import { GetirFoodModule } from './getir-food/getir-food.module';
@@ -58,15 +62,19 @@ import { GetirMarketModule } from './getir-market/getir-market.module';
 import { GetirYemekModule } from './getir-yemek/getir-yemek.module';
 import { GetirModule } from './getir/getir.module';
 import { GorillasModule } from './gorillas/gorillas.module';
+import { GotoBusinessModule } from './goto-business/goto-business.module';
+import { GrabMartModule } from './grab-mart/grab-mart.module';
 import { GittigidiyorModule } from './gittigidiyor/gittigidiyor.module';
 import { GratisModule } from './gratis/gratis.module';
 import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
 import { HepsiburadaPremiumModule } from './hepsiburada-premium/hepsiburada-premium.module';
 import { HepsiexpressModule } from './hepsiexpress/hepsiexpress.module';
+import { HizliresmiModule } from './hizliresmi/hizliresmi.module';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
 import { InstacartModule } from './instacart/instacart.module';
 import { IkasModule } from './ikas/ikas.module';
+import { IkasMpModule } from './ikas-mp/ikas-mp.module';
 import { IyzicoModule } from './iyzico/iyzico.module';
 import { IsnetAdapter } from './isnet/isnet.adapter';
 import { JdidModule } from './jdid/jdid.module';
@@ -88,11 +96,13 @@ import { LaredouteModule } from './laredoute/laredoute.module';
 import { LcwaikikiModule } from './lcwaikiki/lcwaikiki.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
+import { LinioModule } from './linio/linio.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
 import { LogoAdapter } from './logo/logo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
+import { MagaluModule } from './magalu/magalu.module';
 import { MagentoModule } from './magento/magento.module';
 import { MedusaModule } from './medusa/medusa.module';
 import { ManomanoModule } from './manomano/manomano.module';
@@ -173,6 +183,7 @@ import { TrendyolYemekModule } from './trendyol-yemek/trendyol-yemek.module';
 import { TazeDirektModule } from './taze-direkt/taze-direkt.module';
 import { TargetPlusModule } from './target-plus/target-plus.module';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
+import { TicimaxMpModule } from './ticimax-mp/ticimax-mp.module';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { TokopediaModule } from './tokopedia/tokopedia.module';
@@ -208,6 +219,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AlibabaModule,
     AlibabaTrModule,
     AkinonModule,
+    AkulakuModule,
+    AmericanasModule,
     AllegroModule,
     AmazonAeModule,
     AmazonEuModule,
@@ -224,6 +237,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BukalapakModule,
     BoynerModule,
     CatchAuModule,
+    CentralOnlineModule,
     CarrefourMeModule,
     CarrefoursaModule,
     CdiscountModule,
@@ -246,6 +260,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FnacModule,
     FruugoModule,
     FaprikaModule,
+    FalabellaModule,
     FloModule,
     FuudyModule,
     GetirModule,
@@ -254,11 +269,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GetirYemekModule,
     GittigidiyorModule,
     GorillasModule,
+    GotoBusinessModule,
+    GrabMartModule,
     GratisModule,
     HepsiburadaPremiumModule,
     HepsiexpressModule,
+    HizliresmiModule,
     IdealoModule,
     IkasModule,
+    IkasMpModule,
     IyzicoModule,
     InstacartModule,
     JdidModule,
@@ -279,9 +298,11 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LinioModule,
     LogoCommerceModule,
     LogoCloudModule,
     MadeinchinaModule,
+    MagaluModule,
     MagentoModule,
     MedusaModule,
     ManomanoModule,
@@ -338,6 +359,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SouqModule,
     TikiModule,
     TikladoModule,
+    TicimaxMpModule,
     TrademeModule,
     StripeModule,
     SpartooModule,
@@ -432,6 +454,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AlibabaModule,
     AlibabaTrModule,
     AkinonModule,
+    AkulakuModule,
+    AmericanasModule,
     AllegroModule,
     AmazonAeModule,
     AmazonEuModule,
@@ -448,6 +472,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BukalapakModule,
     BoynerModule,
     CatchAuModule,
+    CentralOnlineModule,
     CarrefourMeModule,
     CarrefoursaModule,
     CdiscountModule,
@@ -470,6 +495,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FnacModule,
     FruugoModule,
     FaprikaModule,
+    FalabellaModule,
     FloModule,
     FuudyModule,
     GetirModule,
@@ -478,11 +504,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GetirYemekModule,
     GittigidiyorModule,
     GorillasModule,
+    GotoBusinessModule,
+    GrabMartModule,
     GratisModule,
     HepsiburadaPremiumModule,
     HepsiexpressModule,
+    HizliresmiModule,
     IdealoModule,
     IkasModule,
+    IkasMpModule,
     IyzicoModule,
     InstacartModule,
     JdidModule,
@@ -503,9 +533,11 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LinioModule,
     LogoCommerceModule,
     LogoCloudModule,
     MadeinchinaModule,
+    MagaluModule,
     MagentoModule,
     MedusaModule,
     ManomanoModule,
@@ -562,6 +594,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SouqModule,
     TikiModule,
     TikladoModule,
+    TicimaxMpModule,
     TrademeModule,
     StripeModule,
     SpartooModule,
