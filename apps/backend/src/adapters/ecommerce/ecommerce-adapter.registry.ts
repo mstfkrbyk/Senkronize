@@ -10,7 +10,7 @@ import { ElasticPathEcommerceAdapter } from './elastic-path/elastic-path-ecommer
 import { EpttavmEcommerceAdapter } from './epttavm/epttavm-ecommerce.adapter';
 import { FaprikaEcommerceAdapter } from './faprika-ecommerce.adapter';
 import { GittigidiyorShopEcommerceAdapter } from './gittigidiyor-shop/gittigidiyor-shop-ecommerce.adapter';
-import { IdeasoftEcommerceAdapter } from './ideasoft-ecommerce.adapter';
+import { IdeasoftEcommerceAdapter } from './ideasoft/ideasoft.adapter';
 import { Magento2EcommerceAdapter } from './magento2-ecommerce.adapter';
 import { NacelleEcommerceAdapter } from './nacelle/nacelle-ecommerce.adapter';
 import { OpencartEcommerceAdapter } from './opencart-ecommerce.adapter';
@@ -20,8 +20,8 @@ import { ReactionCommerceEcommerceAdapter } from './reaction-commerce/reaction-c
 import { ShopifyTrEcommerceAdapter } from './shopify-tr/shopify-tr-ecommerce.adapter';
 import { ShopiverseEcommerceAdapter } from './shopiverse-ecommerce.adapter';
 import { SquarespaceEcommerceAdapter } from './squarespace-ecommerce.adapter';
-import { TicimaxEcommerceAdapter } from './ticimax-ecommerce.adapter';
-import { TsoftEcommerceAdapter } from './tsoft-ecommerce.adapter';
+import { TicimaxEcommerceAdapter } from './ticimax/ticimax.adapter';
+import { TsoftEcommerceAdapter } from './tsoft/tsoft.adapter';
 import { VtexEcommerceAdapter } from './vtex/vtex-ecommerce.adapter';
 import { WixStoresEcommerceAdapter } from './wix-stores-ecommerce.adapter';
 import { WoocommerceEcommerceAdapter } from './woocommerce-ecommerce.adapter';
