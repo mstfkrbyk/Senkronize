@@ -34,9 +34,36 @@ export interface Campaign {
   maxUses: number | null;
   usageCount: number;
   impressions: number;
+  couponCode: string | null;
+  stackable: boolean;
+  totalDiscountAmount: string;
   createdAt: string;
   updatedAt: string;
   affectedProductCount: number;
+}
+
+export interface CampaignKpiSummary {
+  activeCampaignCount: number;
+  totalUsageCount: number;
+  totalDiscountAmount: string;
+  avgConversionRate: number;
+}
+
+export interface CampaignPerformance {
+  usageCount: number;
+  maxUses: number | null;
+  totalDiscountAmount: string;
+  conversionRate: number;
+  impressions: number;
+  usageByDay: Array<{ date: string; usageCount: number }>;
+}
+
+export interface CouponValidationResult {
+  valid: boolean;
+  campaignId: string | null;
+  campaignName: string | null;
+  discountAmount: string;
+  message: string;
 }
 
 export interface CampaignImpactProduct {
@@ -81,4 +108,6 @@ export interface CreateCampaignInput {
   minPrice?: number;
   minOrderAmount?: number;
   maxUses?: number;
+  couponCode?: string;
+  stackable?: boolean;
 }

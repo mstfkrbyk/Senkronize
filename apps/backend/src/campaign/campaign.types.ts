@@ -33,6 +33,39 @@ export interface CampaignImpact {
   productsAtRisk: CampaignImpactProduct[];
 }
 
+export interface CampaignIdImpact extends CampaignImpact {
+  affectedOrderEstimate: number;
+}
+
+export interface CouponValidationResult {
+  valid: boolean;
+  campaignId: string | null;
+  campaignName: string | null;
+  discountAmount: string;
+  message: string;
+}
+
+export interface CampaignUsageTrendPoint {
+  date: string;
+  usageCount: number;
+}
+
+export interface CampaignPerformance {
+  usageCount: number;
+  maxUses: number | null;
+  totalDiscountAmount: string;
+  conversionRate: number;
+  impressions: number;
+  usageByDay: CampaignUsageTrendPoint[];
+}
+
+export interface CampaignKpiSummary {
+  activeCampaignCount: number;
+  totalUsageCount: number;
+  totalDiscountAmount: string;
+  avgConversionRate: number;
+}
+
 export interface CampaignDetail extends CampaignListItem {
   affectedProducts: Array<{
     id: string;

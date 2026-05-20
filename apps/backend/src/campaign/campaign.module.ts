@@ -7,11 +7,12 @@ import { PricingModule } from '../pricing/pricing.module';
 import { CampaignController } from './campaign.controller';
 import { CampaignService } from './campaign.service';
 import { CampaignSchedulerTask } from './campaign.task';
+import { PlatformCampaignService } from './platform-campaign.service';
 
 @Module({
   imports: [AuthModule, CommonModule, PricingModule],
   controllers: [CampaignController],
-  providers: [CampaignService, CampaignSchedulerTask],
+  providers: [CampaignService, CampaignSchedulerTask, PlatformCampaignService],
   exports: [CampaignService],
 })
 export class CampaignModule {}

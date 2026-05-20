@@ -1,12 +1,14 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { Megaphone, Plus } from 'lucide-react';
+import { Megaphone, Percent, Plus, ShoppingBag, TrendingUp } from 'lucide-react';
 
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -27,9 +29,10 @@ import {
   CAMPAIGN_STATUS_LABELS,
   CAMPAIGN_TYPE_LABELS,
   formatCampaignDate,
+  formatMoney,
   platformLabel,
 } from './campaign-labels';
-import { useCampaigns } from './hooks/useCampaigns';
+import { useCampaignKpis, useCampaigns } from './hooks/useCampaigns';
 
 type StatusFilter = CampaignStatus | 'ALL';
 
@@ -76,6 +79,7 @@ export function CampaignsPage(): ReactElement {
     statusFilter === 'ALL' ? undefined : statusFilter,
     proAccess,
   );
+  const kpisQuery = useCampaignKpis(proAccess);
 
   if (!proAccess) {
     return (
@@ -120,6 +124,76 @@ export function CampaignsPage(): ReactElement {
         </Button>
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpisQuery.isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Aktif kampanya
+                </CardTitle>
+                <Megaphone className="h-4 w-4 text-muted-foreground" aria-hidden />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpisQuery.data?.activeCampaignCount ?? 0}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Toplam kullanım
+                </CardTitle>
+                <ShoppingBag className="h-4 w-4 text-muted-foreground" aria-hidden />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpisQuery.data?.totalUsageCount ?? 0}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Verilen indirim
+                </CardTitle>
+                <Percent className="h-4 w-4 text-muted-foreground" aria-hidden />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {formatMoney(kpisQuery.data?.totalDiscountAmount ?? '0')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Dönüşüm oranı
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  %{(kpisQuery.data?.avgConversionRate ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+
       <Tabs
         value={statusFilter}
         onValueChange={(v) => setStatusFilter(v as StatusFilter)}
@@ -134,7 +208,7 @@ export function CampaignsPage(): ReactElement {
       </Tabs>
 
       {campaignsQuery.isLoading ? (
-        <TableSkeleton rows={5} cols={6} />
+        <TableSkeleton rows={5} cols={8} />
       ) : campaignsQuery.isError ? (
         <p className="text-sm text-destructive">
           {getApiErrorMessage(campaignsQuery.error)}
@@ -155,9 +229,11 @@ export function CampaignsPage(): ReactElement {
             <TableHeader>
               <TableRow>
                 <TableHead>İsim</TableHead>
+                <TableHead>Kupon</TableHead>
                 <TableHead>Tip</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Platformlar</TableHead>
+                <TableHead>Kullanım</TableHead>
                 <TableHead>Tarih</TableHead>
                 <TableHead className="text-right">Ürün</TableHead>
               </TableRow>
@@ -173,6 +249,9 @@ export function CampaignsPage(): ReactElement {
                   }}
                 >
                   <TableCell className="font-medium">{campaign.name}</TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {campaign.couponCode ?? '—'}
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary">
                       {CAMPAIGN_TYPE_LABELS[campaign.type]}
@@ -196,6 +275,10 @@ export function CampaignsPage(): ReactElement {
                         </Badge>
                       ) : null}
                     </div>
+                  </TableCell>
+                  <TableCell className="tabular-nums text-sm">
+                    {campaign.usageCount}
+                    {campaign.maxUses !== null ? ` / ${campaign.maxUses}` : ''}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatCampaignDate(campaign.startDate)}

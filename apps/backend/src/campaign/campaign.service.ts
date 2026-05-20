@@ -1,6 +1,7 @@
 import { InjectQueue } from '@nestjs/bull';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -23,17 +24,25 @@ import type { MarketplacePushJobData } from '../queue/queue.types';
 
 import type {
   AnalyzeCampaignDto,
+  BulkCampaignStatusDto,
   CreateCampaignDto,
   UpdateCampaignDto,
+  ValidateCouponDto,
 } from './campaign.dto';
 import type {
   CampaignDetail,
   CampaignDiscountType,
   CampaignFilter,
+  CampaignIdImpact,
   CampaignImpact,
+  CampaignKpiSummary,
   CampaignListItem,
   CampaignOriginalPrices,
+  CampaignPerformance,
+  CampaignUsageTrendPoint,
+  CouponValidationResult,
 } from './campaign.types';
+import { PlatformCampaignService } from './platform-campaign.service';
 
 type ListingWithProduct = Listing & {
   product: {
@@ -52,6 +61,7 @@ export class CampaignService {
     private readonly prisma: PrismaService,
     private readonly eventService: EventService,
     private readonly priceHistoryService: PriceHistoryService,
+    private readonly platformCampaignService: PlatformCampaignService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly pushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -63,6 +73,11 @@ export class CampaignService {
     this.assertValidDates(dto.startDate, dto.endDate);
     this.assertValidPlatforms(dto.platforms);
     this.assertValidDiscount(dto.discountType, dto.discountValue);
+
+    const couponCode = this.normalizeCouponCode(dto.couponCode);
+    if (couponCode) {
+      await this.assertCouponCodeAvailable(organizationId, couponCode);
+    }
 
     const startDate = new Date(dto.startDate);
     const now = new Date();
@@ -91,10 +106,204 @@ export class CampaignService {
             ? new Prisma.Decimal(dto.minOrderAmount)
             : null,
         maxUses: dto.maxUses ?? null,
+        couponCode,
+        stackable: dto.stackable ?? false,
       },
     });
 
     return this.toListItem(campaign);
+  }
+
+  async getKpiSummary(organizationId: string): Promise<CampaignKpiSummary> {
+    const campaigns = await this.prisma.campaign.findMany({
+      where: { organizationId, deletedAt: null },
+      select: {
+        status: true,
+        usageCount: true,
+        impressions: true,
+        totalDiscountAmount: true,
+      },
+    });
+
+    let activeCampaignCount = 0;
+    let totalUsageCount = 0;
+    let totalDiscount = 0;
+    let conversionSum = 0;
+    let conversionWeight = 0;
+
+    for (const c of campaigns) {
+      if (c.status === CampaignStatus.ACTIVE) {
+        activeCampaignCount += 1;
+      }
+      totalUsageCount += c.usageCount;
+      totalDiscount += Number(c.totalDiscountAmount);
+      if (c.impressions > 0) {
+        conversionSum += (c.usageCount / c.impressions) * 100;
+        conversionWeight += 1;
+      }
+    }
+
+    return {
+      activeCampaignCount,
+      totalUsageCount,
+      totalDiscountAmount: totalDiscount.toFixed(2),
+      avgConversionRate:
+        conversionWeight > 0
+          ? Math.round((conversionSum / conversionWeight) * 100) / 100
+          : 0,
+    };
+  }
+
+  async validateCoupon(
+    organizationId: string,
+    dto: ValidateCouponDto,
+  ): Promise<CouponValidationResult> {
+    const code = dto.couponCode.trim().toUpperCase();
+    const campaign = await this.prisma.campaign.findFirst({
+      where: {
+        organizationId,
+        deletedAt: null,
+        couponCode: { equals: code, mode: 'insensitive' },
+      },
+    });
+
+    if (!campaign) {
+      return {
+        valid: false,
+        campaignId: null,
+        campaignName: null,
+        discountAmount: '0.00',
+        message: 'Kupon kodu bulunamadı',
+      };
+    }
+
+    const validationError = this.getCouponEligibilityError(campaign, dto.orderAmount);
+    if (validationError) {
+      return {
+        valid: false,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        discountAmount: '0.00',
+        message: validationError,
+      };
+    }
+
+    const discountAmount = this.calculateOrderDiscount(
+      dto.orderAmount,
+      campaign.discountType as CampaignDiscountType,
+      Number(campaign.discountValue),
+    );
+
+    return {
+      valid: true,
+      campaignId: campaign.id,
+      campaignName: campaign.name,
+      discountAmount: discountAmount.toFixed(2),
+      message: 'Kupon geçerli',
+    };
+  }
+
+  async getCampaignImpactById(
+    organizationId: string,
+    id: string,
+  ): Promise<CampaignIdImpact> {
+    const campaign = await this.findCampaignOrThrow(organizationId, id);
+    const impact = await this.analyzeImpact(organizationId, {
+      name: campaign.name,
+      type: campaign.type,
+      startDate: campaign.startDate.toISOString(),
+      endDate: campaign.endDate?.toISOString(),
+      platforms: campaign.platforms,
+      productIds: campaign.productIds,
+      categoryIds: campaign.categoryIds,
+      discountType: campaign.discountType as CampaignDiscountType,
+      discountValue: Number(campaign.discountValue),
+      minPrice: campaign.minPrice ? Number(campaign.minPrice) : undefined,
+    });
+
+    const affectedOrderEstimate = await this.estimateAffectedOrders(
+      organizationId,
+      campaign,
+    );
+
+    return { ...impact, affectedOrderEstimate };
+  }
+
+  async getCampaignPerformance(
+    organizationId: string,
+    id: string,
+  ): Promise<CampaignPerformance> {
+    const campaign = await this.findCampaignOrThrow(organizationId, id);
+    const conversionRate =
+      campaign.impressions > 0
+        ? Math.round((campaign.usageCount / campaign.impressions) * 10000) / 100
+        : 0;
+
+    return {
+      usageCount: campaign.usageCount,
+      maxUses: campaign.maxUses,
+      totalDiscountAmount: campaign.totalDiscountAmount.toString(),
+      conversionRate,
+      impressions: campaign.impressions,
+      usageByDay: this.buildUsageTrend(campaign),
+    };
+  }
+
+  async duplicateCampaign(
+    organizationId: string,
+    id: string,
+  ): Promise<CampaignListItem> {
+    const source = await this.findCampaignOrThrow(organizationId, id);
+
+    const duplicate = await this.prisma.campaign.create({
+      data: {
+        organizationId,
+        name: `${source.name} (Kopya)`,
+        type: source.type,
+        status: CampaignStatus.DRAFT,
+        startDate: source.startDate,
+        endDate: source.endDate,
+        platforms: source.platforms,
+        productIds: source.productIds,
+        categoryIds: source.categoryIds,
+        discountType: source.discountType,
+        discountValue: source.discountValue,
+        minPrice: source.minPrice,
+        minOrderAmount: source.minOrderAmount,
+        maxUses: source.maxUses,
+        stackable: source.stackable,
+        usageCount: 0,
+        impressions: 0,
+        totalDiscountAmount: new Prisma.Decimal(0),
+      },
+    });
+
+    return this.toListItem(duplicate);
+  }
+
+  async bulkUpdateStatus(
+    organizationId: string,
+    dto: BulkCampaignStatusDto,
+  ): Promise<{ updated: number; failed: string[] }> {
+    const failed: string[] = [];
+    let updated = 0;
+
+    for (const id of dto.ids) {
+      try {
+        if (dto.status === 'ACTIVE') {
+          await this.activateCampaign(organizationId, id);
+        } else if (dto.status === 'PAUSED') {
+          await this.pauseCampaign(organizationId, id);
+        } else {
+          await this.deactivateCampaign(organizationId, id);
+        }
+        updated += 1;
+      } catch {
+        failed.push(id);
+      }
+    }
+
+    return { updated, failed };
   }
 
   async listCampaigns(
@@ -184,6 +393,17 @@ export class CampaignService {
       dto.discountValue ?? Number(existing.discountValue);
     this.assertValidDiscount(discountType, discountValue);
 
+    if (dto.couponCode !== undefined) {
+      const couponCode = this.normalizeCouponCode(dto.couponCode);
+      if (couponCode) {
+        await this.assertCouponCodeAvailable(
+          organizationId,
+          couponCode,
+          existing.id,
+        );
+      }
+    }
+
     const updated = await this.prisma.campaign.update({
       where: { id: existing.id },
       data: {
@@ -219,6 +439,10 @@ export class CampaignService {
             }
           : {}),
         ...(dto.maxUses !== undefined ? { maxUses: dto.maxUses } : {}),
+        ...(dto.couponCode !== undefined
+          ? { couponCode: this.normalizeCouponCode(dto.couponCode) }
+          : {}),
+        ...(dto.stackable !== undefined ? { stackable: dto.stackable } : {}),
       },
     });
 
@@ -255,6 +479,8 @@ export class CampaignService {
       where: { id: campaign.id },
       data: { status: CampaignStatus.ACTIVE },
     });
+
+    await this.platformCampaignService.syncCampaignStart(organizationId, campaign);
   }
 
   async pauseCampaign(organizationId: string, id: string): Promise<void> {
@@ -287,6 +513,12 @@ export class CampaignService {
         originalPrices: Prisma.JsonNull,
       },
     });
+
+    await this.platformCampaignService.syncCampaignEnd(organizationId, campaign);
+  }
+
+  async checkAndApplyCampaigns(): Promise<void> {
+    await this.scheduleCampaigns();
   }
 
   async scheduleCampaigns(): Promise<void> {
@@ -307,6 +539,10 @@ export class CampaignService {
           where: { id: campaign.id },
           data: { status: CampaignStatus.ACTIVE },
         });
+        await this.platformCampaignService.syncCampaignStart(
+          campaign.organizationId,
+          campaign,
+        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Bilinmeyen hata';
@@ -336,6 +572,10 @@ export class CampaignService {
             originalPrices: Prisma.JsonNull,
           },
         });
+        await this.platformCampaignService.syncCampaignEnd(
+          campaign.organizationId,
+          campaign,
+        );
       } catch (error) {
         const message =
           error instanceof Error ? error.message : 'Bilinmeyen hata';
@@ -733,5 +973,127 @@ export class CampaignService {
       campaignId: campaign.id,
       restored: true,
     });
+  }
+
+  private async assertCouponCodeAvailable(
+    organizationId: string,
+    couponCode: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const existing = await this.prisma.campaign.findFirst({
+      where: {
+        couponCode: { equals: couponCode, mode: 'insensitive' },
+        deletedAt: null,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true, organizationId: true },
+    });
+    if (existing && existing.organizationId !== organizationId) {
+      throw new ConflictException('Bu kupon kodu başka bir organizasyonda kullanılıyor');
+    }
+    if (existing) {
+      throw new ConflictException('Bu kupon kodu zaten kullanılıyor');
+    }
+  }
+
+  private normalizeCouponCode(code?: string | null): string | null {
+    if (!code) {
+      return null;
+    }
+    const normalized = code.trim().toUpperCase();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private getCouponEligibilityError(
+    campaign: Campaign,
+    orderAmount: number,
+  ): string | null {
+    const now = new Date();
+    if (campaign.status !== CampaignStatus.ACTIVE) {
+      return 'Kampanya aktif değil';
+    }
+    if (campaign.startDate > now) {
+      return 'Kampanya henüz başlamadı';
+    }
+    if (campaign.endDate && campaign.endDate < now) {
+      return 'Kampanya süresi doldu';
+    }
+    if (
+      campaign.maxUses !== null &&
+      campaign.usageCount >= campaign.maxUses
+    ) {
+      return 'Kupon kullanım limitine ulaşıldı';
+    }
+    if (
+      campaign.minOrderAmount !== null &&
+      orderAmount < Number(campaign.minOrderAmount)
+    ) {
+      return `Minimum sipariş tutarı ${campaign.minOrderAmount} TL`;
+    }
+    return null;
+  }
+
+  private calculateOrderDiscount(
+    orderAmount: number,
+    discountType: CampaignDiscountType,
+    discountValue: number,
+  ): number {
+    switch (discountType) {
+      case 'PERCENTAGE':
+        return Math.round(orderAmount * (discountValue / 100) * 100) / 100;
+      case 'FIXED':
+        return Math.min(orderAmount, discountValue);
+      case 'PRICE_SET':
+        return Math.max(0, orderAmount - discountValue);
+      default:
+        return 0;
+    }
+  }
+
+  private async estimateAffectedOrders(
+    organizationId: string,
+    campaign: Campaign,
+  ): Promise<number> {
+    const platforms = campaign.platforms as Marketplace[];
+    const since = campaign.startDate;
+    const until = campaign.endDate ?? new Date();
+
+    return this.prisma.order.count({
+      where: {
+        organizationId,
+        deletedAt: null,
+        platform: { in: platforms },
+        createdAt: { gte: since, lte: until },
+      },
+    });
+  }
+
+  private buildUsageTrend(campaign: Campaign): CampaignUsageTrendPoint[] {
+    const days = 14;
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - (days - 1));
+
+    const campaignStart = campaign.startDate;
+    const effectiveStart = campaignStart > start ? campaignStart : start;
+    const activeDays = Math.max(
+      1,
+      Math.ceil((end.getTime() - effectiveStart.getTime()) / 86_400_000),
+    );
+    const dailyAvg = campaign.usageCount / activeDays;
+
+    const points: CampaignUsageTrendPoint[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const dateKey = d.toISOString().slice(0, 10);
+      const inRange = d >= effectiveStart && d <= end;
+      points.push({
+        date: dateKey,
+        usageCount: inRange ? Math.round(dailyAvg) : 0,
+      });
+    }
+
+    return points;
   }
 }

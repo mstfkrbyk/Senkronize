@@ -401,6 +401,17 @@ enum Marketplace {
   HUDSONS_BAY
   LIVERPOOL_MX
   COPPEL
+  BAYMIO
+  OTTOPLUS
+  KADIN_CLUB
+  VAKKO
+  BEYMEN
+  NETWORK
+  COLINS
+  US_POLO_TR
+  TWIST
+  CEPTE_SOK
+  ROSSMANN_ONLINE
 }
 
 enum PricingStrategy {
@@ -803,6 +814,8 @@ model Organization {
   passwordRequireSpecial    Boolean   @default(true)
   passwordRequireNumber     Boolean   @default(true)
   passwordMaxAgeDays        Int       @default(90)
+  /// Panel dashboard widget düzeni (sıra, görünürlük, boyut)
+  dashboardWidgets          Json?
   createdAt                 DateTime  @default(now())
   deletedAt                 DateTime?
 
@@ -2340,8 +2353,12 @@ model Campaign {
   minOrderAmount Decimal? @db.Decimal(10, 2)
   maxUses        Int?
 
-  usageCount  Int @default(0)
-  impressions Int @default(0)
+  couponCode  String? @unique
+  stackable   Boolean @default(false)
+
+  usageCount           Int     @default(0)
+  impressions          Int     @default(0)
+  totalDiscountAmount  Decimal @default(0) @db.Decimal(12, 2)
 
   /// Aktivasyon öncesi fiyat anlık görüntüleri: { [listingId]: { salePrice, listPrice } }
   originalPrices Json?

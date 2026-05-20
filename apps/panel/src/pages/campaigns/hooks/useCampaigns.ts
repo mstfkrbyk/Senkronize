@@ -6,9 +6,37 @@ import type {
   Campaign,
   CampaignDetail,
   CampaignImpact,
+  CampaignKpiSummary,
+  CampaignPerformance,
   CampaignStatus,
   CreateCampaignInput,
 } from '@/types/campaign';
+
+export function useCampaignKpis(enabled = true) {
+  return useQuery({
+    queryKey: ['campaigns', 'kpis'],
+    queryFn: async (): Promise<CampaignKpiSummary> => {
+      const { data } = await api.get<{ data: CampaignKpiSummary }>(
+        '/campaigns/kpis/summary',
+      );
+      return data.data;
+    },
+    enabled,
+  });
+}
+
+export function useCampaignPerformance(id: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ['campaigns', id, 'performance'],
+    queryFn: async (): Promise<CampaignPerformance> => {
+      const { data } = await api.get<{ data: CampaignPerformance }>(
+        `/campaigns/${id}/performance`,
+      );
+      return data.data;
+    },
+    enabled: enabled && id !== null && id !== '',
+  });
+}
 
 export function useCampaigns(status?: CampaignStatus, enabled = true) {
   return useQuery({
@@ -109,6 +137,25 @@ export function useDeactivateCampaign() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['campaigns'] });
       toast.success('Kampanya sonlandırıldı');
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+}
+
+export function useDuplicateCampaign() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<Campaign> => {
+      const { data } = await api.post<{ data: Campaign }>(
+        `/campaigns/${id}/duplicate`,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['campaigns'] });
+      toast.success('Kampanya kopyalandı');
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error));

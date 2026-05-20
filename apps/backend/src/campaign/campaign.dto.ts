@@ -2,7 +2,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CampaignStatus, CampaignType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -91,6 +93,18 @@ export class CreateCampaignDto {
   @IsInt()
   @Min(1)
   maxUses?: number;
+
+  @ApiPropertyOptional({ example: 'YAZ2026' })
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(32)
+  couponCode?: string;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  stackable?: boolean;
 }
 
 export class UpdateCampaignDto {
@@ -166,6 +180,44 @@ export class UpdateCampaignDto {
   @IsInt()
   @Min(1)
   maxUses?: number | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(32)
+  couponCode?: string | null;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  stackable?: boolean;
+}
+
+export class ValidateCouponDto {
+  @ApiProperty({ example: 'YAZ2026' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  couponCode!: string;
+
+  @ApiProperty({ example: 750 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  orderAmount!: number;
+}
+
+export class BulkCampaignStatusDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  ids!: string[];
+
+  @ApiProperty({ enum: ['ACTIVE', 'PAUSED', 'ENDED'] })
+  @IsIn(['ACTIVE', 'PAUSED', 'ENDED'])
+  status!: 'ACTIVE' | 'PAUSED' | 'ENDED';
 }
 
 export class CampaignFilterQueryDto {

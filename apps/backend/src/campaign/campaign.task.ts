@@ -11,9 +11,9 @@ export class CampaignSchedulerTask {
 
   /** Her 5 dakikada zamanlanmış kampanyaları aktifleştirir, süresi dolanları sonlandırır. */
   @Cron('*/5 * * * *')
-  async handleScheduledCampaigns(): Promise<void> {
+  async checkAndApplyCampaigns(): Promise<void> {
     try {
-      await this.campaignService.scheduleCampaigns();
+      await this.campaignService.checkAndApplyCampaigns();
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';

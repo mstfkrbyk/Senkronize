@@ -28,15 +28,21 @@ import { RequiresPlan, SubscriptionGuard } from '../common/guards/subscription.g
 
 import {
   AnalyzeCampaignDto,
+  BulkCampaignStatusDto,
   CampaignFilterQueryDto,
   CreateCampaignDto,
   UpdateCampaignDto,
+  ValidateCouponDto,
 } from './campaign.dto';
 import { CampaignService } from './campaign.service';
 import type {
   CampaignDetail,
+  CampaignIdImpact,
   CampaignImpact,
+  CampaignKpiSummary,
   CampaignListItem,
+  CampaignPerformance,
+  CouponValidationResult,
 } from './campaign.types';
 
 @ApiTags('campaigns')
@@ -74,6 +80,42 @@ export class CampaignController {
     return { data };
   }
 
+  @Get('kpis/summary')
+  @RequiresPermission(Permission.PRICING_VIEW)
+  @ApiOperation({ summary: 'Kampanya KPI özeti' })
+  @ApiResponse({ status: 200, description: 'KPI özeti' })
+  async kpis(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: CampaignKpiSummary }> {
+    const data = await this.campaignService.getKpiSummary(org.id);
+    return { data };
+  }
+
+  @Post('validate-coupon')
+  @RequiresPermission(Permission.PRICING_VIEW)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Kupon kodu doğrula' })
+  @ApiResponse({ status: 200, description: 'Doğrulama sonucu' })
+  async validateCoupon(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: ValidateCouponDto,
+  ): Promise<{ data: CouponValidationResult }> {
+    const data = await this.campaignService.validateCoupon(org.id, dto);
+    return { data };
+  }
+
+  @Patch('bulk/status')
+  @RequiresPermission(Permission.PRICING_EDIT)
+  @ApiOperation({ summary: 'Toplu kampanya durum güncelleme' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async bulkStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkCampaignStatusDto,
+  ): Promise<{ data: { updated: number; failed: string[] } }> {
+    const data = await this.campaignService.bulkUpdateStatus(org.id, dto);
+    return { data };
+  }
+
   @Post('analyze')
   @RequiresPermission(Permission.PRICING_VIEW)
   @HttpCode(HttpStatus.OK)
@@ -84,6 +126,43 @@ export class CampaignController {
     @Body() dto: AnalyzeCampaignDto,
   ): Promise<{ data: CampaignImpact }> {
     const data = await this.campaignService.analyzeImpact(org.id, dto);
+    return { data };
+  }
+
+  @Get(':id/impact')
+  @RequiresPermission(Permission.PRICING_VIEW)
+  @ApiOperation({ summary: 'Kampanya etki analizi' })
+  @ApiResponse({ status: 200, description: 'Etki analizi' })
+  async impact(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: CampaignIdImpact }> {
+    const data = await this.campaignService.getCampaignImpactById(org.id, id);
+    return { data };
+  }
+
+  @Get(':id/performance')
+  @RequiresPermission(Permission.PRICING_VIEW)
+  @ApiOperation({ summary: 'Kampanya performans metrikleri' })
+  @ApiResponse({ status: 200, description: 'Performans' })
+  async performance(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: CampaignPerformance }> {
+    const data = await this.campaignService.getCampaignPerformance(org.id, id);
+    return { data };
+  }
+
+  @Post(':id/duplicate')
+  @RequiresPermission(Permission.PRICING_EDIT)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Kampanyayı kopyala' })
+  @ApiResponse({ status: 201, description: 'Kopyalandı' })
+  async duplicate(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: CampaignListItem }> {
+    const data = await this.campaignService.duplicateCampaign(org.id, id);
     return { data };
   }
 

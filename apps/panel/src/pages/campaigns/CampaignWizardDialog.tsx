@@ -62,6 +62,10 @@ const EMPTY_FORM = {
   discountType: 'PERCENTAGE' as CreateCampaignInput['discountType'],
   discountValue: '',
   minPrice: '',
+  couponCode: '',
+  minOrderAmount: '',
+  maxUses: '',
+  stackable: false,
 };
 
 function flattenCategories(nodes: CategoryTreeNode[]): CategoryTreeNode[] {
@@ -150,6 +154,12 @@ export function CampaignWizardDialog({
       minPrice: form.minPrice
         ? Number.parseFloat(form.minPrice)
         : undefined,
+      minOrderAmount: form.minOrderAmount
+        ? Number.parseFloat(form.minOrderAmount)
+        : undefined,
+      maxUses: form.maxUses ? Number.parseInt(form.maxUses, 10) : undefined,
+      couponCode: form.couponCode.trim() || undefined,
+      stackable: form.stackable,
     };
   };
 
@@ -420,6 +430,68 @@ export function CampaignWizardDialog({
                 }
                 placeholder="Opsiyonel"
               />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="coupon-code">Kupon kodu</Label>
+                <Input
+                  id="coupon-code"
+                  value={form.couponCode}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      couponCode: e.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="Opsiyonel"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="min-order">Min. sipariş tutarı (₺)</Label>
+                <Input
+                  id="min-order"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.minOrderAmount}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      minOrderAmount: e.target.value,
+                    }))
+                  }
+                  placeholder="Opsiyonel"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="max-uses">Maks. kullanım</Label>
+                <Input
+                  id="max-uses"
+                  type="number"
+                  min={1}
+                  value={form.maxUses}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, maxUses: e.target.value }))
+                  }
+                  placeholder="Sınırsız"
+                />
+              </div>
+              <label className="flex items-end gap-2 pb-2 text-sm">
+                <Checkbox
+                  checked={form.stackable}
+                  onCheckedChange={(checked) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      stackable: checked === true,
+                    }))
+                  }
+                />
+                Diğer kampanyalarla birleştirilebilir
+              </label>
             </div>
           </div>
         ) : null}
