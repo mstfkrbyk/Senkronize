@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Link2,
+  Users,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
@@ -27,6 +28,7 @@ interface AdminNavItem {
 const ADMIN_NAV: AdminNavItem[] = [
   { to: '/admin', label: 'Platform İstatistikleri', icon: LayoutDashboard, end: true },
   { to: '/admin/organizations', label: 'Organizasyonlar', icon: Building2 },
+  { to: '/admin/users', label: 'Kullanıcılar', icon: Users },
   { to: '/admin/partners', label: 'Partnerler', icon: Handshake },
   {
     to: '/admin/partner-link-requests',

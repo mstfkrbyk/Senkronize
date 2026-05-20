@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   DefaultValuePipe,
+  Delete,
   Get,
   Header,
   NotFoundException,
@@ -11,8 +12,10 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -29,9 +32,12 @@ import { IpBlockService } from '../security/ip-block.service';
 import { AuditLogsQueryDto } from '../users/audit-logs-query.dto';
 import { UsersService } from '../users/users.service';
 import {
+  AddOrgNoteDto,
   AdminOrganizationsQueryDto,
   AdminSubscriptionsQueryDto,
+  AdminUsersQueryDto,
   BlockedIpMutationDto,
+  ChangeAdminUserRoleDto,
   ChangeOrganizationPlanDto,
   GrowthStatsQueryDto,
   SuspendOrganizationDto,
@@ -51,13 +57,17 @@ import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
 import type {
   ActivityItem,
+  ActivitySummary,
+  AdminUserDetail,
   CohortData,
   GrowthMetrics,
   GrowthPeriod,
   HealthStats,
   MrrHistoryPoint,
+  OrgNoteItem,
   OrganizationDetail,
   PaginatedOrganizations,
+  PaginatedUsers,
   PlatformStats,
   PlatformUsageItem,
   RevenueStats,
@@ -130,6 +140,88 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Cohort' })
   async getCohortRetention(): Promise<CohortData[]> {
     return this.adminStatsService.getCohortRetention();
+  }
+
+  @Get('users')
+  @ApiOperation({ summary: 'Tüm kullanıcılar (sayfalı, filtreli)' })
+  @ApiResponse({ status: 200, description: 'Liste' })
+  async getUsers(@Query() query: AdminUsersQueryDto): Promise<PaginatedUsers> {
+    return this.adminService.getUsers(query);
+  }
+
+  @Get('users/:userId')
+  @ApiOperation({ summary: 'Kullanıcı detayı' })
+  @ApiResponse({ status: 200, description: 'Detay' })
+  async getUserDetail(
+    @Param('userId') userId: string,
+  ): Promise<AdminUserDetail> {
+    return this.adminService.getUserDetail(userId);
+  }
+
+  @Patch('users/:userId/role')
+  @ApiOperation({ summary: 'Kullanıcı rolünü değiştir' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async changeUserRole(
+    @Param('userId') userId: string,
+    @Body() body: ChangeAdminUserRoleDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.changeUserRole(userId, body.role, actor);
+    return { ok: true };
+  }
+
+  @Patch('users/:userId/suspend')
+  @ApiOperation({ summary: 'Kullanıcıyı askıya al' })
+  @ApiResponse({ status: 200, description: 'Askıya alındı' })
+  async suspendUser(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.suspendUser(userId, actor);
+    return { ok: true };
+  }
+
+  @Patch('users/:userId/unsuspend')
+  @ApiOperation({ summary: 'Kullanıcı askısını kaldır' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async unsuspendUser(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.unsuspendUser(userId, actor);
+    return { ok: true };
+  }
+
+  @Post('users/:userId/reset-password')
+  @ApiOperation({ summary: 'Kullanıcı şifresini sıfırla (e-posta)' })
+  @ApiResponse({ status: 200, description: 'E-posta gönderildi' })
+  async resetUserPassword(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    return this.adminService.resetUserPassword(userId, actor);
+  }
+
+  @Delete('users/:userId/sessions')
+  @ApiOperation({ summary: 'Kullanıcı oturumlarını sonlandır' })
+  @ApiResponse({ status: 200, description: 'Sonlandırıldı' })
+  async revokeUserSessions(
+    @Param('userId') userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.revokeUserSessions(userId, actor);
+    return { ok: true };
+  }
+
+  @Get('users/:userId/audit-log')
+  @ApiOperation({ summary: 'Kullanıcı denetim kayıtları' })
+  @ApiResponse({ status: 200, description: 'Sayfalı kayıtlar' })
+  async getUserAuditLogs(
+    @Param('userId') userId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number,
+  ) {
+    return this.adminService.getUserAuditLogs(userId, page, limit);
   }
 
   @Get('organizations')
@@ -387,6 +479,57 @@ export class AdminController {
       throw new NotFoundException('Organizasyon bulunamadı');
     }
     return this.usersService.getAuditLogsPage(organizationId, query);
+  }
+
+  @Get('organizations/:id/activity-summary')
+  @ApiOperation({ summary: 'Organizasyon aktivite özeti (son 30 gün)' })
+  @ApiResponse({ status: 200, description: 'Özet' })
+  async getOrgActivitySummary(
+    @Param('id') id: string,
+  ): Promise<ActivitySummary> {
+    return this.adminService.getOrgActivitySummary(id);
+  }
+
+  @Get('organizations/:id/notes')
+  @ApiOperation({ summary: 'Organizasyon notları' })
+  @ApiResponse({ status: 200, description: 'Not listesi' })
+  async getOrgNotes(@Param('id') id: string): Promise<OrgNoteItem[]> {
+    return this.adminService.getOrgNotes(id);
+  }
+
+  @Post('organizations/:id/notes')
+  @ApiOperation({ summary: 'Organizasyona not ekle' })
+  @ApiResponse({ status: 201, description: 'Not eklendi' })
+  async addOrgNote(
+    @Param('id') id: string,
+    @Body() body: AddOrgNoteDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<OrgNoteItem> {
+    return this.adminService.addOrgNote(id, actor.id, body.note);
+  }
+
+  @Get('organizations/:id/export')
+  @Header('Content-Type', 'application/zip')
+  @Header('Content-Disposition', 'attachment; filename="org-export.zip"')
+  @ApiOperation({ summary: 'Organizasyon verisini ZIP olarak dışa aktar' })
+  @ApiResponse({ status: 200, description: 'ZIP dosyası' })
+  async exportOrganizationData(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const zip = await this.adminService.exportOrgDataZip(id);
+    res.send(zip);
+  }
+
+  @Delete('organizations/:id')
+  @ApiOperation({ summary: 'Organizasyonu sil (soft delete)' })
+  @ApiResponse({ status: 200, description: 'Silindi' })
+  async deleteOrganization(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.deleteOrganization(id, actor);
+    return { ok: true };
   }
 
   @Get('organizations/:organizationId/audit-logs/export')

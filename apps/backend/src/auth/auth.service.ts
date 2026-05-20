@@ -33,6 +33,7 @@ import {
   UpdateProfileDto,
 } from './auth.dto';
 import { AuthenticatedUser } from './auth.types';
+import { PostHogService } from '../analytics/posthog.service';
 import { PasswordPolicyService } from './password-policy.service';
 import { SessionService, type TokenPair } from './session.service';
 import { parseDeviceInfo } from './session.utils';
@@ -60,6 +61,7 @@ export class AuthService {
     private readonly sessionService: SessionService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly securityNotification: SecurityNotificationService,
+    private readonly posthog: PostHogService,
   ) {}
 
   async register(dto: RegisterDto): Promise<IssueTokenResult> {
@@ -192,6 +194,12 @@ export class AuthService {
 
     await this.handleSuccessfulLogin(email);
 
+    this.posthog.capture(newUser.id, 'user_registered', {
+      plan: selectedPlan,
+      referralCode:
+        (partnerOrgIdFromInvite ?? dto.referralCode?.trim()) || undefined,
+    });
+
     return this.sessionService.issueTokenPair(
       newUser.id,
       newUser.organizationId!,
@@ -312,6 +320,12 @@ export class AuthService {
       );
     }
 
+    if (user?.suspended && user.role !== UserRole.SUPER_ADMIN) {
+      throw new UnauthorizedException(
+        'Hesabınız askıya alındı. Destek ile iletişime geçin.',
+      );
+    }
+
     if (
       !user ||
       !user.organizationId ||
@@ -359,6 +373,10 @@ export class AuthService {
     });
 
     await this.notifyLoginIfNewDevice(user, sessionMeta);
+
+    this.posthog.capture(user.id, 'user_logged_in', {
+      orgId: user.organizationId,
+    });
 
     return this.sessionService.issueTokenPair(
       user.id,
@@ -419,6 +437,10 @@ export class AuthService {
     });
 
     await this.notifyLoginIfNewDevice(user, sessionMeta);
+
+    this.posthog.capture(user.id, 'user_logged_in', {
+      orgId: user.organizationId,
+    });
 
     return this.sessionService.issueTokenPair(
       user.id,

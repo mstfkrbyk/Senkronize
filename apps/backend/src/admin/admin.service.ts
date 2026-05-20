@@ -1,3 +1,5 @@
+import { PassThrough } from 'stream';
+
 import {
   BadRequestException,
   ConflictException,
@@ -6,23 +8,35 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import archiver from 'archiver';
 import {
   Marketplace,
   PaymentStatus,
   PlanTier,
   Prisma,
   SubStatus,
+  SyncLogStatus,
+  UserRole,
 } from '@prisma/client';
+import Papa from 'papaparse';
 
 import type { AuthenticatedUser, JwtPayload } from '../auth/auth.types';
+import { SessionService } from '../auth/session.service';
+import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { AdminUsersQueryDto } from './admin.dto';
 import type {
   ActivityItem,
+  ActivitySummary,
   AdminOrgListItem,
+  AdminUserDetail,
   DailySignupPoint,
   HealthStats,
+  OrgDataExport,
+  OrgNoteItem,
   OrganizationDetail,
   PaginatedOrganizations,
+  PaginatedUsers,
   PlatformHealthRow,
   PlatformStats,
   RevenueStats,
@@ -144,6 +158,8 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly emailService: EmailService,
+    private readonly sessionService: SessionService,
   ) {}
 
   async getPlatformStats(): Promise<PlatformStats> {
@@ -722,6 +738,459 @@ export class AdminService {
     };
   }
 
+  async getUsers(filters: AdminUsersQueryDto): Promise<PaginatedUsers> {
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const search = filters.search?.trim();
+
+    const where: Prisma.UserWhereInput = {
+      deletedAt: null,
+      ...(search
+        ? {
+            OR: [
+              { email: { contains: search, mode: 'insensitive' } },
+              { name: { contains: search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+      ...(filters.orgId ? { organizationId: filters.orgId } : {}),
+      ...(filters.role ? { role: filters.role } : {}),
+    };
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        include: {
+          organization: { select: { name: true, slug: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      users: users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role: u.role,
+        suspended: u.suspended,
+        lastLoginAt: u.lastLoginAt,
+        createdAt: u.createdAt,
+        organization: u.organization,
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
+  async getUserDetail(userId: string): Promise<AdminUserDetail> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      include: {
+        organization: {
+          select: { id: true, name: true, slug: true, suspended: true },
+        },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      suspended: user.suspended,
+      lastLoginAt: user.lastLoginAt,
+      lockedUntil: user.lockedUntil,
+      createdAt: user.createdAt,
+      organization: user.organization,
+    };
+  }
+
+  async changeUserRole(
+    userId: string,
+    role: UserRole,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const user = await this.requireActiveUser(userId);
+    if (user.role === role) {
+      throw new BadRequestException('Kullanıcı zaten bu role sahip.');
+    }
+    if (user.role === UserRole.SUPER_ADMIN || role === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException('Super Admin rolü bu yolla değiştirilemez.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { role },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.user_role_changed',
+          resourceType: 'User',
+          resourceId: userId,
+          metadata: { previousRole: user.role, newRole: role },
+        },
+      }),
+    ]);
+  }
+
+  async suspendUser(userId: string, actor: AuthenticatedUser): Promise<void> {
+    const user = await this.requireActiveUser(userId);
+    if (user.suspended) {
+      throw new ConflictException('Kullanıcı zaten askıda.');
+    }
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException('Super Admin hesabı askıya alınamaz.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { suspended: true },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.user_suspended',
+          resourceType: 'User',
+          resourceId: userId,
+          metadata: {},
+        },
+      }),
+    ]);
+    await this.sessionService.revokeAllUserSessions(userId);
+  }
+
+  async unsuspendUser(userId: string, actor: AuthenticatedUser): Promise<void> {
+    const user = await this.requireActiveUser(userId);
+    if (!user.suspended) {
+      throw new ConflictException('Kullanıcı askıda değil.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { suspended: false },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.user_unsuspended',
+          resourceType: 'User',
+          resourceId: userId,
+          metadata: {},
+        },
+      }),
+    ]);
+  }
+
+  async resetUserPassword(
+    userId: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    const user = await this.requireActiveUser(userId);
+    const resetToken = await this.jwtService.signAsync(
+      { sub: user.id, purpose: 'admin_password_reset' },
+      {
+        secret: this.config.getOrThrow<string>('JWT_SECRET'),
+        expiresIn: '24h',
+      },
+    );
+    const base = (
+      this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com'
+    ).replace(/\/$/, '');
+    const resetUrl = `${base}/auth/reset-password?token=${encodeURIComponent(resetToken)}`;
+    await this.emailService.sendPasswordReset(user.email, resetUrl);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId,
+        impersonatedOrgId: null,
+        action: 'admin.user_password_reset',
+        resourceType: 'User',
+        resourceId: userId,
+        metadata: {},
+      },
+    });
+    return { ok: true };
+  }
+
+  async revokeUserSessions(userId: string, actor: AuthenticatedUser): Promise<void> {
+    await this.requireActiveUser(userId);
+    await this.sessionService.revokeAllUserSessions(userId);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId,
+        impersonatedOrgId: null,
+        action: 'admin.user_sessions_revoked',
+        resourceType: 'User',
+        resourceId: userId,
+        metadata: {},
+      },
+    });
+  }
+
+  async getUserAuditLogs(
+    userId: string,
+    page: number,
+    limit: number,
+  ): Promise<{
+    logs: {
+      id: string;
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      createdAt: Date;
+    }[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    await this.requireActiveUser(userId);
+    const take = Math.min(Math.max(limit, 1), 100);
+    const skip = (Math.max(page, 1) - 1) * take;
+    const where: Prisma.AuditLogWhereInput = {
+      OR: [
+        { actorUserId: userId },
+        {
+          AND: [
+            { resourceType: 'User' },
+            { resourceId: userId },
+          ],
+        },
+      ],
+    };
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        select: {
+          id: true,
+          action: true,
+          resourceType: true,
+          resourceId: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+    return { logs, total, page: Math.max(page, 1), limit: take };
+  }
+
+  async deleteOrganization(
+    orgId: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.organization.update({
+        where: { id: orgId },
+        data: { deletedAt: new Date(), suspended: true },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_deleted',
+          resourceType: 'Organization',
+          resourceId: orgId,
+          metadata: {},
+        },
+      }),
+    ]);
+  }
+
+  async exportOrgData(orgId: string): Promise<OrgDataExport> {
+    await this.requireActiveOrg(orgId);
+
+    const [products, orders, connections] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        select: {
+          id: true,
+          barcode: true,
+          sku: true,
+          name: true,
+          brand: true,
+          category: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50_000,
+      }),
+      this.prisma.order.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        select: {
+          id: true,
+          platform: true,
+          platformOrderId: true,
+          status: true,
+          customerName: true,
+          totalAmount: true,
+          currency: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50_000,
+      }),
+      this.prisma.marketplaceConnection.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        select: {
+          id: true,
+          platform: true,
+          isActive: true,
+          lastSyncAt: true,
+          syncErrorCount: true,
+          createdAt: true,
+        },
+        orderBy: { platform: 'asc' },
+      }),
+    ]);
+
+    return {
+      productsCsv: Papa.unparse(
+        products.map((p) => ({
+          id: p.id,
+          barcode: p.barcode,
+          sku: p.sku ?? '',
+          name: p.name,
+          brand: p.brand ?? '',
+          category: p.category ?? '',
+          isActive: p.isActive,
+          createdAt: p.createdAt.toISOString(),
+        })),
+      ),
+      ordersCsv: Papa.unparse(
+        orders.map((o) => ({
+          id: o.id,
+          platform: o.platform,
+          platformOrderId: o.platformOrderId,
+          status: o.status,
+          customerName: o.customerName,
+          totalAmount: o.totalAmount.toString(),
+          currency: o.currency,
+          createdAt: o.createdAt.toISOString(),
+        })),
+      ),
+      connectionsCsv: Papa.unparse(
+        connections.map((c) => ({
+          id: c.id,
+          platform: c.platform,
+          isActive: c.isActive,
+          lastSyncAt: c.lastSyncAt?.toISOString() ?? '',
+          syncErrorCount: c.syncErrorCount,
+          createdAt: c.createdAt.toISOString(),
+        })),
+      ),
+    };
+  }
+
+  async exportOrgDataZip(orgId: string): Promise<Buffer> {
+    const data = await this.exportOrgData(orgId);
+    return zipTextFiles([
+      { name: 'urunler.csv', content: data.productsCsv },
+      { name: 'siparisler.csv', content: data.ordersCsv },
+      { name: 'baglantilar.csv', content: data.connectionsCsv },
+    ]);
+  }
+
+  async addOrgNote(
+    orgId: string,
+    adminUserId: string,
+    note: string,
+  ): Promise<OrgNoteItem> {
+    await this.requireActiveOrg(orgId);
+    const created = await this.prisma.orgNote.create({
+      data: {
+        orgId,
+        adminId: adminUserId,
+        content: note.trim(),
+      },
+    });
+    return created;
+  }
+
+  async getOrgNotes(orgId: string): Promise<OrgNoteItem[]> {
+    await this.requireActiveOrg(orgId);
+    return this.prisma.orgNote.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async getOrgActivitySummary(orgId: string): Promise<ActivitySummary> {
+    await this.requireActiveOrg(orgId);
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [syncCount, orderCount, errorCount] = await Promise.all([
+      this.prisma.syncLog.count({
+        where: { organizationId: orgId, startedAt: { gte: since } },
+      }),
+      this.prisma.order.count({
+        where: {
+          organizationId: orgId,
+          deletedAt: null,
+          createdAt: { gte: since },
+        },
+      }),
+      this.prisma.syncLog.count({
+        where: {
+          organizationId: orgId,
+          startedAt: { gte: since },
+          status: { in: [SyncLogStatus.FAILED, SyncLogStatus.PARTIAL] },
+        },
+      }),
+    ]);
+
+    return { syncCount, orderCount, errorCount };
+  }
+
+  private async requireActiveUser(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    return user;
+  }
+
+  private async requireActiveOrg(orgId: string): Promise<void> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+  }
+
   private async buildPlatformHealth(): Promise<PlatformHealthRow[]> {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -787,4 +1256,27 @@ export class AdminService {
       };
     });
   }
+}
+
+async function zipTextFiles(
+  files: { name: string; content: string }[],
+): Promise<Buffer> {
+  return await new Promise((resolve, reject) => {
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    const passthrough = new PassThrough();
+    const chunks: Buffer[] = [];
+    passthrough.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
+    passthrough.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+    passthrough.on('error', reject);
+    archive.on('error', reject);
+    archive.pipe(passthrough);
+    for (const f of files) {
+      archive.append(f.content, { name: f.name });
+    }
+    void archive.finalize();
+  });
 }

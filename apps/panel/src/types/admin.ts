@@ -242,6 +242,38 @@ export interface AdminPartnerLinkRequest {
   partnerOrg: { id: string; name: string; slug: string };
 }
 
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  suspended: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+  organization: { name: string; slug: string } | null;
+}
+
+export interface AdminUsersListResponse {
+  users: AdminUserRow[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminActivitySummary {
+  syncCount: number;
+  orderCount: number;
+  errorCount: number;
+}
+
+export interface AdminOrgNote {
+  id: string;
+  orgId: string;
+  adminId: string;
+  content: string;
+  createdAt: string;
+}
+
 export interface AdminSubscriptionRow {
   id: string;
   organizationId: string;

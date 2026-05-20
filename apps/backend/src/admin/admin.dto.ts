@@ -1,4 +1,4 @@
-import { PlanTier, SubStatus } from '@prisma/client';
+import { PlanTier, SubStatus, UserRole } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -77,4 +77,45 @@ export class BlockedIpMutationDto {
 
   @IsBoolean()
   blocked!: boolean;
+}
+
+export class AdminUsersQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  orgId?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
+}
+
+export class ChangeAdminUserRoleDto {
+  @IsEnum(UserRole)
+  role!: UserRole;
+}
+
+export class AddOrgNoteDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(5000)
+  note!: string;
 }

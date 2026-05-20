@@ -33,6 +33,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException();
     }
 
+    if (user.suspended && user.role !== UserRole.SUPER_ADMIN) {
+      throw new UnauthorizedException();
+    }
+
     if (
       user.organization.suspended &&
       user.role !== UserRole.SUPER_ADMIN

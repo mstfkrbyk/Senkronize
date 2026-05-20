@@ -82,6 +82,11 @@ const AdminPartnerLinksPage = lazy(() =>
     default: m.AdminPartnerLinksPage,
   })),
 );
+const AdminUsersPage = lazy(() =>
+  import('@/pages/admin/AdminUsersPage').then((m) => ({
+    default: m.AdminUsersPage,
+  })),
+);
 const PartnersDiscoveryPage = lazy(() =>
   import('@/pages/settings/PartnersDiscoveryPage').then((m) => ({
     default: m.PartnersDiscoveryPage,
@@ -376,6 +381,7 @@ export default function App(): ReactElement {
                   path="organizations/:orgId"
                   element={<AdminOrgDetailPage />}
                 />
+                <Route path="users" element={<AdminUsersPage />} />
                 <Route
                   path="subscriptions"
                   element={<AdminSubscriptionsPage />}

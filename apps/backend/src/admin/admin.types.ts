@@ -213,3 +213,59 @@ export interface MrrHistoryPoint {
   newOrganizations: number;
   activeOrganizations: number;
 }
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  suspended: boolean;
+  lastLoginAt: Date | null;
+  createdAt: Date;
+  organization: { name: string; slug: string } | null;
+}
+
+export interface PaginatedUsers {
+  users: AdminUserListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface AdminUserDetail {
+  id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  role: string;
+  suspended: boolean;
+  lastLoginAt: Date | null;
+  lockedUntil: Date | null;
+  createdAt: Date;
+  organization: {
+    id: string;
+    name: string;
+    slug: string;
+    suspended: boolean;
+  } | null;
+}
+
+export interface OrgNoteItem {
+  id: string;
+  orgId: string;
+  adminId: string;
+  content: string;
+  createdAt: Date;
+}
+
+export interface ActivitySummary {
+  syncCount: number;
+  orderCount: number;
+  errorCount: number;
+}
+
+export interface OrgDataExport {
+  productsCsv: string;
+  ordersCsv: string;
+  connectionsCsv: string;
+}
