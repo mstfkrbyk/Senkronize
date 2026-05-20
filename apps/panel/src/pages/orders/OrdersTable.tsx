@@ -15,6 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { formatDateWithTimezone, getStoredTimezone } from '@/lib/timezone';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { Order, OrderStatus } from '@/types/order';
 
@@ -34,14 +35,7 @@ function formatTry(amount: string, currency: string): string {
 }
 
 function formatDate(iso: string, locale: string): string {
-  try {
-    return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'tr-TR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  return formatDateWithTimezone(iso, locale, getStoredTimezone());
 }
 
 function PlatformBadge({ platform }: { platform: string }): ReactElement {

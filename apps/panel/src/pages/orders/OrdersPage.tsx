@@ -40,7 +40,7 @@ import { useOrdersPageStore } from '@/store/tablePages.store';
 import type { Order, OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
 
 import {
-  ORDER_FILTER_CONFIG,
+  buildOrderFilterConfig,
   ORDER_FILTER_DEFAULTS,
   ORDER_PAGE_SIZE,
 } from './orderFilters.config';
@@ -145,6 +145,7 @@ function OrdersPageSkeleton(): ReactElement {
 export function OrdersPage(): ReactElement {
   const { t } = useTranslation();
   usePageTitle(t('orders.title'));
+  const orderFilterConfig = useMemo(() => buildOrderFilterConfig(t), [t]);
   const queryClient = useQueryClient();
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
     ORDER_FILTER_DEFAULTS,
@@ -317,7 +318,7 @@ export function OrdersPage(): ReactElement {
       </div>
 
       <AdvancedFilters
-        filters={ORDER_FILTER_CONFIG}
+        filters={orderFilterConfig}
         values={urlFilters}
         onChange={handleFilterChange}
         onReset={resetUrlFilters}
@@ -337,7 +338,7 @@ export function OrdersPage(): ReactElement {
               void refetch();
             }}
           >
-            Tekrar dene
+            {t('common.retry')}
           </Button>
         </div>
       ) : null}
@@ -388,7 +389,7 @@ export function OrdersPage(): ReactElement {
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur dark:shadow-[0_-4px_16px_rgba(0,0,0,0.45)] supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Badge variant="secondary" className="w-fit">
-              {selectedOrderIds.length} seçili
+              {t('orders.bulk.selected', { count: selectedOrderIds.length })}
             </Badge>
             <div className="flex flex-wrap items-center gap-2">
               <Button
@@ -404,7 +405,7 @@ export function OrdersPage(): ReactElement {
                 }}
               >
                 <Truck className="h-3.5 w-3.5" aria-hidden />
-                Kargo bilgisi ekle
+                {t('orders.bulk.addCargo')}
               </Button>
               <Button
                 type="button"
@@ -426,7 +427,7 @@ export function OrdersPage(): ReactElement {
                 ) : (
                   <FileArchive className="h-3.5 w-3.5" aria-hidden />
                 )}
-                Toplu fatura (ZIP)
+                {t('orders.bulk.bulkInvoice')}
               </Button>
               <Button
                 type="button"
@@ -438,7 +439,7 @@ export function OrdersPage(): ReactElement {
                   setStatusOpen(true);
                 }}
               >
-                Durumu güncelle
+                {t('orders.bulk.updateStatus')}
               </Button>
               <Button
                 type="button"
@@ -458,7 +459,7 @@ export function OrdersPage(): ReactElement {
                 }}
               >
                 <Download className="mr-1 h-3.5 w-3.5" aria-hidden />
-                CSV dışa aktar
+                {t('orders.bulk.exportCsv')}
               </Button>
               <Button
                 type="button"
@@ -475,7 +476,7 @@ export function OrdersPage(): ReactElement {
                 }}
               >
                 <Package className="h-3.5 w-3.5" aria-hidden />
-                ERP&apos;ye aktar
+                {t('orders.bulk.exportToErp')}
               </Button>
             </div>
           </div>
@@ -524,7 +525,7 @@ export function OrdersPage(): ReactElement {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCargoOpen(false)}>
-              İptal
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -588,7 +589,7 @@ export function OrdersPage(): ReactElement {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setStatusOpen(false)}>
-              İptal
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -645,7 +646,7 @@ export function OrdersPage(): ReactElement {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setErpOpen(false)}>
-              İptal
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"

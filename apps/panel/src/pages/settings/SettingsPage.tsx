@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuthStore } from '@/store/auth.store';
@@ -17,6 +18,7 @@ import { TeamTab } from './tabs/TeamTab';
 import { WebhooksTab } from './tabs/WebhooksTab';
 
 export function SettingsPage(): ReactElement {
+  const { t } = useTranslation();
   const location = useLocation();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
   const showPartnersTab = orgType !== 'PARTNER';
@@ -28,26 +30,24 @@ export function SettingsPage(): ReactElement {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">Ayarlar</h1>
-        <p className="text-muted-foreground">
-          Hesap, firma, ekip ve abonelik ayarlarınızı yönetin.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">{t('settings.title')}</h1>
+        <p className="text-muted-foreground">{t('settings.subtitle')}</p>
       </div>
 
       <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
         <TabsList className="flex h-auto flex-wrap justify-start gap-1">
-          <TabsTrigger value="profile">Profil</TabsTrigger>
-          <TabsTrigger value="appearance">Görünüm</TabsTrigger>
-          <TabsTrigger value="organization">Firma</TabsTrigger>
-          <TabsTrigger value="currency">Para birimi</TabsTrigger>
-          <TabsTrigger value="team">Ekip</TabsTrigger>
-          <TabsTrigger value="subscription">Abonelik</TabsTrigger>
-          <TabsTrigger value="notifications">Bildirimler</TabsTrigger>
-          <TabsTrigger value="security">{'Güvenlik & KVKK'}</TabsTrigger>
-          <TabsTrigger value="api-keys">API anahtarları</TabsTrigger>
-          <TabsTrigger value="webhooks">Webhook&apos;lar</TabsTrigger>
+          <TabsTrigger value="profile">{t('settings.profile')}</TabsTrigger>
+          <TabsTrigger value="appearance">{t('settings.appearance')}</TabsTrigger>
+          <TabsTrigger value="organization">{t('settings.organization')}</TabsTrigger>
+          <TabsTrigger value="currency">{t('settings.currency')}</TabsTrigger>
+          <TabsTrigger value="team">{t('settings.team')}</TabsTrigger>
+          <TabsTrigger value="subscription">{t('settings.subscription')}</TabsTrigger>
+          <TabsTrigger value="notifications">{t('settings.notifications')}</TabsTrigger>
+          <TabsTrigger value="security">{t('settings.security')}</TabsTrigger>
+          <TabsTrigger value="api-keys">{t('settings.apiKeys')}</TabsTrigger>
+          <TabsTrigger value="webhooks">{t('settings.webhooks')}</TabsTrigger>
           {showPartnersTab ? (
-            <TabsTrigger value="partners">Partnerler</TabsTrigger>
+            <TabsTrigger value="partners">{t('settings.partners')}</TabsTrigger>
           ) : null}
         </TabsList>
         <TabsContent value="profile" className="mt-6">

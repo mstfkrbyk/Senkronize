@@ -1,14 +1,16 @@
 import type { ReactElement } from 'react';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Download, Package, Upload } from 'lucide-react';
+import { ChevronRight, Package, Upload } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Card,
   CardContent,
@@ -30,6 +32,8 @@ import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type { ProductListItem } from '@/types/product';
 
+import { ProductBulkActions } from './components/ProductBulkActions';
+import { ProductExportMenu } from './components/ProductExportMenu';
 import {
   PRODUCT_FILTER_CONFIG,
   PRODUCT_FILTER_DEFAULTS,
@@ -48,7 +52,9 @@ function formatMoney(value: unknown): string {
 }
 
 export function ProductsPage(): ReactElement {
-  usePageTitle('Ürün Kataloğu');
+  const { t } = useTranslation();
+  usePageTitle(t('products.catalogTitle'));
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
     PRODUCT_FILTER_DEFAULTS,
   );
@@ -101,20 +107,40 @@ export function ProductsPage(): ReactElement {
     [setUrlFilters],
   );
 
-  const exportCsv = useCallback(async () => {
-    const res = await api.get<Blob>('/products/export', {
-      responseType: 'blob',
+  const items = productsQuery.data?.items ?? [];
+  const selectedIdList = useMemo(() => [...selectedIds], [selectedIds]);
+
+  const toggleRow = useCallback((id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
     });
-    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'urunler.csv';
-    a.click();
-    URL.revokeObjectURL(url);
   }, []);
 
-  const items = productsQuery.data?.items ?? [];
+  const toggleAllOnPage = useCallback(
+    (checked: boolean) => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const p of items) {
+          if (checked) {
+            next.add(p.id);
+          } else {
+            next.delete(p.id);
+          }
+        }
+        return next;
+      });
+    },
+    [items],
+  );
+
+  const allOnPageSelected =
+    items.length > 0 && items.every((p) => selectedIds.has(p.id));
   const total = productsQuery.data?.total ?? 0;
   const page = urlFilters.page;
   const hasNext = page * PRODUCT_PAGE_SIZE < total;
@@ -132,20 +158,15 @@ export function ProductsPage(): ReactElement {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Ürün Kataloğu</h1>
-          <p className="text-muted-foreground text-sm">
-            Merkezi ürün kayıtları ve varyantlar
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t('products.catalogTitle')}</h1>
+          <p className="text-muted-foreground text-sm">{t('products.subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void exportCsv()}>
-            <Download className="mr-2 size-4" />
-            Dışa Aktar
-          </Button>
+          <ProductExportMenu selectedIds={selectedIdList} />
           <Button type="button" size="sm" asChild>
             <Link to="/products/import">
               <Upload className="mr-2 size-4" />
-              İçe Aktar
+              {t('products.import')}
             </Link>
           </Button>
         </div>
@@ -158,19 +179,26 @@ export function ProductsPage(): ReactElement {
         onReset={resetUrlFilters}
       />
 
+      <ProductBulkActions
+        selectedIds={selectedIdList}
+        onClearSelection={() => {
+          setSelectedIds(new Set());
+        }}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Package className="size-4" />
-            Ürünler
+            {t('products.title')}
           </CardTitle>
           <CardDescription>
-            Toplam {total.toLocaleString('tr-TR')} kayıt
+            {t('products.totalRecords', { count: total.toLocaleString('tr-TR') })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {productsQuery.isLoading ? (
-            <TableSkeleton rows={8} cols={7} />
+            <TableSkeleton rows={8} cols={8} />
           ) : productsQuery.isError ? (
             <p className="text-destructive text-sm">
               {getApiErrorMessage(productsQuery.error)}
@@ -178,19 +206,21 @@ export function ProductsPage(): ReactElement {
           ) : items.length === 0 ? (
             <EmptyState
               icon={Package}
-              title={hasActiveFilters ? 'Filtrelere uygun ürün yok' : 'Henüz ürün yok'}
+              title={
+                hasActiveFilters ? t('products.emptyFilteredTitle') : t('products.emptyTitle')
+              }
               description={
                 hasActiveFilters
-                  ? 'Filtreleri değiştirerek tekrar deneyin.'
-                  : 'İlk ürününüzü içe aktararak veya bağlantılarınızı kurarak kataloğunuzu oluşturun.'
+                  ? t('products.emptyFilteredDescription')
+                  : t('products.emptyDescription')
               }
               actionSlot={
                 <div className="flex flex-wrap items-center justify-center gap-2">
                   <Button type="button" size="sm" asChild>
-                    <Link to="/products/import">İçe aktar</Link>
+                    <Link to="/products/import">{t('products.importAction')}</Link>
                   </Button>
                   <Button type="button" size="sm" variant="outline" asChild>
-                    <Link to="/connections">Bağlantıları aç</Link>
+                    <Link to="/connections">{t('products.openConnections')}</Link>
                   </Button>
                 </div>
               }
@@ -200,18 +230,36 @@ export function ProductsPage(): ReactElement {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ad</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead>Barkod</TableHead>
-                    <TableHead>Marka</TableHead>
-                    <TableHead>Kategori</TableHead>
-                    <TableHead className="text-right">Maliyet</TableHead>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={allOnPageSelected}
+                        onCheckedChange={(checked) => {
+                          toggleAllOnPage(checked === true);
+                        }}
+                        aria-label={t('common.selectAllOnPage')}
+                      />
+                    </TableHead>
+                    <TableHead>{t('products.name')}</TableHead>
+                    <TableHead>{t('products.sku')}</TableHead>
+                    <TableHead>{t('products.barcode')}</TableHead>
+                    <TableHead>{t('products.brand')}</TableHead>
+                    <TableHead>{t('products.category')}</TableHead>
+                    <TableHead className="text-right">{t('products.cost')}</TableHead>
                     <TableHead className="w-[100px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {items.map((p) => (
                     <TableRow key={p.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedIds.has(p.id)}
+                          onCheckedChange={(checked) => {
+                            toggleRow(p.id, checked === true);
+                          }}
+                          aria-label={`${p.name} seç`}
+                        />
+                      </TableCell>
                       <TableCell className="font-medium">{p.name}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {p.sku ?? '—'}
@@ -226,7 +274,7 @@ export function ProductsPage(): ReactElement {
                         <Button variant="ghost" size="sm" asChild>
                           <Link to={`/products/${p.id}`}>
                             <ChevronRight className="mr-1 size-3" />
-                            Detay
+                            {t('common.detail')}
                           </Link>
                         </Button>
                       </TableCell>
@@ -236,7 +284,10 @@ export function ProductsPage(): ReactElement {
               </Table>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <p className="text-muted-foreground text-sm">
-                  Sayfa {page} / {Math.max(1, Math.ceil(total / PRODUCT_PAGE_SIZE))}
+                  {t('products.pageOf', {
+                    page,
+                    total: Math.max(1, Math.ceil(total / PRODUCT_PAGE_SIZE)),
+                  })}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -248,7 +299,7 @@ export function ProductsPage(): ReactElement {
                       setUrlFilters({ page: Math.max(1, page - 1) });
                     }}
                   >
-                    Önceki
+                    {t('common.previous')}
                   </Button>
                   <Button
                     type="button"
@@ -259,7 +310,7 @@ export function ProductsPage(): ReactElement {
                       setUrlFilters({ page: page + 1 });
                     }}
                   >
-                    Sonraki
+                    {t('common.next')}
                   </Button>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 import { useQuery } from '@tanstack/react-query';
 import { Clock, Package, ShoppingCart, Store } from 'lucide-react';
@@ -132,6 +133,7 @@ function hitIcon(type: GlobalSearchResultType): ReactElement {
 }
 
 export function GlobalSearch(): ReactElement {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -209,7 +211,7 @@ export function GlobalSearch(): ReactElement {
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput
-        placeholder="Arama yapın…"
+        placeholder={t('common.searchPlaceholder')}
         value={query}
         onValueChange={setQuery}
       />

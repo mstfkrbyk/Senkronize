@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { Plug } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import {
   ConnectionFormModal,
@@ -22,6 +23,7 @@ import { ErpConnectionCard } from './ErpConnectionCard';
 const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
 export function ConnectionsPage(): ReactElement {
+  const { t } = useTranslation();
   const [mainTab, setMainTab] = useState<'marketplace' | 'ecommerce' | 'erp'>('marketplace');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
@@ -91,22 +93,20 @@ export function ConnectionsPage(): ReactElement {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Bağlantılar
+            {t('connections.title')}
           </h1>
-          <p className="text-muted-foreground">
-            Pazaryeri, e-ticaret siteniz ve ERP entegrasyonlarınızı yönetin.
-          </p>
+          <p className="text-muted-foreground">{t('connections.subtitle')}</p>
         </div>
         <Button type="button" onClick={() => openAddModal()}>
-          Bağlantı Ekle
+          {t('connections.add')}
         </Button>
       </div>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
         <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="marketplace">Pazaryerleri</TabsTrigger>
-          <TabsTrigger value="ecommerce">E-Ticaret</TabsTrigger>
-          <TabsTrigger value="erp">ERP</TabsTrigger>
+          <TabsTrigger value="marketplace">{t('connections.marketplace')}</TabsTrigger>
+          <TabsTrigger value="ecommerce">{t('connections.ecommerce')}</TabsTrigger>
+          <TabsTrigger value="erp">{t('connections.erp')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="marketplace" className="mt-6">
@@ -130,7 +130,7 @@ export function ConnectionsPage(): ReactElement {
                   void refetchMp();
                 }}
               >
-                Tekrar dene
+                {t('common.retry')}
               </Button>
             </div>
           ) : null}
@@ -138,10 +138,10 @@ export function ConnectionsPage(): ReactElement {
           {!mpLoading && !mpError && marketplaceOnly.length === 0 ? (
             <EmptyState
               icon={Plug}
-              title="Bağlantı yok"
-              description="Pazaryeri hesaplarınızı bağlayarak sipariş ve stok senkronizasyonuna başlayın."
+              title={t('connections.emptyMarketplaceTitle')}
+              description={t('connections.emptyMarketplaceDescription')}
               action={{
-                label: 'İlk bağlantınızı ekleyin',
+                label: t('connections.emptyMarketplaceAction'),
                 onClick: () => {
                   setMainTab('marketplace');
                   setModalConfig({
@@ -185,7 +185,7 @@ export function ConnectionsPage(): ReactElement {
                   void refetchMp();
                 }}
               >
-                Tekrar dene
+                {t('common.retry')}
               </Button>
             </div>
           ) : null}
@@ -193,10 +193,10 @@ export function ConnectionsPage(): ReactElement {
           {!mpLoading && !mpError && ecommerceOnly.length === 0 ? (
             <EmptyState
               icon={Plug}
-              title="E-ticaret bağlantısı yok"
-              description="T-Soft, Ticimax, WooCommerce, Shopify veya İdeasoft mağazanızı bağlayın."
+              title={t('connections.emptyEcommerceTitle')}
+              description={t('connections.emptyEcommerceDescription')}
               action={{
-                label: 'Mağaza bağlantısı ekle',
+                label: t('connections.emptyEcommerceAction'),
                 onClick: () => {
                   setModalConfig({
                     kind: 'marketplace',
@@ -239,7 +239,7 @@ export function ConnectionsPage(): ReactElement {
                   void refetchErp();
                 }}
               >
-                Tekrar dene
+                {t('common.retry')}
               </Button>
             </div>
           ) : null}
@@ -247,10 +247,10 @@ export function ConnectionsPage(): ReactElement {
           {!erpLoading && !erpIsError && (erpConnections ?? []).length === 0 ? (
             <EmptyState
               icon={Plug}
-              title="ERP bağlantısı yok"
-              description="Muhasebe veya stok sisteminizi bağlayarak fatura ve stok akışını tek yerden yönetin."
+              title={t('connections.emptyErpTitle')}
+              description={t('connections.emptyErpDescription')}
               action={{
-                label: 'ERP bağlantısı ekle',
+                label: t('connections.emptyErpAction'),
                 onClick: () => {
                   setModalConfig({ kind: 'erp', mode: 'create' });
                   setModalOpen(true);

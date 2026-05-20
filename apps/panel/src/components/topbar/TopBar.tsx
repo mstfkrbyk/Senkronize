@@ -2,8 +2,10 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { Search } from 'lucide-react';
 
 import { HelpMenu } from '@/components/topbar/HelpMenu';
+import { openGlobalSearch } from '@/components/GlobalSearch';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -94,7 +96,19 @@ export function TopBar(): ReactElement {
         </span>
       </div>
 
-      <div className="hidden max-w-xs items-center gap-2 truncate rounded-md border bg-background px-3 py-1.5 text-sm md:flex">
+      <div className="hidden max-w-xs flex-1 items-center md:flex">
+        <Button
+          type="button"
+          variant="outline"
+          className="text-muted-foreground h-9 w-full max-w-xs justify-start gap-2 px-3 font-normal"
+          onClick={() => openGlobalSearch()}
+        >
+          <Search className="size-4 shrink-0" aria-hidden />
+          <span className="truncate">{t('common.searchPlaceholder')}</span>
+        </Button>
+      </div>
+
+      <div className="hidden max-w-xs items-center gap-2 truncate rounded-md border bg-background px-3 py-1.5 text-sm lg:flex">
         {isLoading && !org ? (
           <Skeleton className="h-4 w-40" />
         ) : org ? (
