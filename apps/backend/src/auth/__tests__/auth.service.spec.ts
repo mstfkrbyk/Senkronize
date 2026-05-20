@@ -222,7 +222,7 @@ describe('AuthService', () => {
       expect(prismaService.user.findFirst).toHaveBeenCalledWith({
         where: { email: 'new@example.com', deletedAt: null },
       });
-      expect(prismaService.$transaction).toHaveBeenCalledTimes(2);
+      expect(prismaService.$transaction).toHaveBeenCalledTimes(1);
     });
 
     it('mevcut e-posta için ConflictException vermeli', async () => {
