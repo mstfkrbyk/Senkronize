@@ -447,7 +447,7 @@ export default function App(): ReactElement {
                 <Route path="/stock/transfers" element={<StockTransferPage />} />
                 <Route path="/stock/forecast" element={<StockForecastPage />} />
                 <Route path="/stock" element={<StockPage />} />
-                <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
+                <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
                 <Route path="/suppliers" element={<SuppliersPage />} />
                 <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
                 <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />

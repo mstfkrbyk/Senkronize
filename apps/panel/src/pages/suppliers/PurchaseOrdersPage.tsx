@@ -3,13 +3,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Loader2, Plus, Sparkles } from 'lucide-react';
+import {
+  ClipboardList,
+  Clock,
+  Download,
+  Loader2,
+  Plus,
+  ShoppingCart,
+  Sparkles,
+  TrendingUp,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -37,11 +48,30 @@ import {
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { PO_STATUS_LABEL_TR, poStatusBadgeClass } from '@/lib/po-status';
+import {
+  currentMonthSpend,
+  formatSupplierDate,
+  formatTryAmount,
+} from '@/pages/suppliers/supplier-utils';
 import type {
+  POStatus,
+  PurchaseOrderAnalyticsDto,
   PurchaseOrderDetailDto,
   ReplenishmentSuggestionDto,
   SupplierDto,
 } from '@/types/supply';
+
+const PAGE_SIZE = 20;
+
+const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'all', label: 'Tüm durumlar' },
+  { value: 'DRAFT', label: PO_STATUS_LABEL_TR.DRAFT },
+  { value: 'SENT', label: PO_STATUS_LABEL_TR.SENT },
+  { value: 'CONFIRMED', label: PO_STATUS_LABEL_TR.CONFIRMED },
+  { value: 'PARTIALLY_RECEIVED', label: PO_STATUS_LABEL_TR.PARTIALLY_RECEIVED },
+  { value: 'RECEIVED', label: PO_STATUS_LABEL_TR.RECEIVED },
+  { value: 'CANCELLED', label: PO_STATUS_LABEL_TR.CANCELLED },
+];
 
 interface PoLineForm {
   barcode: string;
@@ -61,7 +91,7 @@ function downloadPoCsv(rows: PurchaseOrderDetailDto[]): void {
     'durum',
     'tutar',
     'para',
-    'beklenen_tarih',
+    'kalem',
     'olusturma',
   ];
   const lines = [
@@ -73,7 +103,7 @@ function downloadPoCsv(rows: PurchaseOrderDetailDto[]): void {
         escapeCsvCell(po.status),
         escapeCsvCell(po.totalAmount),
         escapeCsvCell(po.currency),
-        escapeCsvCell(po.expectedDate ?? ''),
+        escapeCsvCell(String(po.items.length)),
         escapeCsvCell(po.createdAt),
       ].join(','),
     ),
@@ -89,13 +119,54 @@ function downloadPoCsv(rows: PurchaseOrderDetailDto[]): void {
   URL.revokeObjectURL(url);
 }
 
+interface KpiCardProps {
+  title: string;
+  value: string;
+  sub?: string;
+  icon: typeof ShoppingCart;
+  tone: string;
+  loading: boolean;
+}
+
+function KpiCard({
+  title,
+  value,
+  sub,
+  icon: Icon,
+  tone,
+  loading,
+}: KpiCardProps): ReactElement {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <Icon className={`size-5 ${tone}`} aria-hidden />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-8 w-24" />
+        ) : (
+          <>
+            <p className="text-2xl font-bold tabular-nums tracking-tight">{value}</p>
+            {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PurchaseOrdersPage(): ReactElement {
   usePageTitle('Satın alma siparişleri');
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  const [supplierFilter, setSupplierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
-  const [supplierId, setSupplierId] = useState<string>('');
+  const [supplierId, setSupplierId] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<PoLineForm[]>([
@@ -103,34 +174,49 @@ export function PurchaseOrdersPage(): ReactElement {
   ]);
 
   useEffect(() => {
+    const preSupplier = searchParams.get('supplierId');
+    if (preSupplier) {
+      setSupplierFilter(preSupplier);
+      setSupplierId(preSupplier);
+    }
+    if (searchParams.get('create') === '1') {
+      setCreateOpen(true);
+    }
     const barcode = searchParams.get('barcode');
     const name = searchParams.get('name');
     const qty = searchParams.get('qty');
-    if (!barcode?.trim() || !name?.trim()) {
-      return;
+    if (barcode?.trim() && name?.trim()) {
+      const safeQty =
+        qty !== null && qty !== '' && !Number.isNaN(Number(qty))
+          ? String(Math.max(1, Math.floor(Number(qty))))
+          : '1';
+      setCreateOpen(true);
+      setLines([
+        {
+          barcode: barcode.trim(),
+          productName: name.trim(),
+          quantity: safeQty,
+          unitCost: '0',
+        },
+      ]);
     }
-    const safeQty =
-      qty !== null && qty !== '' && !Number.isNaN(Number(qty))
-        ? String(Math.max(1, Math.floor(Number(qty))))
-        : '1';
-    setCreateOpen(true);
-    setLines([
-      {
-        barcode: barcode.trim(),
-        productName: name.trim(),
-        quantity: safeQty,
-        unitCost: '0',
-      },
-    ]);
-    const next = new URLSearchParams(searchParams);
-    next.delete('barcode');
-    next.delete('name');
-    next.delete('qty');
-    setSearchParams(next, { replace: true });
+    if (
+      preSupplier ||
+      searchParams.get('create') ||
+      barcode
+    ) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('supplierId');
+      next.delete('create');
+      next.delete('barcode');
+      next.delete('name');
+      next.delete('qty');
+      setSearchParams(next, { replace: true });
+    }
   }, [searchParams, setSearchParams]);
 
   const listQuery = useQuery({
-    queryKey: ['purchase-orders', page],
+    queryKey: ['purchase-orders', page, supplierFilter, statusFilter, fromDate, toDate],
     queryFn: async (): Promise<{
       data: PurchaseOrderDetailDto[];
       total: number;
@@ -138,8 +224,27 @@ export function PurchaseOrdersPage(): ReactElement {
       const { data } = await api.get<{
         data: PurchaseOrderDetailDto[];
         total: number;
-      }>('/purchase-orders', { params: { page, limit: 20 } });
+      }>('/purchase-orders', {
+        params: {
+          page,
+          limit: PAGE_SIZE,
+          supplierId: supplierFilter || undefined,
+          status: statusFilter !== 'all' ? (statusFilter as POStatus) : undefined,
+          fromDate: fromDate || undefined,
+          toDate: toDate || undefined,
+        },
+      });
       return data;
+    },
+  });
+
+  const analyticsQuery = useQuery({
+    queryKey: ['purchase-orders', 'analytics'],
+    queryFn: async (): Promise<PurchaseOrderAnalyticsDto> => {
+      const { data } = await api.get<{ data: PurchaseOrderAnalyticsDto }>(
+        '/purchase-orders/analytics',
+      );
+      return data.data;
     },
   });
 
@@ -148,11 +253,10 @@ export function PurchaseOrdersPage(): ReactElement {
     queryFn: async (): Promise<SupplierDto[]> => {
       const { data } = await api.get<{ data: SupplierDto[]; total: number }>(
         '/suppliers',
-        { params: { page: 1, limit: 500 } },
+        { params: { page: 1, limit: 500, isActive: true } },
       );
       return data.data;
     },
-    enabled: createOpen,
   });
 
   const suggestionsQuery = useQuery({
@@ -191,6 +295,7 @@ export function PurchaseOrdersPage(): ReactElement {
       setNotes('');
       setLines([{ barcode: '', productName: '', quantity: '1', unitCost: '0' }]);
       await queryClient.invalidateQueries({ queryKey: ['purchase-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['purchase-orders', 'analytics'] });
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -199,7 +304,7 @@ export function PurchaseOrdersPage(): ReactElement {
 
   const totalPages = useMemo(() => {
     const t = listQuery.data?.total ?? 0;
-    return Math.max(1, Math.ceil(t / 20));
+    return Math.max(1, Math.ceil(t / PAGE_SIZE));
   }, [listQuery.data?.total]);
 
   const applySuggestion = (s: ReplenishmentSuggestionDto): void => {
@@ -216,6 +321,13 @@ export function PurchaseOrdersPage(): ReactElement {
     toast.message('Kalem eklendi', { description: s.message });
   };
 
+  const analytics = analyticsQuery.data;
+  const kpiLoading = analyticsQuery.isLoading;
+  const avgOrderValue =
+    analytics && analytics.totalOrders > 0
+      ? analytics.totalAmount / analytics.totalOrders
+      : 0;
+
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -224,7 +336,7 @@ export function PurchaseOrdersPage(): ReactElement {
             Satın alma siparişleri
           </h1>
           <p className="text-sm text-muted-foreground">
-            Taslak oluşturun, tedarikçiye gönderin ve teslim alın
+            Taslak oluşturun, onaylayın ve mal teslim alın
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -239,12 +351,117 @@ export function PurchaseOrdersPage(): ReactElement {
             }}
           >
             <Download className="mr-2 size-4" />
-            CSV dışa aktar
+            CSV
           </Button>
           <Button type="button" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 size-4" />
             Yeni sipariş
           </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiCard
+          title="Toplam sipariş"
+          value={kpiLoading ? '—' : String(analytics?.totalOrders ?? 0)}
+          icon={ClipboardList}
+          tone="text-sky-600"
+          loading={kpiLoading}
+        />
+        <KpiCard
+          title="Bekleyen"
+          value={kpiLoading ? '—' : String(analytics?.pendingOrders ?? 0)}
+          sub="Gönderildi / onaylı"
+          icon={Clock}
+          tone="text-amber-600"
+          loading={kpiLoading}
+        />
+        <KpiCard
+          title="Bu ay harcama"
+          value={
+            kpiLoading ? '—' : formatTryAmount(currentMonthSpend(analytics?.monthlySpend))
+          }
+          icon={TrendingUp}
+          tone="text-emerald-600"
+          loading={kpiLoading}
+        />
+        <KpiCard
+          title="Ort. sipariş değeri"
+          value={kpiLoading ? '—' : formatTryAmount(avgOrderValue)}
+          sub="İptal hariç"
+          icon={ShoppingCart}
+          tone="text-indigo-600"
+          loading={kpiLoading}
+        />
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+        <div className="w-full space-y-1 sm:w-52">
+          <Label>Tedarikçi</Label>
+          <Select
+            value={supplierFilter || 'all'}
+            onValueChange={(v) => {
+              setSupplierFilter(v === 'all' ? '' : v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Tümü" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tüm tedarikçiler</SelectItem>
+              {(suppliersQuery.data ?? []).map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full space-y-1 sm:w-44">
+          <Label>Durum</Label>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => {
+              setStatusFilter(v);
+              setPage(1);
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="po-from">Başlangıç</Label>
+          <Input
+            id="po-from"
+            type="date"
+            value={fromDate}
+            onChange={(e) => {
+              setFromDate(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="po-to">Bitiş</Label>
+          <Input
+            id="po-to"
+            type="date"
+            value={toDate}
+            onChange={(e) => {
+              setToDate(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
       </div>
 
@@ -263,7 +480,12 @@ export function PurchaseOrdersPage(): ReactElement {
                 <span>
                   <strong>{s.productName}</strong> — mevcut {s.currentQuantity} ad.
                 </span>
-                <Button type="button" size="sm" variant="secondary" onClick={() => applySuggestion(s)}>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => applySuggestion(s)}
+                >
                   Taslağa ekle
                 </Button>
               </li>
@@ -292,19 +514,33 @@ export function PurchaseOrdersPage(): ReactElement {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Sipariş</TableHead>
+                  <TableHead>PO no</TableHead>
                   <TableHead>Tedarikçi</TableHead>
+                  <TableHead>Tarih</TableHead>
+                  <TableHead className="text-right">Toplam</TableHead>
                   <TableHead>Durum</TableHead>
-                  <TableHead className="text-right">Tutar</TableHead>
-                  <TableHead>Beklenen</TableHead>
+                  <TableHead className="text-right">Ürün</TableHead>
                   <TableHead className="w-[90px]" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {listQuery.data.data.map((po) => (
                   <TableRow key={po.id}>
-                    <TableCell className="font-mono text-sm">{po.orderNumber}</TableCell>
+                    <TableCell className="font-mono text-sm">
+                      <Link
+                        to={`/purchase-orders/${po.id}`}
+                        className="text-sky-600 hover:underline"
+                      >
+                        {po.orderNumber}
+                      </Link>
+                    </TableCell>
                     <TableCell>{po.supplier.name}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {formatSupplierDate(po.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatTryAmount(po.totalAmount)} {po.currency}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant="outline"
@@ -314,12 +550,7 @@ export function PurchaseOrdersPage(): ReactElement {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {po.totalAmount} {po.currency}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {po.expectedDate
-                        ? new Date(po.expectedDate).toLocaleDateString('tr-TR')
-                        : '—'}
+                      {po.items.length}
                     </TableCell>
                     <TableCell>
                       <Button type="button" variant="link" className="px-0" asChild>
@@ -370,7 +601,6 @@ export function PurchaseOrdersPage(): ReactElement {
               <Select
                 value={supplierId || undefined}
                 onValueChange={setSupplierId}
-                disabled={suppliersQuery.isLoading}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seçin" />
@@ -424,7 +654,7 @@ export function PurchaseOrdersPage(): ReactElement {
                   className="grid gap-2 rounded-md border p-3 sm:grid-cols-12 sm:items-end"
                 >
                   <div className="sm:col-span-3">
-                    <Label className="text-xs">Barkod</Label>
+                    <Label className="text-xs">Barkod / SKU</Label>
                     <Input
                       value={line.barcode}
                       onChange={(e) => {
@@ -462,7 +692,7 @@ export function PurchaseOrdersPage(): ReactElement {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label className="text-xs">Birim maliyet</Label>
+                    <Label className="text-xs">Birim fiyat</Label>
                     <Input
                       type="number"
                       min={0}
@@ -482,9 +712,7 @@ export function PurchaseOrdersPage(): ReactElement {
                       variant="ghost"
                       size="sm"
                       disabled={lines.length <= 1}
-                      onClick={() =>
-                        setLines((ls) => ls.filter((_, i) => i !== idx))
-                      }
+                      onClick={() => setLines((ls) => ls.filter((_, i) => i !== idx))}
                     >
                       Sil
                     </Button>

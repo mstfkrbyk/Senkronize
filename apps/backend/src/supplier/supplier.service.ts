@@ -19,6 +19,7 @@ import type {
 export interface SupplierListRow extends Supplier {
   orderCount: number;
   totalSpend: string;
+  lastOrderAt: Date | null;
 }
 
 export interface SupplierPerformance {
@@ -122,19 +123,27 @@ export class SupplierService {
 
     const data: SupplierListRow[] = await Promise.all(
       rows.map(async (s) => {
-        const agg = await this.prisma.purchaseOrder.aggregate({
-          where: {
-            organizationId,
-            supplierId: s.id,
-            status: { not: POStatus.CANCELLED },
-          },
-          _count: { id: true },
-          _sum: { totalAmount: true },
-        });
+        const [agg, lastOrder] = await Promise.all([
+          this.prisma.purchaseOrder.aggregate({
+            where: {
+              organizationId,
+              supplierId: s.id,
+              status: { not: POStatus.CANCELLED },
+            },
+            _count: { id: true },
+            _sum: { totalAmount: true },
+          }),
+          this.prisma.purchaseOrder.findFirst({
+            where: { organizationId, supplierId: s.id },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true },
+          }),
+        ]);
         return {
           ...s,
           orderCount: agg._count.id,
           totalSpend: (agg._sum.totalAmount ?? new Prisma.Decimal(0)).toFixed(2),
+          lastOrderAt: lastOrder?.createdAt ?? null,
         };
       }),
     );
@@ -142,9 +151,15 @@ export class SupplierService {
     return { data, total, page, limit };
   }
 
-  async findOne(organizationId: string, id: string): Promise<Supplier> {
+  async findOne(
+    organizationId: string,
+    id: string,
+  ): Promise<Supplier & { contacts: SupplierContact[] }> {
     const row = await this.prisma.supplier.findFirst({
       where: { id, organizationId, deletedAt: null },
+      include: {
+        contacts: { orderBy: { createdAt: 'desc' }, take: 100 },
+      },
     });
     if (!row) {
       throw new NotFoundException('Tedarikçi bulunamadı.');
