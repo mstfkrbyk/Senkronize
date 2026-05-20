@@ -1,9 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Marketplace } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -13,6 +16,27 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
+
+export type ProductSortField =
+  | 'name'
+  | 'price'
+  | 'stock'
+  | 'createdAt'
+  | 'updatedAt';
+
+export type ProductSortOrder = 'asc' | 'desc';
+
+export interface ProductFilters {
+  search?: string;
+  categoryId?: string;
+  isActive?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+  minStock?: number;
+  maxStock?: number;
+  hasVariants?: boolean;
+  platform?: Marketplace;
+}
 
 export class CreateProductDto {
   @ApiProperty({
@@ -273,13 +297,84 @@ export class ProductQueryDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Kategoriye göre filtre',
+    description: 'Kategoriye göre filtre (metin)',
     example: 'İçecekler',
     required: false,
   })
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional({
+    description: 'Hiyerarşik kategori kimliği',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Minimum satış fiyatı (varyant veya listing)',
+    example: 10,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  minPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maksimum satış fiyatı (varyant veya listing)',
+    example: 500,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  maxPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Minimum stok (varyant bazlı)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  minStock?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maksimum stok (varyant bazlı)',
+    example: 1000,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  maxStock?: number;
+
+  @ApiPropertyOptional({
+    description: 'Varyantı olan/olmayan ürünler',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  hasVariants?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Belirli pazaryerinde listelenmiş ürünler',
+    enum: Marketplace,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(Marketplace)
+  platform?: Marketplace;
 
   @ApiPropertyOptional({
     description: 'Minimum maliyet fiyatı',
@@ -300,6 +395,24 @@ export class ProductQueryDto {
   @Type(() => Number)
   @Min(0)
   maxCostPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Sıralama alanı',
+    enum: ['name', 'price', 'stock', 'createdAt', 'updatedAt'],
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['name', 'price', 'stock', 'createdAt', 'updatedAt'])
+  sortBy?: ProductSortField;
+
+  @ApiPropertyOptional({
+    description: 'Sıralama yönü',
+    enum: ['asc', 'desc'],
+    required: false,
+  })
+  @IsOptional()
+  @IsIn(['asc', 'desc'])
+  sortOrder?: ProductSortOrder;
 
   @ApiPropertyOptional({
     description: 'Sayfa numarası',

@@ -23,13 +23,39 @@ export const ONBOARDING_MARKETPLACE_IDS = [
   'HEPSIBURADA',
   'N11',
   'AMAZON_TR',
+  'EBAY',
   'GITTIGIDIYOR',
+  'ETSY',
   'CICEKSEPETI',
-  'PTTAVM',
-  'PAZARAMA',
-  'WOOCOMMERCE',
-  'SHOPIFY',
 ] as const;
+
+export type StockManagementMethod = 'excel' | 'accounting' | 'other';
+
+export const STOCK_MGMT_OPTIONS: readonly {
+  id: StockManagementMethod;
+  label: string;
+}[] = [
+  { id: 'excel', label: 'Excel / tablo' },
+  { id: 'accounting', label: 'Muhasebe programı' },
+  { id: 'other', label: 'Diğer' },
+] as const;
+
+export const PLAN_ANNUAL_PRICES: Record<
+  PlanTier,
+  { yearly: number; monthlyHint: number }
+> = {
+  BASLANGIC: { yearly: 2900, monthlyHint: 242 },
+  GELISIM: { yearly: 5900, monthlyHint: 492 },
+  PRO: { yearly: 9900, monthlyHint: 825 },
+  KURUMSAL: { yearly: 19_900, monthlyHint: 1658 },
+};
+
+export const PLAN_TIERS: PlanTier[] = [
+  'BASLANGIC',
+  'GELISIM',
+  'PRO',
+  'KURUMSAL',
+];
 
 export const ONBOARDING_ERP_IDS = [
   'BIZIMHESAP',
@@ -59,6 +85,9 @@ export function recommendPlan(input: {
   }
   if (marketplaceCount >= 3 || hasErp) {
     return 'PRO';
+  }
+  if (marketplaceCount >= 2 || hasErp) {
+    return 'GELISIM';
   }
   if (marketplaceCount >= 1) {
     return 'GELISIM';

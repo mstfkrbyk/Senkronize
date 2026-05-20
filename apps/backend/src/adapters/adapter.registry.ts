@@ -324,6 +324,20 @@ import { ZalandoAdapter } from './zalando/zalando.adapter';
 import { ZaraAdapter } from './zara/zara.adapter';
 import { ZaraTrAdapter } from './zara-tr/zara-tr.adapter';
 import { ZirveAdapter } from './zirve/zirve.adapter';
+import { AfterpayAdapter } from './afterpay/afterpay.adapter';
+import { BerealShopAdapter } from './bereal-shop/bereal-shop.adapter';
+import { CloverAdapter } from './clover/clover.adapter';
+import { GumroadAdapter } from './gumroad/gumroad.adapter';
+import { KlarnaMerchantAdapter } from './klarna-merchant/klarna-merchant.adapter';
+import { OkxTrAdapter } from './okx-tr/okx-tr.adapter';
+import { PaparaAdapter } from './papara/papara.adapter';
+import { ParibuAdapter } from './paribu/paribu.adapter';
+import { PatreonAdapter } from './patreon/patreon.adapter';
+import { SquareOnlineAdapter } from './square-online/square-online.adapter';
+import { ThreadsShopAdapter } from './threads-shop/threads-shop.adapter';
+import { ToslaAdapter } from './tosla/tosla.adapter';
+import { VenmoBusinessAdapter } from './venmo-business/venmo-business.adapter';
+import { XShoppingAdapter } from './x-shopping/x-shopping.adapter';
 import { ErpAdapterRegistry } from './erp/erp-adapter.registry';
 import { EcommerceAdapterRegistry } from './ecommerce/ecommerce-adapter.registry';
 
@@ -657,6 +671,20 @@ export class AdapterRegistry {
     private readonly magalu: MagaluAdapter,
     private readonly mallCz: MallCzAdapter,
     private readonly ticimaxMp: TicimaxMpAdapter,
+    private readonly afterpay: AfterpayAdapter,
+    private readonly berealShop: BerealShopAdapter,
+    private readonly clover: CloverAdapter,
+    private readonly gumroad: GumroadAdapter,
+    private readonly klarnaMerchant: KlarnaMerchantAdapter,
+    private readonly okxTr: OkxTrAdapter,
+    private readonly papara: PaparaAdapter,
+    private readonly paribu: ParibuAdapter,
+    private readonly patreon: PatreonAdapter,
+    private readonly squareOnline: SquareOnlineAdapter,
+    private readonly threadsShop: ThreadsShopAdapter,
+    private readonly tosla: ToslaAdapter,
+    private readonly venmoBusiness: VenmoBusinessAdapter,
+    private readonly xShopping: XShoppingAdapter,
     private readonly erpAdapterRegistry: ErpAdapterRegistry,
     private readonly ecommerceAdapterRegistry: EcommerceAdapterRegistry,
   ) {
@@ -961,6 +989,20 @@ export class AdapterRegistry {
       ['MADAME_COCO', madameCoco],
       ['MAGALU', magalu],
       ['MALL_CZ', mallCz],
+      ['AFTERPAY', afterpay],
+      ['BEREAL_SHOP', berealShop],
+      ['CLOVER', clover],
+      ['GUMROAD', gumroad],
+      ['KLARNA_MERCHANT', klarnaMerchant],
+      ['OKX_TR', okxTr],
+      ['PAPARA', papara],
+      ['PARIBU', paribu],
+      ['PATREON', patreon],
+      ['SQUARE_ONLINE', squareOnline],
+      ['THREADS_SHOP', threadsShop],
+      ['TOSLA', tosla],
+      ['VENMO_BUSINESS', venmoBusiness],
+      ['X_SHOPPING', xShopping],
       ['TICIMAX_MP', ticimaxMp],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([

@@ -16,6 +16,7 @@ import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { OrderService } from '../order/order.service';
+import { NotificationEmitService } from '../notifications/notification-emit.service';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReturnService } from '../return/return.service';
@@ -41,6 +42,7 @@ export class MarketplacePullProcessor {
     private readonly syncStatusService: SyncStatusService,
     private readonly syncLogService: SyncLogService,
     private readonly eventService: EventService,
+    private readonly notificationEmit: NotificationEmitService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly inAppNotificationService: InAppNotificationService,
@@ -84,6 +86,18 @@ export class MarketplacePullProcessor {
       platform,
     });
     let connectionId: string | null = null;
+    const emitSyncProgress = (current: number, total: number): void => {
+      if (!connectionId) {
+        return;
+      }
+      this.notificationEmit.emitSyncProgress(organizationId, {
+        connectionId,
+        platform: String(platform),
+        phase: 'orders',
+        current,
+        total,
+      });
+    };
     try {
       await this.guardPlatformApi(platform, organizationId);
 
@@ -97,6 +111,7 @@ export class MarketplacePullProcessor {
         select: { id: true },
       });
       connectionId = connectionRow?.id ?? null;
+      emitSyncProgress(0, 0);
 
       const credentials =
         await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
@@ -119,12 +134,17 @@ export class MarketplacePullProcessor {
         platform,
         count: orders.length,
       });
+      emitSyncProgress(0, orders.length);
       const { createdOrders } = await this.orderService.upsertFromPlatform(
         organizationId,
         platform as Marketplace,
         orders,
       );
-      for (const order of createdOrders) {
+      for (let i = 0; i < createdOrders.length; i++) {
+        const order = createdOrders[i];
+        if ((i + 1) % 50 === 0 || i === createdOrders.length - 1) {
+          emitSyncProgress(i + 1, orders.length);
+        }
         try {
           await this.customerService.upsertFromOrder(order);
         } catch (customerErr) {
@@ -141,6 +161,12 @@ export class MarketplacePullProcessor {
           buyerName: order.customerName,
           totalAmount: order.totalAmount.toString(),
           createdAt: order.createdAt.toISOString(),
+        });
+        this.notificationEmit.emitOrderNew(organizationId, {
+          orderId: order.id,
+          platform: String(platform),
+          amount: order.totalAmount.toString(),
+          customer: order.customerName,
         });
         try {
           await this.inAppNotificationService.create({
@@ -183,6 +209,14 @@ export class MarketplacePullProcessor {
         ordersProcessed: orders.length,
         timestamp: new Date().toISOString(),
       });
+      if (connectionId) {
+        this.notificationEmit.emitSyncCompleted(organizationId, {
+          connectionId,
+          platform: String(platform),
+          processed: orders.length,
+          duration: Date.now() - syncStartedAt,
+        });
+      }
       await this.platformHealth.recordSuccess(platform, organizationId);
       this.orderService.recordOrdersSynced(
         organizationId,
@@ -206,6 +240,13 @@ export class MarketplacePullProcessor {
         message: message.slice(0, 500),
         timestamp: new Date().toISOString(),
       });
+      if (connectionId) {
+        this.notificationEmit.emitSyncError(organizationId, {
+          connectionId,
+          platform: String(platform),
+          error: message.slice(0, 500),
+        });
+      }
       await this.syncStatusService.recordError(
         organizationId,
         marketplace,

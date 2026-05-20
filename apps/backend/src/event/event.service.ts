@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { EventGateway } from './event.gateway';
-import type { WsEventName } from './event.types';
+
+import { NotificationEmitService } from '../notifications/notification-emit.service';
+
+import { WS_EVENTS, type WsEventName } from './event.types';
 
 @Injectable()
 export class EventService {
-  constructor(private readonly gateway: EventGateway) {}
+  constructor(private readonly notificationEmit: NotificationEmitService) {}
 
   emit(organizationId: string, event: WsEventName, data: unknown): void {
-    this.gateway.server.to(`org:${organizationId}`).emit(event, data);
+    this.notificationEmit.emitLegacy(organizationId, event, data);
   }
 }

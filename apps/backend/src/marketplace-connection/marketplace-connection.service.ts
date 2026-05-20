@@ -385,13 +385,33 @@ export class MarketplaceConnectionService {
       platform === Marketplace.ENGLISH_HOME ||
       platform === Marketplace.LINENS_N_THINGS ||
       platform === Marketplace.OBI_TR ||
-      platform === Marketplace.BAUHAUS_TR
+      platform === Marketplace.BAUHAUS_TR ||
+      platform === Marketplace.AFTERPAY ||
+      platform === Marketplace.PAPARA ||
+      platform === Marketplace.TOSLA ||
+      platform === Marketplace.PARIBU ||
+      platform === Marketplace.BEREAL_SHOP ||
+      platform === Marketplace.GUMROAD
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
     if (
+      platform === Marketplace.KLARNA_MERCHANT ||
+      platform === Marketplace.OKX_TR
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.CLOVER) {
+      return creds.merchantId ?? (creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null);
+    }
+    if (
       platform === Marketplace.HOUZZ ||
-      platform === Marketplace.GARDENA
+      platform === Marketplace.GARDENA ||
+      platform === Marketplace.SQUARE_ONLINE ||
+      platform === Marketplace.VENMO_BUSINESS ||
+      platform === Marketplace.THREADS_SHOP ||
+      platform === Marketplace.X_SHOPPING ||
+      platform === Marketplace.PATREON
     ) {
       const label = creds.accessToken ?? creds.clientId;
       return label ? `${label.slice(0, 6)}...` : null;

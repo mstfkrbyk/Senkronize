@@ -3,6 +3,20 @@ import { Global, Module } from '@nestjs/common';
 import { AdaptersCommonModule } from './common/adapters-common.module';
 import { AdapterRegistry } from './adapter.registry';
 import { EcommerceAdaptersModule } from './ecommerce/ecommerce.module';
+import { AfterpayModule } from './afterpay/afterpay.module';
+import { BerealShopModule } from './bereal-shop/bereal-shop.module';
+import { CloverModule } from './clover/clover.module';
+import { GumroadModule } from './gumroad/gumroad.module';
+import { KlarnaMerchantModule } from './klarna-merchant/klarna-merchant.module';
+import { OkxTrModule } from './okx-tr/okx-tr.module';
+import { PaparaModule } from './papara/papara.module';
+import { ParibuModule } from './paribu/paribu.module';
+import { PatreonModule } from './patreon/patreon.module';
+import { SquareOnlineModule } from './square-online/square-online.module';
+import { ThreadsShopModule } from './threads-shop/threads-shop.module';
+import { ToslaModule } from './tosla/tosla.module';
+import { VenmoBusinessModule } from './venmo-business/venmo-business.module';
+import { XShoppingModule } from './x-shopping/x-shopping.module';
 import { ErpAdaptersModule } from './erp/erp.module';
 import { A101Module } from './a101/a101.module';
 import { AboutYouModule } from './about-you/about-you.module';
@@ -328,6 +342,20 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
 @Module({
   imports: [
     AdaptersCommonModule,
+    AfterpayModule,
+    BerealShopModule,
+    CloverModule,
+    GumroadModule,
+    KlarnaMerchantModule,
+    OkxTrModule,
+    PaparaModule,
+    ParibuModule,
+    PatreonModule,
+    SquareOnlineModule,
+    ThreadsShopModule,
+    ToslaModule,
+    VenmoBusinessModule,
+    XShoppingModule,
     ErpAdaptersModule,
     EcommerceAdaptersModule,
     A101Module,
@@ -962,6 +990,20 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     YemeksepetiModule,
     ZalandoModule,
     ZaraModule,
+    AfterpayModule,
+    BerealShopModule,
+    CloverModule,
+    GumroadModule,
+    KlarnaMerchantModule,
+    OkxTrModule,
+    PaparaModule,
+    ParibuModule,
+    PatreonModule,
+    SquareOnlineModule,
+    ThreadsShopModule,
+    ToslaModule,
+    VenmoBusinessModule,
+    XShoppingModule,
     ZaraTrModule,
   ],
 })

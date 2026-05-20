@@ -5,9 +5,8 @@ import {
   Prisma,
 } from '@prisma/client';
 
-import { EventService } from '../../event/event.service';
-import { WS_EVENTS } from '../../event/event.types';
 import { PrismaService } from '../../prisma/prisma.service';
+import { InAppService } from '../in-app.service';
 
 import type { InAppNotificationListFilter } from './in-app-notification.dto';
 
@@ -37,30 +36,13 @@ function filterTypes(
   }
 }
 
+/** Geriye dönük uyumluluk — yeni kod InAppService kullanmalı */
 @Injectable()
 export class InAppNotificationService {
   constructor(
+    private readonly inAppService: InAppService,
     private readonly prisma: PrismaService,
-    private readonly eventService: EventService,
   ) {}
-
-  private serializeForSocket(
-    notification: InAppNotification,
-  ): Record<string, unknown> {
-    return {
-      id: notification.id,
-      organizationId: notification.organizationId,
-      userId: notification.userId,
-      type: notification.type,
-      title: notification.title,
-      message: notification.message,
-      link: notification.link,
-      isRead: notification.isRead,
-      readAt: notification.readAt?.toISOString() ?? null,
-      metadata: notification.metadata,
-      createdAt: notification.createdAt.toISOString(),
-    };
-  }
 
   async create(params: {
     organizationId: string;
@@ -71,41 +53,19 @@ export class InAppNotificationService {
     link?: string;
     metadata?: Record<string, unknown>;
   }): Promise<InAppNotification> {
-    const notification = await this.prisma.inAppNotification.create({
-      data: {
-        organizationId: params.organizationId,
-        userId: params.userId ?? null,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        link: params.link ?? null,
-        metadata:
-          params.metadata === undefined
-            ? undefined
-            : (params.metadata as Prisma.InputJsonValue),
-      },
-    });
-    this.eventService.emit(
-      params.organizationId,
-      WS_EVENTS.NOTIFICATION_NEW,
-      this.serializeForSocket(notification),
-    );
-    return notification;
+    return this.inAppService.createForOrg(params);
   }
 
   async getUnread(
     organizationId: string,
     userId: string,
   ): Promise<InAppNotification[]> {
-    return this.prisma.inAppNotification.findMany({
-      where: {
-        organizationId,
-        isRead: false,
-        ...visibilityWhere(userId),
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+    const result = await this.inAppService.getPaginatedForOrg(
+      organizationId,
+      userId,
+      { page: 1, limit: 100, unreadOnly: true },
+    );
+    return result.items;
   }
 
   async getAll(
@@ -139,37 +99,15 @@ export class InAppNotificationService {
     organizationId: string,
     userId: string,
   ): Promise<void> {
-    const row = await this.prisma.inAppNotification.findFirst({
-      where: { id, organizationId, ...visibilityWhere(userId) },
-    });
-    if (!row) {
-      throw new NotFoundException('Bildirim bulunamadı');
-    }
-    await this.prisma.inAppNotification.update({
-      where: { id },
-      data: { isRead: true, readAt: new Date() },
-    });
+    await this.inAppService.markAsReadForOrg(id, organizationId, userId);
   }
 
   async markAllAsRead(organizationId: string, userId: string): Promise<void> {
-    await this.prisma.inAppNotification.updateMany({
-      where: {
-        organizationId,
-        isRead: false,
-        ...visibilityWhere(userId),
-      },
-      data: { isRead: true, readAt: new Date() },
-    });
+    await this.inAppService.markAllAsReadForOrg(organizationId, userId);
   }
 
   async getUnreadCount(organizationId: string, userId: string): Promise<number> {
-    return this.prisma.inAppNotification.count({
-      where: {
-        organizationId,
-        isRead: false,
-        ...visibilityWhere(userId),
-      },
-    });
+    return this.inAppService.getUnreadCountForOrg(organizationId, userId);
   }
 
   async deleteNotification(
@@ -190,12 +128,10 @@ export class InAppNotificationService {
     organizationId: string,
     userId: string,
   ): Promise<{ deleted: number }> {
-    const res = await this.prisma.inAppNotification.deleteMany({
-      where: {
-        organizationId,
-        ...visibilityWhere(userId),
-      },
-    });
-    return { deleted: res.count };
+    const deleted = await this.inAppService.deleteAllForOrg(
+      organizationId,
+      userId,
+    );
+    return { deleted };
   }
 }

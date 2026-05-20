@@ -2,7 +2,10 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import type { JwtSignOptions } from '@nestjs/jwt';
-import { EventGateway } from './event.gateway';
+
+import { NotificationEmitService } from '../notifications/notification-emit.service';
+import { NotificationGateway } from '../notifications/notification.gateway';
+
 import { EventService } from './event.service';
 
 @Global()
@@ -21,7 +24,7 @@ import { EventService } from './event.service';
       inject: [ConfigService],
     }),
   ],
-  providers: [EventGateway, EventService],
-  exports: [EventService],
+  providers: [NotificationGateway, NotificationEmitService, EventService],
+  exports: [EventService, NotificationEmitService],
 })
 export class EventModule {}

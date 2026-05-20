@@ -1,7 +1,16 @@
+import confetti from 'canvas-confetti';
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff, CheckCircle2, Loader2, XCircle } from 'lucide-react';
+import {
+  ChevronDown,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  Loader2,
+  Sparkles,
+  XCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 
@@ -34,6 +43,7 @@ import {
 import {
   useCreateConnection,
   useTestConnection,
+  useTriggerManualSync,
   useUpdateMarketplaceConnection,
 } from '@/hooks/useConnections';
 import {
@@ -55,6 +65,7 @@ import {
   type ConnectionFormFieldDef,
   type ConnectionPlatformMeta,
 } from '@/lib/connection-form-fields';
+import { getConnectionErrorHint } from '@/lib/connection-error-hints';
 import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
 import { getErpDisplay, getMarketplaceDisplay } from '@/lib/platform-display';
 import type { MarketplaceConnectionDto } from '@/types/connection';
@@ -125,6 +136,8 @@ export function ConnectionFormModal({
   const [testResult, setTestResult] = useState<TestResultState | null>(null);
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [syncStarting, setSyncStarting] = useState(false);
 
   const form = useForm<Record<string, string>>({
     defaultValues: {},
@@ -193,6 +206,8 @@ export function ConnectionFormModal({
     setTestOutcome('idle');
     setTestResult(null);
     setFieldErrors({});
+    setSaveSuccess(false);
+    setSyncStarting(false);
     if (config.kind === 'marketplace' && config.mode === 'create') {
       const first = marketplaceIds[0] ?? '';
       setSelectedMarketplaceId(first);
@@ -215,6 +230,7 @@ export function ConnectionFormModal({
 
   const testMp = useTestConnection();
   const testErp = useTestErpConnection();
+  const triggerSync = useTriggerManualSync();
   const createMp = useCreateConnection();
   const createErp = useCreateErpConnection();
   const updateMp = useUpdateMarketplaceConnection();
@@ -259,6 +275,25 @@ export function ConnectionFormModal({
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
+
+  const activePlatformId = useMemo((): string => {
+    if (!config) {
+      return '';
+    }
+    if (config.kind === 'marketplace') {
+      return config.mode === 'edit' ? config.connection.platform : selectedMarketplaceId;
+    }
+    return config.mode === 'edit' ? config.connection.erpType : selectedErpId;
+  }, [config, selectedMarketplaceId, selectedErpId]);
+
+  const activeDisplay = useMemo(() => {
+    if (!activePlatformId) {
+      return null;
+    }
+    return config?.kind === 'marketplace'
+      ? getMarketplaceDisplay(activePlatformId)
+      : getErpDisplay(activePlatformId);
+  }, [activePlatformId, config?.kind]);
 
   const platformMeta = useMemo((): ConnectionPlatformMeta | undefined => {
     if (!config) {
@@ -321,7 +356,11 @@ export function ConnectionFormModal({
             onError: (error) => {
               setTestOutcome('fail');
               const msg = getApiErrorMessage(error);
-              setTestResult({ ok: false, message: msg });
+              const hint = getConnectionErrorHint(msg);
+              setTestResult({
+                ok: false,
+                message: hint ? `${msg} ${hint}` : msg,
+              });
               toast.error(msg);
             },
           },
@@ -350,7 +389,11 @@ export function ConnectionFormModal({
           onError: (error) => {
             setTestOutcome('fail');
             const msg = getApiErrorMessage(error);
-            setTestResult({ ok: false, message: msg });
+            const hint = getConnectionErrorHint(msg);
+            setTestResult({
+              ok: false,
+              message: hint ? `${msg} ${hint}` : msg,
+            });
             toast.error(msg);
           },
         },
@@ -382,7 +425,11 @@ export function ConnectionFormModal({
           onError: (error) => {
             setTestOutcome('fail');
             const msg = getApiErrorMessage(error);
-            setTestResult({ ok: false, message: msg });
+            const hint = getConnectionErrorHint(msg);
+            setTestResult({
+              ok: false,
+              message: hint ? `${msg} ${hint}` : msg,
+            });
             toast.error(msg);
           },
         },
@@ -411,11 +458,38 @@ export function ConnectionFormModal({
         onError: (error) => {
           setTestOutcome('fail');
           const msg = getApiErrorMessage(error);
-          setTestResult({ ok: false, message: msg });
+          const hint = getConnectionErrorHint(msg);
+          setTestResult({
+            ok: false,
+            message: hint ? `${msg} ${hint}` : msg,
+          });
           toast.error(msg);
         },
       },
     );
+  };
+
+  const celebrateAndClose = (connectionId?: string): void => {
+    void confetti({ particleCount: 100, spread: 60, origin: { y: 0.65 } });
+    setSaveSuccess(true);
+    setSyncStarting(true);
+    if (connectionId) {
+      triggerSync.mutate(connectionId, {
+        onSettled: () => {
+          setTimeout(() => {
+            onOpenChange(false);
+            setSaveSuccess(false);
+            setSyncStarting(false);
+          }, 2200);
+        },
+      });
+    } else {
+      setTimeout(() => {
+        onOpenChange(false);
+        setSaveSuccess(false);
+        setSyncStarting(false);
+      }, 2200);
+    }
   };
 
   const handleSave = (): void => {
@@ -431,7 +505,7 @@ export function ConnectionFormModal({
         createMp.mutate(
           { platform: selectedMarketplaceId, credentials },
           {
-            onSuccess: () => {
+            onSuccess: (conn) => {
               track('connection_added', {
                 platform: selectedMarketplaceId,
                 type: ECOMMERCE_PLATFORM_SET.has(selectedMarketplaceId)
@@ -439,10 +513,12 @@ export function ConnectionFormModal({
                   : 'marketplace',
               });
               toast.success('Bağlantı kaydedildi.');
-              onOpenChange(false);
+              celebrateAndClose(conn.id);
             },
             onError: (error) => {
-              toast.error(getApiErrorMessage(error));
+              const msg = getApiErrorMessage(error);
+              const hint = getConnectionErrorHint(msg);
+              toast.error(hint ? `${msg} — ${hint}` : msg);
             },
           },
         );
@@ -487,10 +563,17 @@ export function ConnectionFormModal({
               type: 'erp',
             });
             toast.success('ERP bağlantısı kaydedildi.');
-            onOpenChange(false);
+            void confetti({ particleCount: 100, spread: 60, origin: { y: 0.65 } });
+            setSaveSuccess(true);
+            setTimeout(() => {
+              onOpenChange(false);
+              setSaveSuccess(false);
+            }, 2200);
           },
           onError: (error) => {
-            toast.error(getApiErrorMessage(error));
+            const msg = getApiErrorMessage(error);
+            const hint = getConnectionErrorHint(msg);
+            toast.error(hint ? `${msg} — ${hint}` : msg);
           },
         },
       );
@@ -559,15 +642,35 @@ export function ConnectionFormModal({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (saveSuccess && !next) {
+          return;
+        }
         onOpenChange(next);
         if (!next) {
           setTestOutcome('idle');
           setTestResult(null);
           setFieldErrors({});
+          setSaveSuccess(false);
+          setSyncStarting(false);
         }
       }}
     >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        {saveSuccess ? (
+          <div className="flex flex-col items-center gap-4 py-10 text-center">
+            <Sparkles className="h-12 w-12 text-sky-400" aria-hidden />
+            <h3 className="text-lg font-semibold">Bağlantı kuruldu!</h3>
+            <p className="text-sm text-muted-foreground">
+              {syncStarting
+                ? 'İlk senkronizasyon başlatılıyor…'
+                : 'Kayıt tamamlandı.'}
+            </p>
+            {syncStarting ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : null}
+          </div>
+        ) : (
+          <>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
@@ -575,6 +678,20 @@ export function ConnectionFormModal({
             düzenlemede boş gösterilir.
           </DialogDescription>
         </DialogHeader>
+
+        {activeDisplay ? (
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+            <span className="text-3xl" aria-hidden>
+              {activeDisplay.logo}
+            </span>
+            <div>
+              <p className="font-semibold text-foreground">{activeDisplay.label}</p>
+              <p className="text-xs text-muted-foreground">
+                {config?.kind === 'marketplace' ? 'Pazaryeri' : 'ERP'} bağlantısı
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {config ? (
           <Form {...form}>
@@ -643,23 +760,26 @@ export function ConnectionFormModal({
                 </p>
               ) : null}
 
-              {platformMeta?.helpText ? (
-                <p className="rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-900">
-                  {platformMeta.helpText}
-                  {platformMeta.docsUrl ? (
-                    <>
-                      {' '}
+              {platformMeta?.helpText || platformMeta?.docsUrl ? (
+                <details className="group rounded-md border border-sky-100 bg-sky-50 text-sm text-sky-900">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 font-medium [&::-webkit-details-marker]:hidden">
+                    API Anahtarı Nasıl Alınır?
+                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-2 border-t border-sky-100 px-3 py-2">
+                    {platformMeta.helpText ? <p>{platformMeta.helpText}</p> : null}
+                    {platformMeta.docsUrl ? (
                       <a
                         href={platformMeta.docsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="font-medium underline underline-offset-2"
+                        className="inline-block font-medium underline underline-offset-2"
                       >
-                        Dokümantasyon
+                        Platform dokümantasyonu →
                       </a>
-                    </>
-                  ) : null}
-                </p>
+                    ) : null}
+                  </div>
+                </details>
               ) : null}
 
               {activeFieldDefs.map((field) => (
@@ -796,6 +916,8 @@ export function ConnectionFormModal({
             {savePending ? 'Kaydediliyor…' : 'Kaydet'}
           </Button>
         </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

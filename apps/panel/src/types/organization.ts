@@ -4,6 +4,8 @@ export interface OrganizationDetail {
   name: string;
   type: string;
   logoUrl: string | null;
+  taxNumber: string | null;
+  taxOffice: string | null;
   onboardingCompleted: boolean;
   createdAt: string;
   defaultCurrency: string;

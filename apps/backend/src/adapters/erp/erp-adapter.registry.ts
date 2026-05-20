@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import type { IErpAdapter } from '@senkronize/shared';
 
+import { AkinonErpAdapter } from './akinon-erp.adapter';
 import { AliciErpAdapter } from './alici-erp.adapter';
 import { AfasOnlineErpAdapter } from './afas-online/afas-online.adapter';
+import { BimeksErpAdapter } from './bimeks-erp.adapter';
 import { BillomatErpAdapter } from './billomat/billomat.adapter';
 import { Cin7ErpAdapter } from './cin7/cin7.adapter';
 import { DebitoorErpAdapter } from './debitoor/debitoor.adapter';
+import { EdusonErpAdapter } from './eduson-erp.adapter';
+import { EtaxErpAdapter } from './etax-erp.adapter';
+import { FinnetErpAdapter } from './finnet-erp.adapter';
 import { Dynamics365ErpAdapter } from './dynamics365-erp.adapter';
 import { EpicorErpAdapter } from './epicor-erp.adapter';
 import { EtradeErpAdapter } from './etrade-erp.adapter';
@@ -16,18 +21,25 @@ import { HoldedErpAdapter } from './holded/holded.adapter';
 import { IdeasoftErpAdapter } from './ideasoft-erp.adapter';
 import { InflowErpAdapter } from './inflow/inflow.adapter';
 import { IqraErpAdapter } from './iqra-erp.adapter';
+import { KatanaMrpErpAdapter } from './katana-mrp-erp.adapter';
 import { IsbirErpAdapter } from './isbir-erp.adapter';
 import { LightspeedErpAdapter } from './lightspeed-erp.adapter';
 import { MikroErpCloudAdapter } from './mikro-erp.adapter';
 import { MoneybirdErpAdapter } from './moneybird/moneybird.adapter';
+import { MrpeasyErpAdapter } from './mrpeasy-erp.adapter';
 import { NetsisErpCloudAdapter } from './netsis-erp.adapter';
+import { PoseidonPosErpAdapter } from './poseidon-pos-erp.adapter';
+import { RestmanErpAdapter } from './restman-erp.adapter';
 import { NetsuiteErpAdapter } from './netsuite-erp.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
 import { ProbilErpAdapter } from './probil-erp.adapter';
 import { QuickbooksErpAdapter } from './quickbooks-erp.adapter';
 import { Sage50ErpAdapter } from './sage50-erp.adapter';
 import { SevdeskErpAdapter } from './sevdesk/sevdesk.adapter';
+import { SimpraPlusErpAdapter } from './simpra-plus-erp.adapter';
+import { SmartiksErpAdapter } from './smartiks-erp.adapter';
 import { TwinfieldErpAdapter } from './twinfield/twinfield.adapter';
+import { UyumsoftErpAdapter } from './uyumsoft-erp.adapter';
 import { VendPosErpAdapter } from './vend-pos-erp.adapter';
 import { VetassoftErpAdapter } from './vetassoft-erp.adapter';
 import { WaveAccountingErpAdapter } from './wave-accounting/wave-accounting.adapter';
@@ -36,7 +48,7 @@ import { ZirveBulutErpAdapter } from './zirve-bulut-erp.adapter';
 import { ZohoBooksErpAdapter } from './zoho-books-erp.adapter';
 import { ZohoInventoryErpAdapter } from './zoho-inventory/zoho-inventory.adapter';
 
-/** ERP 3. + 4. + 5. tur adaptör kaydı */
+/** ERP 3. + 4. + 5. + 6. tur adaptör kaydı */
 @Injectable()
 export class ErpAdapterRegistry {
   readonly adapters: ReadonlyMap<string, IErpAdapter>;
@@ -76,6 +88,18 @@ export class ErpAdapterRegistry {
     zohoInventory: ZohoInventoryErpAdapter,
     inflow: InflowErpAdapter,
     cin7: Cin7ErpAdapter,
+    finnet: FinnetErpAdapter,
+    etax: EtaxErpAdapter,
+    uyumsoft: UyumsoftErpAdapter,
+    eduson: EdusonErpAdapter,
+    smartiks: SmartiksErpAdapter,
+    poseidonPos: PoseidonPosErpAdapter,
+    restman: RestmanErpAdapter,
+    simpraPlus: SimpraPlusErpAdapter,
+    akinonErp: AkinonErpAdapter,
+    bimeksErp: BimeksErpAdapter,
+    mrpeasy: MrpeasyErpAdapter,
+    katanaMrp: KatanaMrpErpAdapter,
   ) {
     this.adapters = new Map<string, IErpAdapter>([
       ['NETSUITE', netsuite],
@@ -112,6 +136,18 @@ export class ErpAdapterRegistry {
       ['ZOHO_INVENTORY', zohoInventory],
       ['INFLOW', inflow],
       ['CIN7', cin7],
+      ['FINNET', finnet],
+      ['ETAX', etax],
+      ['UYUMSOFT', uyumsoft],
+      ['EDUSON', eduson],
+      ['SMARTIKS', smartiks],
+      ['POSEIDON_POS', poseidonPos],
+      ['RESTMAN', restman],
+      ['SIMPRA_PLUS', simpraPlus],
+      ['AKINON_ERP', akinonErp],
+      ['BIMEKS_ERP', bimeksErp],
+      ['MRPEASY', mrpeasy],
+      ['KATANA_MRP', katanaMrp],
     ]);
   }
 

@@ -298,7 +298,21 @@ export type Marketplace =
   | 'LINENS_N_THINGS'
   | 'GARDENA'
   | 'OBI_TR'
-  | 'BAUHAUS_TR';
+  | 'BAUHAUS_TR'
+  | 'SQUARE_ONLINE'
+  | 'CLOVER'
+  | 'VENMO_BUSINESS'
+  | 'AFTERPAY'
+  | 'KLARNA_MERCHANT'
+  | 'PAPARA'
+  | 'TOSLA'
+  | 'OKX_TR'
+  | 'PARIBU'
+  | 'BEREAL_SHOP'
+  | 'THREADS_SHOP'
+  | 'X_SHOPPING'
+  | 'GUMROAD'
+  | 'PATREON';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -357,7 +371,19 @@ export type ErpType =
   | 'WAVE_ACCOUNTING'
   | 'ZOHO_INVENTORY'
   | 'INFLOW'
-  | 'CIN7';
+  | 'CIN7'
+  | 'FINNET'
+  | 'ETAX'
+  | 'UYUMSOFT'
+  | 'EDUSON'
+  | 'SMARTIKS'
+  | 'POSEIDON_POS'
+  | 'RESTMAN'
+  | 'SIMPRA_PLUS'
+  | 'AKINON_ERP'
+  | 'BIMEKS_ERP'
+  | 'MRPEASY'
+  | 'KATANA_MRP';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =

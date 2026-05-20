@@ -23,9 +23,13 @@ import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 
 import type { ProductAnalyticsResponse } from './product-analytics.types';
+import type { ProductPerformanceResponse } from './product-performance.types';
+import type { ImportResult } from './product-import.types';
+import { ProductImportService } from './product-import.service';
 import {
   CreateProductDto,
   ProductQueryDto,
+  type ProductFilters,
   SyncAllPlatformsDto,
   UpdateProductDto,
   UpdateProductReorderDto,
@@ -43,6 +47,17 @@ function productListCacheKey(
     search: query.search ?? null,
     isActive: query.isActive ?? null,
     category: query.category ?? null,
+    categoryId: query.categoryId ?? null,
+    minPrice: query.minPrice ?? null,
+    maxPrice: query.maxPrice ?? null,
+    minStock: query.minStock ?? null,
+    maxStock: query.maxStock ?? null,
+    hasVariants: query.hasVariants ?? null,
+    platform: query.platform ?? null,
+    minCostPrice: query.minCostPrice ?? null,
+    maxCostPrice: query.maxCostPrice ?? null,
+    sortBy: query.sortBy ?? null,
+    sortOrder: query.sortOrder ?? null,
   });
   return CacheService.key('products', organizationId, cachePayload);
 }
@@ -139,6 +154,7 @@ export class ProductService {
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
     private readonly outboundWebhookService: OutboundWebhookService,
+    private readonly productImportService: ProductImportService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -169,18 +185,32 @@ export class ProductService {
     return this.findAllUncached(organizationId, query);
   }
 
-  private async findAllUncached(
+  private buildProductWhere(
     organizationId: string,
-    query: ProductQueryDto,
-  ): Promise<{ items: ProductListItem[]; total: number }> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    query: ProductQueryDto | ProductFilters,
+  ): Prisma.ProductWhereInput {
+    const priceRange =
+      query.minPrice !== undefined || query.maxPrice !== undefined
+        ? {
+            ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
+            ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
+          }
+        : undefined;
 
-    const where: Prisma.ProductWhereInput = {
+    const stockRange =
+      query.minStock !== undefined || query.maxStock !== undefined
+        ? {
+            ...(query.minStock !== undefined ? { gte: query.minStock } : {}),
+            ...(query.maxStock !== undefined ? { lte: query.maxStock } : {}),
+          }
+        : undefined;
+
+    return {
       organizationId,
       deletedAt: null,
       ...(query.isActive !== undefined && { isActive: query.isActive }),
       ...(query.category !== undefined && { category: query.category }),
+      ...(query.categoryId !== undefined && { categoryId: query.categoryId }),
       ...(query.minCostPrice !== undefined || query.maxCostPrice !== undefined
         ? {
             costPrice: {
@@ -215,13 +245,84 @@ export class ProductService {
           },
         ],
       }),
+      ...(priceRange && {
+        OR: [
+          {
+            variants: {
+              some: {
+                deletedAt: null,
+                price: priceRange,
+              },
+            },
+          },
+          {
+            listings: {
+              some: {
+                deletedAt: null,
+                salePrice: priceRange,
+              },
+            },
+          },
+        ],
+      }),
+      ...(stockRange && {
+        variants: {
+          some: {
+            deletedAt: null,
+            stock: stockRange,
+          },
+        },
+      }),
+      ...(query.hasVariants === true && {
+        variants: { some: { deletedAt: null } },
+      }),
+      ...(query.hasVariants === false && {
+        variants: { none: { deletedAt: null } },
+      }),
+      ...(query.platform && {
+        listings: {
+          some: {
+            deletedAt: null,
+            platform: query.platform,
+          },
+        },
+      }),
     };
+  }
+
+  private buildProductOrderBy(
+    query: ProductQueryDto,
+  ): Prisma.ProductOrderByWithRelationInput {
+    const order = query.sortOrder ?? 'desc';
+    switch (query.sortBy) {
+      case 'name':
+        return { name: order };
+      case 'updatedAt':
+        return { updatedAt: order };
+      case 'price':
+        return { variants: { _min: { price: order } } };
+      case 'stock':
+        return { variants: { _sum: { stock: order } } };
+      case 'createdAt':
+      default:
+        return { createdAt: order };
+    }
+  }
+
+  private async findAllUncached(
+    organizationId: string,
+    query: ProductQueryDto,
+  ): Promise<{ items: ProductListItem[]; total: number }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+    const where = this.buildProductWhere(organizationId, query);
+    const orderBy = this.buildProductOrderBy(query);
 
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
         select: productListWithRelationsSelect,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -896,5 +997,214 @@ export class ProductService {
     });
     await this.cache.invalidateProductsForOrg(organizationId);
     return updated;
+  }
+
+  async bulkDelete(
+    productIds: string[],
+    organizationId: string,
+  ): Promise<{ deleted: number }> {
+    const products = await this.prisma.product.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        id: { in: productIds },
+      },
+      select: { id: true },
+    });
+    if (products.length === 0) {
+      return { deleted: 0 };
+    }
+    const ids = products.map((p) => p.id);
+    const now = new Date();
+    await this.prisma.$transaction([
+      this.prisma.productVariant.updateMany({
+        where: { organizationId, productId: { in: ids }, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      this.prisma.product.updateMany({
+        where: { organizationId, id: { in: ids }, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+    ]);
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { deleted: ids.length };
+  }
+
+  async bulkUpdateCategory(
+    productIds: string[],
+    categoryId: string,
+    organizationId: string,
+  ): Promise<{ updated: number }> {
+    await this.resolveCategoryId(organizationId, categoryId);
+    const result = await this.prisma.product.updateMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        id: { in: productIds },
+      },
+      data: { categoryId },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { updated: result.count };
+  }
+
+  async bulkUpdateStatus(
+    productIds: string[],
+    isActive: boolean,
+    organizationId: string,
+  ): Promise<{ updated: number }> {
+    const result = await this.prisma.product.updateMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        id: { in: productIds },
+      },
+      data: { isActive },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { updated: result.count };
+  }
+
+  async bulkExport(
+    organizationId: string,
+    format: 'csv' | 'xlsx',
+    filters?: ProductFilters,
+  ): Promise<Buffer> {
+    const where = this.buildProductWhere(organizationId, filters ?? {});
+    const products = await this.prisma.product.findMany({
+      where,
+      include: {
+        variants: { where: { deletedAt: null } },
+        listings: {
+          where: { deletedAt: null },
+          select: { salePrice: true, listPrice: true },
+          take: 1,
+          orderBy: { updatedAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const productIds = products.map((p) => p.id);
+    return this.productImportService.exportProductsBuffer(
+      organizationId,
+      format,
+      { productIds },
+    );
+  }
+
+  async bulkImport(
+    organizationId: string,
+    file: Buffer,
+    format: 'csv' | 'xlsx',
+  ): Promise<ImportResult> {
+    return this.productImportService.importProductsFromFile(
+      organizationId,
+      file,
+      format,
+    );
+  }
+
+  async getProductPerformance(
+    organizationId: string,
+    productId: string,
+    periodDays = 30,
+  ): Promise<ProductPerformanceResponse> {
+    const product = await this.findOne(organizationId, productId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { organizationId, productId, deletedAt: null },
+      select: { barcode: true, stock: true },
+    });
+    const barcodes = [
+      product.barcode,
+      ...variants
+        .map((v) => v.barcode)
+        .filter((b): b is string => typeof b === 'string' && b.length > 0),
+    ];
+    const uniqueBarcodes = [...new Set(barcodes)];
+    const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
+
+    const since = new Date();
+    since.setDate(since.getDate() - periodDays);
+    since.setHours(0, 0, 0, 0);
+
+    const orderItems = await this.prisma.orderItem.findMany({
+      where: {
+        organizationId,
+        barcode: { in: uniqueBarcodes },
+        order: {
+          deletedAt: null,
+          createdAt: { gte: since },
+          status: { not: OrderStatus.RETURNED },
+        },
+      },
+      select: {
+        quantity: true,
+        unitPrice: true,
+        order: { select: { platform: true } },
+      },
+    });
+
+    let totalSales = 0;
+    let totalRevenue = 0;
+    const platformMap = new Map<
+      Marketplace,
+      { sales: number; revenue: number }
+    >();
+
+    for (const item of orderItems) {
+      const qty = item.quantity;
+      const rev = qty * Number(item.unitPrice);
+      totalSales += qty;
+      totalRevenue += rev;
+      const plat = item.order.platform;
+      const row = platformMap.get(plat) ?? { sales: 0, revenue: 0 };
+      row.sales += qty;
+      row.revenue += rev;
+      platformMap.set(plat, row);
+    }
+
+    const avgDailySales = periodDays > 0 ? totalSales / periodDays : 0;
+    const stockTurnoverRate =
+      totalStock > 0
+        ? Math.round((totalSales / totalStock) * 100) / 100
+        : totalSales > 0
+          ? totalSales
+          : 0;
+    const daysOfStock =
+      avgDailySales > 0
+        ? Math.round((totalStock / avgDailySales) * 10) / 10
+        : totalStock > 0
+          ? 999
+          : 0;
+
+    const stockoutDate =
+      avgDailySales > 0 && totalStock > 0
+        ? new Date(Date.now() + (daysOfStock * 86_400_000))
+            .toISOString()
+            .slice(0, 10)
+        : null;
+
+    const reorderSuggested =
+      product.reorderPoint !== null &&
+      product.reorderPoint !== undefined &&
+      totalStock <= product.reorderPoint;
+
+    return {
+      productId,
+      period: `${periodDays}d`,
+      totalSales,
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      platforms: [...platformMap.entries()].map(([platform, row]) => ({
+        platform,
+        sales: row.sales,
+        revenue: Math.round(row.revenue * 100) / 100,
+      })),
+      stockTurnoverRate,
+      daysOfStock: daysOfStock === 999 ? 0 : daysOfStock,
+      stockForecast: {
+        stockoutDate,
+        reorderSuggested,
+      },
+    };
   }
 }
