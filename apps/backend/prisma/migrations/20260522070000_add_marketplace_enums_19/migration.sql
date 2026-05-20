@@ -1,0 +1,7 @@
+-- AlterEnum (19. tur — Avrupa, Orta Doğu, Türkiye niche marketplace)
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'MALL_CZ';
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'PIGU';
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'PRICERUNNER';
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'OUNASS';
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'SIVVI';
+ALTER TYPE "Marketplace" ADD VALUE IF NOT EXISTS 'IDEFIX';

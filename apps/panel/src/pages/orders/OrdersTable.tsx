@@ -3,9 +3,8 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import {
   Table,
   TableBody,
@@ -103,167 +102,98 @@ export function OrdersTable({
   const someSelected = pageIds.some((id) => selectedIds.has(id));
 
   return (
-    <div className="space-y-4">
-      <div className="hidden overflow-x-auto md:block">
-        <div className="inline-block min-w-[700px] w-full lg:min-w-0">
-          <div className="rounded-md border border-border bg-card">
-            <Table className="min-w-[700px] lg:min-w-full">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[44px] p-2">
-                    <Checkbox
-                      checked={
-                        allSelected
-                          ? true
-                          : someSelected
-                            ? 'indeterminate'
-                            : false
-                      }
-                      onCheckedChange={(v) => {
-                        onToggleAllOnPage(v === true);
-                      }}
-                      aria-label={t('common.selectAllOnPage')}
-                    />
-                  </TableHead>
-                  <TableHead>{t('common.platform')}</TableHead>
-                  <TableHead>{t('common.orderNumber')}</TableHead>
-                  <TableHead className="hidden lg:table-cell">
-                    {t('common.customer')}
-                  </TableHead>
-                  <TableHead className="text-right">{t('common.amount')}</TableHead>
-                  <TableHead>{t('common.status')}</TableHead>
-                  <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
-                  <TableHead className="hidden lg:table-cell w-[100px]">
-                    {t('common.actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {orders.map((order) => (
-                  <TableRow
-                    key={order.id}
-                    className="cursor-pointer"
-                    onClick={() => {
-                      onRowClick(order);
-                    }}
-                  >
-                    <TableCell
-                      className="w-[44px] p-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      onKeyDown={(e) => {
-                        e.stopPropagation();
-                      }}
-                    >
-                      <Checkbox
-                        checked={selectedIds.has(order.id)}
-                        onCheckedChange={(v) => {
-                          onToggleRow(order.id, v === true);
-                        }}
-                        aria-label={`Seç: ${order.platformOrderId}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <PlatformBadge platform={order.platform} />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {order.platformOrderId}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">{order.customerName}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatTry(order.totalAmount, order.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={order.status} />
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground xl:table-cell">
-                      {formatDate(order.platformCreatedAt, dateLocale)}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <button
-                        type="button"
-                        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRowClick(order);
-                        }}
-                      >
-                        {t('common.detail')}
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3 md:hidden">
-        {orders.map((order) => (
-          <Card
-            key={order.id}
-            className="border-border bg-card shadow-sm"
-            role="button"
-            tabIndex={0}
-            onClick={() => {
-              onRowClick(order);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                onRowClick(order);
-              }
-            }}
-          >
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <PlatformBadge platform={order.platform} />
-                    <StatusBadge status={order.status} />
-                  </div>
-                  <p className="font-mono text-sm font-medium text-foreground">
-                    {order.platformOrderId}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">{order.customerName}</p>
-                </div>
+    <ResponsiveTable>
+      <div className="rounded-md border border-border bg-card">
+        <Table className="min-w-[700px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[44px] p-2">
                 <Checkbox
-                  checked={selectedIds.has(order.id)}
+                  checked={
+                    allSelected
+                      ? true
+                      : someSelected
+                        ? 'indeterminate'
+                        : false
+                  }
                   onCheckedChange={(v) => {
-                    onToggleRow(order.id, v === true);
+                    onToggleAllOnPage(v === true);
                   }}
-                  aria-label={`Seç: ${order.platformOrderId}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
+                  aria-label={t('common.selectAllOnPage')}
                 />
-              </div>
-              <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
-                <p className="text-lg font-semibold tabular-nums text-foreground">
-                  {formatTry(order.totalAmount, order.currency)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(order.platformCreatedAt, dateLocale)}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                className="w-full"
-                onClick={(e) => {
-                  e.stopPropagation();
+              </TableHead>
+              <TableHead>{t('common.platform')}</TableHead>
+              <TableHead>{t('common.orderNumber')}</TableHead>
+              <TableHead className="hidden lg:table-cell">
+                {t('common.customer')}
+              </TableHead>
+              <TableHead className="text-right">{t('common.amount')}</TableHead>
+              <TableHead>{t('common.status')}</TableHead>
+              <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
+              <TableHead className="hidden lg:table-cell w-[100px]">
+                {t('common.actions')}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orders.map((order) => (
+              <TableRow
+                key={order.id}
+                className="cursor-pointer"
+                onClick={() => {
                   onRowClick(order);
                 }}
               >
-                {t('orders.openDetail')}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+                <TableCell
+                  className="w-[44px] p-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                >
+                  <Checkbox
+                    checked={selectedIds.has(order.id)}
+                    onCheckedChange={(v) => {
+                      onToggleRow(order.id, v === true);
+                    }}
+                    aria-label={`Seç: ${order.platformOrderId}`}
+                  />
+                </TableCell>
+                <TableCell>
+                  <PlatformBadge platform={order.platform} />
+                </TableCell>
+                <TableCell className="font-mono text-sm">
+                  {order.platformOrderId}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">{order.customerName}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {formatTry(order.totalAmount, order.currency)}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={order.status} />
+                </TableCell>
+                <TableCell className="hidden text-muted-foreground xl:table-cell">
+                  {formatDate(order.platformCreatedAt, dateLocale)}
+                </TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  <button
+                    type="button"
+                    className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRowClick(order);
+                    }}
+                  >
+                    {t('common.detail')}
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
-    </div>
+    </ResponsiveTable>
   );
 }

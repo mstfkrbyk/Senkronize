@@ -140,13 +140,13 @@ export function DashboardWidgetGrid({
   });
 
   if (!editMode) {
-    return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 auto-rows-min">{content}</div>;
+    return <div className="grid auto-rows-min grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{content}</div>;
   }
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 auto-rows-min">{content}</div>
+        <div className="grid auto-rows-min grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{content}</div>
       </SortableContext>
     </DndContext>
   );

@@ -16,6 +16,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { useIsTablet } from '@/hooks/use-mobile';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 function CollapseToggle(): ReactElement {
@@ -47,8 +48,24 @@ function CollapseToggle(): ReactElement {
 }
 
 export function AppSidebar(): ReactElement {
+  const isTablet = useIsTablet();
+  const { setOpen } = useSidebar();
+
   return (
-    <Sidebar collapsible="icon" variant="sidebar">
+    <Sidebar
+      collapsible="icon"
+      variant="sidebar"
+      onMouseEnter={() => {
+        if (isTablet) {
+          setOpen(true);
+        }
+      }}
+      onMouseLeave={() => {
+        if (isTablet) {
+          setOpen(false);
+        }
+      }}
+    >
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuButton size="lg" asChild>

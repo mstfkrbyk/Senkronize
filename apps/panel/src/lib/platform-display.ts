@@ -157,6 +157,12 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   TRADEME: { label: 'Trade Me', logo: '🇳🇿', color: 'blue' },
   LAMODA: { label: 'Lamoda', logo: '🇷🇺', color: 'rose' },
   YANDEX_MARKET: { label: 'Yandex Market', logo: '🇷🇺', color: 'yellow' },
+  MALL_CZ: { label: 'Mall.cz', logo: '🇨🇿', color: 'blue' },
+  PIGU: { label: 'Pigu.lt', logo: '🇱🇹', color: 'amber' },
+  PRICERUNNER: { label: 'Pricerunner', logo: '💶', color: 'emerald' },
+  OUNASS: { label: 'Ounass', logo: '🇦🇪', color: 'stone' },
+  SIVVI: { label: 'Sivvi', logo: '🇦🇪', color: 'rose' },
+  IDEFIX: { label: 'Idefix', logo: '📚', color: 'orange' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

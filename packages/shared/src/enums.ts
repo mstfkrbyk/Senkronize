@@ -198,7 +198,13 @@ export type Marketplace =
   | 'AKULAKU'
   | 'HIZLIRESMI'
   | 'TICIMAX_MP'
-  | 'IKAS_MP';
+  | 'IKAS_MP'
+  | 'MALL_CZ'
+  | 'PIGU'
+  | 'PRICERUNNER'
+  | 'OUNASS'
+  | 'SIVVI'
+  | 'IDEFIX';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -252,6 +258,7 @@ export type EcommerceType =
   | 'TICIMAX'
   | 'TSOFT'
   | 'MAGENTO'
+  | 'MAGENTO2'
   | 'PRESTASHOP'
   | 'OPENCART'
   | 'FAPRIKA'
@@ -264,7 +271,11 @@ export type EcommerceType =
   | 'VENDURE'
   | 'SALEOR'
   | 'IYZICO'
-  | 'STRIPE';
+  | 'STRIPE'
+  | 'IDEASOFT'
+  | 'WOOCOMMERCE'
+  | 'SQUARESPACE'
+  | 'WIX_STORES';
 
 /** Prisma `CargoProvider` ile uyumlu */
 export type CargoProvider =

@@ -179,6 +179,12 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.TRADEME]: 'Trade Me',
   [Marketplace.LAMODA]: 'Lamoda',
   [Marketplace.YANDEX_MARKET]: 'Yandex Market',
+  [Marketplace.MALL_CZ]: 'Mall.cz',
+  [Marketplace.PIGU]: 'Pigu.lt',
+  [Marketplace.PRICERUNNER]: 'Pricerunner',
+  [Marketplace.OUNASS]: 'Ounass',
+  [Marketplace.SIVVI]: 'Sivvi',
+  [Marketplace.IDEFIX]: 'Idefix',
 };
 
 @Injectable()

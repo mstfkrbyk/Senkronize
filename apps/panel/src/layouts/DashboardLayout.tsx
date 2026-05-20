@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react';
-import { Fragment, useEffect } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { BreadcrumbProvider } from '@/contexts/breadcrumb.context';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -16,12 +17,36 @@ import { TopBar } from '@/components/topbar/TopBar';
 import {
   SidebarInset,
   SidebarProvider,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useSocket } from '@/hooks/useSocket';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { useAuthStore } from '@/store/auth.store';
 import { useUiStore } from '@/store/ui.store';
+
+function MobileSidebarGestures(): null {
+  const isMobile = useIsMobile();
+  const { setOpenMobile } = useSidebar();
+
+  const closeSidebar = useCallback((): void => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [isMobile, setOpenMobile]);
+
+  const openSidebar = useCallback((): void => {
+    if (isMobile) {
+      setOpenMobile(true);
+    }
+  }, [isMobile, setOpenMobile]);
+
+  useSwipeGesture(closeSidebar, openSidebar);
+
+  return null;
+}
 
 export function DashboardLayout(): ReactElement {
   useKeyboardShortcuts();
@@ -29,6 +54,17 @@ export function DashboardLayout(): ReactElement {
   const { data: me } = useAuth();
   const setUser = useAuthStore((s) => s.setUser);
   const setOrg = useAuthStore((s) => s.setOrg);
+  const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
+  const [tabletExpanded, setTabletExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!isTablet) {
+      setTabletExpanded(false);
+    }
+  }, [isTablet]);
 
   useEffect(() => {
     if (!me) {
@@ -49,43 +85,56 @@ export function DashboardLayout(): ReactElement {
       plan: me.organization.plan,
     });
   }, [me, setOrg, setUser]);
-  const sidebarCollapsed = useUiStore((s) => s.sidebarCollapsed);
-  const setSidebarCollapsed = useUiStore((s) => s.setSidebarCollapsed);
+
+  const sidebarOpen = isTablet ? tabletExpanded : !sidebarCollapsed;
+
+  const handleSidebarOpenChange = (open: boolean): void => {
+    if (isTablet) {
+      setTabletExpanded(open);
+      return;
+    }
+    if (!isMobile) {
+      setSidebarCollapsed(!open);
+    }
+  };
 
   return (
     <BarcodeInputProvider>
       <BreadcrumbProvider>
-      <Fragment>
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
-        >
-          İçeriğe Atla
-        </a>
-      <SidebarProvider
-        open={!sidebarCollapsed}
-        onOpenChange={(open) => setSidebarCollapsed(!open)}
-      >
-        <AppSidebar />
-        <SidebarInset className="flex max-h-svh flex-col overflow-hidden">
-          <DemoBanner />
-          <ImpersonationBanner />
-          <TopBar />
-          <main
-            id="main-content"
-            tabIndex={-1}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 outline-none md:p-6"
+        <Fragment>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
           >
-            <Breadcrumb />
-            <Outlet />
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-      <KeyboardShortcutsModal />
-      <CommandPalette />
-      <OnboardingTour />
-      <CurrencyWidget />
-    </Fragment>
+            İçeriğe Atla
+          </a>
+          <SidebarProvider
+            open={sidebarOpen}
+            onOpenChange={handleSidebarOpenChange}
+            defaultOpen={!isMobile && !isTablet}
+          >
+            <MobileSidebarGestures />
+            <AppSidebar />
+            <SidebarInset className="flex max-h-svh flex-col overflow-hidden">
+              <DemoBanner />
+              <ImpersonationBanner />
+              <TopBar />
+              <main
+                id="main-content"
+                tabIndex={-1}
+                className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 pb-20 outline-none md:p-6 md:pb-6"
+              >
+                <Breadcrumb />
+                <Outlet />
+              </main>
+              <MobileBottomNav />
+            </SidebarInset>
+          </SidebarProvider>
+          <KeyboardShortcutsModal />
+          <CommandPalette />
+          <OnboardingTour />
+          <CurrencyWidget />
+        </Fragment>
       </BreadcrumbProvider>
     </BarcodeInputProvider>
   );

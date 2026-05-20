@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
+import { Menu, PanelLeft, Search } from 'lucide-react';
 
 import { HelpMenu } from '@/components/topbar/HelpMenu';
 import { openCommandPalette } from '@/lib/command-palette';
@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
-import { SidebarTrigger } from '@/components/ui/sidebar';
+import { useSidebar } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ALL_NAV_ITEMS_FOR_TITLE } from '@/constants/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -62,6 +62,7 @@ export function TopBar(): ReactElement {
   const storeUser = useAuthStore((s) => s.user);
   const logoutStore = useAuthStore((s) => s.logout);
   const setShortcutsHelpOpen = useUiStore((s) => s.setShortcutsHelpOpen);
+  const { toggleSidebar, setOpenMobile } = useSidebar();
 
   const org = data?.organization ?? storeOrg;
   const user = data?.user ?? storeUser;
@@ -85,7 +86,30 @@ export function TopBar(): ReactElement {
 
   return (
     <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3 md:px-4">
-      <SidebarTrigger className="-ml-1 text-foreground" />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="-ml-1 md:hidden"
+        aria-label="Menüyü aç"
+        onClick={() => {
+          setOpenMobile(true);
+        }}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="-ml-1 hidden md:inline-flex"
+        aria-label="Kenar çubuğunu aç veya kapat"
+        onClick={() => {
+          toggleSidebar();
+        }}
+      >
+        <PanelLeft className="h-5 w-5" />
+      </Button>
       <Separator orientation="vertical" className="mr-1 h-6" />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-xs text-muted-foreground">

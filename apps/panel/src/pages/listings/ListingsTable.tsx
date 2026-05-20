@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import {
   Table,
   TableBody,
@@ -226,10 +227,9 @@ export function ListingsTable({
   const someSelected = pageIds.some((id) => selectedIds.has(id));
 
   return (
-    <div className="overflow-x-auto -mx-4 sm:mx-0">
-      <div className="inline-block min-w-[900px] w-full sm:min-w-0">
-        <div className="rounded-md border">
-          <Table className="min-w-[900px] sm:min-w-full">
+    <ResponsiveTable>
+      <div className="rounded-md border">
+        <Table className="min-w-[900px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[44px] p-2">
@@ -375,7 +375,6 @@ export function ListingsTable({
             </TableBody>
           </Table>
         </div>
-      </div>
-    </div>
+    </ResponsiveTable>
   );
 }

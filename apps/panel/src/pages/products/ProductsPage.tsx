@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import {
   Table,
   TableBody,
@@ -227,7 +228,8 @@ export function ProductsPage(): ReactElement {
             />
           ) : (
             <>
-              <Table>
+              <ResponsiveTable>
+                <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[40px]">
@@ -281,7 +283,8 @@ export function ProductsPage(): ReactElement {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
+                </Table>
+              </ResponsiveTable>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <p className="text-muted-foreground text-sm">
                   {t('products.pageOf', {

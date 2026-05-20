@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
 import { AdapterRegistry } from './adapter.registry';
+import { EcommerceAdaptersModule } from './ecommerce/ecommerce.module';
 import { ErpAdaptersModule } from './erp/erp.module';
 import { A101Module } from './a101/a101.module';
 import { AboutYouModule } from './about-you/about-you.module';
@@ -72,6 +73,7 @@ import { HepsiexpressModule } from './hepsiexpress/hepsiexpress.module';
 import { HizliresmiModule } from './hizliresmi/hizliresmi.module';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
+import { IdefixModule } from './idefix/idefix.module';
 import { InstacartModule } from './instacart/instacart.module';
 import { IkasModule } from './ikas/ikas.module';
 import { IkasMpModule } from './ikas-mp/ikas-mp.module';
@@ -103,6 +105,7 @@ import { LogoAdapter } from './logo/logo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
 import { MagaluModule } from './magalu/magalu.module';
+import { MallCzModule } from './mall-cz/mall-cz.module';
 import { MagentoModule } from './magento/magento.module';
 import { MedusaModule } from './medusa/medusa.module';
 import { ManomanoModule } from './manomano/manomano.module';
@@ -132,6 +135,7 @@ import { NoonModule } from './noon/noon.module';
 import { NoonSaModule } from './noon-sa/noon-sa.module';
 import { OnbuyModule } from './onbuy/onbuy.module';
 import { OttoModule } from './otto/otto.module';
+import { OunassModule } from './ounass/ounass.module';
 import { OpencartModule } from './opencart/opencart.module';
 import { OpensooqModule } from './opensooq/opensooq.module';
 import { OverstockModule } from './overstock/overstock.module';
@@ -140,7 +144,9 @@ import { ParasutAdapter } from './parasut/parasut.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { PorlandModule } from './porland/porland.module';
+import { PiguModule } from './pigu/pigu.module';
 import { PrestashopModule } from './prestashop/prestashop.module';
+import { PricerunnerModule } from './pricerunner/pricerunner.module';
 import { SaleorModule } from './saleor/saleor.module';
 import { ProtelModule } from './protel/protel.module';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
@@ -151,6 +157,7 @@ import { RobomarktModule } from './robomarkt/robomarkt.module';
 import { SahibindenPremiumModule } from './sahibinden-premium/sahibinden-premium.module';
 import { SendoModule } from './sendo/sendo.module';
 import { SheinModule } from './shein/shein.module';
+import { SivviModule } from './sivvi/sivvi.module';
 import { SharafDgModule } from './sharaf-dg/sharaf-dg.module';
 import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
 import { SahibindenModule } from './sahibinden/sahibinden.module';
@@ -212,6 +219,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
 @Module({
   imports: [
     ErpAdaptersModule,
+    EcommerceAdaptersModule,
     A101Module,
     AboutYouModule,
     AddaxModule,
@@ -276,6 +284,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HepsiexpressModule,
     HizliresmiModule,
     IdealoModule,
+    IdefixModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -303,6 +312,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LogoCloudModule,
     MadeinchinaModule,
     MagaluModule,
+    MallCzModule,
     MagentoModule,
     MedusaModule,
     ManomanoModule,
@@ -330,11 +340,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OpencartModule,
     OverstockModule,
     OttoModule,
+    OunassModule,
     OpensooqModule,
     OzonModule,
     PazaramaPremiumModule,
     PorlandModule,
+    PiguModule,
     PrestashopModule,
+    PricerunnerModule,
     SaleorModule,
     ProtelModule,
     Qoo10Module,
@@ -346,6 +359,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
+    SivviModule,
     SharafDgModule,
     SefamerveModule,
     ShopeeModule,
@@ -511,6 +525,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HepsiexpressModule,
     HizliresmiModule,
     IdealoModule,
+    IdefixModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -538,6 +553,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LogoCloudModule,
     MadeinchinaModule,
     MagaluModule,
+    MallCzModule,
     MagentoModule,
     MedusaModule,
     ManomanoModule,
@@ -565,11 +581,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OpencartModule,
     OverstockModule,
     OttoModule,
+    OunassModule,
     OpensooqModule,
     OzonModule,
     PazaramaPremiumModule,
     PorlandModule,
+    PiguModule,
     PrestashopModule,
+    PricerunnerModule,
     SaleorModule,
     ProtelModule,
     Qoo10Module,
@@ -581,6 +600,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
+    SivviModule,
     SharafDgModule,
     SefamerveModule,
     ShopeeModule,

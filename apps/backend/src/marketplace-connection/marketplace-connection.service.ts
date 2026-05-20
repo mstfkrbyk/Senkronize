@@ -248,7 +248,13 @@ export class MarketplaceConnectionService {
     if (
       platform === Marketplace.NAMSHI ||
       platform === Marketplace.SNAPDEAL ||
-      platform === Marketplace.QOO10
+      platform === Marketplace.QOO10 ||
+      platform === Marketplace.MALL_CZ ||
+      platform === Marketplace.PIGU ||
+      platform === Marketplace.PRICERUNNER ||
+      platform === Marketplace.OUNASS ||
+      platform === Marketplace.SIVVI ||
+      platform === Marketplace.IDEFIX
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }

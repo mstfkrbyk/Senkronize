@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { IErpAdapter, IMarketplaceAdapter } from '@senkronize/shared';
+import type { IErpAdapter, IMarketplaceAdapter, IEcommerceAdapter } from '@senkronize/shared';
 
 import { A101Adapter } from './a101/a101.adapter';
 import { AboutYouAdapter } from './about-you/about-you.adapter';
@@ -75,6 +75,7 @@ import { HepsiexpressAdapter } from './hepsiexpress/hepsiexpress.adapter';
 import { HizliresmiAdapter } from './hizliresmi/hizliresmi.adapter';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoAdapter } from './idealo/idealo.adapter';
+import { IdefixAdapter } from './idefix/idefix.adapter';
 import { InstacartAdapter } from './instacart/instacart.adapter';
 import { IkasAdapter } from './ikas/ikas.adapter';
 import { IkasMpAdapter } from './ikas-mp/ikas-mp.adapter';
@@ -106,6 +107,7 @@ import { LetgoAdapter } from './letgo/letgo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaAdapter } from './madeinchina/madeinchina.adapter';
 import { MagaluAdapter } from './magalu/magalu.adapter';
+import { MallCzAdapter } from './mall-cz/mall-cz.adapter';
 import { MagentoAdapter } from './magento/magento.adapter';
 import { MedusaAdapter } from './medusa/medusa.adapter';
 import { ManomanoAdapter } from './manomano/manomano.adapter';
@@ -138,12 +140,15 @@ import { OpencartAdapter } from './opencart/opencart.adapter';
 import { OpensooqAdapter } from './opensooq/opensooq.adapter';
 import { OverstockAdapter } from './overstock/overstock.adapter';
 import { OttoAdapter } from './otto/otto.adapter';
+import { OunassAdapter } from './ounass/ounass.adapter';
 import { OzonAdapter } from './ozon/ozon.adapter';
 import { ParasutAdapter } from './parasut/parasut.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumAdapter } from './pazarama-premium/pazarama-premium.adapter';
 import { PorlandAdapter } from './porland/porland.adapter';
+import { PiguAdapter } from './pigu/pigu.adapter';
 import { PrestashopAdapter } from './prestashop/prestashop.adapter';
+import { PricerunnerAdapter } from './pricerunner/pricerunner.adapter';
 import { SaleorAdapter } from './saleor/saleor.adapter';
 import { ProtelAdapter } from './protel/protel.adapter';
 import { Qoo10Adapter } from './qoo10/qoo10.adapter';
@@ -155,6 +160,7 @@ import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SahibindenPremiumAdapter } from './sahibinden-premium/sahibinden-premium.adapter';
 import { SendoAdapter } from './sendo/sendo.adapter';
 import { SheinAdapter } from './shein/shein.adapter';
+import { SivviAdapter } from './sivvi/sivvi.adapter';
 import { SharafDgAdapter } from './sharaf-dg/sharaf-dg.adapter';
 import { SahibindenProAdapter } from './sahibinden-pro/sahibinden-pro.adapter';
 import { SahibindenAdapter } from './sahibinden/sahibinden.adapter';
@@ -211,11 +217,13 @@ import { ZalandoAdapter } from './zalando/zalando.adapter';
 import { ZaraAdapter } from './zara/zara.adapter';
 import { ZirveAdapter } from './zirve/zirve.adapter';
 import { ErpAdapterRegistry } from './erp/erp-adapter.registry';
+import { EcommerceAdapterRegistry } from './ecommerce/ecommerce-adapter.registry';
 
 @Injectable()
 export class AdapterRegistry {
   private readonly adapters: Map<string, IMarketplaceAdapter>;
   private readonly erpAdapters: Map<string, IErpAdapter>;
+  private readonly ecommerceAdapters: Map<string, IEcommerceAdapter>;
 
   constructor(
     private readonly amazon: AmazonAdapter,
@@ -283,6 +291,7 @@ export class AdapterRegistry {
     private readonly magento: MagentoAdapter,
     private readonly manomano: ManomanoAdapter,
     private readonly prestashop: PrestashopAdapter,
+    private readonly pricerunner: PricerunnerAdapter,
     private readonly opencart: OpencartAdapter,
     private readonly opensooq: OpensooqAdapter,
     private readonly overstock: OverstockAdapter,
@@ -348,6 +357,7 @@ export class AdapterRegistry {
     private readonly tazeDirekt: TazeDirektAdapter,
     private readonly meesho: MeeshoAdapter,
     private readonly porland: PorlandAdapter,
+    private readonly pigu: PiguAdapter,
     private readonly sefamerve: SefamerveAdapter,
     private readonly trendyolYemek: TrendyolYemekAdapter,
     private readonly vivense: VivenseAdapter,
@@ -360,9 +370,11 @@ export class AdapterRegistry {
     private readonly emag: EmagAdapter,
     private readonly hepsiburadaPremium: HepsiburadaPremiumAdapter,
     private readonly idealo: IdealoAdapter,
+    private readonly idefix: IdefixAdapter,
     private readonly n11Pro: N11ProAdapter,
     private readonly onbuy: OnbuyAdapter,
     private readonly otto: OttoAdapter,
+    private readonly ounass: OunassAdapter,
     private readonly pazaramaPremium: PazaramaPremiumAdapter,
     private readonly realde: RealdeAdapter,
     private readonly trendyolPremium: TrendyolPremiumAdapter,
@@ -398,6 +410,7 @@ export class AdapterRegistry {
     private readonly sahibindenPremium: SahibindenPremiumAdapter,
     private readonly sendo: SendoAdapter,
     private readonly shein: SheinAdapter,
+    private readonly sivvi: SivviAdapter,
     private readonly sharafDg: SharafDgAdapter,
     private readonly shopiverse: ShopiverseAdapter,
     private readonly simpra: SimpraAdapter,
@@ -426,8 +439,10 @@ export class AdapterRegistry {
     private readonly ikasMp: IkasMpAdapter,
     private readonly linio: LinioAdapter,
     private readonly magalu: MagaluAdapter,
+    private readonly mallCz: MallCzAdapter,
     private readonly ticimaxMp: TicimaxMpAdapter,
     private readonly erpAdapterRegistry: ErpAdapterRegistry,
+    private readonly ecommerceAdapterRegistry: EcommerceAdapterRegistry,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
@@ -494,6 +509,7 @@ export class AdapterRegistry {
       ['MAGENTO', magento],
       ['OPENCART', opencart],
       ['PRESTASHOP', prestashop],
+      ['PRICERUNNER', pricerunner],
       ['FAPRIKA', faprika],
       ['UNIPOS', unipos],
       ['UZUM', uzum],
@@ -537,6 +553,7 @@ export class AdapterRegistry {
       ['LIDYANA', lidyana],
       ['MODANISA', modanisa],
       ['PORLAND', porland],
+      ['PIGU', pigu],
       ['SEFAMERVE', sefamerve],
       ['SHOPEE', shopee],
       ['TRENDYOL_YEMEK', trendyolYemek],
@@ -545,6 +562,7 @@ export class AdapterRegistry {
       ['YEMEKSEPETI', yemeksepeti],
       ['ONBUY', onbuy],
       ['OTTO', otto],
+      ['OUNASS', ounass],
       ['ZALANDO', zalando],
       ['BOLCOM', bolcom],
       ['BLIBLI', blibli],
@@ -552,6 +570,7 @@ export class AdapterRegistry {
       ['CATCH_AU', catchAu],
       ['EMAG', emag],
       ['IDEALO', idealo],
+      ['IDEFIX', idefix],
       ['REALDE', realde],
       ['ZARA', zara],
       ['DECATHLON', decathlon],
@@ -594,6 +613,7 @@ export class AdapterRegistry {
       ['TRENDYOL_SECOND_HAND', trendyolSecondHand],
       ['SENDO', sendo],
       ['SHEIN', shein],
+      ['SIVVI', sivvi],
       ['TIKI', tiki],
       ['TIKLADO', tiklado],
       ['TRADEME', trademe],
@@ -618,6 +638,7 @@ export class AdapterRegistry {
       ['IKAS_MP', ikasMp],
       ['LINIO', linio],
       ['MAGALU', magalu],
+      ['MALL_CZ', mallCz],
       ['TICIMAX_MP', ticimaxMp],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
@@ -647,6 +668,9 @@ export class AdapterRegistry {
     for (const [erpType, adapter] of this.erpAdapterRegistry.adapters) {
       this.erpAdapters.set(erpType, adapter);
     }
+    this.ecommerceAdapters = new Map<string, IEcommerceAdapter>(
+      this.ecommerceAdapterRegistry.adapters,
+    );
   }
 
   get(platform: string): IMarketplaceAdapter {
@@ -655,6 +679,18 @@ export class AdapterRegistry {
       throw new NotFoundException(`${platform} adapter bulunamadı`);
     }
     return adapter;
+  }
+
+  getEcommerce(platform: string): IEcommerceAdapter {
+    const adapter = this.ecommerceAdapters.get(platform);
+    if (!adapter) {
+      throw new NotFoundException(`${platform} e-ticaret adapter bulunamadı`);
+    }
+    return adapter;
+  }
+
+  hasEcommerceAdapter(platform: string): boolean {
+    return this.ecommerceAdapters.has(platform);
   }
 
   getErp(erpType: string): IErpAdapter {

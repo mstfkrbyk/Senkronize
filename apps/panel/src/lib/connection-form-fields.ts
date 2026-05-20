@@ -344,6 +344,12 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   HIZLIRESMI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   TICIMAX_MP: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   IKAS_MP: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MALL_CZ: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PIGU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PRICERUNNER: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  OUNASS: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SIVVI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  IDEFIX: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -1865,6 +1871,12 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'HIZLIRESMI',
   'TICIMAX_MP',
   'IKAS_MP',
+  'MALL_CZ',
+  'PIGU',
+  'PRICERUNNER',
+  'OUNASS',
+  'SIVVI',
+  'IDEFIX',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

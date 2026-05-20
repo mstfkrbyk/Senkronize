@@ -375,7 +375,7 @@ export function RegisterPage(): ReactElement {
   }
 
   return (
-    <Card className="max-w-2xl">
+    <Card className="mx-auto w-full max-w-2xl border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
         <CardTitle>Hesap oluştur</CardTitle>
         <CardDescription>
@@ -440,7 +440,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Ad Soyad</FormLabel>
                       <FormControl>
-                        <Input autoComplete="name" placeholder="Adınız Soyadınız" {...field} />
+                        <Input autoComplete="name" placeholder="Adınız Soyadınız" className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -457,6 +457,7 @@ export function RegisterPage(): ReactElement {
                           type="email"
                           autoComplete="email"
                           placeholder="ornek@sirket.com"
+                          className="text-base"
                           {...field}
                         />
                       </FormControl>
@@ -476,7 +477,7 @@ export function RegisterPage(): ReactElement {
                             +90
                           </span>
                           <Input
-                            className="rounded-l-none border-0 shadow-none focus-visible:ring-0"
+                            className="rounded-l-none border-0 text-base shadow-none focus-visible:ring-0"
                             inputMode="numeric"
                             autoComplete="tel"
                             placeholder="5XXXXXXXXX"
@@ -503,6 +504,7 @@ export function RegisterPage(): ReactElement {
                           type="password"
                           autoComplete="new-password"
                           placeholder="En az 8 karakter"
+                          className="text-base"
                           {...field}
                         />
                       </FormControl>
@@ -521,6 +523,7 @@ export function RegisterPage(): ReactElement {
                           type="password"
                           autoComplete="new-password"
                           placeholder="Şifrenizi tekrar girin"
+                          className="text-base"
                           {...field}
                         />
                       </FormControl>
@@ -540,7 +543,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Firma adı</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ticari unvan" {...field} />
+                        <Input placeholder="Ticari unvan" className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -553,7 +556,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Vergi numarası</FormLabel>
                       <FormControl>
-                        <Input inputMode="numeric" maxLength={10} placeholder="10 hane" {...field} />
+                        <Input inputMode="numeric" maxLength={10} placeholder="10 hane" className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -566,7 +569,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Vergi dairesi</FormLabel>
                       <FormControl>
-                        <Input placeholder="Bağlı olduğunuz vergi dairesi" {...field} />
+                        <Input placeholder="Bağlı olduğunuz vergi dairesi" className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -579,7 +582,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Adres</FormLabel>
                       <FormControl>
-                        <Input placeholder="Açık adres" {...field} />
+                        <Input placeholder="Açık adres" className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -616,7 +619,7 @@ export function RegisterPage(): ReactElement {
                     <FormItem>
                       <FormLabel>Web sitesi (isteğe bağlı)</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." {...field} />
+                        <Input placeholder="https://..." className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -633,6 +636,7 @@ export function RegisterPage(): ReactElement {
                           placeholder="Partner referans kodunuz varsa girin"
                           readOnly={Boolean(inviteFromUrl && inviteValidation.data)}
                           className={cn(
+                            'text-base',
                             inviteFromUrl && inviteValidation.data
                               ? 'cursor-not-allowed bg-muted'
                               : undefined,

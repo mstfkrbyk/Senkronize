@@ -19,7 +19,7 @@ function formatTry(amount: number): string {
 
 export function DashboardKpiRow({ dash, loading }: Props): ReactElement {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KpiWidget
         title="Bugünkü gelir"
         value={dash ? formatTry(dash.revenueTry) : '—'}

@@ -226,6 +226,12 @@ enum Marketplace {
   HIZLIRESMI
   TICIMAX_MP
   IKAS_MP
+  MALL_CZ
+  PIGU
+  PRICERUNNER
+  OUNASS
+  SIVVI
+  IDEFIX
 }
 
 enum PricingStrategy {
@@ -290,6 +296,7 @@ enum EcommerceType {
   TICIMAX
   TSOFT
   MAGENTO
+  MAGENTO2
   PRESTASHOP
   OPENCART
   FAPRIKA
@@ -303,6 +310,10 @@ enum EcommerceType {
   SALEOR
   IYZICO
   STRIPE
+  IDEASOFT
+  WOOCOMMERCE
+  SQUARESPACE
+  WIX_STORES
 }
 
 enum CargoProvider {

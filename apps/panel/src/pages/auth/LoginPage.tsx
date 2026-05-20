@@ -278,7 +278,7 @@ export function LoginPage(): ReactElement {
 
   if (phase === 'twoFactor') {
     return (
-      <Card>
+      <Card className="mx-auto w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
         <CardHeader>
           <CardTitle>İki adımlı doğrulama</CardTitle>
           <CardDescription>
@@ -324,7 +324,7 @@ export function LoginPage(): ReactElement {
                 id="backup-code"
                 aria-label="Yedek kod"
                 placeholder="XXXXXXXX-XXXXXXXX"
-                className="font-mono uppercase"
+                className="font-mono uppercase text-base"
                 value={backupValue}
                 disabled={twoFactorMutation.isPending}
                 onChange={(e) => setBackupValue(e.target.value)}
@@ -371,7 +371,7 @@ export function LoginPage(): ReactElement {
   }
 
   return (
-    <Card>
+    <Card className="mx-auto w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
         <CardTitle>Giriş yap</CardTitle>
         <CardDescription>
@@ -394,6 +394,7 @@ export function LoginPage(): ReactElement {
                       type="email"
                       autoComplete="email"
                       placeholder="ornek@sirket.com"
+                      className="text-base"
                       {...field}
                     />
                   </FormControl>
@@ -412,6 +413,7 @@ export function LoginPage(): ReactElement {
                       type="password"
                       autoComplete="current-password"
                       placeholder="••••••••"
+                      className="text-base"
                       {...field}
                     />
                   </FormControl>
