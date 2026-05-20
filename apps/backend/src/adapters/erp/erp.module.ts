@@ -30,14 +30,17 @@ import { KolaymuhasebeErpAdapter } from './kolaymuhasebe-erp.adapter';
 import { IsbirErpAdapter } from './isbir-erp.adapter';
 import { LightspeedErpAdapter } from './lightspeed-erp.adapter';
 import { LightspeedRestaurantErpAdapter } from './lightspeed-restaurant-erp.adapter';
-import { LogoErpAdapter } from './logo-erp.adapter';
+import { LogoTigerModule } from './logo/logo.module';
+import { LogoTigerErpAdapter } from './logo/logo.adapter';
+import { MikroErpModule } from './mikro/mikro.module';
+import { MikroErpAdapter } from './mikro/mikro.adapter';
 import { MikroErpCloudAdapter } from './mikro-erp.adapter';
 import { MoneybirdModule } from './moneybird/moneybird.module';
 import { MedulaErpAdapter } from './medula-erp.adapter';
 import { MrpeasyErpAdapter } from './mrpeasy-erp.adapter';
 import { MuhasebeNetErpAdapter } from './muhasebe-net-erp.adapter';
-import { NetsisErpCloudAdapter } from './netsis-erp.adapter';
-import { NetsuiteErpAdapter } from './netsuite-erp.adapter';
+import { NetsisErpAdapter } from './netsis/netsis.adapter';
+import { NetsuiteErpAdapter } from './netsuite/netsuite.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
 import { OracleMicrosErpAdapter } from './oracle-micros-erp.adapter';
 import { ParasutErpAdapter } from './parasut-erp.adapter';
@@ -66,6 +69,8 @@ import { ZohoBooksErpAdapter } from './zoho-books-erp.adapter';
 import { ZohoInventoryModule } from './zoho-inventory/zoho-inventory.module';
 
 const erpRound5Modules = [
+  LogoTigerModule,
+  MikroErpModule,
   HoldedModule,
   DebitoorModule,
   BillomatModule,
@@ -83,7 +88,7 @@ const erpRound5Modules = [
 const legacyErpAdapters = [
   BizimHesapErpAdapter,
   ParasutErpAdapter,
-  LogoErpAdapter,
+  LogoTigerErpAdapter,
   TsoftErpAdapter,
   TicimaxErpAdapter,
   NetsuiteErpAdapter,
@@ -97,7 +102,8 @@ const legacyErpAdapters = [
   LightspeedErpAdapter,
   VendPosErpAdapter,
   ZirveBulutErpAdapter,
-  NetsisErpCloudAdapter,
+  NetsisErpAdapter,
+  MikroErpAdapter,
   MikroErpCloudAdapter,
   IsbirErpAdapter,
   AliciErpAdapter,

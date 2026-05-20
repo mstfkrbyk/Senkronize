@@ -193,6 +193,16 @@ export interface IMarketplaceAdapter {
 /** E-ticaret altyapısı adaptörü — `IMarketplaceAdapter` ile aynı sözleşme (örn. Shopiverse). */
 export type IEcommerceAdapter = IMarketplaceAdapter;
 
+export interface ErpInvoiceLine {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  total: number;
+  /** ERP stok kartı kodu (Logo/Mikro vb.) */
+  sku?: string;
+}
+
 export interface ErpInvoice {
   erpInvoiceId: string;
   /** Pazaryeri / platform sipariş kimliği */
@@ -201,13 +211,9 @@ export interface ErpInvoice {
   totalAmount: number;
   currency: string;
   issuedAt: string;
-  lines: Array<{
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    taxRate: number;
-    total: number;
-  }>;
+  lines: ErpInvoiceLine[];
+  /** ERP cari unvanı */
+  customerName?: string;
 }
 
 export interface ErpProduct {
@@ -224,6 +230,10 @@ export interface ERPConnectionResult {
   companyName?: string;
   version?: string;
   productCount?: number;
+  /** Bağlantı testi süresi (ms) */
+  responseTimeMs?: number;
+  /** Başarısız testte kullanıcıya gösterilecek özet mesaj */
+  message?: string;
 }
 
 /** ERP adaptörü — bulut API (BizimHesap vb.) */

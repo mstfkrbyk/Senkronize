@@ -20,6 +20,9 @@ export const PLATFORM_RATE_LIMIT_BUCKETS: Record<string, PlatformRateLimit> = {
   OZON: { rpm: 60, burst: 90 },
   WILDBERRIES: { rpm: 300, burst: 350 },
   DEFAULT: { rpm: 60, burst: 60 },
+  LOGO: { rpm: 60, burst: 90 },
+  MIKRO: { rpm: 60, burst: 90 },
+  MIKRO_ERP: { rpm: 60, burst: 90 },
 };
 
 export interface RateLimitConfig {

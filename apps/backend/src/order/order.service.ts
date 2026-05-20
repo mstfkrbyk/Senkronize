@@ -794,6 +794,15 @@ export class OrderService {
                 error: err,
               });
             });
+          void this.erpSyncSettingsService
+            .enqueueOrderInvoicePush(organizationId, before.id)
+            .catch((err: unknown) => {
+              this.logger.warn('ERP fatura işi kuyruğa alınamadı', {
+                orderId: before.id,
+                organizationId,
+                error: err instanceof Error ? err.message : 'Bilinmeyen hata',
+              });
+            });
         }
       }
     }

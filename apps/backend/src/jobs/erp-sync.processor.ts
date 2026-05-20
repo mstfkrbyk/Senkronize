@@ -1,20 +1,26 @@
-import { Process, Processor } from '@nestjs/bull';
+import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import {
   ErpType,
+  NotificationType,
   OrderStatus,
   Prisma,
   StockMovementType,
 } from '@prisma/client';
 import type { ErpInvoice, IErpAdapter } from '@senkronize/shared';
-import type { Job } from 'bull';
+import type { Job, Queue } from 'bull';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { ErpConnectionService } from '../erp-connection/erp-connection.service';
 import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
+import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { QUEUE_ERP_SYNC } from '../queue/queue.constants';
-import type { ErpSyncJobData } from '../queue/queue.types';
+import {
+  LISTING_SYNC_STOCK_JOB_OPTIONS,
+  QUEUE_ERP_SYNC,
+  QUEUE_LISTING_SYNC,
+} from '../queue/queue.constants';
+import type { ErpSyncJobData, ListingSyncStockJobData } from '../queue/queue.types';
 import { SyncLogService } from '../sync/sync-log.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 
@@ -35,6 +41,9 @@ export class ErpSyncProcessor {
     private readonly syncLogService: SyncLogService,
     private readonly prisma: PrismaService,
     private readonly warehouseService: WarehouseService,
+    private readonly inAppNotificationService: InAppNotificationService,
+    @InjectQueue(QUEUE_LISTING_SYNC)
+    private readonly listingSyncQueue: Queue<ListingSyncStockJobData>,
   ) {}
 
   @Process('sync-products')
@@ -54,6 +63,18 @@ export class ErpSyncProcessor {
           continue;
         }
         try {
+          const priorStock = await this.prisma.stockEntry.findFirst({
+            where: {
+              organizationId: ctx.organizationId,
+              barcode,
+              platform: null,
+              warehouseId: mainWh.id,
+            },
+            select: { quantity: true },
+          });
+          const beforeQty = priorStock?.quantity ?? 0;
+          const afterQty = erpProduct.stockQuantity;
+
           await this.prisma.$transaction(async (tx) => {
             const existing = await tx.product.findFirst({
               where: {
@@ -100,13 +121,11 @@ export class ErpSyncProcessor {
                 warehouseId: mainWh.id,
               },
             });
-            const before = stockRow?.quantity ?? 0;
-            const after = erpProduct.stockQuantity;
             if (stockRow) {
               await tx.stockEntry.update({
                 where: { id: stockRow.id },
                 data: {
-                  quantity: after,
+                  quantity: afterQty,
                   ...(product ? { productId: product.id } : {}),
                 },
               });
@@ -117,12 +136,12 @@ export class ErpSyncProcessor {
                   warehouseId: mainWh.id,
                   barcode,
                   platform: null,
-                  quantity: after,
+                  quantity: afterQty,
                   productId: product?.id ?? null,
                 },
               });
             }
-            if (before !== after) {
+            if (beforeQty !== afterQty) {
               await tx.stockMovement.create({
                 data: {
                   organizationId: ctx.organizationId,
@@ -130,14 +149,17 @@ export class ErpSyncProcessor {
                   warehouseId: mainWh.id,
                   platform: null,
                   movementType: StockMovementType.ADJUSTMENT,
-                  quantity: after - before,
-                  beforeQuantity: before,
-                  afterQuantity: after,
+                  quantity: afterQty - beforeQty,
+                  beforeQuantity: beforeQty,
+                  afterQuantity: afterQty,
                   note: 'ERP ürün senkronu',
                 },
               });
             }
           });
+          if (beforeQty !== afterQty) {
+            await this.enqueueListingStockSync(ctx.organizationId, barcode, afterQty);
+          }
           processed += 1;
         } catch (error) {
           failed += 1;
@@ -225,11 +247,13 @@ export class ErpSyncProcessor {
           processed += 1;
         } catch (error) {
           failed += 1;
+          const message = error instanceof Error ? error.message : 'Bilinmeyen hata';
           this.logger.warn('ERP fatura senkronu başarısız', {
             organizationId: ctx.organizationId,
             orderId: order.id,
-            error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+            error: message,
           });
+          await this.notifyErpInvoiceFailure(ctx.organizationId, order.id, message, ctx.erpType);
         }
       }
 
@@ -292,11 +316,13 @@ export class ErpSyncProcessor {
         });
         return { processed: 1, failed: 0 };
       } catch (error) {
+        const message = error instanceof Error ? error.message : 'Bilinmeyen hata';
         this.logger.warn('Sipariş ERP faturası oluşturulamadı', {
           organizationId: ctx.organizationId,
           orderId,
-          error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+          error: message,
         });
+        await this.notifyErpInvoiceFailure(ctx.organizationId, orderId, message, ctx.erpType);
         return { processed: 0, failed: 1 };
       }
     });
@@ -336,59 +362,72 @@ export class ErpSyncProcessor {
         failed += 1;
         continue;
       }
-      try {
-        await this.prisma.$transaction(async (tx) => {
-          const product = await tx.product.findFirst({
-            where: { organizationId, barcode, deletedAt: null },
-            select: { id: true },
-          });
-          const stockRow = await tx.stockEntry.findFirst({
+        try {
+          const priorStock = await this.prisma.stockEntry.findFirst({
             where: {
               organizationId,
               barcode,
               platform: null,
               warehouseId: mainWh.id,
             },
+            select: { quantity: true },
           });
-          const before = stockRow?.quantity ?? 0;
-          const after = erpProduct.stockQuantity;
-          if (stockRow) {
-            await tx.stockEntry.update({
-              where: { id: stockRow.id },
-              data: {
-                quantity: after,
-                ...(product ? { productId: product.id } : {}),
-              },
+          const beforeQty = priorStock?.quantity ?? 0;
+          const afterQty = erpProduct.stockQuantity;
+
+          await this.prisma.$transaction(async (tx) => {
+            const product = await tx.product.findFirst({
+              where: { organizationId, barcode, deletedAt: null },
+              select: { id: true },
             });
-          } else {
-            await tx.stockEntry.create({
-              data: {
-                organizationId,
-                warehouseId: mainWh.id,
-                barcode,
-                platform: null,
-                quantity: after,
-                productId: product?.id ?? null,
-              },
-            });
-          }
-          if (before !== after) {
-            await tx.stockMovement.create({
-              data: {
+            const stockRow = await tx.stockEntry.findFirst({
+              where: {
                 organizationId,
                 barcode,
-                warehouseId: mainWh.id,
                 platform: null,
-                movementType: StockMovementType.ADJUSTMENT,
-                quantity: after - before,
-                beforeQuantity: before,
-                afterQuantity: after,
-                note: 'ERP stok senkronu',
+                warehouseId: mainWh.id,
               },
             });
+            if (stockRow) {
+              await tx.stockEntry.update({
+                where: { id: stockRow.id },
+                data: {
+                  quantity: afterQty,
+                  ...(product ? { productId: product.id } : {}),
+                },
+              });
+            } else {
+              await tx.stockEntry.create({
+                data: {
+                  organizationId,
+                  warehouseId: mainWh.id,
+                  barcode,
+                  platform: null,
+                  quantity: afterQty,
+                  productId: product?.id ?? null,
+                },
+              });
+            }
+            if (beforeQty !== afterQty) {
+              await tx.stockMovement.create({
+                data: {
+                  organizationId,
+                  barcode,
+                  warehouseId: mainWh.id,
+                  platform: null,
+                  movementType: StockMovementType.ADJUSTMENT,
+                  quantity: afterQty - beforeQty,
+                  beforeQuantity: beforeQty,
+                  afterQuantity: afterQty,
+                  note: 'ERP stok senkronu',
+                },
+              });
+            }
+          });
+          if (beforeQty !== afterQty) {
+            await this.enqueueListingStockSync(organizationId, barcode, afterQty);
           }
-        });
-        processed += 1;
+          processed += 1;
       } catch (error) {
         failed += 1;
         this.logger.warn('ERP stok çekme başarısız', {
@@ -454,6 +493,7 @@ export class ErpSyncProcessor {
       const lineTotal = Math.round(unit * qty * 100) / 100;
       return {
         description: item.productName ?? item.sku,
+        sku: item.sku,
         quantity: qty,
         unitPrice: unit,
         taxRate: 0,
@@ -462,10 +502,47 @@ export class ErpSyncProcessor {
     });
     return adapter.createInvoice(credentials, {
       orderRef: order.platformOrderId,
+      customerName: order.customerName,
       totalAmount: Number(order.totalAmount),
       currency: order.currency,
       lines,
     });
+  }
+
+  private async enqueueListingStockSync(
+    organizationId: string,
+    barcode: string,
+    stock: number,
+  ): Promise<void> {
+    await this.listingSyncQueue.add(
+      'sync-stock',
+      { orgId: organizationId, barcode, stock },
+      LISTING_SYNC_STOCK_JOB_OPTIONS,
+    );
+  }
+
+  private async notifyErpInvoiceFailure(
+    organizationId: string,
+    orderId: string,
+    message: string,
+    erpType: string,
+  ): Promise<void> {
+    try {
+      await this.inAppNotificationService.create({
+        organizationId,
+        type: NotificationType.SYNC_ERROR,
+        title: 'ERP fatura oluşturulamadı',
+        message: `${erpType}: Sipariş ${orderId.slice(0, 8)}… — ${message.slice(0, 200)}`,
+        link: '/connections',
+        metadata: { orderId, erpType, source: 'erp-invoice' },
+      });
+    } catch (notifyErr) {
+      this.logger.warn('ERP fatura hata bildirimi oluşturulamadı', {
+        organizationId,
+        orderId,
+        error: notifyErr instanceof Error ? notifyErr.message : 'Bilinmeyen hata',
+      });
+    }
   }
 
   private async runSyncJob(
@@ -555,6 +632,14 @@ export class ErpSyncProcessor {
         erp,
         message,
       );
+      if (type === 'invoices' && job.data.orderId) {
+        await this.notifyErpInvoiceFailure(
+          organizationId,
+          job.data.orderId,
+          message,
+          erpType,
+        );
+      }
       throw error;
     }
   }

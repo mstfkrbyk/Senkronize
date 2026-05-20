@@ -254,7 +254,7 @@ import { MegatradeModule } from './megatrade/megatrade.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MercariModule } from './mercari/mercari.module';
 import { MeqasaModule } from './meqasa/meqasa.module';
-import { MikroAdapter } from './mikro/mikro.adapter';
+import { MikroErpAdapter } from './erp/mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
 import { MigrosHizliModule } from './migros-hizli/migros-hizli.module';
@@ -884,7 +884,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BizimHesapErpAdapter,
     ParasutErpAdapter,
     LogoErpAdapter,
-    MikroAdapter,
+    MikroErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,
@@ -914,7 +914,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BizimHesapErpAdapter,
     ParasutErpAdapter,
     LogoErpAdapter,
-    MikroAdapter,
+    MikroErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,

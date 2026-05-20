@@ -337,7 +337,11 @@ export class ErpConnectionService {
     if (!row) {
       return null;
     }
-    return this.parseCredentialsRecord(row.credentialsEnc);
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
+    if (!creds) {
+      return null;
+    }
+    return { ...creds, organizationId };
   }
 
   async findActiveByOrgAndType(
@@ -427,18 +431,23 @@ export class ErpConnectionService {
       const lineTotal = Math.round(unit * qty * 100) / 100;
       return {
         description: item.productName ?? item.sku,
+        sku: item.sku,
         quantity: qty,
         unitPrice: unit,
         taxRate: 0,
         total: lineTotal,
       };
     });
-    const invoice = await adapter.createInvoice(creds, {
-      orderRef: order.platformOrderId,
-      totalAmount: Number(order.totalAmount),
-      currency: order.currency,
-      lines,
-    });
+    const invoice = await adapter.createInvoice(
+      { ...creds, organizationId },
+      {
+        orderRef: order.platformOrderId,
+        customerName: order.customerName,
+        totalAmount: Number(order.totalAmount),
+        currency: order.currency,
+        lines,
+      },
+    );
     await this.prisma.auditLog.create({
       data: {
         actorUserId,

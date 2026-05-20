@@ -50,7 +50,7 @@ import { BidorbuyAdapter } from './bidorbuy/bidorbuy.adapter';
 import { DbaAdapter } from './dba/dba.adapter';
 import { DeuxiemeMainAdapter } from './deuxieme-main/deuxieme-main.adapter';
 import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
-import { LogoErpAdapter } from './erp/logo-erp.adapter';
+import { LogoTigerErpAdapter } from './erp/logo/logo.adapter';
 import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeAdapter } from './bizim-muhasebe/bizim-muhasebe.adapter';
 import { BimOnlineAdapter } from './bim-online/bim-online.adapter';
@@ -229,7 +229,7 @@ import { MegatradeAdapter } from './megatrade/megatrade.adapter';
 import { MercadolibreAdapter } from './mercadolibre/mercadolibre.adapter';
 import { MercariAdapter } from './mercari/mercari.adapter';
 import { MeqasaAdapter } from './meqasa/meqasa.adapter';
-import { MikroAdapter } from './mikro/mikro.adapter';
+import { MikroErpAdapter } from './erp/mikro/mikro.adapter';
 import { MikroBulutAdapter } from './mikro-bulut/mikro-bulut.adapter';
 import { MigrosAdapter } from './migros/migros.adapter';
 import { MigrosHizliAdapter } from './migros-hizli/migros-hizli.adapter';
@@ -490,8 +490,8 @@ export class AdapterRegistry {
     private readonly ideasoft: IdeasoftAdapter,
     private readonly bizimhesap: BizimHesapErpAdapter,
     private readonly parasut: ParasutErpAdapter,
-    private readonly logo: LogoErpAdapter,
-    private readonly mikro: MikroAdapter,
+    private readonly logo: LogoTigerErpAdapter,
+    private readonly mikro: MikroErpAdapter,
     private readonly luca: LucaAdapter,
     private readonly tsoft: TsoftAdapter,
     private readonly tsoftErp: TsoftErpAdapter,
