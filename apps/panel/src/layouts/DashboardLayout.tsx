@@ -7,6 +7,7 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { QuickStockAdjust } from '@/components/QuickStockAdjust';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
+import { GlobalSyncMonitor } from '@/components/connections/GlobalSyncMonitor';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { BreadcrumbProvider } from '@/contexts/breadcrumb.context';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
@@ -128,6 +129,7 @@ export function DashboardLayout(): ReactElement {
                 className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 pb-20 outline-none md:p-6 md:pb-6"
               >
                 <Breadcrumb />
+                <GlobalSyncMonitor />
                 <Outlet />
               </main>
               <MobileBottomNav />

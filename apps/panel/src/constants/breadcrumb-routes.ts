@@ -89,4 +89,9 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     parentPath: '/connections',
     parentLabel: 'Bağlantılar',
   },
+  {
+    pattern: /^\/connections\/[^/]+$/,
+    parentPath: '/connections',
+    parentLabel: 'Bağlantılar',
+  },
 ];

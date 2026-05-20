@@ -135,6 +135,11 @@ const ConnectionsPage = lazy(() =>
     default: m.ConnectionsPage,
   })),
 );
+const ConnectionDetailPage = lazy(() =>
+  import('@/pages/connections/ConnectionDetailPage').then((m) => ({
+    default: m.ConnectionDetailPage,
+  })),
+);
 const ErpConnectionDetailPage = lazy(() =>
   import('@/pages/connections/ErpConnectionDetailPage').then((m) => ({
     default: m.ErpConnectionDetailPage,
@@ -472,6 +477,7 @@ export default function App(): ReactElement {
                   path="/connections/erp/:id"
                   element={<ErpConnectionDetailPage />}
                 />
+                <Route path="/connections/:id" element={<ConnectionDetailPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/sync/history" element={<SyncHistoryPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />

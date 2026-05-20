@@ -1,14 +1,16 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, RefreshCw, TestTube2 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { SyncMonitorPanel } from '@/components/connections/SyncMonitorPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import {
   Card,
   CardContent,
@@ -35,9 +37,13 @@ import {
   type ErpSyncFrequency,
   type ErpSyncSettingsDto,
 } from '@/hooks/useErpSyncSettings';
-import { useErpConnections } from '@/hooks/useErpConnections';
+import { useErpConnections, useTestErpConnection } from '@/hooks/useErpConnections';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import {
+  circuitBreakerBadgeClass,
+  deriveHealthFromConnection,
+} from '@/pages/connections/connection-utils';
 import { getErpBranding } from '@/pages/connections/erp-display';
 import type { SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
 
@@ -122,6 +128,50 @@ function connectionStatusBadge(isActive: boolean, syncErrorCount: number): React
   );
 }
 
+function erpTypeFeatureLabel(erpType: string): { title: string; value: string } | null {
+  const upper = erpType.toUpperCase();
+  if (upper.includes('LOGO') || upper === 'LOGO_TIGER') {
+    return { title: 'Son çekilen belge no', value: '—' };
+  }
+  if (upper.includes('BIZIMHESAP') || upper === 'BIZIM_HESAP') {
+    return { title: 'Son senkronize fatura', value: '—' };
+  }
+  return null;
+}
+
+function resolveErpFeatureValue(
+  erpType: string,
+  logs: SyncLogEntry[],
+): { title: string; value: string } | null {
+  const base = erpTypeFeatureLabel(erpType);
+  if (!base) {
+    return null;
+  }
+  const invoiceLog = logs.find(
+    (log) =>
+      log.jobType.includes('invoices') &&
+      (log.status === 'SUCCESS' || log.status === 'PARTIAL'),
+  );
+  if (invoiceLog) {
+    return {
+      ...base,
+      value: `${invoiceLog.itemsProcessed} kayıt · ${format(new Date(invoiceLog.startedAt), 'd MMM yyyy HH:mm', { locale: tr })}`,
+    };
+  }
+  const productLog = logs.find(
+    (log) =>
+      log.jobType.includes('products') &&
+      (log.status === 'SUCCESS' || log.status === 'PARTIAL'),
+  );
+  if (productLog && base.title.includes('belge')) {
+    return {
+      ...base,
+      value: `${productLog.itemsProcessed} belge · ${format(new Date(productLog.startedAt), 'd MMM yyyy HH:mm', { locale: tr })}`,
+    };
+  }
+  return base;
+}
+
 function settingsToForm(settings: ErpSyncSettingsDto): {
   syncFrequency: ErpSyncFrequency;
   syncStock: boolean;
@@ -144,6 +194,12 @@ export function ErpConnectionDetailPage(): ReactElement {
   const settingsQuery = useErpSyncSettings(connectionId);
   const saveSettings = useUpsertErpSyncSettings(connectionId ?? '');
   const syncNow = useTriggerErpSyncNow(connectionId ?? '');
+  const testErp = useTestErpConnection();
+
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const connection = connectionsQuery.data?.find((c) => c.id === connectionId);
   const branding = connection ? getErpBranding(connection.erpType) : null;
@@ -171,7 +227,7 @@ export function ErpConnectionDetailPage(): ReactElement {
     queryFn: async (): Promise<SyncLogEntry[]> => {
       const params = new URLSearchParams({
         jobTypeStartsWith: `erp:${connectionId}:`,
-        limit: '10',
+        limit: '20',
       });
       const { data } = await api.get<{ data: SyncLogEntry[] }>(
         `/sync/logs?${params.toString()}`,
@@ -179,6 +235,53 @@ export function ErpConnectionDetailPage(): ReactElement {
       return data.data;
     },
   });
+
+  const health = useMemo(() => {
+    if (!connection) {
+      return null;
+    }
+    return deriveHealthFromConnection(connection, logsQuery.data ?? []);
+  }, [connection, logsQuery.data]);
+
+  const erpFeature = useMemo(() => {
+    if (!connection) {
+      return null;
+    }
+    return resolveErpFeatureValue(connection.erpType, logsQuery.data ?? []);
+  }, [connection, logsQuery.data]);
+
+  const ratePct =
+    health && health.rateLimit.limit > 0
+      ? Math.round((health.rateLimit.used / health.rateLimit.limit) * 100)
+      : 0;
+
+  const handleTest = (): void => {
+    if (!connectionId) {
+      return;
+    }
+    setTestResult(null);
+    testErp.mutate(
+      { connectionId },
+      {
+        onSuccess: (res) => {
+          if (res.connected) {
+            setTestResult({ ok: true, message: 'Bağlantı testi başarılı.' });
+          } else {
+            setTestResult({
+              ok: false,
+              message: 'Bağlantı testi başarısız oldu.',
+            });
+          }
+        },
+        onError: (error) => {
+          setTestResult({
+            ok: false,
+            message: getApiErrorMessage(error),
+          });
+        },
+      },
+    );
+  };
 
   const handleSave = (): void => {
     if (!connectionId) {
@@ -257,6 +360,8 @@ export function ErpConnectionDetailPage(): ReactElement {
         </Button>
       </div>
 
+      <SyncMonitorPanel />
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -272,10 +377,27 @@ export function ErpConnectionDetailPage(): ReactElement {
             {connectionStatusBadge(connection.isActive, connection.syncErrorCount)}
           </div>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          <p>Son senkron: {lastSyncLabel}</p>
+        <CardContent className="space-y-4 text-sm">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <p className="text-muted-foreground">Son senkron</p>
+              <p className="font-medium">{lastSyncLabel}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Oluşturulma</p>
+              <p className="font-medium">
+                {format(new Date(connection.createdAt), 'd MMM yyyy', { locale: tr })}
+              </p>
+            </div>
+            {erpFeature ? (
+              <div>
+                <p className="text-muted-foreground">{erpFeature.title}</p>
+                <p className="font-medium">{erpFeature.value}</p>
+              </div>
+            ) : null}
+          </div>
           {settingsQuery.data?.nextSyncAt && settingsQuery.data.syncFrequency !== 'MANUAL' ? (
-            <p className="mt-1">
+            <p className="text-muted-foreground">
               Sonraki planlı senkron:{' '}
               {format(new Date(settingsQuery.data.nextSyncAt), 'd MMM yyyy HH:mm', {
                 locale: tr,
@@ -283,8 +405,59 @@ export function ErpConnectionDetailPage(): ReactElement {
             </p>
           ) : null}
           {connection.lastErrorMessage ? (
-            <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
+            <p className="rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
               {connection.lastErrorMessage}
+            </p>
+          ) : null}
+          {health ? (
+            <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Rate limit</span>
+                  <span className="font-medium tabular-nums">
+                    {health.rateLimit.used} / {health.rateLimit.limit}
+                  </span>
+                </div>
+                <Progress value={ratePct} className="h-2" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Circuit breaker</span>
+                <Badge
+                  variant="outline"
+                  className={circuitBreakerBadgeClass(health.circuitBreaker)}
+                >
+                  {health.circuitBreaker}
+                </Badge>
+              </div>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2 border-t pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={testErp.isPending}
+              onClick={() => {
+                handleTest();
+              }}
+            >
+              {testErp.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <TestTube2 className="mr-2 h-4 w-4" />
+              )}
+              Test Bağlantısı
+            </Button>
+          </div>
+          {testResult ? (
+            <p
+              className={`rounded-md border px-3 py-2 text-sm ${
+                testResult.ok
+                  ? 'border-green-200 bg-green-50 text-green-800'
+                  : 'border-red-200 bg-red-50 text-red-800'
+              }`}
+            >
+              {testResult.message}
             </p>
           ) : null}
         </CardContent>
@@ -405,8 +578,8 @@ export function ErpConnectionDetailPage(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle>Son senkron kayıtları</CardTitle>
-          <CardDescription>Bu bağlantı için son 10 senkron işlemi</CardDescription>
+          <CardTitle>Bağlantı log&apos;ları</CardTitle>
+          <CardDescription>Bu bağlantı için son 20 senkron girişi</CardDescription>
         </CardHeader>
         <CardContent>
           {logsQuery.isLoading ? (
@@ -429,7 +602,8 @@ export function ErpConnectionDetailPage(): ReactElement {
                   <TableHead>Durum</TableHead>
                   <TableHead>İşlenen</TableHead>
                   <TableHead>Süre</TableHead>
-                  <TableHead>Başlangıç</TableHead>
+                  <TableHead>Zaman</TableHead>
+                  <TableHead>Detay</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -444,6 +618,9 @@ export function ErpConnectionDetailPage(): ReactElement {
                     <TableCell>{formatDuration(log.durationMs)}</TableCell>
                     <TableCell>
                       {format(new Date(log.startedAt), 'd MMM yyyy HH:mm', { locale: tr })}
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">
+                      {log.errorMessage ?? '—'}
                     </TableCell>
                   </TableRow>
                 ))}

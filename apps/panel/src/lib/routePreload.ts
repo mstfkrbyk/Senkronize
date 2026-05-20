@@ -22,6 +22,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/connections': () => import('@/pages/connections/ConnectionsPage'),
   '/connections/erp/setup': () => import('@/pages/connections/ErpSetupWizardPage'),
   '/connections/erp': () => import('@/pages/connections/ErpConnectionDetailPage'),
+  '/connections/detail': () => import('@/pages/connections/ConnectionDetailPage'),
   '/sync-logs': () => import('@/pages/sync-logs/SyncLogsPage'),
   '/sync/history': () => import('@/pages/sync/SyncHistoryPage'),
   '/sync/conflicts': () => import('@/pages/sync/ConflictsPage'),

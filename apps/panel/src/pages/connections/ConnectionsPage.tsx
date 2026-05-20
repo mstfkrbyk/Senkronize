@@ -1,33 +1,85 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plug } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Plug,
+  XCircle,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import {
   ConnectionFormModal,
   type ConnectionFormModalConfig,
 } from '@/components/ConnectionFormModal';
+import { SyncMonitorPanel } from '@/components/connections/SyncMonitorPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { useErpConnections, type ErpConnectionDto } from '@/hooks/useErpConnections';
-import { ECOMMERCE_MARKETPLACE_IDS } from '@/lib/connection-form-fields';
 import { getApiErrorMessage } from '@/lib/api';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
-import { ConnectionCard } from './ConnectionCard';
-import { ErpConnectionCard } from './ErpConnectionCard';
+import {
+  computeConnectionKpis,
+  erpToRow,
+  marketplaceToRow,
+  type UnifiedConnectionRow,
+} from './connection-utils';
+import { ConnectionsTable } from './ConnectionsTable';
 import { ErpSetupWizard } from './ErpSetupWizard';
 
-const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
+interface KpiCardProps {
+  title: string;
+  value: string;
+  icon: typeof CheckCircle2;
+  tone: string;
+  loading: boolean;
+}
+
+function KpiCard({ title, value, icon: Icon, tone, loading }: KpiCardProps): ReactElement {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <Icon className={`h-5 w-5 ${tone}`} aria-hidden />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-8 w-16" />
+        ) : (
+          <p className="text-2xl font-bold tabular-nums tracking-tight">{value}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function filterRows(
+  rows: UnifiedConnectionRow[],
+  tab: 'all' | 'marketplace' | 'ecommerce' | 'erp',
+): UnifiedConnectionRow[] {
+  if (tab === 'all') {
+    return rows;
+  }
+  if (tab === 'erp') {
+    return rows.filter((r) => r.kind === 'erp');
+  }
+  if (tab === 'ecommerce') {
+    return rows.filter((r) => r.kind === 'ecommerce');
+  }
+  return rows.filter((r) => r.kind === 'marketplace');
+}
 
 export function ConnectionsPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [mainTab, setMainTab] = useState<'marketplace' | 'ecommerce' | 'erp'>('marketplace');
+  const [mainTab, setMainTab] = useState<'all' | 'marketplace' | 'ecommerce' | 'erp'>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
   const [erpWizardOpen, setErpWizardOpen] = useState(false);
@@ -48,13 +100,20 @@ export function ConnectionsPage(): ReactElement {
     refetch: refetchErp,
   } = useErpConnections();
 
-  const marketplaceOnly = useMemo((): MarketplaceConnectionDto[] => {
-    return (connections ?? []).filter((c) => !ECOMMERCE_SET.has(c.platform));
-  }, [connections]);
+  const allRows = useMemo((): UnifiedConnectionRow[] => {
+    const mpRows = (connections ?? []).map((c) => marketplaceToRow(c));
+    const erpRows = (erpConnections ?? []).map((c) => erpToRow(c, 'Detayda'));
+    return [...mpRows, ...erpRows];
+  }, [connections, erpConnections]);
 
-  const ecommerceOnly = useMemo((): MarketplaceConnectionDto[] => {
-    return (connections ?? []).filter((c) => ECOMMERCE_SET.has(c.platform));
-  }, [connections]);
+  const visibleRows = useMemo(
+    () => filterRows(allRows, mainTab),
+    [allRows, mainTab],
+  );
+
+  const kpis = useMemo(() => computeConnectionKpis(allRows), [allRows]);
+  const loading = mpLoading || erpLoading;
+  const hasError = mpError || erpIsError;
 
   const openAddModal = (): void => {
     if (mainTab === 'erp') {
@@ -92,6 +151,8 @@ export function ConnectionsPage(): ReactElement {
     }
   };
 
+  const isEmpty = !loading && !hasError && allRows.length === 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -117,171 +178,104 @@ export function ConnectionsPage(): ReactElement {
         </div>
       </div>
 
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
-        <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="marketplace">{t('connections.marketplace')}</TabsTrigger>
-          <TabsTrigger value="ecommerce">{t('connections.ecommerce')}</TabsTrigger>
-          <TabsTrigger value="erp">{t('connections.erp')}</TabsTrigger>
-        </TabsList>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          title="Aktif"
+          value={String(kpis.active)}
+          icon={CheckCircle2}
+          tone="text-green-600"
+          loading={loading}
+        />
+        <KpiCard
+          title="Hata"
+          value={String(kpis.error)}
+          icon={XCircle}
+          tone="text-red-600"
+          loading={loading}
+        />
+        <KpiCard
+          title="Bekleyen"
+          value={String(kpis.pending)}
+          icon={AlertTriangle}
+          tone="text-amber-600"
+          loading={loading}
+        />
+        <KpiCard
+          title="Toplam"
+          value={String(kpis.total)}
+          icon={Clock}
+          tone="text-sky-600"
+          loading={loading}
+        />
+      </div>
 
-        <TabsContent value="marketplace" className="mt-6">
-          {mpLoading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
-            </div>
-          ) : null}
+      <SyncMonitorPanel />
 
-          {mpError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
-              <p className="text-sm font-medium text-destructive">
-                {getApiErrorMessage(mpErr)}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => {
-                  void refetchMp();
-                }}
-              >
-                {t('common.retry')}
-              </Button>
-            </div>
-          ) : null}
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full max-w-md" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      ) : null}
 
-          {!mpLoading && !mpError && marketplaceOnly.length === 0 ? (
-            <EmptyState
-              icon={Plug}
-              title={t('connections.emptyMarketplaceTitle')}
-              description={t('connections.emptyMarketplaceDescription')}
-              action={{
-                label: t('connections.emptyMarketplaceAction'),
-                onClick: () => {
-                  setMainTab('marketplace');
-                  setModalConfig({
-                    kind: 'marketplace',
-                    mode: 'create',
-                    listFilter: 'marketplace',
-                  });
-                  setModalOpen(true);
-                },
-              }}
+      {hasError ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
+          <p className="text-sm font-medium text-destructive">
+            {getApiErrorMessage(mpErr ?? erpErr)}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              void refetchMp();
+              void refetchErp();
+            }}
+          >
+            {t('common.retry')}
+          </Button>
+        </div>
+      ) : null}
+
+      {isEmpty ? (
+        <EmptyState
+          icon={Plug}
+          title={t('connections.emptyMarketplaceTitle')}
+          description={t('connections.emptyMarketplaceDescription')}
+          action={{
+            label: t('connections.emptyMarketplaceAction'),
+            onClick: () => {
+              setModalConfig({
+                kind: 'marketplace',
+                mode: 'create',
+                listFilter: 'marketplace',
+              });
+              setModalOpen(true);
+            },
+          }}
+        />
+      ) : null}
+
+      {!loading && !hasError && allRows.length > 0 ? (
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
+          <TabsList className="flex h-auto flex-wrap gap-1">
+            <TabsTrigger value="all">Tümü</TabsTrigger>
+            <TabsTrigger value="marketplace">{t('connections.marketplace')}</TabsTrigger>
+            <TabsTrigger value="ecommerce">{t('connections.ecommerce')}</TabsTrigger>
+            <TabsTrigger value="erp">{t('connections.erp')}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value={mainTab} className="mt-6">
+            <ConnectionsTable
+              rows={visibleRows}
+              marketplaceConnections={connections ?? []}
+              erpConnections={erpConnections ?? []}
+              onEditMarketplace={openEditMarketplace}
+              onEditErp={openEditErp}
             />
-          ) : null}
-
-          {!mpLoading && !mpError && marketplaceOnly.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {marketplaceOnly.map((c) => (
-                <ConnectionCard key={c.id} connection={c} onEditPress={openEditMarketplace} />
-              ))}
-            </div>
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="ecommerce" className="mt-6">
-          {mpLoading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
-            </div>
-          ) : null}
-
-          {mpError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
-              <p className="text-sm font-medium text-destructive">
-                {getApiErrorMessage(mpErr)}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => {
-                  void refetchMp();
-                }}
-              >
-                {t('common.retry')}
-              </Button>
-            </div>
-          ) : null}
-
-          {!mpLoading && !mpError && ecommerceOnly.length === 0 ? (
-            <EmptyState
-              icon={Plug}
-              title={t('connections.emptyEcommerceTitle')}
-              description={t('connections.emptyEcommerceDescription')}
-              action={{
-                label: t('connections.emptyEcommerceAction'),
-                onClick: () => {
-                  setModalConfig({
-                    kind: 'marketplace',
-                    mode: 'create',
-                    listFilter: 'ecommerce',
-                  });
-                  setModalOpen(true);
-                },
-              }}
-            />
-          ) : null}
-
-          {!mpLoading && !mpError && ecommerceOnly.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {ecommerceOnly.map((c) => (
-                <ConnectionCard key={c.id} connection={c} onEditPress={openEditMarketplace} />
-              ))}
-            </div>
-          ) : null}
-        </TabsContent>
-
-        <TabsContent value="erp" className="mt-6">
-          {erpLoading ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Skeleton className="h-48 w-full" />
-              <Skeleton className="h-48 w-full" />
-            </div>
-          ) : null}
-
-          {erpIsError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
-              <p className="text-sm font-medium text-destructive">
-                {getApiErrorMessage(erpErr)}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4"
-                onClick={() => {
-                  void refetchErp();
-                }}
-              >
-                {t('common.retry')}
-              </Button>
-            </div>
-          ) : null}
-
-          {!erpLoading && !erpIsError && (erpConnections ?? []).length === 0 ? (
-            <EmptyState
-              icon={Plug}
-              title={t('connections.emptyErpTitle')}
-              description={t('connections.emptyErpDescription')}
-              action={{
-                label: t('connections.emptyErpAction'),
-                onClick: () => {
-                  navigate('/connections/erp/setup');
-                },
-              }}
-            />
-          ) : null}
-
-          {!erpLoading && !erpIsError && (erpConnections ?? []).length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {(erpConnections ?? []).map((c) => (
-                <ErpConnectionCard key={c.id} connection={c} onEditPress={openEditErp} />
-              ))}
-            </div>
-          ) : null}
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
+      ) : null}
 
       <ConnectionFormModal
         open={modalOpen}
