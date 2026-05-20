@@ -24,6 +24,7 @@ import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../common/cache/cache.service';
 import { AnomalyDetectionService } from '../security/anomaly-detection.service';
+import { IpGeolocationService } from '../security/ip-geolocation.service';
 import { SecurityNotificationService } from '../security/security-notification.service';
 import {
   ChangePasswordDto,
@@ -41,7 +42,11 @@ import { TwoFactorService } from './two-factor.service';
 
 const BCRYPT_ROUNDS = 10;
 
-export type IssueTokenResult = TokenPair;
+export type IssueTokenResult = TokenPair & {
+  requiresTwoFactorSetup?: boolean;
+  passwordChangeRequired?: boolean;
+  passwordChangeWarning?: boolean;
+};
 
 @Injectable()
 export class AuthService {
@@ -58,6 +63,7 @@ export class AuthService {
     private readonly twoFactorService: TwoFactorService,
     private readonly cache: CacheService,
     private readonly anomalyDetectionService: AnomalyDetectionService,
+    private readonly ipGeolocation: IpGeolocationService,
     private readonly sessionService: SessionService,
     private readonly passwordPolicy: PasswordPolicyService,
     private readonly securityNotification: SecurityNotificationService,
@@ -65,17 +71,17 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<IssueTokenResult> {
-    const passwordCheck = this.passwordPolicy.validatePassword(dto.password);
-    if (!passwordCheck.valid) {
-      throw new BadRequestException(passwordCheck.errors[0]);
-    }
-
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
     });
     if (existing) {
       throw new ConflictException('Bu e-posta adresi zaten kayıtlı.');
+    }
+
+    const passwordCheck = this.passwordPolicy.validatePassword(dto.password);
+    if (!passwordCheck.valid) {
+      throw new BadRequestException(passwordCheck.errors[0]);
     }
 
     const normalizedTax = dto.taxNumber.trim();
@@ -141,6 +147,7 @@ export class AuthService {
           name: dto.name,
           phone: dto.phone.trim(),
           role: UserRole.OWNER,
+          passwordChangedAt: now,
         },
       });
 
@@ -212,7 +219,12 @@ export class AuthService {
     await this.cache.del(CacheService.key('login_fails', email.toLowerCase()));
   }
 
-  private async handleFailedLogin(email: string): Promise<void> {
+  private async handleFailedLogin(
+    email: string,
+    ip?: string,
+  ): Promise<void> {
+    void this.anomalyDetectionService.recordFailedLogin(ip);
+
     const normalized = email.toLowerCase();
     const key = CacheService.key('login_fails', normalized);
     const n = await this.cache.incrWithExpire(key, 900);
@@ -236,6 +248,20 @@ export class AuthService {
       user,
       'Çok sayıda başarısız giriş denemesi nedeniyle hesabınız geçici olarak kilitlendi.',
     );
+
+    if (user.organizationId) {
+      await this.prisma.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          actorOrgId: user.organizationId,
+          impersonatedOrgId: null,
+          action: 'auth.login_failed',
+          resourceType: 'User',
+          resourceId: user.id,
+          metadata: { reason: 'account_locked' },
+        },
+      });
+    }
   }
 
   async issueTokenPair(
@@ -332,7 +358,7 @@ export class AuthService {
       !user.organization ||
       user.organization.deletedAt != null
     ) {
-      await this.handleFailedLogin(emailLower);
+      await this.handleFailedLogin(emailLower, sessionMeta?.ipAddress);
       throw new UnauthorizedException('E-posta veya şifre hatalı.');
     }
 
@@ -341,7 +367,7 @@ export class AuthService {
       user.passwordHash,
     );
     if (!passwordOk) {
-      await this.handleFailedLogin(emailLower);
+      await this.handleFailedLogin(emailLower, sessionMeta?.ipAddress);
       throw new UnauthorizedException('E-posta veya şifre hatalı.');
     }
 
@@ -373,17 +399,20 @@ export class AuthService {
     });
 
     await this.notifyLoginIfNewDevice(user, sessionMeta);
+    await this.trackLoginCountry(user.id, user.organizationId, sessionMeta?.ipAddress);
 
     this.posthog.capture(user.id, 'user_logged_in', {
       orgId: user.organizationId,
     });
 
-    return this.sessionService.issueTokenPair(
+    const tokens = await this.sessionService.issueTokenPair(
       user.id,
       user.organizationId,
       user.role,
       sessionMeta,
     );
+
+    return this.attachSecurityFlags(tokens, user);
   }
 
   async completeTwoFactorLogin(
@@ -437,17 +466,70 @@ export class AuthService {
     });
 
     await this.notifyLoginIfNewDevice(user, sessionMeta);
+    await this.trackLoginCountry(user.id, user.organizationId, sessionMeta?.ipAddress);
 
     this.posthog.capture(user.id, 'user_logged_in', {
       orgId: user.organizationId,
     });
 
-    return this.sessionService.issueTokenPair(
+    const tokens = await this.sessionService.issueTokenPair(
       user.id,
       user.organizationId,
       user.role,
       sessionMeta,
     );
+
+    return this.attachSecurityFlags(tokens, user);
+  }
+
+  private async trackLoginCountry(
+    userId: string,
+    organizationId: string,
+    ip?: string,
+  ): Promise<void> {
+    const country = await this.ipGeolocation.resolveCountry(ip);
+    void this.anomalyDetectionService.recordLoginCountry(
+      userId,
+      organizationId,
+      country,
+    );
+  }
+
+  private async attachSecurityFlags(
+    tokens: TokenPair,
+    user: {
+      id: string;
+      organizationId: string | null;
+      twoFactorEnabled: boolean;
+      passwordChangedAt: Date | null;
+      createdAt: Date;
+      organization: {
+        require2FA: boolean;
+        passwordMaxAgeDays: number;
+      } | null;
+    },
+  ): Promise<IssueTokenResult> {
+    const policy = user.organization
+      ? {
+          maxAgeDays: user.organization.passwordMaxAgeDays,
+        }
+      : { maxAgeDays: 90 };
+
+    const ageStatus = this.passwordPolicy.getPasswordAgeStatus(
+      user.passwordChangedAt,
+      user.createdAt,
+      policy.maxAgeDays,
+    );
+
+    const requiresTwoFactorSetup =
+      (user.organization?.require2FA ?? false) && !user.twoFactorEnabled;
+
+    return {
+      ...tokens,
+      requiresTwoFactorSetup,
+      passwordChangeRequired: ageStatus.mustChange,
+      passwordChangeWarning: ageStatus.warning,
+    };
   }
 
   async refresh(
@@ -470,10 +552,10 @@ export class AuthService {
     actor: AuthenticatedUser,
     dto: ChangePasswordDto,
   ): Promise<void> {
-    const passwordCheck = this.passwordPolicy.validatePassword(dto.newPassword);
-    if (!passwordCheck.valid) {
-      throw new BadRequestException(passwordCheck.errors[0]);
-    }
+    await this.passwordPolicy.assertValidPasswordForOrg(
+      actor.organizationId,
+      dto.newPassword,
+    );
 
     const user = await this.prisma.user.findFirst({
       where: { id: actor.id, deletedAt: null },
@@ -487,10 +569,32 @@ export class AuthService {
       throw new UnauthorizedException('Mevcut şifre hatalı');
     }
 
+    await this.passwordPolicy.assertNotReusedPassword(
+      user.id,
+      user.passwordHash,
+      dto.newPassword,
+    );
+
     const newHash = await bcrypt.hash(dto.newPassword, 12);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash: newHash },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newHash, passwordChangedAt: new Date() },
+      });
+      await tx.passwordHistory.create({
+        data: { userId: user.id, passwordHash: user.passwordHash },
+      });
+      const excess = await tx.passwordHistory.findMany({
+        where: { userId: user.id },
+        orderBy: { createdAt: 'desc' },
+        skip: 5,
+        select: { id: true },
+      });
+      if (excess.length > 0) {
+        await tx.passwordHistory.deleteMany({
+          where: { id: { in: excess.map((e) => e.id) } },
+        });
+      }
     });
 
     await this.prisma.auditLog.create({
@@ -525,6 +629,12 @@ export class AuthService {
     });
     const { subscription, ...rest } = org;
     const plan = this.resolveUiPlanTier(subscription);
+    const policy = await this.passwordPolicy.getOrgPolicy(org.id);
+    const ageStatus = this.passwordPolicy.getPasswordAgeStatus(
+      user.passwordChangedAt,
+      user.createdAt,
+      policy.maxAgeDays,
+    );
     return {
       id: rest.id,
       slug: rest.slug,
@@ -534,6 +644,19 @@ export class AuthService {
       createdAt: rest.createdAt,
       onboardingCompleted: rest.onboardingCompleted,
       plan,
+      require2FA: org.require2FA,
+      passwordPolicy: {
+        minLength: policy.minLength,
+        requireSpecial: policy.requireSpecial,
+        requireNumber: policy.requireNumber,
+        maxAgeDays: policy.maxAgeDays,
+      },
+      security: {
+        requiresTwoFactorSetup: org.require2FA && !user.twoFactorEnabled,
+        passwordChangeRequired: ageStatus.mustChange,
+        passwordChangeWarning: ageStatus.warning,
+        passwordAgeDays: ageStatus.daysSinceChange,
+      },
     };
   }
 

@@ -3,10 +3,12 @@ import { useMemo } from 'react';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { Monitor, Smartphone, Tablet } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { PasswordStrengthMeter } from '@/components/ui/PasswordStrengthMeter';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { validatePassword } from '@/lib/password-policy';
@@ -52,6 +55,7 @@ const SECURITY_ACTION_PREFIXES = [
 interface SessionRow {
   id: string;
   device: string | null;
+  deviceType?: 'desktop' | 'mobile' | 'tablet' | 'unknown';
   ipAddress: string | null;
   location: string | null;
   lastActiveAt: string;
@@ -88,20 +92,44 @@ function isSecurityAuditAction(action: string): boolean {
   );
 }
 
+function DeviceIcon({
+  deviceType,
+}: {
+  deviceType?: SessionRow['deviceType'];
+}): ReactElement {
+  const className = 'mr-2 inline h-4 w-4 shrink-0 text-muted-foreground';
+  if (deviceType === 'mobile') {
+    return <Smartphone className={className} aria-hidden />;
+  }
+  if (deviceType === 'tablet') {
+    return <Tablet className={className} aria-hidden />;
+  }
+  return <Monitor className={className} aria-hidden />;
+}
+
 export function SecurityPage(): ReactElement {
   const queryClient = useQueryClient();
   const currentSessionId = useAuthStore((s) => s.sessionId);
+  const authQuery = useAuth();
 
-  const auditQuery = useAuditLog(100);
+  const auditQuery = useAuditLog(50);
   const securityEvents = useMemo(
-    () => (auditQuery.data ?? []).filter((e) => isSecurityAuditAction(e.action)),
+    () =>
+      (auditQuery.data ?? [])
+        .filter((e) => isSecurityAuditAction(e.action))
+        .slice(0, 10),
     [auditQuery.data],
   );
 
+  const orgSecurity = authQuery.data?.organization?.security;
+  const requires2FASetup = orgSecurity?.requiresTwoFactorSetup === true;
+  const passwordChangeRequired = orgSecurity?.passwordChangeRequired === true;
+  const passwordChangeWarning = orgSecurity?.passwordChangeWarning === true;
+
   const sessionsQuery = useQuery({
-    queryKey: ['users', 'sessions', currentSessionId],
+    queryKey: ['auth', 'sessions', currentSessionId],
     queryFn: async (): Promise<SessionRow[]> => {
-      const { data } = await api.get<SessionRow[]>('/users/sessions', {
+      const { data } = await api.get<SessionRow[]>('/auth/sessions', {
         params:
           currentSessionId != null && currentSessionId.length > 0
             ? { currentSessionId }
@@ -129,6 +157,7 @@ export function SecurityPage(): ReactElement {
       toast.success('Şifre güncellendi');
       passwordForm.reset();
       void queryClient.invalidateQueries({ queryKey: ['audit-log'] });
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -141,10 +170,10 @@ export function SecurityPage(): ReactElement {
         currentSessionId != null && currentSessionId.length > 0
           ? { params: { exceptSessionId: currentSessionId } }
           : {};
-      await api.delete('/users/sessions', params);
+      await api.delete('/auth/sessions', params);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['users', 'sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
       toast.success('Diğer oturumlar sonlandırıldı.');
     },
     onError: (e: unknown) => {
@@ -154,10 +183,10 @@ export function SecurityPage(): ReactElement {
 
   const revokeSessionMutation = useMutation({
     mutationFn: async (sessionId: string): Promise<void> => {
-      await api.delete(`/users/sessions/${sessionId}`);
+      await api.delete(`/auth/sessions/${sessionId}`);
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['users', 'sessions'] });
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
       toast.success('Oturum sonlandırıldı.');
     },
     onError: (e: unknown) => {
@@ -186,6 +215,36 @@ export function SecurityPage(): ReactElement {
 
   return (
     <div className="space-y-6">
+      {requires2FASetup ? (
+        <Alert variant="destructive">
+          <AlertTitle>2FA zorunlu</AlertTitle>
+          <AlertDescription>
+            Organizasyonunuz iki adımlı doğrulamayı zorunlu kılıyor. Aşağıdan
+            2FA kurulumunu tamamlayın.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {passwordChangeRequired ? (
+        <Alert variant="destructive">
+          <AlertTitle>Şifre süresi doldu</AlertTitle>
+          <AlertDescription>
+            Şifreniz kurumsal politika gereği değiştirilmelidir. Lütfen yeni bir
+            şifre belirleyin.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {passwordChangeWarning && !passwordChangeRequired ? (
+        <Alert>
+          <AlertTitle>Şifre yenileme uyarısı</AlertTitle>
+          <AlertDescription>
+            Şifrenizin süresi yakında dolacak. Güvenliğiniz için yeni bir şifre
+            belirlemenizi öneririz.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Şifre değiştir</CardTitle>
@@ -307,7 +366,10 @@ export function SecurityPage(): ReactElement {
                     return (
                       <TableRow key={s.id}>
                         <TableCell className="text-sm">
-                          {s.device ?? '—'}
+                          <span className="inline-flex items-center">
+                            <DeviceIcon deviceType={s.deviceType} />
+                            {s.device ?? '—'}
+                          </span>
                           {isCurrent ? (
                             <Badge className="ml-2" variant="default">
                               Bu cihaz
@@ -332,7 +394,7 @@ export function SecurityPage(): ReactElement {
                               disabled={revokeSessionMutation.isPending}
                               onClick={() => revokeSessionMutation.mutate(s.id)}
                             >
-                              Bu Oturumu Sonlandır
+                              Sonlandır
                             </Button>
                           ) : null}
                         </TableCell>
@@ -348,9 +410,9 @@ export function SecurityPage(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Son güvenlik olayları</CardTitle>
+          <CardTitle className="text-base">Güvenlik günlüğü</CardTitle>
           <CardDescription>
-            Giriş, şifre değişikliği, 2FA ve hesap erişimi kayıtları.
+            Son 10 güvenlik olayı: giriş, başarısız giriş, şifre değişimi, 2FA.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

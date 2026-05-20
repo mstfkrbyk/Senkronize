@@ -1,4 +1,11 @@
-export type CustomerSegmentKey = 'VIP' | 'sadik' | 'yeni' | 'riskAlti';
+export type CustomerSegmentKey = 'VIP' | 'sadik' | 'yeni' | 'risk' | 'kayip';
+
+export interface CustomerSummary {
+  total: number;
+  newThisMonth: number;
+  highValue: number;
+  churned: number;
+}
 
 export interface CustomerSegmentStats {
   count: number;

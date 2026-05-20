@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import {
   IsNotEmpty,
   IsString,
@@ -54,30 +54,4 @@ export class TwoFactorRegenerateBackupDto {
   @MaxLength(32)
   @MinLength(6)
   token: string;
-}
-
-export class UpdateOrgSecurityPolicyDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  require2FA?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @MinLength(8)
-  @MaxLength(128)
-  minLength?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  requireSpecial?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  requireNumber?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @MinLength(30)
-  @MaxLength(365)
-  maxAgeDays?: number;
 }

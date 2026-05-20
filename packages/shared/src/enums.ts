@@ -332,7 +332,19 @@ export type ErpType =
   | 'PROBIL'
   | 'ETRADE_ERP'
   | 'ZOHO_BOOKS'
-  | 'FRESHBOOKS';
+  | 'FRESHBOOKS'
+  | 'HOLDED'
+  | 'DEBITOOR'
+  | 'BILLOMAT'
+  | 'SEVDESK'
+  | 'EXACT_ONLINE'
+  | 'TWINFIELD'
+  | 'AFAS_ONLINE'
+  | 'MONEYBIRD'
+  | 'WAVE_ACCOUNTING'
+  | 'ZOHO_INVENTORY'
+  | 'INFLOW'
+  | 'CIN7';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =

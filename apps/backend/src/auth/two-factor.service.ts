@@ -276,21 +276,27 @@ export class TwoFactorService {
       if (match) {
         if (options.consumeBackup) {
           const updatedCodes = backupCodes.filter((_, idx) => idx !== i);
+          const fullUser = await this.prisma.user.findFirst({
+            where: { id: user.id, deletedAt: null },
+            select: { organizationId: true },
+          });
           await this.prisma.user.update({
             where: { id: user.id },
             data: { backupCodes: updatedCodes },
           });
-          await this.prisma.auditLog.create({
-            data: {
-              actorUserId: user.id,
-              actorOrgId: 'system',
-              impersonatedOrgId: null,
-              action: 'auth.two_factor_backup_used',
-              resourceType: 'User',
-              resourceId: user.id,
-              metadata: { remainingCodes: updatedCodes.length },
-            },
-          });
+          if (fullUser?.organizationId) {
+            await this.prisma.auditLog.create({
+              data: {
+                actorUserId: user.id,
+                actorOrgId: fullUser.organizationId,
+                impersonatedOrgId: null,
+                action: 'auth.two_factor_backup_used',
+                resourceType: 'User',
+                resourceId: user.id,
+                metadata: { remainingCodes: updatedCodes.length },
+              },
+            });
+          }
         }
         return true;
       }

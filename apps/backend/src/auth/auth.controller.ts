@@ -33,6 +33,7 @@ import {
   TwoFactorDisableDto,
   TwoFactorEnableDto,
   TwoFactorRegenerateBackupDto,
+  TwoFactorVerifyDto,
   TwoFactorVerifyLoginDto,
 } from './two-factor.dto';
 import { TwoFactorService } from './two-factor.service';
@@ -155,19 +156,34 @@ export class AuthController {
   }
 
   @SkipThrottle()
+  @Post('2fa/verify')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '2FA TOTP kodu doğrula ve etkinleştir' })
+  @ApiResponse({ status: 200, description: 'Etkinleştirildi' })
+  @ApiResponse({ status: 401, description: 'Geçersiz kod' })
+  async verifyTwoFactor(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TwoFactorVerifyDto,
+  ): Promise<{ ok: true }> {
+    await this.twoFactorService.verifyAndEnableTwoFactor(user, dto.token);
+    return { ok: true };
+  }
+
+  @SkipThrottle()
   @Post('2fa/enable')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '2FA doğrula ve etkinleştir' })
+  @ApiOperation({ summary: '2FA doğrula ve etkinleştir (geriye dönük uyumluluk)' })
   @ApiResponse({ status: 200, description: 'Etkinleştirildi' })
-  @ApiResponse({ status: 400, description: 'Geçersiz veri' })
   @ApiResponse({ status: 401, description: 'Geçersiz kod' })
   async enableTwoFactor(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: TwoFactorEnableDto,
   ): Promise<{ ok: true }> {
-    await this.twoFactorService.enableTwoFactor(user, dto.token, dto.backupCodes);
+    await this.twoFactorService.verifyAndEnableTwoFactor(user, dto.token);
     return { ok: true };
   }
 
@@ -183,8 +199,36 @@ export class AuthController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: TwoFactorDisableDto,
   ): Promise<{ ok: true }> {
-    await this.twoFactorService.disableTwoFactor(user, dto.token);
+    await this.twoFactorService.disableTwoFactor(user, dto.password, dto.token);
     return { ok: true };
+  }
+
+  @SkipThrottle()
+  @Get('2fa/backup-codes')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Kalan yedek kod sayısı' })
+  @ApiResponse({ status: 200, description: 'Yedek kod bilgisi' })
+  async getBackupCodes(@CurrentUser() user: AuthenticatedUser) {
+    return this.twoFactorService.getBackupCodesInfo(user.id);
+  }
+
+  @SkipThrottle()
+  @Post('2fa/regenerate-backup')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yeni yedek kodlar üret (tek sefer gösterilir)' })
+  @ApiResponse({ status: 200, description: 'Yeni düz metin yedek kodlar' })
+  async regenerateBackup(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TwoFactorRegenerateBackupDto,
+  ): Promise<{ backupCodes: string[] }> {
+    const backupCodes = await this.twoFactorService.regenerateBackupCodes(
+      user,
+      dto.token,
+    );
+    return { backupCodes };
   }
 
   @SkipThrottle()
@@ -250,6 +294,12 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async me(@CurrentUser() user: AuthenticatedUser) {
     const organization = await this.authService.getCurrentOrganization(user);
+    const policy = await this.passwordPolicy.getOrgPolicy(user.organizationId);
+    const ageStatus = this.passwordPolicy.getPasswordAgeStatus(
+      user.passwordChangedAt,
+      user.createdAt,
+      policy.maxAgeDays,
+    );
     return {
       user: {
         id: user.id,
@@ -261,10 +311,17 @@ export class AuthController {
         twoFactorEnabled: user.twoFactorEnabled,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
+        passwordChangedAt: user.passwordChangedAt,
       },
       organization,
       currentOrgId: user.currentOrgId,
       isImpersonating: user.isImpersonating,
+      security: {
+        requiresTwoFactorSetup:
+          (organization.require2FA ?? false) && !user.twoFactorEnabled,
+        passwordChangeRequired: ageStatus.mustChange,
+        passwordChangeWarning: ageStatus.warning,
+      },
     };
   }
 

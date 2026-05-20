@@ -16,38 +16,59 @@ import type {
   CustomerDetail,
   CustomerSegmentKey,
   CustomerSegmentsSummary,
+  CustomerSummary,
   SerializedCustomer,
 } from './customer.types';
 
-const SEGMENT_KEYS: CustomerSegmentKey[] = ['VIP', 'sadik', 'yeni', 'riskAlti'];
+const SEGMENT_KEYS: CustomerSegmentKey[] = [
+  'VIP',
+  'sadik',
+  'yeni',
+  'risk',
+  'kayip',
+];
 
-function thirtyDaysAgo(): Date {
+function daysAgo(days: number): Date {
   const date = new Date();
-  date.setDate(date.getDate() - 30);
+  date.setDate(date.getDate() - days);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function startOfCurrentMonth(): Date {
+  const date = new Date();
+  date.setDate(1);
+  date.setHours(0, 0, 0, 0);
   return date;
 }
 
 export function computeCustomerSegments(customer: {
   totalOrders: number;
+  totalSpent: Prisma.Decimal | number | string;
   lastOrderAt: Date | null;
+  createdAt: Date;
 }): CustomerSegmentKey[] {
   const segments: CustomerSegmentKey[] = [];
-  if (customer.totalOrders >= 10) {
-    segments.push('VIP');
-  }
-  if (customer.totalOrders >= 5) {
-    segments.push('sadik');
-  }
-  if (customer.totalOrders <= 2) {
+  const spent = Number(customer.totalSpent);
+  const last = customer.lastOrderAt;
+
+  if (customer.createdAt >= daysAgo(30)) {
     segments.push('yeni');
   }
-  const cutoff = thirtyDaysAgo();
-  if (
-    customer.totalOrders > 2 &&
-    customer.lastOrderAt !== null &&
-    customer.lastOrderAt < cutoff
-  ) {
-    segments.push('riskAlti');
+  if (customer.totalOrders > 10 && last !== null && last >= daysAgo(30)) {
+    segments.push('sadik');
+  }
+  if (spent >= 5000 && last !== null && last >= daysAgo(90)) {
+    segments.push('VIP');
+  }
+  if (last !== null) {
+    if (last < daysAgo(90)) {
+      segments.push('kayip');
+    } else if (last < daysAgo(60)) {
+      segments.push('risk');
+    }
+  } else if (customer.totalOrders > 0) {
+    segments.push('kayip');
   }
   return segments;
 }
@@ -55,15 +76,30 @@ export function computeCustomerSegments(customer: {
 function segmentWhere(segment: CustomerSegmentKey): Prisma.CustomerWhereInput {
   switch (segment) {
     case 'VIP':
-      return { totalOrders: { gte: 10 } };
-    case 'sadik':
-      return { totalOrders: { gte: 5 } };
-    case 'yeni':
-      return { totalOrders: { lte: 2 } };
-    case 'riskAlti':
       return {
-        totalOrders: { gt: 2 },
-        lastOrderAt: { lt: thirtyDaysAgo() },
+        totalSpent: { gte: 5000 },
+        lastOrderAt: { gte: daysAgo(90) },
+      };
+    case 'sadik':
+      return {
+        totalOrders: { gt: 10 },
+        lastOrderAt: { gte: daysAgo(30) },
+      };
+    case 'yeni':
+      return { createdAt: { gte: daysAgo(30) } };
+    case 'risk':
+      return {
+        lastOrderAt: {
+          gte: daysAgo(90),
+          lt: daysAgo(60),
+        },
+      };
+    case 'kayip':
+      return {
+        OR: [
+          { lastOrderAt: { lt: daysAgo(90) } },
+          { lastOrderAt: null, totalOrders: { gt: 0 } },
+        ],
       };
     default: {
       const _exhaustive: never = segment;
@@ -128,10 +164,27 @@ export class CustomerService {
       lastOrderAt.lte = end;
     }
 
+    const totalSpent: Prisma.DecimalFilter = {};
+    if (filters.minSpent !== undefined) {
+      totalSpent.gte = filters.minSpent;
+    }
+    if (filters.maxSpent !== undefined) {
+      totalSpent.lte = filters.maxSpent;
+    }
+
+    const totalOrders: Prisma.IntFilter = {};
+    if (filters.minOrders !== undefined) {
+      totalOrders.gte = filters.minOrders;
+    }
+    if (filters.maxOrders !== undefined) {
+      totalOrders.lte = filters.maxOrders;
+    }
+
     const where: Prisma.CustomerWhereInput = {
       organizationId,
       deletedAt: null,
       ...(filters.platform ? { platform: filters.platform } : {}),
+      ...(filters.tag ? { tags: { has: filters.tag.trim() } } : {}),
       ...(filters.city
         ? {
             city: {
@@ -142,6 +195,8 @@ export class CustomerService {
         : {}),
       ...(filters.segment ? segmentWhere(filters.segment) : {}),
       ...(Object.keys(lastOrderAt).length > 0 ? { lastOrderAt } : {}),
+      ...(Object.keys(totalSpent).length > 0 ? { totalSpent } : {}),
+      ...(Object.keys(totalOrders).length > 0 ? { totalOrders } : {}),
       ...(filters.search
         ? {
             OR: [

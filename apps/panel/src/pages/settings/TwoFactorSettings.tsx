@@ -66,6 +66,7 @@ export function TwoFactorSettings(): ReactElement {
   const [secretRevealed, setSecretRevealed] = useState(false);
 
   const [disableOpen, setDisableOpen] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
   const [disableToken, setDisableToken] = useState('');
 
   const [backupInfoOpen, setBackupInfoOpen] = useState(false);
@@ -105,12 +106,8 @@ export function TwoFactorSettings(): ReactElement {
 
   const enableMutation = useMutation({
     mutationFn: async (): Promise<void> => {
-      if (!setupPayload) {
-        return;
-      }
-      await api.post('/auth/2fa/enable', {
+      await api.post('/auth/2fa/verify', {
         token: otp.replace(/\D/g, '').slice(0, 6),
-        backupCodes: setupPayload.backupCodes,
       });
     },
     onSuccess: () => {
@@ -125,11 +122,15 @@ export function TwoFactorSettings(): ReactElement {
 
   const disableMutation = useMutation({
     mutationFn: async (): Promise<void> => {
-      await api.post('/auth/2fa/disable', { token: disableToken.trim() });
+      await api.post('/auth/2fa/disable', {
+        password: disablePassword,
+        token: disableToken.trim(),
+      });
     },
     onSuccess: () => {
       toast.success('İki adımlı doğrulama kapatıldı.');
       setDisableOpen(false);
+      setDisablePassword('');
       setDisableToken('');
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
@@ -141,7 +142,7 @@ export function TwoFactorSettings(): ReactElement {
   const regenMutation = useMutation({
     mutationFn: async (): Promise<string[]> => {
       const { data } = await api.post<{ backupCodes: string[] }>(
-        '/auth/2fa/regenerate-backup-codes',
+        '/auth/2fa/regenerate-backup',
         { token: regenToken.trim() },
       );
       return data.backupCodes;
@@ -230,6 +231,7 @@ export function TwoFactorSettings(): ReactElement {
                 type="button"
                 variant="destructive"
                 onClick={() => {
+                  setDisablePassword('');
                   setDisableToken('');
                   setDisableOpen(true);
                 }}
@@ -438,19 +440,31 @@ export function TwoFactorSettings(): ReactElement {
           <DialogHeader>
             <DialogTitle>2FA kapat</DialogTitle>
             <DialogDescription>
-              Authenticator uygulamasındaki 6 haneli kodu veya kayıtlı bir yedek
-              kodu girin.
+              Hesap şifrenizi ve authenticator uygulamasındaki 6 haneli kodu veya
+              kayıtlı bir yedek kodu girin.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="disable-tfa">Kod</Label>
-            <Input
-              id="disable-tfa"
-              value={disableToken}
-              onChange={(e) => setDisableToken(e.target.value)}
-              placeholder="123456 veya yedek kod"
-              autoComplete="one-time-code"
-            />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="disable-password">Şifre</Label>
+              <Input
+                id="disable-password"
+                type="password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="disable-tfa">Doğrulama kodu</Label>
+              <Input
+                id="disable-tfa"
+                value={disableToken}
+                onChange={(e) => setDisableToken(e.target.value)}
+                placeholder="123456 veya yedek kod"
+                autoComplete="one-time-code"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDisableOpen(false)}>
@@ -459,7 +473,11 @@ export function TwoFactorSettings(): ReactElement {
             <Button
               type="button"
               variant="destructive"
-              disabled={disableToken.trim().length < 6 || disableMutation.isPending}
+              disabled={
+                disablePassword.length < 8 ||
+                disableToken.trim().length < 6 ||
+                disableMutation.isPending
+              }
               onClick={() => disableMutation.mutate()}
             >
               {disableMutation.isPending ? 'Kapatılıyor…' : 'Devre dışı bırak'}

@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import * as bcrypt from 'bcrypt';
 
+import { AnomalyDetectionService } from '../security/anomaly-detection.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { ApiKeyAuthUser } from './api-key.types';
@@ -45,7 +46,10 @@ function extractRawApiKeyFromRequest(req: Request): string | null {
 
 @Injectable()
 export class ApiKeyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly anomalyDetection: AnomalyDetectionService,
+  ) {}
 
   async listActive(organizationId: string): Promise<ApiKeyListItemDto[]> {
     const rows = await this.prisma.apiKey.findMany({
@@ -136,6 +140,13 @@ export class ApiKeyService {
     if (row.expiresAt != null && row.expiresAt.getTime() <= Date.now()) {
       return null;
     }
+
+    const rateLimited = await this.anomalyDetection.isApiKeyRateLimited(row.id);
+    if (rateLimited) {
+      throw new UnauthorizedException('API anahtarı hız limitine takıldı.');
+    }
+
+    void this.anomalyDetection.recordApiKeyRequest(row.organizationId, row.id);
 
     await this.prisma.apiKey.update({
       where: { id: row.id },

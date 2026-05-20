@@ -2,10 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsIn,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 import { SUPPORTED_CURRENCIES } from '../currency/currency.constants';
@@ -56,4 +59,33 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsObject()
   currencyManualRates?: Record<string, number>;
+
+  @ApiPropertyOptional({ description: 'Organizasyon genelinde 2FA zorunluluğu' })
+  @IsOptional()
+  @IsBoolean()
+  require2FA?: boolean;
+
+  @ApiPropertyOptional({ description: 'Minimum şifre uzunluğu' })
+  @IsOptional()
+  @IsInt()
+  @Min(8)
+  @Max(128)
+  passwordMinLength?: number;
+
+  @ApiPropertyOptional({ description: 'Özel karakter zorunluluğu' })
+  @IsOptional()
+  @IsBoolean()
+  passwordRequireSpecial?: boolean;
+
+  @ApiPropertyOptional({ description: 'Rakam zorunluluğu' })
+  @IsOptional()
+  @IsBoolean()
+  passwordRequireNumber?: boolean;
+
+  @ApiPropertyOptional({ description: 'Şifre maksimum yaşı (gün)' })
+  @IsOptional()
+  @IsInt()
+  @Min(30)
+  @Max(365)
+  passwordMaxAgeDays?: number;
 }

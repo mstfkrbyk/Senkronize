@@ -11,6 +11,7 @@ import { SecurityModule } from '../security/security.module';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { SessionController } from './session.controller';
 import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 import { JwtRefreshStrategy } from './jwt-refresh.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -41,7 +42,7 @@ import { TwoFactorService } from './two-factor.service';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SessionController],
   providers: [
     AuthService,
     SessionService,

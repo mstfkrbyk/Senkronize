@@ -25,6 +25,7 @@ import { SmsService } from '../../notifications/sms/sms.service';
 import { PartnerService } from '../../partner/partner.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnomalyDetectionService } from '../../security/anomaly-detection.service';
+import { IpGeolocationService } from '../../security/ip-geolocation.service';
 import { SecurityNotificationService } from '../../security/security-notification.service';
 import { RegisterDto } from '../auth.dto';
 import { AuthService } from '../auth.service';
@@ -145,7 +146,15 @@ describe('AuthService', () => {
         },
         {
           provide: AnomalyDetectionService,
-          useValue: { checkNewIpLogin: jest.fn() },
+          useValue: {
+            checkNewIpLogin: jest.fn(),
+            recordFailedLogin: jest.fn(),
+            recordLoginCountry: jest.fn(),
+          },
+        },
+        {
+          provide: IpGeolocationService,
+          useValue: { resolveCountry: jest.fn().mockResolvedValue(null) },
         },
         {
           provide: SessionService,
@@ -159,7 +168,32 @@ describe('AuthService', () => {
             logout: jest.fn(),
           },
         },
-        PasswordPolicyService,
+        {
+          provide: PasswordPolicyService,
+          useValue: {
+            validatePassword: jest.fn().mockReturnValue({
+              valid: true,
+              errors: [],
+              strength: 'strong',
+              score: 80,
+            }),
+            assertValidPasswordForOrg: jest.fn().mockResolvedValue(undefined),
+            assertNotReusedPassword: jest.fn().mockResolvedValue(undefined),
+            getOrgPolicy: jest.fn().mockResolvedValue({
+              minLength: 8,
+              requireSpecial: true,
+              requireNumber: true,
+              maxAgeDays: 90,
+            }),
+            getPasswordAgeStatus: jest.fn().mockReturnValue({
+              mustChange: false,
+              warning: false,
+              daysSinceChange: 10,
+              maxAgeDays: 90,
+              passwordChangedAt: null,
+            }),
+          },
+        },
         {
           provide: SecurityNotificationService,
           useValue: {

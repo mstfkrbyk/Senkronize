@@ -31,6 +31,8 @@ const ACTION_LABELS: Record<string, string> = {
   'auth.two_factor_enabled': '2FA etkinleştirildi',
   'auth.two_factor_disabled': '2FA devre dışı',
   'auth.two_factor_backup_regenerated': '2FA yedek kodları yenilendi',
+  'auth.two_factor_backup_used': '2FA yedek kodu kullanıldı',
+  'auth.login_failed': 'Başarısız giriş',
   'security.suspect_bulk_night': 'Şüpheli toplu işlem (gece)',
 };
 

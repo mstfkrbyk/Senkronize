@@ -42,6 +42,19 @@ export class OrganizationService {
               currencyManualRates: dto.currencyManualRates as Prisma.InputJsonValue,
             }
           : {}),
+        ...(dto.require2FA !== undefined ? { require2FA: dto.require2FA } : {}),
+        ...(dto.passwordMinLength !== undefined
+          ? { passwordMinLength: dto.passwordMinLength }
+          : {}),
+        ...(dto.passwordRequireSpecial !== undefined
+          ? { passwordRequireSpecial: dto.passwordRequireSpecial }
+          : {}),
+        ...(dto.passwordRequireNumber !== undefined
+          ? { passwordRequireNumber: dto.passwordRequireNumber }
+          : {}),
+        ...(dto.passwordMaxAgeDays !== undefined
+          ? { passwordMaxAgeDays: dto.passwordMaxAgeDays }
+          : {}),
       },
     });
   }
