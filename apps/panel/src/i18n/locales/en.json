@@ -16,6 +16,7 @@
     "syncLogs": "Sync status",
     "syncConflicts": "Conflicts",
     "notifications": "Notifications",
+    "support": "Support",
     "auditLogs": "Activity history",
     "migration": "Migration wizard",
     "partner": "Partner dashboard",
@@ -106,5 +107,27 @@
     "darkDesc": "Always use dark theme.",
     "system": "System",
     "systemDesc": "Follow the operating system preference."
+  },
+  "support": {
+    "newTicket": "New Ticket",
+    "ticketList": "My Tickets",
+    "title": "Support",
+    "subtitle": "Create and track your support requests.",
+    "closeTicket": "Close ticket",
+    "backToList": "Support tickets",
+    "empty": "You have no support tickets yet. Create one to get started.",
+    "status": {
+      "open": "Open",
+      "in_progress": "In progress",
+      "waiting_customer": "Waiting on customer",
+      "resolved": "Resolved",
+      "closed": "Closed"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
   }
 }

@@ -5,6 +5,7 @@ import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Send } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import {
@@ -24,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
 
 export function SupportTicketPage(): ReactElement {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -89,7 +91,7 @@ export function SupportTicketPage(): ReactElement {
         onClick={() => navigate('/support')}
       >
         <ArrowLeft className="mr-2 size-4" aria-hidden />
-        Destek talepleri
+        {t('support.backToList')}
       </Button>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -112,7 +114,7 @@ export function SupportTicketPage(): ReactElement {
               disabled={closeMutation.isPending}
               onClick={() => closeMutation.mutate()}
             >
-              Talebi Kapat
+              {t('support.closeTicket')}
             </Button>
           ) : null}
         </div>

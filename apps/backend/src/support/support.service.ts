@@ -164,12 +164,11 @@ export class SupportService {
 
     const detail = this.mapDetail(ticket, false);
 
-    await this.emailService.sendSupportTicketCreated(user.email, {
-      ticketNumber: ticket.ticketNumber,
-      subject: ticket.subject,
-      ticketUrl: `${this.panelBaseUrl()}/support/${ticket.id}`,
-      userName: user.name,
-    });
+    await this.emailService.sendNewTicketNotification(
+      user.email,
+      ticket.ticketNumber,
+      ticket.subject,
+    );
 
     const opsEmail = this.opsAlertEmail();
     if (opsEmail) {
@@ -345,7 +344,18 @@ export class SupportService {
       }),
     ]);
 
-    if (!isInternal && author.role !== UserRole.SUPER_ADMIN) {
+    if (!isInternal && author.role === UserRole.SUPER_ADMIN) {
+      const ticketOwner = await this.prisma.user.findFirst({
+        where: { id: ticket.userId, deletedAt: null },
+        select: { email: true },
+      });
+      if (ticketOwner?.email) {
+        await this.emailService.sendTicketReplyNotification(
+          ticketOwner.email,
+          ticket.ticketNumber,
+        );
+      }
+    } else if (!isInternal && author.role !== UserRole.SUPER_ADMIN) {
       const opsEmail = this.opsAlertEmail();
       if (opsEmail) {
         const org = await this.prisma.organization.findUnique({
@@ -439,6 +449,20 @@ export class SupportService {
           status === TicketStatus.CLOSED ? (ticket.closedAt ?? now) : ticket.closedAt,
       },
     });
+
+    if (status !== ticket.status) {
+      const owner = await this.prisma.user.findFirst({
+        where: { id: ticket.userId, deletedAt: null },
+        select: { email: true },
+      });
+      if (owner?.email) {
+        await this.emailService.sendTicketStatusUpdate(
+          owner.email,
+          ticket.ticketNumber,
+          status,
+        );
+      }
+    }
 
     return this.getTicketForAdmin(ticketId);
   }

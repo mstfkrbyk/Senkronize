@@ -329,6 +329,89 @@ export class EmailService {
     );
   }
 
+  async sendNewTicketNotification(
+    email: string,
+    ticketNumber: string,
+    subject: string,
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const supportUrl = `${this.panelBaseUrl()}/support`;
+    await this.send(
+      email,
+      `Destek talebiniz alındı: ${ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Destek talebiniz oluşturuldu</h2>
+        <p><strong>Talep no:</strong> ${esc(ticketNumber)}</p>
+        <p><strong>Konu:</strong> ${esc(subject)}</p>
+        <p>Ekibimiz en kısa sürede size dönüş yapacaktır.</p>
+        <a href="${esc(supportUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Taleplerimi görüntüle
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendTicketReplyNotification(
+    email: string,
+    ticketNumber: string,
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const supportUrl = `${this.panelBaseUrl()}/support`;
+    await this.send(
+      email,
+      `Destek talebinize yanıt: ${ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Destek ekibinden yanıt</h2>
+        <p><strong>Talep no:</strong> ${esc(ticketNumber)}</p>
+        <p>Destek ekibimiz talebinize yanıt verdi. Detayları panelden görüntüleyebilirsiniz.</p>
+        <a href="${esc(supportUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Talebi aç
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendTicketStatusUpdate(
+    email: string,
+    ticketNumber: string,
+    status: string,
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const statusLabels: Record<string, string> = {
+      OPEN: 'Açık',
+      IN_PROGRESS: 'İşlemde',
+      WAITING_CUSTOMER: 'Müşteri Bekleniyor',
+      RESOLVED: 'Çözüldü',
+      CLOSED: 'Kapalı',
+    };
+    const statusLabel = statusLabels[status] ?? status;
+    const supportUrl = `${this.panelBaseUrl()}/support`;
+    await this.send(
+      email,
+      `Talep durumu güncellendi: ${ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Talep durumu güncellendi</h2>
+        <p><strong>Talep no:</strong> ${esc(ticketNumber)}</p>
+        <p><strong>Yeni durum:</strong> ${esc(statusLabel)}</p>
+        <a href="${esc(supportUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Talebi görüntüle
+        </a>
+      </div>
+    `,
+    );
+  }
+
   async sendSupportTicketCreated(
     to: string,
     data: {

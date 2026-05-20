@@ -22,7 +22,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';

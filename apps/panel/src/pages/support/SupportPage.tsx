@@ -5,6 +5,7 @@ import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LifeBuoy, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import {
@@ -56,6 +57,7 @@ function categoryLabel(value: string | null): string {
 }
 
 export function SupportPage(): ReactElement {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
@@ -97,15 +99,15 @@ export function SupportPage(): ReactElement {
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold">
             <LifeBuoy className="size-7 text-sky-500" aria-hidden />
-            Destek
+            {t('support.title')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Destek taleplerinizi oluşturun ve takip edin.
+            {t('support.subtitle')}
           </p>
         </div>
         <Button type="button" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 size-4" aria-hidden />
-          Yeni Destek Talebi
+          {t('support.newTicket')}
         </Button>
       </div>
 
@@ -139,7 +141,7 @@ export function SupportPage(): ReactElement {
         </div>
       ) : !data?.length ? (
         <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          Henüz destek talebiniz yok. Yeni bir talep oluşturarak başlayın.
+          {t('support.empty')}
         </div>
       ) : (
         <div className="rounded-lg border bg-card">

@@ -1,14 +1,22 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
 import type { TicketPriority, TicketStatus } from '@/types/support';
 
-const STATUS_LABEL: Record<TicketStatus, string> = {
-  OPEN: 'Açık',
-  IN_PROGRESS: 'İşlemde',
-  WAITING_CUSTOMER: 'Müşteri Bekleniyor',
-  RESOLVED: 'Çözüldü',
-  CLOSED: 'Kapalı',
+const STATUS_I18N_KEY: Record<TicketStatus, string> = {
+  OPEN: 'support.status.open',
+  IN_PROGRESS: 'support.status.in_progress',
+  WAITING_CUSTOMER: 'support.status.waiting_customer',
+  RESOLVED: 'support.status.resolved',
+  CLOSED: 'support.status.closed',
+};
+
+const PRIORITY_I18N_KEY: Record<TicketPriority, string> = {
+  LOW: 'support.priority.low',
+  MEDIUM: 'support.priority.medium',
+  HIGH: 'support.priority.high',
+  URGENT: 'support.priority.urgent',
 };
 
 const STATUS_CLASS: Record<TicketStatus, string> = {
@@ -17,13 +25,6 @@ const STATUS_CLASS: Record<TicketStatus, string> = {
   WAITING_CUSTOMER: 'bg-violet-100 text-violet-800',
   RESOLVED: 'bg-emerald-100 text-emerald-800',
   CLOSED: 'bg-slate-200 text-slate-700',
-};
-
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  LOW: 'Düşük',
-  MEDIUM: 'Orta',
-  HIGH: 'Yüksek',
-  URGENT: 'Acil',
 };
 
 const PRIORITY_CLASS: Record<TicketPriority, string> = {
@@ -38,9 +39,10 @@ export function TicketStatusBadge({
 }: {
   status: TicketStatus;
 }): ReactElement {
+  const { t } = useTranslation();
   return (
     <Badge variant="secondary" className={STATUS_CLASS[status]}>
-      {STATUS_LABEL[status]}
+      {t(STATUS_I18N_KEY[status])}
     </Badge>
   );
 }
@@ -50,9 +52,10 @@ export function TicketPriorityBadge({
 }: {
   priority: TicketPriority;
 }): ReactElement {
+  const { t } = useTranslation();
   return (
     <Badge variant="secondary" className={PRIORITY_CLASS[priority]}>
-      {PRIORITY_LABEL[priority]}
+      {t(PRIORITY_I18N_KEY[priority])}
     </Badge>
   );
 }
