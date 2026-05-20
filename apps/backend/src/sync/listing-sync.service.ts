@@ -12,6 +12,7 @@ import {
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
 import type {
+  ListingSyncBatchJobData,
   ListingSyncPriceJobData,
   ListingSyncPushProductJobData,
   ListingSyncStockJobData,
@@ -33,6 +34,7 @@ export class ListingSyncService {
       | ListingSyncPushProductJobData
       | ListingSyncStockJobData
       | ListingSyncPriceJobData
+      | ListingSyncBatchJobData
     >,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue,
@@ -145,6 +147,147 @@ export class ListingSyncService {
       { orgId, barcode, stock: newStock },
       LISTING_SYNC_STOCK_JOB_OPTIONS,
     );
+  }
+
+  async afterStockUpdate(productId: string, orgId: string): Promise<void> {
+    const listings = await this.getActiveListings(productId, orgId);
+    if (listings.length === 0) {
+      return;
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId: orgId, deletedAt: null },
+      select: { barcode: true },
+    });
+    if (!product) {
+      return;
+    }
+
+    const stockQty = await this.resolveCentralStock(orgId, product.barcode);
+    await this.enqueuePlatformBatchSync(orgId, listings, {
+      stock: stockQty,
+    });
+  }
+
+  async afterPriceChange(productId: string, orgId: string): Promise<void> {
+    const listings = await this.getActiveListings(productId, orgId);
+    if (listings.length === 0) {
+      return;
+    }
+    await this.enqueuePlatformBatchSync(orgId, listings, {});
+  }
+
+  async afterProductUpdate(productId: string, orgId: string): Promise<void> {
+    const listings = await this.getActiveListings(productId, orgId);
+    if (listings.length === 0) {
+      return;
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId: orgId, deletedAt: null },
+      select: { barcode: true },
+    });
+    if (!product) {
+      return;
+    }
+
+    const stockQty = await this.resolveCentralStock(orgId, product.barcode);
+    await this.enqueuePlatformBatchSync(orgId, listings, { stock: stockQty });
+  }
+
+  private async getActiveListings(
+    productId: string,
+    orgId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      platform: Marketplace;
+      barcode: string;
+      salePrice: { toString(): string };
+      listPrice: { toString(): string };
+      quantity: number;
+    }>
+  > {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId: orgId, deletedAt: null },
+      select: { barcode: true },
+    });
+    if (!product) {
+      return [];
+    }
+
+    return this.prisma.listing.findMany({
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        isActive: true,
+        OR: [{ productId }, { barcode: product.barcode }],
+      },
+      select: {
+        id: true,
+        platform: true,
+        barcode: true,
+        salePrice: true,
+        listPrice: true,
+        quantity: true,
+      },
+    });
+  }
+
+  private async enqueuePlatformBatchSync(
+    orgId: string,
+    listings: Array<{
+      id: string;
+      platform: Marketplace;
+      barcode: string;
+      salePrice: { toString(): string };
+      listPrice: { toString(): string };
+      quantity: number;
+    }>,
+    overrides: { stock?: number },
+  ): Promise<void> {
+    const byPlatform = new Map<Marketplace, typeof listings>();
+    for (const listing of listings) {
+      const rows = byPlatform.get(listing.platform) ?? [];
+      rows.push(listing);
+      byPlatform.set(listing.platform, rows);
+    }
+
+    for (const [platform, rows] of byPlatform) {
+      await this.listingSyncQueue.add(
+        'sync-batch',
+        {
+          orgId,
+          platform,
+          updates: rows.map((listing) => ({
+            barcode: listing.barcode,
+            listingId: listing.id,
+            stock: overrides.stock ?? listing.quantity,
+            price: Number(listing.salePrice),
+            listPrice: Number(listing.listPrice),
+          })),
+        },
+        LISTING_SYNC_JOB_OPTIONS,
+      );
+    }
+  }
+
+  private async resolveCentralStock(
+    orgId: string,
+    barcode: string,
+  ): Promise<number> {
+    const entry = await this.prisma.stockEntry.findFirst({
+      where: {
+        organizationId: orgId,
+        barcode,
+        platform: null,
+      },
+      select: { quantity: true, reservedQty: true },
+    });
+    if (!entry) {
+      return 0;
+    }
+    return Math.max(0, entry.quantity - entry.reservedQty);
   }
 
   async syncPriceToListings(

@@ -18,10 +18,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import {
   JOB_DEFAULT_OPTIONS,
+  LISTING_SYNC_JOB_OPTIONS,
+  QUEUE_LISTING_SYNC,
   QUEUE_MARKETPLACE_PUSH,
   QUEUE_PRICING,
 } from '../queue/queue.constants';
 import type {
+  ListingSyncBatchJobData,
   MarketplacePushJobData,
   PricingRunRulesJobData,
 } from '../queue/queue.types';
@@ -86,6 +89,8 @@ export class PricingService {
     private readonly pricingQueue: Queue<PricingRunRulesJobData>,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly pushQueue: Queue<MarketplacePushJobData>,
+    @InjectQueue(QUEUE_LISTING_SYNC)
+    private readonly listingSyncQueue: Queue<ListingSyncBatchJobData>,
   ) {}
 
   private assertValidSkuPattern(pattern: string | null | undefined): void {
@@ -502,18 +507,6 @@ export class PricingService {
       reason: 'manual',
     });
 
-    await this.pushQueue.add(
-      'push-price',
-      {
-        organizationId,
-        platform: dto.platform,
-        type: 'price',
-        resourceIds: [dto.barcode],
-        payload: { salePrice: dto.salePrice, listPrice: dto.listPrice },
-      },
-      JOB_DEFAULT_OPTIONS,
-    );
-
     await this.prisma.listing.update({
       where: { id: listing.id },
       data: {
@@ -522,9 +515,83 @@ export class PricingService {
       },
     });
 
+    if (listing.productId) {
+      await this.afterPriceChange(listing.productId, organizationId);
+    } else {
+      await this.listingSyncQueue.add(
+        'sync-batch',
+        {
+          orgId: organizationId,
+          platform: dto.platform,
+          updates: [
+            {
+              barcode: dto.barcode,
+              listingId: listing.id,
+              price: dto.salePrice,
+              listPrice: dto.listPrice,
+            },
+          ],
+        },
+        LISTING_SYNC_JOB_OPTIONS,
+      );
+    }
+
     this.eventService.emit(organizationId, WS_EVENTS.PRICE_UPDATED, {
       barcode: dto.barcode,
     });
+  }
+
+  async afterPriceChange(productId: string, orgId: string): Promise<void> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId: orgId, deletedAt: null },
+      select: { barcode: true },
+    });
+    if (!product) {
+      return;
+    }
+
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        isActive: true,
+        OR: [{ productId }, { barcode: product.barcode }],
+      },
+      select: {
+        id: true,
+        platform: true,
+        barcode: true,
+        salePrice: true,
+        listPrice: true,
+      },
+    });
+    if (listings.length === 0) {
+      return;
+    }
+
+    const byPlatform = new Map<Marketplace, typeof listings>();
+    for (const row of listings) {
+      const list = byPlatform.get(row.platform) ?? [];
+      list.push(row);
+      byPlatform.set(row.platform, list);
+    }
+
+    for (const [platform, rows] of byPlatform) {
+      await this.listingSyncQueue.add(
+        'sync-batch',
+        {
+          orgId,
+          platform,
+          updates: rows.map((listing) => ({
+            barcode: listing.barcode,
+            listingId: listing.id,
+            price: Number(listing.salePrice),
+            listPrice: Number(listing.listPrice),
+          })),
+        },
+        LISTING_SYNC_JOB_OPTIONS,
+      );
+    }
   }
 
   async findPriceHistory(

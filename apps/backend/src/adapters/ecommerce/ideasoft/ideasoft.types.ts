@@ -16,10 +16,16 @@ export interface IdeasoftOrderLine {
 
 export interface IdeasoftOrder {
   id?: string | number;
+  orderNumber?: string | number;
+  order_number?: string | number;
   status?: string | number;
   order_status_id?: number;
-  customer?: { fullName?: string; name?: string };
+  customer?: { fullName?: string; name?: string; email?: string; phone?: string };
   customerName?: string;
+  customerEmail?: string;
+  shippingAddress?: { address?: string; fullAddress?: string; city?: string; country?: string };
+  trackingNumber?: string;
+  cargoCompany?: string;
   total?: number;
   totalAmount?: number;
   currency?: string;

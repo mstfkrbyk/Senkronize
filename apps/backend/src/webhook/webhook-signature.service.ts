@@ -254,6 +254,11 @@ export class WebhookSignatureService {
     return safeEqualUtf8(signature.trim(), digest);
   }
 
+  /** Ticimax: X-Ticimax-Signature — HMAC-SHA256 (apiKey + body) */
+  verifyTicimax(rawBody: Buffer, signature: string, apiKey: string): boolean {
+    return this.verifyHmacSha256(rawBody, signature, apiKey, 'hex');
+  }
+
   /** WooCommerce: X-WC-Webhook-Signature — HMAC-SHA256 hex */
   verifyWooCommerce(
     rawBody: Buffer,

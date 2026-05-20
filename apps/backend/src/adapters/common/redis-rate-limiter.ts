@@ -132,6 +132,37 @@ export class RedisRateLimiter {
     }
   }
 
+  async acquireBatchWithRetry(
+    platform: string,
+    orgId: string,
+    count: number,
+    maxRetries = 3,
+  ): Promise<void> {
+    if (count < 1) {
+      return;
+    }
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const ok = await this.acquireBatch(platform, orgId, count);
+      if (ok) {
+        return;
+      }
+      if (attempt >= maxRetries) {
+        const retryAfter = await this.retryAfterSeconds(platform, orgId);
+        void this.rateLimitMonitor?.recordPlatformRateLimitViolation(
+          platform,
+          orgId,
+          retryAfter,
+        );
+        throw new RateLimitExceededException(platform, retryAfter);
+      }
+      const waitMs = (await this.retryAfterSeconds(platform, orgId)) * 1000;
+      this.logger.warn(
+        `${platform} batch rate limit — ${String(waitMs / 1000)}s bekleniyor (deneme ${String(attempt + 1)}/${String(maxRetries)})`,
+      );
+      await sleep(waitMs);
+    }
+  }
+
   async remaining(platform: string, orgId: string): Promise<number> {
     const { capacity, refillPerSecond } = this.bucketParams(platform);
     const key = this.bucketKey(platform, orgId);

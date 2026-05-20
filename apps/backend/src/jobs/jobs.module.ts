@@ -25,6 +25,9 @@ import {
   MarketplaceJobFailureHandler,
   MarketplacePullDlqHooks,
   MarketplacePushDlqHooks,
+  DeadLetterProcessor,
+  DeadLetterService,
+  ListingSyncDlqHooks,
 } from './dlq.processor';
 import { ErpSyncProcessor } from './erp-sync.processor';
 import { ErpSyncTask } from './erp-sync.task';
@@ -62,8 +65,11 @@ import { DataImportProcessor } from './data-import.processor';
   ],
   providers: [
     MarketplaceJobFailureHandler,
+    DeadLetterService,
     MarketplacePullDlqHooks,
     MarketplacePushDlqHooks,
+    ListingSyncDlqHooks,
+    DeadLetterProcessor,
     MarketplacePullProcessor,
     MarketplacePushProcessor,
     ListingSyncProcessor,

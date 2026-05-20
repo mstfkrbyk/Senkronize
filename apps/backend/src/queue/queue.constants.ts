@@ -16,6 +16,8 @@ export const QUEUE_WEBHOOK_DELIVERY = 'webhook-delivery';
 export const QUEUE_LISTING_SYNC = 'listing-sync';
 /** Veri taşıma sihirbazı toplu içe aktarma */
 export const QUEUE_DATA_IMPORT = 'data-import';
+/** Başarısız kuyruk işleri — gece yeniden deneme */
+export const QUEUE_DEAD_LETTER = 'dead-letter';
 
 /** Pazaryeri pull/push ve benzeri dış API işleri — Bull job varsayılanları */
 export const JOB_DEFAULT_OPTIONS: JobOptions = {
@@ -44,4 +46,12 @@ export const LISTING_SYNC_JOB_OPTIONS: JobOptions = {
 export const LISTING_SYNC_STOCK_JOB_OPTIONS: JobOptions = {
   ...LISTING_SYNC_JOB_OPTIONS,
   priority: JOB_PRIORITY.NORMAL,
+};
+
+/** DLQ — gece yeniden deneme; tek deneme */
+export const DLQ_JOB_OPTIONS: JobOptions = {
+  attempts: 1,
+  removeOnComplete: 200,
+  removeOnFail: 500,
+  priority: JOB_PRIORITY.LOW,
 };

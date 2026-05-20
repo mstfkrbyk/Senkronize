@@ -8,6 +8,7 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
+import type { NormalizedOrder } from '../common/order-normalizer';
 import { WoocommerceAdapter } from '../woocommerce/woocommerce.adapter';
 import { WC_PRODUCTS_PER_PAGE } from '../woocommerce/woocommerce.constants';
 
@@ -49,6 +50,13 @@ export class WoocommerceEcommerceAdapter implements IEcommerceAdapter {
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     return this.wc.testConnection(credentials);
+  }
+
+  async getOrderById(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<NormalizedOrder | null> {
+    return this.wc.getOrderById(credentials, orderId);
   }
 
   async getOrders(

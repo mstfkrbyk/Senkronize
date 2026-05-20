@@ -6,7 +6,12 @@ import {
   type Prisma,
 } from '@prisma/client';
 
+import { EventService } from '../event/event.service';
+import { WS_EVENTS } from '../event/event.types';
 import { PrismaService } from '../prisma/prisma.service';
+
+import type { SyncResult } from './listing-sync.types';
+import { SyncGateway } from './sync-gateway';
 
 export interface PlatformSyncStat {
   platform: Marketplace;
@@ -19,9 +24,22 @@ export interface PlatformSyncStat {
   lastStatus: SyncLogStatus | null;
 }
 
+export interface ListingSyncCompletion {
+  logId: string;
+  platform: Marketplace;
+  itemsProcessed: number;
+  itemsFailed: number;
+  durationMs: number;
+  status: SyncLogStatus;
+}
+
 @Injectable()
 export class SyncLogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventService: EventService,
+    private readonly syncGateway: SyncGateway,
+  ) {}
 
   async startLog(
     orgId: string,
@@ -65,6 +83,61 @@ export class SyncLogService {
         errorMessage: errorMessage.slice(0, 2000),
       },
     });
+  }
+
+  /** Listing sync tamamlandığında log yazar ve WebSocket olayları yayınlar. */
+  async completeListingSync(
+    orgId: string,
+    platform: Marketplace,
+    logId: string,
+    startedAt: Date,
+    itemsProcessed: number,
+    itemsFailed: number,
+    jobType: string,
+  ): Promise<ListingSyncCompletion> {
+    const status = this.resolveStatus(itemsProcessed, itemsFailed);
+    const completedAt = new Date();
+    const durationMs = completedAt.getTime() - startedAt.getTime();
+
+    await this.prisma.syncLog.update({
+      where: { id: logId },
+      data: {
+        status,
+        itemsProcessed,
+        itemsFailed,
+        completedAt,
+        errorMessage:
+          itemsFailed > 0 && itemsProcessed === 0
+            ? `${String(itemsFailed)} öğe başarısız`
+            : null,
+      },
+    });
+
+    const result: SyncResult = {
+      platform,
+      success: status !== SyncLogStatus.FAILED,
+      itemsProcessed,
+      ...(itemsFailed > 0 ? { errorMessage: `${String(itemsFailed)} hatalı` } : {}),
+    };
+
+    this.syncGateway.emitSyncCompleted(orgId, platform, result);
+    this.eventService.emit(orgId, WS_EVENTS.SYNC_COMPLETED, {
+      platform,
+      jobType,
+      itemsProcessed,
+      itemsFailed,
+      durationMs,
+      status,
+    });
+
+    return {
+      logId,
+      platform,
+      itemsProcessed,
+      itemsFailed,
+      durationMs,
+      status,
+    };
   }
 
   async getRecentLogs(

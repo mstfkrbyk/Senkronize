@@ -93,6 +93,36 @@ export interface ListingSyncPriceJobData {
   listingIds: string[];
 }
 
+/** listing-sync — platform bazlı toplu stok/fiyat push */
+export interface ListingSyncBatchUpdate {
+  barcode: string;
+  stock?: number;
+  price?: number;
+  listPrice?: number;
+  listingId?: string;
+}
+
+export interface ListingSyncBatchJobData {
+  orgId: string;
+  platform: string;
+  updates: ListingSyncBatchUpdate[];
+  /** DLQ gece yeniden denemesi — ikinci başarısızlıkta AnomalyLog tetiklenir */
+  dlqReplay?: boolean;
+  dlqReplayCount?: number;
+}
+
+/** dead-letter kuyruğu — başarısız iş yükü */
+export interface DeadLetterJobData {
+  sourceQueue: string;
+  jobName: string;
+  payload: unknown;
+  errorMessage: string;
+  attemptsMade: number;
+  organizationId?: string;
+  failedAt: string;
+  dlqReplayCount: number;
+}
+
 /** data-import — migration wizard toplu içe aktarma */
 export interface DataImportJobData {
   sessionId: string;

@@ -17,6 +17,7 @@ import type { Request } from 'express';
 import { Public } from '../auth/public.decorator';
 
 import { PlatformWebhookService } from './platform-webhook.service';
+import { TicimaxWebhookService } from './ticimax-webhook.service';
 import { WebhookService } from './webhook.service';
 
 @ApiTags('webhooks')
@@ -25,6 +26,7 @@ import { WebhookService } from './webhook.service';
 export class PlatformWebhookController {
   constructor(
     private readonly platformWebhookService: PlatformWebhookService,
+    private readonly ticimaxWebhookService: TicimaxWebhookService,
     private readonly webhookService: WebhookService,
   ) {}
 
@@ -77,6 +79,29 @@ export class PlatformWebhookController {
     @Req() req: RawBodyRequest<Request>,
   ): Promise<{ received: true }> {
     return this.handleByConnection(Marketplace.ETSY, connectionId, headers, req);
+  }
+
+  @Public()
+  @Post('ticimax/:connectionId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Ticimax sipariş webhook (bağlantı kimliği; X-Ticimax-Signature)',
+  })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async ticimax(
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    const raw = req.rawBody;
+    if (!raw || !Buffer.isBuffer(raw)) {
+      throw new BadRequestException('Ham gövde kullanılamıyor');
+    }
+    return this.ticimaxWebhookService.handleWebhook(
+      connectionId,
+      headers,
+      raw,
+    );
   }
 
   @Public()

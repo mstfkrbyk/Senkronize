@@ -21,6 +21,7 @@ import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { ListingSyncService } from '../sync/listing-sync.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 
@@ -154,6 +155,7 @@ export class ProductService {
     private readonly productImportService: ProductImportService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
+    private readonly listingSyncService: ListingSyncService,
   ) {}
 
   private async resolveCategoryId(
@@ -396,6 +398,11 @@ export class ProductService {
       void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.PRODUCT_UPDATED, {
         productId: id,
       });
+      void this.listingSyncService
+        .afterProductUpdate(id, organizationId)
+        .catch(() => {
+          // listing sync kuyruğu opsiyonel; ürün güncellemesi tamamlandı
+        });
       return updated;
     } catch (error) {
       if (

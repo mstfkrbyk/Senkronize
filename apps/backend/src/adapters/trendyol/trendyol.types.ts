@@ -4,6 +4,7 @@ export interface TrendyolShipmentAddress {
   fullAddress?: string;
   city?: string;
   district?: string;
+  countryCode?: string;
   phone?: string;
   phoneNumber?: string;
 }

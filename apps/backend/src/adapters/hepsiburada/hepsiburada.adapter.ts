@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Marketplace } from '@prisma/client';
 import axios, { AxiosError, type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
@@ -252,7 +253,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
       const rows = data.summaries ?? data.orders ?? data.content ?? [];
       return rows
         .map((row) => this.normalizeOrderSummary(row))
-        .filter((o) => o.platformCreatedAt.getTime() >= sinceMs);
+        .filter((o) => o.createdAt.getTime() >= sinceMs);
     } catch (error) {
       this.logger.warn('Hepsiburada summaries API başarısız, OMS orderlist deneniyor', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
@@ -292,7 +293,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
       const rows = data.orders ?? data.content ?? [];
       for (const row of rows) {
         const normalized = this.normalizeOrderListItem(row);
-        if (normalized.platformCreatedAt.getTime() >= sinceMs) {
+        if (normalized.createdAt.getTime() >= sinceMs) {
           all.push(normalized);
         }
       }
@@ -373,13 +374,18 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     const rawStatus =
       typeof raw.status === 'string' ? raw.status : 'WaitingForPacking';
     return {
-      platformOrderId,
+      externalId: platformOrderId,
+      externalOrderNo: platformOrderId,
+      platform: Marketplace.HEPSIBURADA,
       rawStatus,
       status: mapHepsiburadaStatus(rawStatus),
-      customerName:
-        typeof raw.customerName === 'string' ? raw.customerName : '—',
-      customerPhone:
-        typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      customer: {
+        name:
+          typeof raw.customerName === 'string' ? raw.customerName : '—',
+        email: '',
+        phone:
+          typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      },
       totalAmount:
         typeof raw.totalAmount === 'number' && Number.isFinite(raw.totalAmount)
           ? raw.totalAmount
@@ -395,7 +401,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
           line.barcode ??
           '',
         name: line.productName ?? line.name ?? '',
-        quantity:
+        qty:
           typeof line.quantity === 'number' && Number.isFinite(line.quantity)
             ? line.quantity
             : 0,
@@ -406,10 +412,8 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
               ? line.price
               : 0,
       })),
-      shippingAddress: { fullAddress: '' },
-      platformCreatedAt: raw.orderDate
-        ? new Date(raw.orderDate)
-        : new Date(),
+      shippingAddress: { line1: '', city: '', country: 'TR' },
+      createdAt: raw.orderDate ? new Date(raw.orderDate) : new Date(),
     };
   }
 
@@ -439,15 +443,21 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     const lines = raw.lines ?? raw.items ?? [];
     const rawStatus =
       typeof raw.status === 'string' ? raw.status : 'WaitingForPacking';
+    const externalId =
+      (typeof raw.orderNumber === 'string' && raw.orderNumber) || packageId;
     return {
-      platformOrderId:
-        (typeof raw.orderNumber === 'string' && raw.orderNumber) || packageId,
+      externalId,
+      externalOrderNo: externalId,
+      platform: Marketplace.HEPSIBURADA,
       rawStatus,
       status: mapHepsiburadaStatus(rawStatus),
-      customerName:
-        typeof raw.customerName === 'string' ? raw.customerName : '—',
-      customerPhone:
-        typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      customer: {
+        name:
+          typeof raw.customerName === 'string' ? raw.customerName : '—',
+        email: '',
+        phone:
+          typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      },
       totalAmount:
         typeof raw.totalAmount === 'number' && Number.isFinite(raw.totalAmount)
           ? raw.totalAmount
@@ -463,7 +473,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
           line.barcode ??
           '',
         name: line.productName ?? line.name ?? '',
-        quantity:
+        qty:
           typeof line.quantity === 'number' && Number.isFinite(line.quantity)
             ? line.quantity
             : 0,
@@ -474,10 +484,8 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
               ? line.price
               : 0,
       })),
-      shippingAddress: { fullAddress: '' },
-      platformCreatedAt: raw.orderDate
-        ? new Date(raw.orderDate)
-        : new Date(),
+      shippingAddress: { line1: '', city: '', country: 'TR' },
+      createdAt: raw.orderDate ? new Date(raw.orderDate) : new Date(),
     };
   }
 

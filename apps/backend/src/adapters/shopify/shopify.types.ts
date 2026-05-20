@@ -40,12 +40,20 @@ export interface ShopifyCustomer {
 }
 
 /** Shopify Admin REST — sipariş */
+export interface ShopifyShippingAddress {
+  address1?: string | null;
+  city?: string | null;
+  country?: string | null;
+}
+
 export interface ShopifyOrder {
   id: number;
+  order_number?: number | null;
   financial_status?: string | null;
   fulfillment_status?: string | null;
   email?: string | null;
   customer?: ShopifyCustomer | null;
+  shipping_address?: ShopifyShippingAddress | null;
   total_price?: string;
   currency?: string;
   created_at?: string;

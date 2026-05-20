@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Marketplace } from '@prisma/client';
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import type {
@@ -280,13 +281,13 @@ export class N11Adapter implements IMarketplaceAdapter {
     const sinceMs = since?.getTime() ?? 0;
     const seen = new Set<string>();
     return all.filter((o) => {
-      if (o.platformCreatedAt.getTime() < sinceMs) {
+      if (o.createdAt.getTime() < sinceMs) {
         return false;
       }
-      if (seen.has(o.platformOrderId)) {
+      if (seen.has(o.externalId)) {
         return false;
       }
-      seen.add(o.platformOrderId);
+      seen.add(o.externalId);
       return true;
     });
   }
@@ -410,20 +411,31 @@ export class N11Adapter implements IMarketplaceAdapter {
       ship?.district,
       ship?.city,
     ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
+    const externalId = String(o.id ?? o.orderNumber ?? '');
     return {
-      platformOrderId: String(o.id ?? o.orderNumber ?? ''),
+      externalId,
+      externalOrderNo: String(o.orderNumber ?? externalId),
+      platform: Marketplace.N11,
       rawStatus,
       status: mapN11Status(rawStatus),
-      customerName: buyerName.length > 0 ? buyerName : '—',
-      items,
+      customer: {
+        name: buyerName.length > 0 ? buyerName : '—',
+        email: '',
+      },
+      items: items.map((item) => ({
+        sku: item.sku,
+        name: item.name,
+        qty: item.quantity,
+        unitPrice: item.unitPrice,
+      })),
       totalAmount: Number.isFinite(total) ? total : 0,
       currency: 'TRY',
       shippingAddress: {
-        fullAddress: addressParts.join(', '),
-        city: ship?.city,
-        district: ship?.district,
+        line1: addressParts.join(', '),
+        city: ship?.city ?? '',
+        country: 'TR',
       },
-      platformCreatedAt: createdAt,
+      createdAt,
     };
   }
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Marketplace } from '@prisma/client';
 import axios, { AxiosError, type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
@@ -254,12 +255,18 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       (typeof addr?.phoneNumber === 'string' && addr.phoneNumber) ||
       undefined;
 
+    const orderNo = String(raw.orderNumber);
     return {
-      platformOrderId: String(raw.orderNumber),
+      externalId: orderNo,
+      externalOrderNo: orderNo,
+      platform: Marketplace.TRENDYOL,
       rawStatus: raw.status,
       status: mapTrendyolStatus(raw.status),
-      customerName: `${first} ${last}`.trim() || '—',
-      customerPhone: phone,
+      customer: {
+        name: `${first} ${last}`.trim() || '—',
+        email: '',
+        phone,
+      },
       totalAmount: raw.totalPrice ?? raw.grossAmount ?? 0,
       currency: raw.currencyCode ?? 'TRY',
       cargoProvider: raw.cargoProviderName,
@@ -270,15 +277,15 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       items: raw.lines.map((line) => ({
         sku: line.barcode || line.merchantSku || '',
         name: line.productName,
-        quantity: line.quantity,
+        qty: line.quantity,
         unitPrice: line.price,
       })),
       shippingAddress: {
-        fullAddress: addr?.fullAddress ?? '',
-        city: addr?.city,
-        district: addr?.district,
+        line1: addr?.fullAddress ?? '',
+        city: addr?.city ?? '',
+        country: 'TR',
       },
-      platformCreatedAt: new Date(raw.orderDate),
+      createdAt: new Date(raw.orderDate),
     };
   }
 

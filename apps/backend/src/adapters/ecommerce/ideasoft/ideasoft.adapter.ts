@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EcommerceType } from '@prisma/client';
 import type {
   IEcommerceAdapter,
   MarketplaceListing,
@@ -9,6 +10,11 @@ import type {
 } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
+import {
+  mapIdeasoftStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../../common/order-normalizer';
 import {
   isRecord,
   normalizeArrayPayload,
@@ -40,45 +46,61 @@ function pickString(row: Record<string, unknown>, ...keys: string[]): string {
   return '';
 }
 
-function mapIdeasoftOrder(row: unknown): MarketplaceOrder | null {
+function normalizeIdeasoftOrderRow(row: unknown): NormalizedOrder | null {
   if (!isRecord(row)) {
     return null;
   }
   const order = row as IdeasoftOrder;
-  const platformOrderId = pickString(row, 'id');
-  if (!platformOrderId) {
+  const externalId = pickString(row, 'id');
+  if (!externalId) {
     return null;
   }
   const linesRaw = order.items ?? order.orderItems;
   const lines = Array.isArray(linesRaw) ? linesRaw : [];
-  const items = lines.map((line, index) => {
-    const li = line as IdeasoftOrderLine;
-    const sku = String(li.sku ?? li.barcode ?? '');
-    const barcode = String(li.barcode ?? li.sku ?? sku);
-    return {
-      sku,
-      barcode: barcode || String(index),
-      quantity: Math.max(0, Math.round(parseMoney(li.quantity))),
-      unitPrice: parseMoney(li.unitPrice ?? li.price),
-      platformItemId: String(li.id ?? barcode ?? index),
-      productName: li.name,
-    };
-  });
   const customer = order.customer;
-  const customerName =
-    String(order.customerName ?? customer?.fullName ?? customer?.name ?? '').trim() ||
-    '—';
+  const rawStatus = String(order.status ?? order.order_status_id ?? '');
+  const ship = order.shippingAddress;
   return {
-    platformOrderId,
-    status: String(order.status ?? order.order_status_id ?? ''),
-    customerName,
-    items,
+    externalId,
+    externalOrderNo: pickString(row, 'orderNumber', 'order_number') || externalId,
+    platform: EcommerceType.IDEASOFT,
+    rawStatus,
+    status: mapIdeasoftStatus(rawStatus),
+    customer: {
+      name:
+        String(order.customerName ?? customer?.fullName ?? customer?.name ?? '').trim() ||
+        '—',
+      email: String(customer?.email ?? order.customerEmail ?? ''),
+      phone: typeof customer?.phone === 'string' ? customer.phone : undefined,
+    },
+    shippingAddress: {
+      line1: String(ship?.address ?? ship?.fullAddress ?? ''),
+      city: String(ship?.city ?? ''),
+      country: String(ship?.country ?? 'TR'),
+    },
+    items: lines.map((line) => {
+      const li = line as IdeasoftOrderLine;
+      const sku = String(li.sku ?? li.barcode ?? '');
+      return {
+        sku,
+        name: String(li.name ?? sku),
+        qty: Math.max(0, Math.round(parseMoney(li.quantity))),
+        unitPrice: parseMoney(li.unitPrice ?? li.price),
+      };
+    }),
     totalAmount: parseMoney(order.total ?? order.totalAmount),
     currency: String(order.currency ?? 'TRY'),
-    createdAt: new Date(
-      String(order.createdAt ?? order.createDate ?? Date.now()),
-    ).toISOString(),
+    createdAt: new Date(String(order.createdAt ?? order.createDate ?? Date.now())),
+    trackingNumber:
+      typeof order.trackingNumber === 'string' ? order.trackingNumber : undefined,
+    cargoProvider:
+      typeof order.cargoCompany === 'string' ? order.cargoCompany : undefined,
   };
+}
+
+function mapIdeasoftOrder(row: unknown): MarketplaceOrder | null {
+  const normalized = normalizeIdeasoftOrderRow(row);
+  return normalized ? toMarketplaceOrder(normalized) : null;
 }
 
 function mapIdeasoftProduct(row: unknown): MarketplaceListing | null {
@@ -218,23 +240,34 @@ export class IdeasoftEcommerceAdapter implements IEcommerceAdapter {
     return all;
   }
 
-  async getOrderDetail(
+  async getOrderById(
     credentials: Record<string, string>,
     orderId: string,
-  ): Promise<MarketplaceOrder | null> {
+  ): Promise<NormalizedOrder | null> {
     if (!this.hasOAuthCredentials(credentials)) {
       return null;
     }
     try {
       const client = await this.getClient(credentials);
-      const { data } = await client.get<unknown>(`/orders/${encodeURIComponent(orderId)}`);
-      return mapIdeasoftOrder(data);
+      const { data } = await client.get<unknown>(
+        `/orders/${encodeURIComponent(orderId)}`,
+      );
+      return normalizeIdeasoftOrderRow(data);
     } catch (error) {
       this.logger.warn('IdeaSoft sipariş detayı alınamadı', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
       return null;
     }
+  }
+
+  /** @deprecated getOrderById kullanın */
+  async getOrderDetail(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<MarketplaceOrder | null> {
+    const normalized = await this.getOrderById(credentials, orderId);
+    return normalized ? toMarketplaceOrder(normalized) : null;
   }
 
   async updateOrderStatus(

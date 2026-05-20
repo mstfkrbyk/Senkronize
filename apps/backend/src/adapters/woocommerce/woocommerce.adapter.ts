@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Marketplace } from '@prisma/client';
 import axios, { type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
@@ -8,6 +9,12 @@ import type {
   PriceUpdatePayload,
   StockUpdatePayload,
 } from '@senkronize/shared';
+
+import {
+  mapWooCommerceStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../common/order-normalizer';
 
 import {
   WC_API_PATH,
@@ -96,6 +103,26 @@ export class WoocommerceAdapter implements IMarketplaceAdapter {
     return all.map((o) => this.mapOrder(o));
   }
 
+  async getOrderById(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<NormalizedOrder | null> {
+    if (!this.hasCredentials(credentials)) {
+      return null;
+    }
+    try {
+      const { data } = await this.getClient(credentials).get<WcOrder>(
+        `/orders/${encodeURIComponent(orderId)}`,
+      );
+      return this.normalizeOrder(data);
+    } catch (error) {
+      this.logger.warn('WooCommerce sipariş detayı alınamadı', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return null;
+    }
+  }
+
   /** WooCommerce sipariş durumu güncelle (PUT /orders/{id}) */
   async updateOrderStatus(
     credentials: Record<string, string>,
@@ -109,36 +136,56 @@ export class WoocommerceAdapter implements IMarketplaceAdapter {
     await client.put(`/orders/${platformOrderId}`, { status });
   }
 
-  private mapOrder(o: WcOrder): MarketplaceOrder {
+  private normalizeOrder(o: WcOrder): NormalizedOrder {
     const billing = o.billing;
+    const shipping = o.shipping as Record<string, unknown> | undefined;
     const first = billing?.first_name ?? '';
     const last = billing?.last_name ?? '';
-    const customerName = `${first} ${last}`.trim() || '—';
-    const items = (o.line_items ?? []).map((li: WcOrderLineItem) => {
-      const sku = String(li.sku ?? '');
-      const idPart = li.id ?? li.product_id ?? '';
-      const barcode = sku || String(idPart);
-      const qty = Number(li.quantity ?? 0);
-      const unit = parseFloat(li.price ?? '0');
-      return {
-        sku,
-        barcode,
-        quantity: Number.isFinite(qty) ? qty : 0,
-        unitPrice: Number.isFinite(unit) ? unit : 0,
-        platformItemId: String(li.id ?? li.product_id ?? barcode),
-        productName: li.name,
-      };
-    });
-    const total = parseFloat(o.total ?? '0');
+    const rawStatus = String(o.status ?? '');
+    const externalId = String(o.id);
     return {
-      platformOrderId: String(o.id),
-      status: String(o.status ?? ''),
-      customerName,
-      items,
-      totalAmount: Number.isFinite(total) ? total : 0,
+      externalId,
+      externalOrderNo: externalId,
+      platform: Marketplace.WOOCOMMERCE,
+      rawStatus,
+      status: mapWooCommerceStatus(rawStatus),
+      customer: {
+        name: `${first} ${last}`.trim() || '—',
+        email: String(billing?.email ?? ''),
+        phone:
+          typeof billing?.phone === 'string' ? billing.phone : undefined,
+      },
+      shippingAddress: {
+        line1:
+          (typeof shipping?.address_1 === 'string' && shipping.address_1) || '',
+        city:
+          (typeof shipping?.city === 'string' && shipping.city) ||
+          (typeof billing?.city === 'string' ? billing.city : '') ||
+          '',
+        country:
+          (typeof shipping?.country === 'string' && shipping.country) || 'TR',
+      },
+      items: (o.line_items ?? []).map((li: WcOrderLineItem) => {
+        const sku = String(li.sku ?? '');
+        const qty = Number(li.quantity ?? 0);
+        const unit = parseFloat(li.price ?? '0');
+        return {
+          sku,
+          name: String(li.name ?? sku),
+          qty: Number.isFinite(qty) ? qty : 0,
+          unitPrice: Number.isFinite(unit) ? unit : 0,
+        };
+      }),
+      totalAmount: Number.isFinite(parseFloat(o.total ?? '0'))
+        ? parseFloat(o.total ?? '0')
+        : 0,
       currency: String(o.currency ?? 'TRY'),
-      createdAt: new Date(o.date_created ?? Date.now()).toISOString(),
+      createdAt: new Date(o.date_created ?? Date.now()),
     };
+  }
+
+  private mapOrder(o: WcOrder): MarketplaceOrder {
+    return toMarketplaceOrder(this.normalizeOrder(o));
   }
 
   async getListings(

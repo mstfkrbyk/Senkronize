@@ -7,18 +7,22 @@ import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
+  LISTING_SYNC_JOB_OPTIONS,
   LISTING_SYNC_STOCK_JOB_OPTIONS,
   QUEUE_LISTING_SYNC,
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
-import type { ListingSyncStockJobData } from '../queue/queue.types';
-import { StockMovementService } from './stock-movement.service';
+import type {
+  ListingSyncBatchJobData,
+  ListingSyncStockJobData,
+  MarketplacePushJobData,
+} from '../queue/queue.types';
 import { WarehouseService } from '../warehouse/warehouse.service';
-import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 
 import type { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
+import { StockMovementService } from './stock-movement.service';
 
 const DEFAULT_PAGE_LIMIT = 20;
 const LOW_STOCK_THRESHOLD = 10;
@@ -81,7 +85,9 @@ export class StockService {
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     @InjectQueue(QUEUE_LISTING_SYNC)
-    private readonly listingSyncQueue: Queue<ListingSyncStockJobData>,
+    private readonly listingSyncQueue: Queue<
+      ListingSyncStockJobData | ListingSyncBatchJobData
+    >,
   ) {}
 
   async updateStock(
@@ -149,17 +155,78 @@ export class StockService {
       }
     });
 
-    await this.listingSyncQueue.add(
-      'sync-stock',
-      { orgId: organizationId, barcode: trimmed, stock: newStock },
-      LISTING_SYNC_STOCK_JOB_OPTIONS,
-    );
+    await this.afterStockUpdate(product?.id ?? null, organizationId, trimmed, newStock);
 
     void this.erpSyncSettingsService
       .enqueueStockPush(organizationId, trimmed, newStock)
       .catch(() => {
         // ERP kuyruğu opsiyonel; stok güncellemesi yerelde tamamlandı
       });
+  }
+
+  async afterStockUpdate(
+    productId: string | null,
+    orgId: string,
+    barcode: string,
+    stock: number,
+  ): Promise<void> {
+    if (productId) {
+      const listings = await this.getActiveListings(productId, orgId);
+      if (listings.length > 0) {
+        const byPlatform = new Map<string, typeof listings>();
+        for (const listing of listings) {
+          const rows = byPlatform.get(listing.platform) ?? [];
+          rows.push(listing);
+          byPlatform.set(listing.platform, rows);
+        }
+        for (const [platform, rows] of byPlatform) {
+          await this.listingSyncQueue.add(
+            'sync-batch',
+            {
+              orgId,
+              platform,
+              updates: rows.map((listing) => ({
+                barcode: listing.barcode,
+                listingId: listing.id,
+                stock,
+              })),
+            },
+            LISTING_SYNC_JOB_OPTIONS,
+          );
+        }
+        return;
+      }
+    }
+
+    await this.listingSyncQueue.add(
+      'sync-stock',
+      { orgId, barcode, stock },
+      LISTING_SYNC_STOCK_JOB_OPTIONS,
+    );
+  }
+
+  private async getActiveListings(
+    productId: string,
+    orgId: string,
+  ): Promise<
+    Array<{ id: string; platform: string; barcode: string }>
+  > {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId: orgId, deletedAt: null },
+      select: { barcode: true },
+    });
+    if (!product) {
+      return [];
+    }
+    return this.prisma.listing.findMany({
+      where: {
+        organizationId: orgId,
+        deletedAt: null,
+        isActive: true,
+        OR: [{ productId }, { barcode: product.barcode }],
+      },
+      select: { id: true, platform: true, barcode: true },
+    });
   }
 
   async findAll(

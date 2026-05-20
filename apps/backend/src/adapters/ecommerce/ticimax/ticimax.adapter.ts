@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { EcommerceType } from '@prisma/client';
 import type {
   IEcommerceAdapter,
   MarketplaceListing,
@@ -9,6 +10,11 @@ import type {
 } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
+import {
+  mapTicimaxStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../../common/order-normalizer';
 import {
   isRecord,
   normalizeArrayPayload,
@@ -36,44 +42,19 @@ function pickString(row: Record<string, unknown>, ...keys: string[]): string {
   return '';
 }
 
-function mapTicimaxOrder(row: unknown): MarketplaceOrder | null {
+function normalizeTicimaxOrderRow(row: unknown): NormalizedOrder | null {
   if (!isRecord(row)) {
     return null;
   }
   const order = row as TicimaxOrder;
-  const platformOrderId = pickString(
-    row,
-    'orderNo',
-    'OrderNo',
-    'id',
-    'Id',
-  );
-  if (!platformOrderId) {
+  const externalId = pickString(row, 'id', 'Id');
+  const externalOrderNo = pickString(row, 'orderNo', 'OrderNo') || externalId;
+  if (!externalId && !externalOrderNo) {
     return null;
   }
   const linesRaw = order.items ?? order.Items ?? order.orderItems ?? order.OrderItems;
   const lines = Array.isArray(linesRaw) ? linesRaw : [];
-  const items = lines.map((line, index) => {
-    const li = isRecord(line) ? line : {};
-    const sku = pickString(
-      li,
-      'productCode',
-      'ProductCode',
-      'barcode',
-      'Barcode',
-      'sku',
-      'SKU',
-    );
-    return {
-      sku,
-      barcode: sku || String(index),
-      quantity: Math.max(0, Math.round(parseMoney(li.quantity ?? li.Quantity))),
-      unitPrice: parseMoney(li.unitPrice ?? li.UnitPrice ?? li.price ?? li.Price),
-      platformItemId: pickString(li, 'id', 'Id') || `${platformOrderId}-${String(index)}`,
-      productName:
-        pickString(li, 'productName', 'ProductName', 'name', 'Name') || undefined,
-    };
-  });
+  const rawStatus = String(order.status ?? order.Status ?? 'NEW');
   const firstName = pickString(row, 'firstName', 'FirstName');
   const lastName = pickString(row, 'lastName', 'LastName');
   const customerName =
@@ -83,16 +64,54 @@ function mapTicimaxOrder(row: unknown): MarketplaceOrder | null {
   const createdRaw =
     order.createdAt ?? order.CreatedAt ?? order.orderDate ?? order.OrderDate;
   return {
-    platformOrderId,
-    status: String(order.status ?? order.Status ?? 'NEW'),
-    customerName,
-    items,
+    externalId: externalId || externalOrderNo,
+    externalOrderNo,
+    platform: EcommerceType.TICIMAX,
+    rawStatus,
+    status: mapTicimaxStatus(rawStatus),
+    customer: {
+      name: customerName,
+      email: pickString(row, 'email', 'Email'),
+      phone: pickString(row, 'phone', 'Phone', 'gsm', 'Gsm') || undefined,
+    },
+    shippingAddress: {
+      line1: pickString(row, 'shippingAddress', 'ShippingAddress', 'address', 'Address'),
+      city: pickString(row, 'city', 'City'),
+      country: pickString(row, 'country', 'Country') || 'TR',
+    },
+    items: lines.map((line) => {
+      const li = isRecord(line) ? line : {};
+      const sku = pickString(
+        li,
+        'productCode',
+        'ProductCode',
+        'barcode',
+        'Barcode',
+        'sku',
+        'SKU',
+      );
+      return {
+        sku,
+        name:
+          pickString(li, 'productName', 'ProductName', 'name', 'Name') || sku,
+        qty: Math.max(0, Math.round(parseMoney(li.quantity ?? li.Quantity))),
+        unitPrice: parseMoney(li.unitPrice ?? li.UnitPrice ?? li.price ?? li.Price),
+      };
+    }),
     totalAmount: parseMoney(
       order.totalAmount ?? order.TotalAmount ?? order.total ?? order.Total,
     ),
     currency: 'TRY',
-    createdAt: new Date(String(createdRaw ?? Date.now())).toISOString(),
+    createdAt: new Date(String(createdRaw ?? Date.now())),
+    trackingNumber:
+      pickString(row, 'trackingNo', 'TrackingNo', 'cargoTrackingNo') || undefined,
+    cargoProvider: pickString(row, 'cargoCompany', 'CargoCompany') || undefined,
   };
+}
+
+function mapTicimaxOrder(row: unknown): MarketplaceOrder | null {
+  const normalized = normalizeTicimaxOrderRow(row);
+  return normalized ? toMarketplaceOrder(normalized) : null;
 }
 
 function mapTicimaxProduct(row: unknown): MarketplaceListing | null {
@@ -227,6 +246,26 @@ export class TicimaxEcommerceAdapter implements IEcommerceAdapter {
       }
     }
     return all;
+  }
+
+  async getOrderById(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<NormalizedOrder | null> {
+    if (!this.hasRequiredCredentials(credentials)) {
+      return null;
+    }
+    try {
+      const { data } = await this.getClient(credentials).get<unknown>(
+        `/orders/${encodeURIComponent(orderId)}`,
+      );
+      return normalizeTicimaxOrderRow(data);
+    } catch (error) {
+      this.logger.warn('Ticimax sipariş detayı alınamadı', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return null;
+    }
   }
 
   async getListings(

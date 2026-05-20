@@ -11,11 +11,11 @@ import type { Job, Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
-import { CustomerService } from '../customer/customer.service';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
+import { OrderPullService } from '../order/order-pull.service';
 import { OrderService } from '../order/order.service';
 import { NotificationEmitService } from '../notifications/notification-emit.service';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
@@ -39,7 +39,7 @@ export class MarketplacePullProcessor {
     private readonly adapterRegistry: AdapterRegistry,
     private readonly marketplaceConnectionService: MarketplaceConnectionService,
     private readonly orderService: OrderService,
-    private readonly customerService: CustomerService,
+    private readonly orderPullService: OrderPullService,
     private readonly listingService: ListingService,
     private readonly syncStatusService: SyncStatusService,
     private readonly syncLogService: SyncLogService,
@@ -140,9 +140,9 @@ export class MarketplacePullProcessor {
         count: orders.length,
       });
       emitSyncProgress(0, orders.length);
-      const { createdOrders } = await this.orderService.upsertFromPlatform(
+      const { createdOrders } = await this.orderPullService.persistOrders(
         organizationId,
-        platform as Marketplace,
+        marketplace,
         orders,
       );
       for (let i = 0; i < createdOrders.length; i++) {
@@ -150,23 +150,6 @@ export class MarketplacePullProcessor {
         if ((i + 1) % 50 === 0 || i === createdOrders.length - 1) {
           emitSyncProgress(i + 1, orders.length);
         }
-        try {
-          await this.customerService.upsertFromOrder(order);
-        } catch (customerErr) {
-          this.logger.warn('Müşteri kaydı güncellenemedi', {
-            organizationId,
-            orderId: order.id,
-            message:
-              customerErr instanceof Error ? customerErr.message : 'unknown',
-          });
-        }
-        this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
-          orderId: order.id,
-          platform,
-          buyerName: order.customerName,
-          totalAmount: order.totalAmount.toString(),
-          createdAt: order.createdAt.toISOString(),
-        });
         this.notificationEmit.emitOrderNew(organizationId, {
           orderId: order.id,
           platform: String(platform),

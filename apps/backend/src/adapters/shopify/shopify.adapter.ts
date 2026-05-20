@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Marketplace } from '@prisma/client';
 import axios, { type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
@@ -9,8 +10,15 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
+import {
+  mapShopifyStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../common/order-normalizer';
+
 import { shopifyBaseUrl } from './shopify.constants';
 import type {
+  ShopifyFulfillment,
   ShopifyLineItem,
   ShopifyOrder,
   ShopifyProduct,
@@ -78,6 +86,40 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     return rows.map((o) => this.mapOrder(o));
   }
 
+  async getOrderById(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<NormalizedOrder | null> {
+    if (!this.hasCredentials(credentials)) {
+      return null;
+    }
+    try {
+      const client = this.getClient(credentials);
+      const { data: orderData } = await client.get<{ order?: ShopifyOrder }>(
+        `/orders/${encodeURIComponent(orderId)}.json`,
+      );
+      const order = orderData.order;
+      if (!order) {
+        return null;
+      }
+      let fulfillments: ShopifyFulfillment[] = [];
+      try {
+        const { data: fulfillmentData } = await client.get<{
+          fulfillments?: ShopifyFulfillment[];
+        }>(`/orders/${encodeURIComponent(orderId)}/fulfillments.json`);
+        fulfillments = fulfillmentData.fulfillments ?? [];
+      } catch {
+        fulfillments = [];
+      }
+      return this.normalizeOrder(order, fulfillments);
+    } catch (error) {
+      this.logger.warn('Shopify sipariş detayı alınamadı', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return null;
+    }
+  }
+
   /** Shopify sipariş güncelle (PUT /orders/{id}.json) */
   async updateOrder(
     credentials: Record<string, string>,
@@ -124,39 +166,55 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     });
   }
 
-  private mapOrder(o: ShopifyOrder): MarketplaceOrder {
+  private normalizeOrder(
+    o: ShopifyOrder,
+    fulfillments: ShopifyFulfillment[] = [],
+  ): NormalizedOrder {
     const c = o.customer;
     const first = c?.first_name ?? '';
     const last = c?.last_name ?? '';
-    const customerName = `${first} ${last}`.trim() || '—';
     const buyerEmail = c?.email ?? o.email ?? '';
-    const customerWithEmail =
-      buyerEmail && customerName === '—' ? buyerEmail : customerName;
-    const items = (o.line_items ?? []).map((li: ShopifyLineItem) => {
-      const sku = String(li.sku ?? '');
-      const idPart = li.id ?? '';
-      const barcode = sku || String(idPart);
-      const qty = Number(li.quantity ?? 0);
-      const unit = parseFloat(li.price ?? '0');
-      return {
-        sku,
-        barcode,
-        quantity: Number.isFinite(qty) ? qty : 0,
-        unitPrice: Number.isFinite(unit) ? unit : 0,
-        platformItemId: String(li.id ?? barcode),
-        productName: li.title,
-      };
-    });
-    const total = parseFloat(o.total_price ?? '0');
+    const customerName = `${first} ${last}`.trim() || buyerEmail || '—';
+    const financial = String(o.financial_status ?? '');
+    const fulfillment = String(o.fulfillment_status ?? '');
+    const latestFulfillment = fulfillments[fulfillments.length - 1];
+    const ship = o.shipping_address;
+    const externalId = String(o.id);
     return {
-      platformOrderId: String(o.id),
-      status: String(o.financial_status ?? o.fulfillment_status ?? ''),
-      customerName: customerWithEmail,
-      items,
-      totalAmount: Number.isFinite(total) ? total : 0,
+      externalId,
+      externalOrderNo: String(o.order_number ?? externalId),
+      platform: Marketplace.SHOPIFY,
+      rawStatus: financial || fulfillment,
+      status: mapShopifyStatus(financial, fulfillment),
+      customer: { name: customerName, email: buyerEmail },
+      shippingAddress: {
+        line1: ship?.address1 ?? '',
+        city: ship?.city ?? '',
+        country: ship?.country ?? 'TR',
+      },
+      items: (o.line_items ?? []).map((li: ShopifyLineItem) => {
+        const sku = String(li.sku ?? '');
+        const qty = Number(li.quantity ?? 0);
+        const unit = parseFloat(li.price ?? '0');
+        return {
+          sku,
+          name: String(li.title ?? sku),
+          qty: Number.isFinite(qty) ? qty : 0,
+          unitPrice: Number.isFinite(unit) ? unit : 0,
+        };
+      }),
+      totalAmount: Number.isFinite(parseFloat(o.total_price ?? '0'))
+        ? parseFloat(o.total_price ?? '0')
+        : 0,
       currency: String(o.currency ?? 'TRY'),
-      createdAt: new Date(o.created_at ?? Date.now()).toISOString(),
+      createdAt: new Date(o.created_at ?? Date.now()),
+      trackingNumber: latestFulfillment?.tracking_number ?? undefined,
+      cargoProvider: latestFulfillment?.tracking_company ?? undefined,
     };
+  }
+
+  private mapOrder(o: ShopifyOrder): MarketplaceOrder {
+    return toMarketplaceOrder(this.normalizeOrder(o));
   }
 
   async getListings(
