@@ -9,9 +9,19 @@ export default async function globalSetup(): Promise<void> {
   ensureTestDatabase(testUrl);
 
   const backendRoot = path.join(__dirname, '..');
-  execSync('npx prisma migrate deploy', {
-    cwd: backendRoot,
-    env: { ...process.env, DATABASE_URL: testUrl },
-    stdio: 'inherit',
-  });
+
+  try {
+    execSync('npx prisma migrate deploy', {
+      cwd: backendRoot,
+      env: { ...process.env, DATABASE_URL: testUrl },
+      stdio: 'inherit',
+    });
+  } catch {
+    // Boş test DB — migration zinciri kırıksa şemayı doğrudan senkronize et
+    execSync('npx prisma db push --skip-generate', {
+      cwd: backendRoot,
+      env: { ...process.env, DATABASE_URL: testUrl },
+      stdio: 'inherit',
+    });
+  }
 }

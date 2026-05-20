@@ -32,8 +32,10 @@ import { AsosModule } from './asos/asos.module';
 import { AlibabaModule } from './alibaba/alibaba.module';
 import { AlibabaB2bModule } from './alibaba-b2b/alibaba-b2b.module';
 import { AlibabaTrModule } from './alibaba-tr/alibaba-tr.module';
+import { AliexpressRuModule } from './aliexpress-ru/aliexpress-ru.module';
 import { AutodsModule } from './autods/autods.module';
 import { AutotraderModule } from './autotrader/autotrader.module';
+import { AvitoModule } from './avito/avito.module';
 import { AkinonModule } from './akinon/akinon.module';
 import { AkulakuModule } from './akulaku/akulaku.module';
 import { AmericanasModule } from './americanas/americanas.module';
@@ -83,10 +85,12 @@ import { CdiscountModule } from './cdiscount/cdiscount.module';
 import { CiceksepetiEvModule } from './ciceksepeti-ev/ciceksepeti-ev.module';
 import { CeneoModule } from './ceneo/ceneo.module';
 import { ChairishModule } from './chairish/chairish.module';
+import { ChaldalModule } from './chaldal/chaldal.module';
 import { CimriModule } from './cimri/cimri.module';
 import { ColinsModule } from './colins/colins.module';
 import { CoupangModule } from './coupang/coupang.module';
 import { CoppelModule } from './coppel/coppel.module';
+import { CraftsvillaModule } from './craftsvilla/craftsvilla.module';
 import { CostcoCaModule } from './costco-ca/costco-ca.module';
 import { CultBeautyModule } from './cult-beauty/cult-beauty.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
@@ -96,6 +100,7 @@ import { DhgateModule } from './dhgate/dhgate.module';
 import { DobaModule } from './doba/doba.module';
 import { DopingModule } from './doping/doping.module';
 import { DarazModule } from './daraz/daraz.module';
+import { DarazPkModule } from './daraz-pk/daraz-pk.module';
 import { DecathlonModule } from './decathlon/decathlon.module';
 import { DecathlonTrModule } from './decathlon-tr/decathlon-tr.module';
 import { DecluttrModule } from './decluttr/decluttr.module';
@@ -125,6 +130,7 @@ import { FnacModule } from './fnac/fnac.module';
 import { FruugoModule } from './fruugo/fruugo.module';
 import { FaprikaModule } from './faprika/faprika.module';
 import { FalabellaModule } from './falabella/falabella.module';
+import { FaviModule } from './favi/favi.module';
 import { FloModule } from './flo/flo.module';
 import { FuudyModule } from './fuudy/fuudy.module';
 import { GetirFoodModule } from './getir-food/getir-food.module';
@@ -134,6 +140,7 @@ import { GetirModule } from './getir/getir.module';
 import { GorillasModule } from './gorillas/gorillas.module';
 import { GymsharkModule } from './gymshark/gymshark.module';
 import { GotoBusinessModule } from './goto-business/goto-business.module';
+import { GotoLkModule } from './goto-lk/goto-lk.module';
 import { GmarketModule } from './gmarket/gmarket.module';
 import { GrabMartModule } from './grab-mart/grab-mart.module';
 import { GardenaModule } from './gardena/gardena.module';
@@ -169,16 +176,19 @@ import { JiomartModule } from './jiomart/jiomart.module';
 import { JossMainModule } from './joss-main/joss-main.module';
 import { JoomModule } from './joom/joom.module';
 import { JumiaModule } from './jumia/jumia.module';
+import { JuspayModule } from './juspay/juspay.module';
 import { KadinClubModule } from './kadin-club/kadin-club.module';
 import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KaracaModule } from './karaca/karaca.module';
 import { KaspiModule } from './kaspi/kaspi.module';
 import { KomplettModule } from './komplett/komplett.module';
+import { KupujemProdajemModule } from './kupujem-prodajem/kupujem-prodajem.module';
 import { KinguinModule } from './kinguin/kinguin.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
 import { KmartAuModule } from './kmart-au/kmart-au.module';
 import { KilimallModule } from './kilimall/kilimall.module';
+import { KhaadiModule } from './khaadi/khaadi.module';
 import { KoctasModule } from './koctas/koctas.module';
 import { KolaybiAdapter } from './kolaybi/kolaybi.adapter';
 import { KongaModule } from './konga/konga.module';
@@ -191,8 +201,10 @@ import { LookfantasticModule } from './lookfantastic/lookfantastic.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
 import { LidlModule } from './lidl/lidl.module';
+import { LimundoModule } from './limundo/limundo.module';
 import { LinensNThingsModule } from './linens-n-things/linens-n-things.module';
 import { LinioModule } from './linio/linio.module';
+import { LimeroadModule } from './limeroad/limeroad.module';
 import { LiverpoolMxModule } from './liverpool-mx/liverpool-mx.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
@@ -228,10 +240,12 @@ import { MysoftModule } from './mysoft/mysoft.module';
 import { MyntraModule } from './myntra/myntra.module';
 import { N11Adapter } from './n11/n11.adapter';
 import { N11ProModule } from './n11-pro/n11-pro.module';
+import { NykaaModule } from './nykaa/nykaa.module';
 import { NotinoModule } from './notino/notino.module';
 import { NamshiModule } from './namshi/namshi.module';
 import { NetsisAdapter } from './netsis/netsis.adapter';
 import { NetworkModule } from './network/network.module';
+import { NjuskaloModule } from './njuskalo/njuskalo.module';
 import { NebimAdapter } from './nebim/nebim.adapter';
 import { NoonModule } from './noon/noon.module';
 import { NoonSaModule } from './noon-sa/noon-sa.module';
@@ -243,14 +257,17 @@ import { OttoplusModule } from './ottoplus/ottoplus.module';
 import { OunassModule } from './ounass/ounass.module';
 import { OpencartModule } from './opencart/opencart.module';
 import { OlxModule } from './olx/olx.module';
+import { OlxPlModule } from './olx-pl/olx-pl.module';
 import { OpensooqModule } from './opensooq/opensooq.module';
 import { OverstockModule } from './overstock/overstock.module';
 import { OzonModule } from './ozon/ozon.module';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { Pazar365Module } from './pazar365/pazar365.module';
+import { PazaruvajModule } from './pazaruvaj/pazaruvaj.module';
 import { PowerDkModule } from './power-dk/power-dk.module';
 import { PerigoldModule } from './perigold/perigold.module';
+import { PepperfryModule } from './pepperfry/pepperfry.module';
 import { PorlandModule } from './porland/porland.module';
 import { PoshmarkModule } from './poshmark/poshmark.module';
 import { PiguModule } from './pigu/pigu.module';
@@ -263,8 +280,10 @@ import { ProtelModule } from './protel/protel.module';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { Qoo10Module } from './qoo10/qoo10.module';
 import { RakutenModule } from './rakuten/rakuten.module';
+import { RazorpayStoreModule } from './razorpay-store/razorpay-store.module';
 import { RealdeModule } from './realde/realde.module';
 import { ReverbModule } from './reverb/reverb.module';
+import { RelianceDigitalModule } from './reliance-digital/reliance-digital.module';
 import { RipleyModule } from './ripley/ripley.module';
 import { RobomarktModule } from './robomarkt/robomarkt.module';
 import { RossmannTrModule } from './rossmann-tr/rossmann-tr.module';
@@ -282,6 +301,7 @@ import { SahibindenB2bModule } from './sahibinden-b2b/sahibinden-b2b.module';
 import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
 import { SpocketModule } from './spocket/spocket.module';
 import { SahibindenModule } from './sahibinden/sahibinden.module';
+import { SbermarketModule } from './sbermarket/sbermarket.module';
 import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SefamerveModule } from './sefamerve/sefamerve.module';
 import { ShopeeModule } from './shopee/shopee.module';
@@ -289,6 +309,7 @@ import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { ShopirollModule } from './shopiroll/shopiroll.module';
 import { ShopiverseModule } from './shopiverse/shopiverse.module';
 import { ShopigoModule } from './shopigo/shopigo.module';
+import { ShohozModule } from './shohoz/shohoz.module';
 import { ShopbackModule } from './shopback/shopback.module';
 import { SimpraModule } from './simpra/simpra.module';
 import { SokMarketModule } from './sok-market/sok-market.module';
@@ -302,6 +323,7 @@ import { StockxModule } from './stockx/stockx.module';
 import { SwappaModule } from './swappa/swappa.module';
 import { Street11Module } from './street11/street11.module';
 import { TakealotModule } from './takealot/takealot.module';
+import { TataCliqModule } from './tata-cliq/tata-cliq.module';
 import { TikiModule } from './tiki/tiki.module';
 import { ThredupModule } from './thredup/thredup.module';
 import { TiktokShopModule } from './tiktok-shop/tiktok-shop.module';
@@ -335,6 +357,7 @@ import { TokopediaModule } from './tokopedia/tokopedia.module';
 import { UniposModule } from './unipos/unipos.module';
 import { UberEatsModule } from './uber-eats/uber-eats.module';
 import { UzumModule } from './uzum/uzum.module';
+import { UdaanModule } from './udaan/udaan.module';
 import { UsPoloTrModule } from './us-polo-tr/us-polo-tr.module';
 import { VitacostModule } from './vitacost/vitacost.module';
 import { VatanModule } from './vatan/vatan.module';
@@ -427,15 +450,19 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HeurekaModule,
     IherbModule,
     KomplettModule,
+    KupujemProdajemModule,
     MumzworldModule,
     OlxModule,
+    OlxPlModule,
     PowerDkModule,
     AsosModule,
     AlibabaModule,
     AlibabaB2bModule,
     AlibabaTrModule,
+    AliexpressRuModule,
     AutodsModule,
     AutotraderModule,
+    AvitoModule,
     AkinonModule,
     AkulakuModule,
     AmericanasModule,
@@ -524,6 +551,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FruugoModule,
     FaprikaModule,
     FalabellaModule,
+    FaviModule,
     FloModule,
     FuudyModule,
     GetirModule,
@@ -581,6 +609,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LookfantasticModule,
     LidyanaModule,
     LidlModule,
+    LimundoModule,
     LinioModule,
     LiverpoolMxModule,
     LogoCommerceModule,
@@ -614,6 +643,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     NotinoModule,
     NamshiModule,
     NetworkModule,
+    NjuskaloModule,
     NoonModule,
     NoonSaModule,
     NeweggModule,
@@ -628,6 +658,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OzonModule,
     PazaramaPremiumModule,
     Pazar365Module,
+    PazaruvajModule,
     PorlandModule,
     PoshmarkModule,
     PiguModule,
@@ -646,6 +677,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RossmannTrModule,
     RossmannOnlineModule,
     SahibindenModule,
+    SbermarketModule,
     SahibindenB2bModule,
     SahibindenProModule,
     SpocketModule,
@@ -819,8 +851,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AlibabaModule,
     AlibabaB2bModule,
     AlibabaTrModule,
+    AliexpressRuModule,
     AutodsModule,
     AutotraderModule,
+    AvitoModule,
     AkinonModule,
     AkulakuModule,
     AmericanasModule,
@@ -909,6 +943,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FruugoModule,
     FaprikaModule,
     FalabellaModule,
+    FaviModule,
     FloModule,
     FuudyModule,
     GetirModule,
@@ -966,6 +1001,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LookfantasticModule,
     LidyanaModule,
     LidlModule,
+    LimundoModule,
     LinioModule,
     LiverpoolMxModule,
     LogoCommerceModule,
@@ -999,6 +1035,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     NotinoModule,
     NamshiModule,
     NetworkModule,
+    NjuskaloModule,
     NoonModule,
     NoonSaModule,
     NeweggModule,
@@ -1013,6 +1050,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OzonModule,
     PazaramaPremiumModule,
     Pazar365Module,
+    PazaruvajModule,
     PorlandModule,
     PoshmarkModule,
     PiguModule,
@@ -1031,6 +1069,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RossmannTrModule,
     RossmannOnlineModule,
     SahibindenModule,
+    SbermarketModule,
     SahibindenB2bModule,
     SahibindenProModule,
     SpocketModule,
@@ -1152,6 +1191,20 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VenteExclusiveModule,
     VestiaireModule,
     ZalandoLoungeModule,
+    ChaldalModule,
+    CraftsvillaModule,
+    DarazPkModule,
+    GotoLkModule,
+    JuspayModule,
+    KhaadiModule,
+    LimeroadModule,
+    NykaaModule,
+    PepperfryModule,
+    RazorpayStoreModule,
+    RelianceDigitalModule,
+    ShohozModule,
+    TataCliqModule,
+    UdaanModule,
   ],
 })
 export class AdapterModule {}

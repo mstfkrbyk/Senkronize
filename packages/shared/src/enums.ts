@@ -350,7 +350,16 @@ export type Marketplace =
   | 'COSTCO_CA'
   | 'HUDSONS_BAY'
   | 'LIVERPOOL_MX'
-  | 'COPPEL';
+  | 'COPPEL'
+  | 'FAVI'
+  | 'LIMUNDO'
+  | 'KUPUJEM_PRODAJEM'
+  | 'NJUSKALO'
+  | 'OLX_PL'
+  | 'ALIEXPRESS_RU'
+  | 'AVITO'
+  | 'SBERMARKET'
+  | 'PAZARUVAJ';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

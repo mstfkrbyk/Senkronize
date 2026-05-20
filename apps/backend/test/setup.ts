@@ -33,22 +33,20 @@ export function getTestDatabaseUrl(): string {
 export function ensureTestDatabase(testUrl: string): void {
   const parsed = new URL(testUrl);
   const dbName = parsed.pathname.replace(/^\//, '');
-  parsed.pathname = '/postgres';
-  const adminUrl = parsed.toString();
+  const host = parsed.hostname;
+  const port = parsed.port || '5432';
+  const user = decodeURIComponent(parsed.username);
+  const password = decodeURIComponent(parsed.password);
+  const env = { ...process.env, PGPASSWORD: password };
 
-  try {
-    execSync(
-      `npx prisma db execute --stdin --url "${adminUrl}"`,
-      {
-        cwd: pathJoinBackend(),
-        input: `CREATE DATABASE "${dbName}";`,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: process.env,
-      },
-    );
-  } catch {
-    // Veritabanı zaten var — devam et
-  }
+  execSync(
+    `psql -h ${host} -p ${port} -U ${user} -d postgres -c "DROP DATABASE IF EXISTS \\"${dbName}\\" WITH (FORCE);"`,
+    { stdio: 'pipe', env },
+  );
+  execSync(
+    `psql -h ${host} -p ${port} -U ${user} -d postgres -c "CREATE DATABASE \\"${dbName}\\";"`,
+    { stdio: 'pipe', env },
+  );
 }
 
 function pathJoinBackend(): string {
