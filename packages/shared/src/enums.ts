@@ -132,7 +132,17 @@ export type Marketplace =
   | 'SPARTOO'
   | 'MANOMANO'
   | 'VEEPEE'
-  | 'TRENDYOL_INT';
+  | 'TRENDYOL_INT'
+  | 'MIGROS_SANAL'
+  | 'CARREFOURSA'
+  | 'BIM_ONLINE'
+  | 'SOK_MARKET'
+  | 'TAZE_DIREKT'
+  | 'GORILLAS'
+  | 'INSTACART'
+  | 'ALIBABA_TR'
+  | 'TRENDYOL_MILLA'
+  | 'SAHIBINDEN_PREMIUM';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

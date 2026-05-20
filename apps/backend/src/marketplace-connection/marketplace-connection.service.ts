@@ -305,6 +305,34 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.SAHIBINDEN_PRO) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
+    if (platform === Marketplace.SAHIBINDEN_PREMIUM) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.MIGROS_SANAL) {
+      return creds.supplierId ?? null;
+    }
+    if (
+      platform === Marketplace.BIM_ONLINE ||
+      platform === Marketplace.SOK_MARKET
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.CARREFOURSA ||
+      platform === Marketplace.TAZE_DIREKT ||
+      platform === Marketplace.INSTACART
+    ) {
+      return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.GORILLAS) {
+      return creds.clientId ?? null;
+    }
+    if (platform === Marketplace.ALIBABA_TR) {
+      return creds.appKey ?? creds.clientId ?? null;
+    }
+    if (platform === Marketplace.TRENDYOL_MILLA) {
+      return creds.sellerId ?? null;
+    }
     return null;
   }
 

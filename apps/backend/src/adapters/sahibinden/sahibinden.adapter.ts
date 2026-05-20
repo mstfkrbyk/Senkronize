@@ -27,7 +27,6 @@ import type {
   SahibindenOrderLine,
 } from './sahibinden.types';
 
-const SAHIBINDEN_BASE = 'https://api.sahibinden.com/v1';
 const PATH_LISTINGS = '/listings';
 const PATH_ORDERS = '/orders';
 const PATH_STOCK = '/listings/stock';
@@ -35,15 +34,26 @@ const PATH_PRICE = '/listings/price';
 
 @Injectable()
 export class SahibindenAdapter implements IMarketplaceAdapter {
-  readonly platform = 'SAHIBINDEN';
+  readonly platform: string = 'SAHIBINDEN';
   private readonly logger = new Logger(SahibindenAdapter.name);
 
   constructor(private readonly encryptionService: EncryptionService) {
     void this.encryptionService;
   }
 
+  /** Alt kanallar (Premium vb.) base URL override eder */
+  protected sahibindenBaseUrl(): string {
+    return 'https://api.sahibinden.com/v1';
+  }
+
+  protected rateLimitKey(): string {
+    return this.platform;
+  }
+
   private rpm(): number {
-    return PLATFORM_RATE_LIMITS.SAHIBINDEN ?? PLATFORM_RATE_LIMITS.DEFAULT;
+    return (
+      PLATFORM_RATE_LIMITS[this.rateLimitKey()] ?? PLATFORM_RATE_LIMITS.DEFAULT
+    );
   }
 
   private headers(apiKey: string): Pick<AxiosRequestConfig, 'headers'> {
@@ -61,7 +71,7 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         return false;
       }
-      const url = `${SAHIBINDEN_BASE}/merchant/me`;
+      const url = `${this.sahibindenBaseUrl()}/merchant/me`;
       await axiosWithRetry<unknown>(
         { method: 'GET', url, timeout: 12_000, ...this.headers(apiKey) },
         { maxRetries: 1 },
@@ -124,10 +134,10 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         throw new Error('Sahibinden: apiKey zorunludur');
       }
-      const url = `${SAHIBINDEN_BASE}${PATH_ORDERS}`;
+      const url = `${this.sahibindenBaseUrl()}${PATH_ORDERS}`;
       const sinceMs = since ? since.getTime() : undefined;
       let rows: MarketplaceOrder[] = [];
-      await withRateLimit('SAHIBINDEN', this.rpm(), async () => {
+      await withRateLimit(this.rateLimitKey(), this.rpm(), async () => {
         const data = await axiosWithRetry<unknown>(
           {
             method: 'GET',
@@ -147,7 +157,7 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       });
       return rows;
     } catch (error) {
-      throwSyncFailed('SAHIBINDEN', 'getOrders', error);
+      throwSyncFailed(this.platform, 'getOrders', error);
     }
   }
 
@@ -160,8 +170,8 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         throw new Error('Sahibinden: apiKey zorunludur');
       }
-      const url = `${SAHIBINDEN_BASE}${PATH_LISTINGS}`;
-      const { rows, total } = await withRateLimit('SAHIBINDEN', this.rpm(), async () => {
+      const url = `${this.sahibindenBaseUrl()}${PATH_LISTINGS}`;
+      const { rows, total } = await withRateLimit(this.rateLimitKey(), this.rpm(), async () => {
         const data = await axiosWithRetry<unknown>(
           {
             method: 'GET',
@@ -210,7 +220,7 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
         pageSize: 50,
       };
     } catch (error) {
-      throwSyncFailed('SAHIBINDEN', 'getListings', error);
+      throwSyncFailed(this.platform, 'getListings', error);
     }
   }
 
@@ -223,8 +233,8 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         throw new Error('Sahibinden: apiKey zorunludur');
       }
-      const url = `${SAHIBINDEN_BASE}${PATH_STOCK}`;
-      await withRateLimit('SAHIBINDEN', this.rpm(), async () => {
+      const url = `${this.sahibindenBaseUrl()}${PATH_STOCK}`;
+      await withRateLimit(this.rateLimitKey(), this.rpm(), async () => {
         await axiosWithRetry<unknown>(
           {
             method: 'PATCH',
@@ -242,7 +252,7 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
         );
       });
     } catch (error) {
-      throwSyncFailed('SAHIBINDEN', 'updateStock', error);
+      throwSyncFailed(this.platform, 'updateStock', error);
     }
   }
 
@@ -255,8 +265,8 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         throw new Error('Sahibinden: apiKey zorunludur');
       }
-      const url = `${SAHIBINDEN_BASE}${PATH_PRICE}`;
-      await withRateLimit('SAHIBINDEN', this.rpm(), async () => {
+      const url = `${this.sahibindenBaseUrl()}${PATH_PRICE}`;
+      await withRateLimit(this.rateLimitKey(), this.rpm(), async () => {
         await axiosWithRetry<unknown>(
           {
             method: 'PATCH',
@@ -274,7 +284,7 @@ export class SahibindenAdapter implements IMarketplaceAdapter {
         );
       });
     } catch (error) {
-      throwSyncFailed('SAHIBINDEN', 'updatePrice', error);
+      throwSyncFailed(this.platform, 'updatePrice', error);
     }
   }
 }

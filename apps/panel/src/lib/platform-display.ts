@@ -107,6 +107,16 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   MANOMANO: { label: 'ManoMano', logo: '🔧', color: 'green' },
   VEEPEE: { label: 'Veepee', logo: '💜', color: 'violet' },
   TRENDYOL_INT: { label: 'Trendyol International', logo: '🌍', color: 'orange' },
+  MIGROS_SANAL: { label: 'Migros Sanal Market', logo: '🛒', color: 'orange' },
+  CARREFOURSA: { label: 'CarrefourSA Online', logo: '🛒', color: 'blue' },
+  BIM_ONLINE: { label: 'BIM Online', logo: '🏪', color: 'red' },
+  SOK_MARKET: { label: 'ŞOK Market Online', logo: '🛍️', color: 'yellow' },
+  TAZE_DIREKT: { label: 'Taze Direkt', logo: '🥬', color: 'green' },
+  GORILLAS: { label: 'Gorillas', logo: '🦍', color: 'violet' },
+  INSTACART: { label: 'Instacart Connect', logo: '🛒', color: 'green' },
+  ALIBABA_TR: { label: 'Alibaba TR (1688)', logo: '🌏', color: 'orange' },
+  TRENDYOL_MILLA: { label: 'Trendyol Milla', logo: '👗', color: 'rose' },
+  SAHIBINDEN_PREMIUM: { label: 'Sahibinden Premium', logo: '⭐', color: 'yellow' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

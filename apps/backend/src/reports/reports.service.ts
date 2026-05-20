@@ -158,6 +158,16 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.MANOMANO]: 'ManoMano',
   [Marketplace.VEEPEE]: 'Veepee',
   [Marketplace.TRENDYOL_INT]: 'Trendyol International',
+  [Marketplace.MIGROS_SANAL]: 'Migros Sanal Market',
+  [Marketplace.CARREFOURSA]: 'CarrefourSA Online',
+  [Marketplace.BIM_ONLINE]: 'BIM Online',
+  [Marketplace.SOK_MARKET]: 'ŞOK Market Online',
+  [Marketplace.TAZE_DIREKT]: 'Taze Direkt',
+  [Marketplace.GORILLAS]: 'Gorillas',
+  [Marketplace.INSTACART]: 'Instacart Connect',
+  [Marketplace.ALIBABA_TR]: 'Alibaba TR (1688)',
+  [Marketplace.TRENDYOL_MILLA]: 'Trendyol Milla',
+  [Marketplace.SAHIBINDEN_PREMIUM]: 'Sahibinden Premium',
 };
 
 @Injectable()

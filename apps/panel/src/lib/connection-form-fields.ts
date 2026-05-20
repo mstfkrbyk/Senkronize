@@ -958,6 +958,75 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  MIGROS_SANAL: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'supplierId', label: 'Tedarikçi ID', type: 'text', required: true },
+  ],
+  CARREFOURSA: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  BIM_ONLINE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SOK_MARKET: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  TAZE_DIREKT: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
+  GORILLAS: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  INSTACART: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token (JWT)',
+      type: 'password',
+      required: true,
+    },
+  ],
+  ALIBABA_TR: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    { key: 'appKey', label: 'App Key (1688)', type: 'text', required: true },
+  ],
+  TRENDYOL_MILLA: [
+    { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'millaChannel',
+      label: 'Milla kanal kodu (opsiyonel)',
+      type: 'text',
+      required: false,
+      defaultValue: 'milla',
+    },
+  ],
+  SAHIBINDEN_PREMIUM: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -1403,6 +1472,16 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'MANOMANO',
   'VEEPEE',
   'TRENDYOL_INT',
+  'MIGROS_SANAL',
+  'CARREFOURSA',
+  'BIM_ONLINE',
+  'SOK_MARKET',
+  'TAZE_DIREKT',
+  'GORILLAS',
+  'INSTACART',
+  'ALIBABA_TR',
+  'TRENDYOL_MILLA',
+  'SAHIBINDEN_PREMIUM',
   'SAHIBINDEN_PRO',
   'SHOPIVERSE',
 ];
