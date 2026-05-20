@@ -1,6 +1,6 @@
 import confetti from 'canvas-confetti';
 import type { ReactElement } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -210,26 +210,6 @@ export function ErpSetupWizardContent({
       void queryClient.invalidateQueries({ queryKey: ['erp-connections'] });
     },
   });
-
-  const resetWizard = useCallback((): void => {
-    setStep(1);
-    setErpSearch('');
-    setSelectedErpId(null);
-    setFieldErrors({});
-    setTestPassed(false);
-    setTestMessage(null);
-    setTestFailed(false);
-    setTestProgress(0);
-    setCreatedConnectionId(null);
-    setSyncPrefs({
-      frequency: '15m',
-      syncStock: true,
-      syncProduct: true,
-      syncInvoice: false,
-    });
-    form.reset({});
-    confettiFired.current = false;
-  }, [form]);
 
   const selectErp = (erpId: string): void => {
     setSelectedErpId(erpId);

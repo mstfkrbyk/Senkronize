@@ -135,6 +135,11 @@ const ErpConnectionDetailPage = lazy(() =>
     default: m.ErpConnectionDetailPage,
   })),
 );
+const ErpSetupWizardPage = lazy(() =>
+  import('@/pages/connections/ErpSetupWizardPage').then((m) => ({
+    default: m.ErpSetupWizardPage,
+  })),
+);
 const DashboardPage = lazy(() =>
   import('@/pages/dashboard/DashboardPage').then((m) => ({
     default: m.DashboardPage,
@@ -449,6 +454,10 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
+                <Route
+                  path="/connections/erp/setup"
+                  element={<ErpSetupWizardPage />}
+                />
                 <Route
                   path="/connections/erp/:id"
                   element={<ErpConnectionDetailPage />}

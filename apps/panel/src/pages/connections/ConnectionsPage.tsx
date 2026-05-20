@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plug } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -25,6 +26,7 @@ const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
 export function ConnectionsPage(): ReactElement {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [mainTab, setMainTab] = useState<'marketplace' | 'ecommerce' | 'erp'>('marketplace');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
@@ -101,7 +103,11 @@ export function ConnectionsPage(): ReactElement {
         </div>
         <div className="flex flex-wrap gap-2">
           {mainTab === 'erp' ? (
-            <Button type="button" variant="outline" onClick={() => setErpWizardOpen(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate('/connections/erp/setup')}
+            >
               ERP Kurulum Sihirbazı
             </Button>
           ) : null}
@@ -261,7 +267,7 @@ export function ConnectionsPage(): ReactElement {
               action={{
                 label: t('connections.emptyErpAction'),
                 onClick: () => {
-                  setErpWizardOpen(true);
+                  navigate('/connections/erp/setup');
                 },
               }}
             />

@@ -18,6 +18,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/pricing': () => import('@/pages/pricing/PricingPage'),
   '/campaigns': () => import('@/pages/campaigns/CampaignsPage'),
   '/connections': () => import('@/pages/connections/ConnectionsPage'),
+  '/connections/erp/setup': () => import('@/pages/connections/ErpSetupWizardPage'),
   '/connections/erp': () => import('@/pages/connections/ErpConnectionDetailPage'),
   '/sync-logs': () => import('@/pages/sync-logs/SyncLogsPage'),
   '/sync/history': () => import('@/pages/sync/SyncHistoryPage'),
