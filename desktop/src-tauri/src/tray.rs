@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use chrono::Utc;
 use tauri::{
     async_runtime::spawn,
     image::Image,
@@ -36,55 +37,48 @@ impl Default for TrayIndicatorState {
     }
 }
 
-fn last_sync_label(last: Option<chrono::DateTime<chrono::Utc>>) -> String {
+fn minutes_ago_label(last: Option<chrono::DateTime<chrono::Utc>>) -> String {
     match last {
         Some(t) => {
-            let local = t.format("%d.%m.%Y %H:%M UTC").to_string();
-            format!("Son senkron: {local}")
+            let mins = (Utc::now() - t).num_minutes();
+            if mins < 1 {
+                "az önce".to_string()
+            } else {
+                format!("{mins} dakika önce")
+            }
         }
-        None => "Son senkron: —".to_string(),
+        None => "henüz yok".to_string(),
     }
 }
 
-fn indicator_suffix(mode: TrayIndicatorMode) -> &'static str {
-    match mode {
+fn tray_tooltip(last: Option<chrono::DateTime<chrono::Utc>>, mode: TrayIndicatorMode) -> String {
+    let ago = minutes_ago_label(last);
+    let suffix = match mode {
         TrayIndicatorMode::Idle => "",
-        TrayIndicatorMode::Syncing => " · çalışıyor",
+        TrayIndicatorMode::Syncing => " · senkron devam ediyor",
         TrayIndicatorMode::Error => " · hata",
-    }
+    };
+    format!("Senkronize - Son sync: {ago}{suffix}")
 }
 
-fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, last_line: &str, version: &str) -> tauri::Result<Menu<R>> {
-    let title = MenuItem::with_id(
-        handle,
-        "tray_title",
-        &format!("Senkronize v{version}"),
-        false,
-        None::<&str>,
-    )?;
-    let open = MenuItem::with_id(handle, "open_panel", "Paneli Aç", true, None::<&str>)?;
-    let dashboard = MenuItem::with_id(handle, "dashboard", "Dashboard'u Aç", true, None::<&str>)?;
-    let sep1 = PredefinedMenuItem::separator(handle)?;
-    let last = MenuItem::with_id(handle, "last_sync", last_line, false, None::<&str>)?;
-    let sync = MenuItem::with_id(handle, "sync", "Şimdi Senkronize Et", true, None::<&str>)?;
-    let sep2 = PredefinedMenuItem::separator(handle)?;
+fn icon_for_mode(mode: TrayIndicatorMode) -> tauri::Result<Image<'static>> {
+    let bytes: &[u8] = match mode {
+        TrayIndicatorMode::Idle => include_bytes!("../icons/tray_idle.png"),
+        TrayIndicatorMode::Syncing => include_bytes!("../icons/tray_sync.png"),
+        TrayIndicatorMode::Error => include_bytes!("../icons/tray_error.png"),
+    };
+    Image::from_bytes(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
+}
+
+fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, last_line: &str) -> tauri::Result<Menu<R>> {
+    let sync_now = MenuItem::with_id(handle, "sync", "Şimdi Sync Et", true, None::<&str>)?;
+    let sync_logs = MenuItem::with_id(handle, "sync_logs", "Sync Logları", true, None::<&str>)?;
     let settings = MenuItem::with_id(handle, "settings", "Ayarlar", true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(handle)?;
+    let last = MenuItem::with_id(handle, "last_sync", last_line, false, None::<&str>)?;
     let quit = MenuItem::with_id(handle, "quit", "Çıkış", true, None::<&str>)?;
 
-    Menu::with_items(
-        handle,
-        &[
-            &title,
-            &open,
-            &dashboard,
-            &sep1,
-            &last,
-            &sync,
-            &sep2,
-            &settings,
-            &quit,
-        ],
-    )
+    Menu::with_items(handle, &[&sync_now, &sync_logs, &settings, &sep, &last, &quit])
 }
 
 pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -95,12 +89,11 @@ pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .try_state::<TrayIndicatorState>()
         .and_then(|st| st.mode.lock().ok().map(|g| *g))
         .unwrap_or(TrayIndicatorMode::Idle);
-    let version = app.package_info().version.to_string();
-    let mut last_line = last_sync_label(last);
-    last_line.push_str(indicator_suffix(mode));
-    let menu = build_tray_menu(app, &last_line, &version)?;
+    let last_line = format!("Son senkron: {}", minutes_ago_label(last));
+    let menu = build_tray_menu(app, &last_line)?;
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(menu))?;
+        let _ = tray.set_tooltip(Some(tray_tooltip(last, mode)));
     }
     Ok(())
 }
@@ -111,11 +104,6 @@ fn abort_tray_animation(state: &TrayIndicatorState) {
             h.abort();
         }
     }
-}
-
-fn default_tray_icon() -> tauri::Result<Image<'static>> {
-    Image::from_bytes(include_bytes!("../icons/icon.png"))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
 }
 
 #[tauri::command]
@@ -136,51 +124,52 @@ pub async fn set_tray_indicator(app: AppHandle, state: State<'_, TrayIndicatorSt
 
     let tray = app.tray_by_id(TRAY_ID).ok_or_else(|| "Tray bulunamadı.".to_string())?;
 
-    match parsed {
-        TrayIndicatorMode::Idle => {
-            tray.set_tooltip(Some("Senkronize")).map_err(|e| e.to_string())?;
-            let icon = default_tray_icon().map_err(|e| e.to_string())?;
-            tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
-        }
-        TrayIndicatorMode::Syncing => {
-            let app_a = app.clone();
-            let st: TrayIndicatorState = state.inner().clone();
-            let h = spawn(async move {
-                let frames = [
-                    "Senkronize · senkron",
-                    "Senkronize • senkron",
-                    "Senkronize ·· senkron",
-                    "Senkronize •• senkron",
-                ];
-                let mut tick: usize = 0;
-                loop {
-                    if let Some(tr) = app_a.tray_by_id(TRAY_ID) {
-                        let _ = tr.set_tooltip(Some(frames[tick % frames.len()]));
-                    }
-                    tick = tick.wrapping_add(1);
-                    sleep(Duration::from_millis(420)).await;
-                    let mode_now = st
-                        .mode
-                        .lock()
-                        .ok()
-                        .map(|g| *g)
-                        .unwrap_or(TrayIndicatorMode::Idle);
-                    if mode_now != TrayIndicatorMode::Syncing {
-                        break;
-                    }
+    let last = app
+        .try_state::<AutoSyncState>()
+        .and_then(|st| st.last_sync.lock().ok().and_then(|g| *g));
+
+    let icon = icon_for_mode(parsed).map_err(|e| e.to_string())?;
+    tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
+    tray.set_tooltip(Some(tray_tooltip(last, parsed)))
+        .map_err(|e| e.to_string())?;
+
+    if parsed == TrayIndicatorMode::Syncing {
+        let app_a = app.clone();
+        let st: TrayIndicatorState = state.inner().clone();
+        let h = spawn(async move {
+            let frames = [
+                "Senkronize · senkron",
+                "Senkronize • senkron",
+                "Senkronize ·· senkron",
+                "Senkronize •• senkron",
+            ];
+            let mut tick: usize = 0;
+            loop {
+                if let Some(tr) = app_a.tray_by_id(TRAY_ID) {
+                    let last = app_a
+                        .try_state::<AutoSyncState>()
+                        .and_then(|s| s.last_sync.lock().ok().and_then(|g| *g));
+                    let _ = tr.set_tooltip(Some(format!(
+                        "{} {}",
+                        tray_tooltip(last, TrayIndicatorMode::Syncing),
+                        frames[tick % frames.len()]
+                    )));
                 }
-            });
-            if let Ok(mut slot) = state.animation.lock() {
-                *slot = Some(h);
+                tick = tick.wrapping_add(1);
+                sleep(Duration::from_millis(420)).await;
+                let mode_now = st
+                    .mode
+                    .lock()
+                    .ok()
+                    .map(|g| *g)
+                    .unwrap_or(TrayIndicatorMode::Idle);
+                if mode_now != TrayIndicatorMode::Syncing {
+                    break;
+                }
             }
-            let icon = default_tray_icon().map_err(|e| e.to_string())?;
-            tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
-        }
-        TrayIndicatorMode::Error => {
-            tray.set_tooltip(Some("Senkronize — senkronizasyon hatası"))
-                .map_err(|e| e.to_string())?;
-            let icon = default_tray_icon().map_err(|e| e.to_string())?;
-            tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
+        });
+        if let Ok(mut slot) = state.animation.lock() {
+            *slot = Some(h);
         }
     }
 
@@ -194,37 +183,29 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let last = app
         .try_state::<AutoSyncState>()
         .and_then(|st| st.last_sync.lock().ok().and_then(|g| *g));
-    let version = handle.package_info().version.to_string();
-    let menu = build_tray_menu(&handle, &last_sync_label(last), &version)?;
+    let menu = build_tray_menu(&handle, &format!("Son senkron: {}", minutes_ago_label(last)))?;
 
-    let icon = Image::from_bytes(include_bytes!("../icons/icon.png"))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+    let icon = icon_for_mode(TrayIndicatorMode::Idle)?;
 
     TrayIconBuilder::new()
         .with_id(TRAY_ID)
-        .icon(icon.clone())
-        .tooltip("Senkronize")
+        .icon(icon)
+        .tooltip(tray_tooltip(last, TrayIndicatorMode::Idle))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id.as_ref() {
-            "open_panel" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            "dashboard" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("open-dashboard", ());
-                }
-            }
             "sync" => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
                     let _ = window.emit("tray-sync-request", ());
+                }
+            }
+            "sync_logs" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("open-sync-logs", ());
                 }
             }
             "settings" => {

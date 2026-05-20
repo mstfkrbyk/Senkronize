@@ -35,6 +35,9 @@ pub struct SyncStatusResponse {
     pub interval_minutes: u64,
     pub last_sync: Option<String>,
     pub is_running: bool,
+    pub is_syncing: bool,
+    pub pending_item_count: u32,
+    pub next_sync_at: Option<String>,
 }
 
 #[tauri::command]
@@ -152,24 +155,43 @@ pub async fn stop_auto_sync(state: State<'_, AutoSyncState>) -> Result<(), Strin
 
 #[tauri::command]
 pub async fn get_sync_status(state: State<'_, AutoSyncState>) -> Result<SyncStatusResponse, String> {
+    use chrono::Duration;
+
     let interval_minutes = *state
         .interval_minutes
         .lock()
         .map_err(|_| "Aralık kilidi alınamadı".to_string())?;
-    let last_sync = state
+    let last_dt = state
         .last_sync
         .lock()
         .map_err(|_| "Son senkron kilidi alınamadı".to_string())?
-        .map(|t| t.to_rfc3339());
+        .clone();
+    let last_sync = last_dt.map(|t| t.to_rfc3339());
     let is_running = *state
         .is_running
         .lock()
         .map_err(|_| "Durum kilidi alınamadı".to_string())?;
 
+    let is_syncing = crate::commands::erp_sync::erp_sync_in_progress();
+    let pending_item_count = crate::commands::erp_sync::erp_pending_count();
+
+    let next_sync_at = if is_running && interval_minutes > 0 {
+        let anchor = last_dt.unwrap_or_else(chrono::Utc::now);
+        Some(
+            (anchor + Duration::minutes(interval_minutes as i64))
+                .to_rfc3339(),
+        )
+    } else {
+        None
+    };
+
     Ok(SyncStatusResponse {
         interval_minutes,
         last_sync,
         is_running,
+        is_syncing,
+        pending_item_count,
+        next_sync_at,
     })
 }
 

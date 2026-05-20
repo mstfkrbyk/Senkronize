@@ -1,6 +1,7 @@
 import { getVersion } from '@tauri-apps/api/app';
 import { useEffect, useState, type ReactElement } from 'react';
 
+import { SyncScheduleSettings } from '@/components/SyncScheduleSettings';
 import { TraySettings } from '@/components/TraySettings';
 import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
 import { useAppStore } from '@/store/app.store';
@@ -215,6 +216,8 @@ export function SettingsPage({ onResetSession }: SettingsPageProps): ReactElemen
           </button>
         </div>
       </div>
+
+      <SyncScheduleSettings />
 
       <TraySettings />
 

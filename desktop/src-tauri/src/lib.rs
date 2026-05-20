@@ -24,6 +24,8 @@ pub fn run() {
             local_sync::sync_erp_to_cloud,
             erp_sync::sync_erp_products,
             erp_sync::sync_erp_orders,
+            erp_sync::sync_delta,
+            erp_sync::get_erp_sync_status,
             auto_sync::start_auto_sync,
             auto_sync::stop_auto_sync,
             auto_sync::get_sync_status,

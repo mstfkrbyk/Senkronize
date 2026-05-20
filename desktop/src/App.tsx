@@ -6,12 +6,13 @@ import { runFullPlatformSync } from '@/lib/run-platform-sync';
 import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
 import { ErpBridgePage } from '@/pages/ErpBridgePage';
 import { LogsPage } from '@/pages/LogsPage';
+import { SyncLogsPage } from '@/pages/SyncLogsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { SetupPage } from '@/pages/SetupPage';
 import { StatusPage } from '@/pages/StatusPage';
 import { useAppStore } from '@/store/app.store';
 
-type Page = 'status' | 'settings' | 'logs' | 'erpBridge';
+type Page = 'status' | 'settings' | 'logs' | 'syncLogs' | 'erpBridge';
 
 export default function App(): ReactElement {
   const token = useAppStore((s) => s.token);
@@ -66,7 +67,7 @@ export default function App(): ReactElement {
     let unlistenTray: (() => void) | undefined;
     let unlistenAuto: (() => void) | undefined;
     let unlistenSettings: (() => void) | undefined;
-    let unlistenDashboard: (() => void) | undefined;
+    let unlistenSyncLogs: (() => void) | undefined;
 
     void (async () => {
       unlistenTray = await listen('tray-sync-request', () => {
@@ -78,8 +79,8 @@ export default function App(): ReactElement {
       unlistenSettings = await listen('open-settings', () => {
         useAppStore.getState().setPendingSidebarNav('settings');
       });
-      unlistenDashboard = await listen('open-dashboard', () => {
-        setPage('status');
+      unlistenSyncLogs = await listen('open-sync-logs', () => {
+        setPage('syncLogs');
       });
     })();
 
@@ -87,7 +88,7 @@ export default function App(): ReactElement {
       unlistenTray?.();
       unlistenAuto?.();
       unlistenSettings?.();
-      unlistenDashboard?.();
+      unlistenSyncLogs?.();
     };
   }, []);
 
@@ -209,6 +210,14 @@ export default function App(): ReactElement {
             <ScrollText size={16} />
             Loglar
           </button>
+          <button
+            type="button"
+            className={`navBtn ${page === 'syncLogs' ? 'navBtnActive' : ''}`}
+            onClick={() => setPage('syncLogs')}
+          >
+            <ScrollText size={16} />
+            Sync Logları
+          </button>
         </nav>
       </aside>
 
@@ -217,6 +226,7 @@ export default function App(): ReactElement {
         {page === 'settings' ? <SettingsPage onResetSession={onResetSession} /> : null}
         {page === 'erpBridge' ? <ErpBridgePage /> : null}
         {page === 'logs' ? <LogsPage /> : null}
+        {page === 'syncLogs' ? <SyncLogsPage /> : null}
       </main>
     </div>
   );

@@ -32,6 +32,8 @@ export interface ErpTestResult {
   success: boolean;
   message: string;
   productCount: number | null;
+  erpVersion: string | null;
+  durationMs: number;
 }
 
 export interface ErpConfigPayload {
@@ -61,6 +63,24 @@ export interface SyncStatusResponse {
   intervalMinutes: number;
   lastSync: string | null;
   isRunning: boolean;
+  isSyncing: boolean;
+  pendingItemCount: number;
+  nextSyncAt: string | null;
+}
+
+export interface ErpDeltaSyncResult {
+  productsSynced: number;
+  ordersPushed: number;
+  errors: string[];
+  durationMs: number;
+  syncedAt: string;
+  delta: boolean;
+}
+
+export interface ErpSyncStatus {
+  isSyncing: boolean;
+  lastSync: string | null;
+  pendingItemCount: number;
 }
 
 export interface UpdateCheckResponse {
@@ -144,6 +164,23 @@ export const tauriApi = {
   stopAutoSync: (): Promise<void> => invoke<void>('stop_auto_sync'),
 
   getSyncStatus: (): Promise<SyncStatusResponse> => invoke<SyncStatusResponse>('get_sync_status'),
+
+  getErpSyncStatus: (): Promise<ErpSyncStatus> => invoke<ErpSyncStatus>('get_erp_sync_status'),
+
+  syncDelta: (args: {
+    erpType: string;
+    credentials: Record<string, unknown>;
+    cloudApiUrl: string;
+    apiKey: string;
+    since?: string | null;
+  }): Promise<ErpDeltaSyncResult> =>
+    invoke<ErpDeltaSyncResult>('sync_delta', {
+      erp_type: args.erpType,
+      credentials: args.credentials,
+      cloud_api_url: args.cloudApiUrl,
+      api_key: args.apiKey,
+      since: args.since ?? null,
+    }),
 
   recordLastSync: (atRfc3339?: string | null): Promise<void> =>
     invoke<void>('record_last_sync', { at_rfc3339: atRfc3339 ?? null }),

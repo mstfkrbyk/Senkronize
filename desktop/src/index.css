@@ -515,3 +515,89 @@ body {
   background: #fefce8;
   border-color: #fde047;
 }
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dataTable th,
+.dataTable td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dataTable th {
+  font-weight: 650;
+  color: var(--muted);
+  background: #f8fafc;
+}
+
+.dataTableRowClickable {
+  cursor: pointer;
+}
+
+.dataTableRowClickable:hover {
+  background: #f8fafc;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 480px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.modalPre {
+  margin: 14px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  white-space: pre-wrap;
+  color: #334155;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #e2e8f0;
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.testResultOk {
+  color: #047857;
+  font-weight: 600;
+}
+
+.testResultBad {
+  color: #b91c1c;
+  font-weight: 600;
+}

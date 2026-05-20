@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use chrono::Utc;
@@ -5,6 +8,41 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::command;
+
+static ERP_SYNC_ACTIVE: AtomicBool = AtomicBool::new(false);
+static ERP_PENDING_COUNT: AtomicU32 = AtomicU32::new(0);
+
+fn product_stamp_store() -> &'static Arc<Mutex<HashMap<String, String>>> {
+    static STORE: OnceLock<Arc<Mutex<HashMap<String, String>>>> = OnceLock::new();
+    STORE.get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+}
+
+pub fn erp_sync_in_progress() -> bool {
+    ERP_SYNC_ACTIVE.load(Ordering::SeqCst)
+}
+
+pub fn erp_pending_count() -> u32 {
+    ERP_PENDING_COUNT.load(Ordering::SeqCst)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResult {
+    pub products_synced: u32,
+    pub orders_pushed: u32,
+    pub errors: Vec<String>,
+    pub duration_ms: u64,
+    pub synced_at: String,
+    pub delta: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ErpSyncStatus {
+    pub is_syncing: bool,
+    pub last_sync: Option<String>,
+    pub pending_item_count: u32,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -330,4 +368,191 @@ pub async fn sync_erp_orders(
     api_key: String,
 ) -> Result<ErpSyncEngineResult, String> {
     sync_erp_orders_impl(erp_type, credentials, cloud_api_url, api_key).await
+}
+
+fn product_stamp(item: &Value) -> Option<String> {
+    for key in ["updatedAt", "updated_at", "stamp", "modifiedAt", "lastModified"] {
+        if let Some(s) = item.get(key).and_then(|v| v.as_str()) {
+            if !s.is_empty() {
+                return Some(s.to_string());
+            }
+        }
+    }
+    item.get("id")
+        .or_else(|| item.get("sku"))
+        .or_else(|| item.get("code"))
+        .map(|v| v.to_string())
+}
+
+fn filter_delta_products(items: Vec<Value>, since: Option<&str>) -> (Vec<Value>, u32) {
+    let mut changed = Vec::new();
+    let mut pending: u32 = 0;
+    let stamps = product_stamp_store().clone();
+
+    for item in items {
+        let id = item
+            .get("id")
+            .or_else(|| item.get("sku"))
+            .or_else(|| item.get("code"))
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| format!("{:?}", item));
+        let stamp = product_stamp(&item).unwrap_or_default();
+
+        let is_new = if let Ok(guard) = stamps.lock() {
+            guard.get(&id).map(|s| s != &stamp).unwrap_or(true)
+        } else {
+            true
+        };
+
+        if let Some(since_iso) = since {
+            if let Some(st) = product_stamp(&item) {
+                if st <= since_iso {
+                    continue;
+                }
+            }
+        }
+
+        if is_new {
+            changed.push(item);
+            pending = pending.saturating_add(1);
+        }
+    }
+
+    (changed, pending)
+}
+
+/// Son senkron damgasından bu yana değişen ürünleri çeker (stamp karşılaştırması).
+#[command]
+pub async fn sync_delta(
+    erp_type: String,
+    credentials: Value,
+    cloud_api_url: String,
+    api_key: String,
+    since: Option<String>,
+) -> Result<SyncResult, String> {
+    ERP_SYNC_ACTIVE.store(true, Ordering::SeqCst);
+    let start = Instant::now();
+    let synced_at = Utc::now().to_rfc3339();
+    let mut errors: Vec<String> = Vec::new();
+
+    let result = async {
+        let erp_base = erp_base_url(&credentials)
+            .ok_or_else(|| "Kimlik bilgisinde sunucu URL (baseUrl) bulunamadı.".to_string())?;
+
+        let client = erp_http_client()?;
+        let username = cred_str(&credentials, &["username", "user", "erpUsername"]).unwrap_or_default();
+        let password = cred_str(&credentials, &["password", "pass", "erpPassword", "apiKey", "apiToken"])
+            .unwrap_or_default();
+
+        let products_url = erp_products_source_url(erp_type.trim(), &erp_base);
+        let erp_resp = client
+            .get(&products_url)
+            .basic_auth(username, Some(password))
+            .send()
+            .await
+            .map_err(|e| format!("ERP delta isteği başarısız: {e}"))?;
+
+        let status = erp_resp.status();
+        let text = erp_resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(format!("ERP ürün listesi HTTP {status}: {text}"));
+        }
+
+        let parsed: Value = serde_json::from_str(&text).map_err(|e| format!("ERP JSON: {e}"))?;
+        let all_items: Vec<Value> = if let Some(arr) = parsed.as_array() {
+            arr.clone()
+        } else if let Some(arr) = parsed.get("data").and_then(|d| d.as_array()) {
+            arr.clone()
+        } else if let Some(arr) = parsed.get("products").and_then(|d| d.as_array()) {
+            arr.clone()
+        } else {
+            return Err("ERP ürün yanıtı beklenen dizi formatında değil.".to_string());
+        };
+
+        let since_ref = since.as_deref();
+        let (delta_items, pending) = filter_delta_products(all_items, since_ref);
+        ERP_PENDING_COUNT.store(pending, Ordering::SeqCst);
+
+        if let Ok(mut guard) = product_stamp_store().lock() {
+            for item in &delta_items {
+                let id = item
+                    .get("id")
+                    .or_else(|| item.get("sku"))
+                    .or_else(|| item.get("code"))
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| format!("{:?}", item));
+                let stamp = product_stamp(item).unwrap_or_default();
+                guard.insert(id, stamp);
+            }
+        }
+
+        let cloud_url = cloud_products_push_url(&cloud_api_url);
+        let cloud_headers = bearer_headers(&api_key)?;
+        let body = json!({
+            "erpType": erp_type,
+            "credentials": credentials,
+            "products": delta_items,
+            "syncedAt": synced_at,
+            "delta": true,
+            "since": since,
+        });
+
+        let cloud_resp = client
+            .post(&cloud_url)
+            .headers(cloud_headers)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("Bulut delta senkronu başarısız: {e}"))?;
+
+        let status = cloud_resp.status();
+        let text = cloud_resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            return Err(format!("Bulut delta HTTP {status}: {text}"));
+        }
+
+        let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+        let node = parsed.get("data").unwrap_or(&parsed);
+        let products_synced = u32_from_cloud(node, &["productsSynced", "products_synced", "synced", "count"]);
+
+        Ok(SyncResult {
+            products_synced,
+            orders_pushed: 0,
+            errors,
+            duration_ms: start.elapsed().as_millis() as u64,
+            synced_at,
+            delta: true,
+        })
+    }
+    .await;
+
+    ERP_SYNC_ACTIVE.store(false, Ordering::SeqCst);
+    ERP_PENDING_COUNT.store(0, Ordering::SeqCst);
+
+    match result {
+        Ok(mut ok) => {
+            ok.duration_ms = start.elapsed().as_millis() as u64;
+            Ok(ok)
+        }
+        Err(e) => {
+            errors.push(e.clone());
+            Ok(SyncResult {
+                products_synced: 0,
+                orders_pushed: 0,
+                errors,
+                duration_ms: start.elapsed().as_millis() as u64,
+                synced_at,
+                delta: true,
+            })
+        }
+    }
+}
+
+#[command]
+pub async fn get_erp_sync_status() -> Result<ErpSyncStatus, String> {
+    Ok(ErpSyncStatus {
+        is_syncing: ERP_SYNC_ACTIVE.load(Ordering::SeqCst),
+        last_sync: None,
+        pending_item_count: ERP_PENDING_COUNT.load(Ordering::SeqCst),
+    })
 }
