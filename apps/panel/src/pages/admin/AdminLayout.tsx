@@ -1,6 +1,12 @@
 import type { ReactElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { BarChart3, Building2, CreditCard, LayoutDashboard } from 'lucide-react';
+import {
+  BarChart3,
+  Building2,
+  CreditCard,
+  LayoutDashboard,
+  LifeBuoy,
+} from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +24,7 @@ const ADMIN_NAV: AdminNavItem[] = [
   { to: '/admin', label: 'Platform İstatistikleri', icon: LayoutDashboard, end: true },
   { to: '/admin/organizations', label: 'Organizasyonlar', icon: Building2 },
   { to: '/admin/subscriptions', label: 'Abonelikler', icon: CreditCard },
+  { to: '/admin/tickets', label: 'Destek Talepleri', icon: LifeBuoy },
 ];
 
 export function AdminLayout(): ReactElement {

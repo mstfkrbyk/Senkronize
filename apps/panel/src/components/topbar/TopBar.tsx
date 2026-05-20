@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { HelpMenu } from '@/components/topbar/HelpMenu';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -108,11 +109,12 @@ export function TopBar(): ReactElement {
 
       <div className="flex shrink-0 items-center gap-1">
         <NotificationBell />
+        <HelpMenu />
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="size-9 shrink-0 font-semibold text-muted-foreground"
+          className="size-9 shrink-0 text-muted-foreground"
           aria-label="Klavye kısayolları"
           onClick={() => setShortcutsHelpOpen(true)}
         >

@@ -329,6 +329,138 @@ export class EmailService {
     );
   }
 
+  async sendSupportTicketCreated(
+    to: string,
+    data: {
+      userName: string;
+      ticketNumber: string;
+      subject: string;
+      ticketUrl: string;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      `Destek talebiniz alındı: ${data.ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Merhaba ${esc(data.userName)},</h2>
+        <p>Destek talebiniz başarıyla oluşturuldu.</p>
+        <p><strong>Talep no:</strong> ${esc(data.ticketNumber)}</p>
+        <p><strong>Konu:</strong> ${esc(data.subject)}</p>
+        <a href="${esc(data.ticketUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Talebi görüntüle
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendSupportTicketAdminAlert(
+    to: string,
+    data: {
+      ticketNumber: string;
+      subject: string;
+      organizationName: string;
+      userName: string;
+      userEmail: string;
+      priority: string;
+      adminUrl: string;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      `Yeni destek talebi: ${data.ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Yeni destek talebi</h2>
+        <p><strong>No:</strong> ${esc(data.ticketNumber)}</p>
+        <p><strong>Konu:</strong> ${esc(data.subject)}</p>
+        <p><strong>Öncelik:</strong> ${esc(data.priority)}</p>
+        <p><strong>Organizasyon:</strong> ${esc(data.organizationName)}</p>
+        <p><strong>Kullanıcı:</strong> ${esc(data.userName)} (${esc(data.userEmail)})</p>
+        <a href="${esc(data.adminUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Admin panelde aç
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendSupportTicketCustomerReplyAlert(
+    to: string,
+    data: {
+      ticketNumber: string;
+      subject: string;
+      organizationName: string;
+      userName: string;
+      adminUrl: string;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      `Müşteri yanıtı: ${data.ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Müşteri yanıt verdi</h2>
+        <p><strong>No:</strong> ${esc(data.ticketNumber)}</p>
+        <p><strong>Konu:</strong> ${esc(data.subject)}</p>
+        <p><strong>Organizasyon:</strong> ${esc(data.organizationName)}</p>
+        <p><strong>Kullanıcı:</strong> ${esc(data.userName)}</p>
+        <a href="${esc(data.adminUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Yanıtla
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendSupportStaleTicketsReminder(
+    to: string,
+    data: {
+      count: number;
+      tickets: {
+        ticketNumber: string;
+        subject: string;
+        organizationName: string;
+        daysWaiting: number;
+      }[];
+      adminUrl: string;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const rows = data.tickets
+      .map(
+        (t) =>
+          `<li><strong>${esc(t.ticketNumber)}</strong> — ${esc(t.subject)} (${esc(t.organizationName)}, ${String(t.daysWaiting)} gün)</li>`,
+      )
+      .join('');
+    await this.send(
+      to,
+      `${String(data.count)} bekleyen destek talebi`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Bekleyen destek talepleri</h2>
+        <p>${String(data.count)} talep 3 günden uzun süredir yanıt bekliyor:</p>
+        <ul style="padding-left:20px">${rows}</ul>
+        <a href="${esc(data.adminUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Tüm talepleri gör
+        </a>
+      </div>
+    `,
+    );
+  }
+
   async sendApiAnomalyAlert(to: string, organizationId: string): Promise<void> {
     const safeOrg = organizationId
       .replace(/&/g, '&amp;')

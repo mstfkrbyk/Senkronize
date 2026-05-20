@@ -64,6 +64,19 @@ const AdminSubscriptionsPage = lazy(() =>
     default: m.AdminSubscriptionsPage,
   })),
 );
+const AdminTicketsPage = lazy(() =>
+  import('@/pages/admin/AdminTicketsPage').then((m) => ({
+    default: m.AdminTicketsPage,
+  })),
+);
+const SupportPage = lazy(() =>
+  import('@/pages/support/SupportPage').then((m) => ({ default: m.SupportPage })),
+);
+const SupportTicketPage = lazy(() =>
+  import('@/pages/support/SupportTicketPage').then((m) => ({
+    default: m.SupportTicketPage,
+  })),
+);
 const AuditLogPage = lazy(() =>
   import('@/pages/audit/AuditLogPage').then((m) => ({ default: m.AuditLogPage })),
 );
@@ -243,6 +256,7 @@ export default function App(): ReactElement {
                   path="subscriptions"
                   element={<AdminSubscriptionsPage />}
                 />
+                <Route path="tickets" element={<AdminTicketsPage />} />
               </Route>
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
@@ -267,6 +281,8 @@ export default function App(): ReactElement {
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/support/:id" element={<SupportTicketPage />} />
+                <Route path="/support" element={<SupportPage />} />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />

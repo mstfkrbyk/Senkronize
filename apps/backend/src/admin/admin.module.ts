@@ -30,5 +30,6 @@ import { UsersModule } from '../users/users.module';
   ],
   controllers: [AdminController],
   providers: [SuperAdminGuard, AdminService],
+  exports: [SuperAdminGuard],
 })
 export class AdminModule {}
