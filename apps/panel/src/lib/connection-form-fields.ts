@@ -1639,6 +1639,97 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       hint: 'Boşsa oauth.yandex.ru/token kullanılır.',
     },
   ],
+  MERCARI_JP: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  YAHOO_AUCTIONS_JP: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  ZOZOTOWN: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  KAKAO_COMMERCE: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  SHOPEE_SG: [
+    { key: 'partnerId', label: 'Partner ID', type: 'text', required: true },
+    {
+      key: 'partnerKey',
+      label: 'Partner Key (gizli)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: false,
+    },
+    { key: 'shopId', label: 'Shop ID', type: 'text', required: false },
+  ],
+  SHOPEE_TH: [
+    { key: 'partnerId', label: 'Partner ID', type: 'text', required: true },
+    {
+      key: 'partnerKey',
+      label: 'Partner Key (gizli)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: false,
+    },
+    { key: 'shopId', label: 'Shop ID', type: 'text', required: false },
+  ],
+  LAZADA_MY: [
+    { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  ZALORA_MY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PGMALL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  KOGAN: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  THEMARKET_NZ: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -2220,6 +2311,17 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'OBERLO',
   'AUTODS',
   'DOBA',
+  'MERCARI_JP',
+  'YAHOO_AUCTIONS_JP',
+  'ZOZOTOWN',
+  'KAKAO_COMMERCE',
+  'SHOPEE_SG',
+  'SHOPEE_TH',
+  'LAZADA_MY',
+  'ZALORA_MY',
+  'PGMALL',
+  'KOGAN',
+  'THEMARKET_NZ',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

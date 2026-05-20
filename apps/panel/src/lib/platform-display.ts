@@ -221,6 +221,17 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   OBERLO: { label: 'Oberlo', logo: '📦', color: 'green' },
   AUTODS: { label: 'AutoDS', logo: '⚡', color: 'sky' },
   DOBA: { label: 'Doba', logo: '📦', color: 'blue' },
+  MERCARI_JP: { label: 'Mercari JP', logo: '🇯🇵', color: 'red' },
+  YAHOO_AUCTIONS_JP: { label: 'Yahoo Auctions JP', logo: '🇯🇵', color: 'purple' },
+  ZOZOTOWN: { label: 'Zozotown', logo: '👗', color: 'slate' },
+  KAKAO_COMMERCE: { label: 'Kakao Commerce', logo: '🇰🇷', color: 'yellow' },
+  SHOPEE_SG: { label: 'Shopee SG', logo: '🇸🇬', color: 'orange' },
+  SHOPEE_TH: { label: 'Shopee TH', logo: '🇹🇭', color: 'orange' },
+  LAZADA_MY: { label: 'Lazada MY', logo: '🇲🇾', color: 'blue' },
+  ZALORA_MY: { label: 'Zalora MY', logo: '🇲🇾', color: 'pink' },
+  PGMALL: { label: 'PGMall', logo: '🇲🇾', color: 'emerald' },
+  KOGAN: { label: 'Kogan', logo: '🇦🇺', color: 'blue' },
+  THEMARKET_NZ: { label: 'TheMarket NZ', logo: '🇳🇿', color: 'green' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
