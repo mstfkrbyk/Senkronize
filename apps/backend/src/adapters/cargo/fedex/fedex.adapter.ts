@@ -4,25 +4,28 @@ import axios from 'axios';
 import type {
   CargoRate,
   CreateShipmentParams,
-  ICargoAdapter,
   RateParams,
   ShipmentResult,
   TrackingResult,
-} from '../cargo-adapter.interface';
-import { fetchClientCredentialsToken } from '../internal/oauth-client-credentials';
+} from '../../cargo-adapter.interface';
+import { fetchClientCredentialsToken } from '../../internal/oauth-client-credentials';
+import { CargoBaseAdapter } from '../cargo-base.adapter';
 import {
   extractTrackingCodeFromPayload,
   normalizeTrackingStatus,
+  optionalStringField,
   requireStringField,
   singleEventFromText,
-} from './cargo-adapter.helpers';
+} from '../cargo-adapter.helpers';
 
 const FEDEX_BASE = 'https://apis.fedex.com';
 
-export class FedexCargoAdapter implements ICargoAdapter {
+export class FedexCargoAdapter extends CargoBaseAdapter {
   private readonly logger = new Logger(FedexCargoAdapter.name);
 
-  constructor(private readonly creds: Record<string, unknown>) {}
+  constructor(creds: Record<string, unknown>) {
+    super(creds);
+  }
 
   private async getAccessToken(): Promise<string> {
     const clientId = requireStringField(this.creds, 'clientId');
@@ -35,10 +38,27 @@ export class FedexCargoAdapter implements ICargoAdapter {
   }
 
   private accountNumber(): string {
-    if (typeof this.creds.accountNumber === 'string' && this.creds.accountNumber.length > 0) {
-      return this.creds.accountNumber;
-    }
-    return requireStringField(this.creds, 'clientId');
+    return (
+      optionalStringField(this.creds, 'accountNumber') ??
+      requireStringField(this.creds, 'clientId')
+    );
+  }
+
+  private serviceType(): string {
+    return optionalStringField(this.creds, 'serviceType') ?? 'INTERNATIONAL_PRIORITY';
+  }
+
+  private buildAddress(
+    city: string,
+    addressLine: string,
+    postalCode?: string,
+  ): Record<string, unknown> {
+    return {
+      streetLines: [addressLine.slice(0, 70)],
+      city,
+      postalCode: postalCode ?? '34000',
+      countryCode: 'TR',
+    };
   }
 
   async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
@@ -48,35 +68,37 @@ export class FedexCargoAdapter implements ICargoAdapter {
       requestedShipment: {
         shipper: {
           contact: {
-            personName: 'Shipper',
-            phoneNumber: '0000000000',
+            personName: optionalStringField(this.creds, 'shipperName') ?? 'Shipper',
+            phoneNumber:
+              optionalStringField(this.creds, 'shipperPhone')?.replace(/\D/g, '').slice(0, 15) ??
+              '0000000000',
           },
-          address: {
-            streetLines: ['Merkez'],
-            city: 'Istanbul',
-            postalCode: '34000',
-            countryCode: 'TR',
-          },
+          address: this.buildAddress(
+            optionalStringField(this.creds, 'shipperCity') ?? 'Istanbul',
+            optionalStringField(this.creds, 'shipperAddress') ?? 'Merkez',
+            optionalStringField(this.creds, 'shipperPostalCode'),
+          ),
         },
         recipients: [
           {
             contact: {
               personName: params.receiverName,
-              phoneNumber: params.receiverPhone.replace(/\D/g, '').slice(0, 15) || '0000000000',
+              phoneNumber:
+                params.receiverPhone.replace(/\D/g, '').slice(0, 15) || '0000000000',
             },
-            address: {
-              streetLines: [params.receiverAddress.slice(0, 70)],
-              city: params.receiverCity,
-              postalCode: '34000',
-              countryCode: 'TR',
-            },
+            address: this.buildAddress(
+              params.receiverCity,
+              params.receiverAddress,
+              optionalStringField(this.creds, 'receiverPostalCode'),
+            ),
           },
         ],
         shipDatestamp: new Date().toISOString().slice(0, 10),
-        serviceType: 'FEDEX_INTERNATIONAL_PRIORITY',
+        serviceType: this.serviceType(),
         packagingType: 'YOUR_PACKAGING',
-        pickupType: 'USE_SCHEDULED_PICKUP',
+        pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
         blockInsightVisibility: false,
+        rateRequestType: ['ACCOUNT'],
         shippingChargesPayment: {
           paymentType: 'SENDER',
           payor: {
@@ -120,7 +142,8 @@ export class FedexCargoAdapter implements ICargoAdapter {
     if (!code) {
       throw new BadGatewayException('FedEx yanıtında takip numarası bulunamadı');
     }
-    return { trackingCode: code };
+    const labelUrl = extractFedexLabelUrl(data);
+    return { trackingCode: code, labelUrl };
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
@@ -160,22 +183,60 @@ export class FedexCargoAdapter implements ICargoAdapter {
       accountNumber: { value: this.accountNumber() },
       trackingNumber: trackingCode,
     };
-    const { status } = await axios.put(`${FEDEX_BASE}/ship/v1/shipments/cancel`, body, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'X-locale': 'tr_TR',
+    const { status } = await axios.put(
+      `${FEDEX_BASE}/ship/v1/shipments/cancel`,
+      body,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-locale': 'tr_TR',
+        },
+        timeout: 45_000,
+        validateStatus: () => true,
       },
-      timeout: 45_000,
-      validateStatus: () => true,
-    });
+    );
     if (status < 200 || status >= 300) {
       throw new BadGatewayException('FedEx iptal isteği başarısız');
     }
   }
 
   async getLabel(trackingCode: string): Promise<Buffer | null> {
-    void trackingCode;
+    try {
+      const token = await this.getAccessToken();
+      const body = {
+        accountNumber: { value: this.accountNumber() },
+        trackingNumber: trackingCode,
+        labelSpecification: {
+          imageType: 'PDF',
+          labelStockType: 'PAPER_4X6',
+        },
+      };
+      const { data, status } = await axios.post<unknown>(
+        `${FEDEX_BASE}/ship/v1/shipments/packages/retrieve`,
+        body,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-locale': 'tr_TR',
+          },
+          timeout: 45_000,
+          validateStatus: () => true,
+        },
+      );
+      if (status < 200 || status >= 300) {
+        return null;
+      }
+      const b64 = extractFedexLabelBase64(data);
+      if (b64) {
+        return Buffer.from(b64, 'base64');
+      }
+    } catch (error) {
+      this.logger.warn('FedEx etiket alınamadı', {
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+    }
     return null;
   }
 
@@ -198,8 +259,9 @@ export class FedexCargoAdapter implements ICargoAdapter {
             city: params.toCity,
           },
         },
-        pickupType: 'USE_SCHEDULED_PICKUP',
-        rateRequestType: ['ACCOUNT', 'LIST'],
+        pickupType: 'DROPOFF_AT_FEDEX_LOCATION',
+        serviceType: this.serviceType(),
+        rateRequestType: ['ACCOUNT'],
         requestedPackageLineItems: [
           {
             weight: { units: 'KG', value: Math.max(0.5, params.weightKg) },
@@ -254,6 +316,64 @@ function extractFedexTrackingNumber(data: unknown): string | undefined {
   const pkg = pieces[0] as Record<string, unknown>;
   const tn = pkg.trackingNumber;
   return typeof tn === 'string' ? tn : undefined;
+}
+
+function extractFedexLabelUrl(data: unknown): string | undefined {
+  if (typeof data !== 'object' || data === null) {
+    return undefined;
+  }
+  const out = data as Record<string, unknown>;
+  const oc = out.output as Record<string, unknown> | undefined;
+  const transactions = oc?.transactionShipments;
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return undefined;
+  }
+  const first = transactions[0] as Record<string, unknown>;
+  const pieces = first.pieceResponses;
+  if (!Array.isArray(pieces) || pieces.length === 0) {
+    return undefined;
+  }
+  const pkg = pieces[0] as Record<string, unknown>;
+  const docs = pkg.packageDocuments;
+  if (!Array.isArray(docs)) {
+    return undefined;
+  }
+  for (const doc of docs) {
+    if (typeof doc !== 'object' || doc === null) {
+      continue;
+    }
+    const url = (doc as Record<string, unknown>).url;
+    if (typeof url === 'string' && url.length > 0) {
+      return url;
+    }
+  }
+  return undefined;
+}
+
+function extractFedexLabelBase64(data: unknown): string | undefined {
+  if (typeof data !== 'object' || data === null) {
+    return undefined;
+  }
+  const out = data as Record<string, unknown>;
+  const oc = out.output as Record<string, unknown> | undefined;
+  const encoded = oc?.encodedLabel ?? out.encodedLabel;
+  if (typeof encoded === 'string' && encoded.length > 20) {
+    return encoded;
+  }
+  const docs = oc?.packageDocuments ?? out.packageDocuments;
+  if (!Array.isArray(docs)) {
+    return undefined;
+  }
+  for (const doc of docs) {
+    if (typeof doc !== 'object' || doc === null) {
+      continue;
+    }
+    const content = (doc as Record<string, unknown>).encodedLabel;
+    if (typeof content === 'string' && content.length > 20) {
+      return content;
+    }
+  }
+  return undefined;
 }
 
 function parseFedexRates(data: unknown): CargoRate[] {

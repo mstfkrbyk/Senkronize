@@ -349,6 +349,16 @@ const PurchaseOrderDetailPage = lazy(() =>
     default: m.PurchaseOrderDetailPage,
   })),
 );
+const ShippingPage = lazy(() =>
+  import('@/pages/shipping/ShippingPage').then((m) => ({
+    default: m.ShippingPage,
+  })),
+);
+const ShipmentDetailPage = lazy(() =>
+  import('@/pages/shipping/ShipmentDetailPage').then((m) => ({
+    default: m.ShipmentDetailPage,
+  })),
+);
 
 function SentryUserSync(): null {
   useSentryUser();
@@ -439,8 +449,9 @@ export default function App(): ReactElement {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/orders/:id" element={<OrderDetailPage />} />
-                <Route path="/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/shipping/:id" element={<ShipmentDetailPage />} />
+                <Route path="/shipping" element={<ShippingPage />} />
                 <Route path="/customers/segments" element={<CustomerSegmentsPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />

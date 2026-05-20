@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 
 import { ReturnCreateModal } from '@/components/orders/ReturnCreateModal';
 import { ShipOrderModal } from '@/components/orders/ShipOrderModal';
+import { CargoTrackingModal } from '@/components/shipping/CargoTrackingModal';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -125,6 +126,7 @@ export function OrderDetailPage(): ReactElement {
   const [returnOpen, setReturnOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [cargoTrackingOpen, setCargoTrackingOpen] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
@@ -385,13 +387,32 @@ export function OrderDetailPage(): ReactElement {
                 <span className="text-muted-foreground">Tahmini teslimat</span>
                 <p>{estimatedDeliveryDate(order)}</p>
               </div>
-              {trackingUrl ? (
-                <Button type="button" variant="outline" size="sm" className="mt-2 w-full gap-1" asChild>
-                  <a href={trackingUrl} target="_blank" rel="noopener noreferrer">
-                    Kargo takip et
-                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                  </a>
-                </Button>
+              {order.cargoTrackingNumber?.trim() ? (
+                <div className="mt-2 flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setCargoTrackingOpen(true)}
+                  >
+                    Kargo durumu
+                  </Button>
+                  {trackingUrl ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-1"
+                      asChild
+                    >
+                      <a href={trackingUrl} target="_blank" rel="noopener noreferrer">
+                        Kargo firmasında aç
+                        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </CardContent>
           </Card>
@@ -710,6 +731,15 @@ export function OrderDetailPage(): ReactElement {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {order?.cargoTrackingNumber?.trim() ? (
+        <CargoTrackingModal
+          open={cargoTrackingOpen}
+          onOpenChange={setCargoTrackingOpen}
+          trackingNumber={order.cargoTrackingNumber}
+          cargoProvider={order.cargoProvider}
+        />
+      ) : null}
     </div>
   );
 }

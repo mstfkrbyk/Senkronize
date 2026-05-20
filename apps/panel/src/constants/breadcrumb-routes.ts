@@ -2,6 +2,7 @@
 export const BREADCRUMB_LABELS: Record<string, string> = {
   '/dashboard': 'Gösterge Paneli',
   '/orders': 'Siparişler',
+  '/shipping': 'Kargo Yönetimi',
   '/returns': 'İadeler',
   '/customers': 'Müşteriler',
   '/customers/segments': 'Segmentler',
@@ -70,9 +71,9 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     parentLabel: 'Satın Alma Siparişleri',
   },
   {
-    pattern: /^\/orders\/[^/]+$/,
-    parentPath: '/orders',
-    parentLabel: 'Siparişler',
+    pattern: /^\/shipping\/[^/]+$/,
+    parentPath: '/shipping',
+    parentLabel: 'Kargo Yönetimi',
   },
   {
     pattern: /^\/support\/help\/[^/]+$/,

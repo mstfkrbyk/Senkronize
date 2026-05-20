@@ -7,12 +7,25 @@ import { CargoController } from './cargo.controller';
 import { CargoOptimizerService } from './cargo-optimizer.service';
 import { CargoPriceService } from './cargo-price.service';
 import { CargoRateService } from './cargo-rate.service';
+import { CargoSelectionService } from './cargo-selection.service';
 import { CargoService } from './cargo.service';
 
 @Module({
   imports: [PrismaModule, CommonModule],
   controllers: [CargoController],
-  providers: [CargoService, CargoRateService, CargoPriceService, CargoOptimizerService],
-  exports: [CargoService, CargoOptimizerService, CargoPriceService, CargoRateService],
+  providers: [
+    CargoService,
+    CargoRateService,
+    CargoPriceService,
+    CargoOptimizerService,
+    CargoSelectionService,
+  ],
+  exports: [
+    CargoService,
+    CargoOptimizerService,
+    CargoPriceService,
+    CargoRateService,
+    CargoSelectionService,
+  ],
 })
 export class CargoModule {}
