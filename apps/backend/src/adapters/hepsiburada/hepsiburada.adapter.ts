@@ -107,7 +107,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     path: string,
     options?: { params?: Record<string, string | number>; data?: unknown },
   ): Promise<T> {
-    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    await this.rateLimiter.acquireOrThrow(this.platform, this.rateLimitKey(credentials));
     try {
       const { data } = await client.request<T>({
         method,
@@ -128,7 +128,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     path: string,
     options?: { params?: Record<string, string | number>; data?: unknown },
   ): Promise<T> {
-    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    await this.rateLimiter.acquireOrThrow(this.platform, this.rateLimitKey(credentials));
     try {
       const { data } = await client.request<T>({
         method,
@@ -149,7 +149,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     path: string,
     options?: { params?: Record<string, string | number>; data?: unknown },
   ): Promise<T> {
-    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    await this.rateLimiter.acquireOrThrow(this.platform, this.rateLimitKey(credentials));
     try {
       const { data } = await client.request<T>({
         method,
@@ -487,7 +487,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
         HEPSIBURADA_MERCHANT_PRODUCTS_PATH,
         {
           params: {
-            merchantId: merchantId || undefined,
+            ...(merchantId.length > 0 ? { merchantId } : {}),
             page,
             size: 50,
           },

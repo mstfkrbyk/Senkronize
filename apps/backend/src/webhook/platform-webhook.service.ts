@@ -16,6 +16,7 @@ import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PULL } from '../queue/queue.cons
 import type { MarketplacePullJobData } from '../queue/queue.types';
 
 import {
+  extractHepsiburadaCargo,
   extractHepsiburadaEventType,
   extractHepsiburadaOrderStatus,
 } from './hepsiburada-payload.util';
@@ -85,6 +86,48 @@ export class PlatformWebhookService {
     if (!connection) {
       throw new NotFoundException('Pazaryeri bağlantısı bulunamadı');
     }
+    return this.handlePlatformWebhookForConnection(
+      platform,
+      connection.organizationId,
+      connection,
+      headers,
+      rawBody,
+    );
+  }
+
+  async handlePlatformWebhookByConnectionId(
+    platform: Marketplace,
+    connectionId: string,
+    headers: Record<string, string>,
+    rawBody: Buffer,
+  ): Promise<{ received: true }> {
+    const connection = await this.prisma.marketplaceConnection.findFirst({
+      where: {
+        id: connectionId.trim(),
+        platform,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
+    if (!connection) {
+      throw new NotFoundException('Pazaryeri bağlantısı bulunamadı');
+    }
+    return this.handlePlatformWebhookForConnection(
+      platform,
+      connection.organizationId,
+      connection,
+      headers,
+      rawBody,
+    );
+  }
+
+  private async handlePlatformWebhookForConnection(
+    platform: Marketplace,
+    orgId: string,
+    connection: { webhookSecret: string | null },
+    headers: Record<string, string>,
+    rawBody: Buffer,
+  ): Promise<{ received: true }> {
 
     if (platform === Marketplace.AMAZON_TR) {
       const snsOk = await this.webhookSignature.verifyAmazon(rawBody, headers);
@@ -214,7 +257,10 @@ export class PlatformWebhookService {
     if (
       n === 'ORDER_STATUS_UPDATE' ||
       n === 'ORDERSTATUSUPDATE' ||
-      n === 'ORDER_LINE_ITEM_STATUS_CHANGED'
+      n === 'ORDER_LINE_ITEM_STATUS_CHANGED' ||
+      n === 'CARGO_TRACKING' ||
+      n === 'CARGOTRACKING' ||
+      n.includes('SHIPPING')
     ) {
       return 'order.updated';
     }
@@ -348,6 +394,18 @@ export class PlatformWebhookService {
           platform,
           ids.platformOrderId,
           ids.status,
+        );
+      }
+      const cargo = extractHepsiburadaCargo(payload);
+      if (cargo.platformOrderId) {
+        await this.orderService.updateCargoFromPlatform(
+          orgId,
+          platform,
+          cargo.platformOrderId,
+          {
+            trackingNumber: cargo.trackingNumber,
+            cargoProvider: cargo.cargoCompany,
+          },
         );
       }
     }

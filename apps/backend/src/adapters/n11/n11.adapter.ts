@@ -76,7 +76,7 @@ export class N11Adapter implements IMarketplaceAdapter {
     url: string,
     body: string,
   ): Promise<string> {
-    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    await this.rateLimiter.acquireOrThrow(this.platform, this.rateLimitKey(credentials));
     const { data, status } = await axios.post<string>(url, body, {
       headers: { 'Content-Type': 'text/xml; charset=utf-8' },
       timeout: 30_000,
@@ -183,26 +183,40 @@ export class N11Adapter implements IMarketplaceAdapter {
       return [];
     }
 
-    const inner = `<ord:GetOrderListRequest>
+    const statuses = ['New', 'Approved', 'Shipped'];
+    const all: NormalizedOrder[] = [];
+    for (const status of statuses) {
+      const inner = `<ord:GetOrderListRequest>
       ${this.buildAuthXml(apiKey, apiSecret)}
-      <searchData><status>New</status></searchData>
+      <searchData><status>${status}</status></searchData>
       <pagingData><currentPage>0</currentPage><pageSize>100</pageSize></pagingData>
     </ord:GetOrderListRequest>`;
 
-    const xml = await this.postSoap(
-      credentials,
-      N11_ORDER_WSDL,
-      this.wrapSoapBody(inner),
-    );
-    const parsed = this.parseXml(xml);
-    const fault = this.soapFaultMessage(parsed);
-    if (fault) {
-      throw new Error(`N11 sipariş listesi: ${fault}`);
+      const xml = await this.postSoap(
+        credentials,
+        N11_ORDER_WSDL,
+        this.wrapSoapBody(inner),
+      );
+      const parsed = this.parseXml(xml);
+      const fault = this.soapFaultMessage(parsed);
+      if (fault) {
+        throw new Error(`N11 sipariş listesi (${status}): ${fault}`);
+      }
+      all.push(...this.extractOrdersFromParsed(parsed));
     }
 
-    const orders = this.extractOrdersFromParsed(parsed);
     const sinceMs = since?.getTime() ?? 0;
-    return orders.filter((o) => o.platformCreatedAt.getTime() >= sinceMs);
+    const seen = new Set<string>();
+    return all.filter((o) => {
+      if (o.platformCreatedAt.getTime() < sinceMs) {
+        return false;
+      }
+      if (seen.has(o.platformOrderId)) {
+        return false;
+      }
+      seen.add(o.platformOrderId);
+      return true;
+    });
   }
 
   async getOrders(
@@ -405,35 +419,60 @@ export class N11Adapter implements IMarketplaceAdapter {
     };
   }
 
-  async updateStock(
+  private async updateProductPriceAndStock(
     credentials: Record<string, string>,
-    updates: StockUpdatePayload[],
+    barcode: string,
+    quantity?: number,
+    salePrice?: number,
+    listPrice?: number,
   ): Promise<void> {
     const apiKey = credentials.apiKey;
     const apiSecret = credentials.apiSecret;
     if (!apiKey || !apiSecret) {
-      throw new Error('N11 stok güncelleme: apiKey/apiSecret eksik');
+      throw new Error('N11 güncelleme: apiKey/apiSecret eksik');
     }
-    for (const u of updates) {
-      const inner = `<sch:UpdateStockByStockSellerCodeRequest xmlns:sch="http://www.n11.com/ws/schemas">
+    const stockXml =
+      quantity !== undefined
+        ? `<stockItems><stockItem><quantity>${String(quantity)}</quantity></stockItem></stockItems>`
+        : '';
+    const priceXml =
+      salePrice !== undefined
+        ? `<price>${String(salePrice)}</price><displayPrice>${String(listPrice ?? salePrice)}</displayPrice><currencyType>TL</currencyType>`
+        : '';
+    const inner = `<sch:UpdateProductPriceAndStockByProductIdRequest xmlns:sch="http://www.n11.com/ws/schemas">
       ${this.buildAuthXml(apiKey, apiSecret)}
-      <stockSellerCode>${this.escapeXml(u.barcode)}</stockSellerCode>
-      <quantity>${String(u.quantity)}</quantity>
-    </sch:UpdateStockByStockSellerCodeRequest>`;
-      const xml = await this.postSoap(
+      <product>
+        <productSellerCode>${this.escapeXml(barcode)}</productSellerCode>
+        ${priceXml}
+        ${stockXml}
+      </product>
+    </sch:UpdateProductPriceAndStockByProductIdRequest>`;
+    const xml = await this.postSoap(
+      credentials,
+      N11_PRODUCT_WSDL,
+      this.wrapSoapBody(inner),
+    );
+    const parsed = this.parseXml(xml);
+    const fault = this.soapFaultMessage(parsed);
+    if (fault) {
+      throw new Error(`N11 stok/fiyat (${barcode}): ${fault}`);
+    }
+    const st = this.findResultStatus(parsed);
+    if (st?.status && st.status !== 'success') {
+      throw new Error(`N11 stok/fiyat (${barcode}): ${st.status}`);
+    }
+  }
+
+  async updateStock(
+    credentials: Record<string, string>,
+    updates: StockUpdatePayload[],
+  ): Promise<void> {
+    for (const u of updates) {
+      await this.updateProductPriceAndStock(
         credentials,
-        N11_PRODUCT_WSDL,
-        this.wrapSoapBody(inner),
+        u.barcode,
+        u.quantity,
       );
-      const parsed = this.parseXml(xml);
-      const fault = this.soapFaultMessage(parsed);
-      if (fault) {
-        throw new Error(`N11 stok (${u.barcode}): ${fault}`);
-      }
-      const st = this.findResultStatus(parsed);
-      if (st?.status && st.status !== 'success') {
-        throw new Error(`N11 stok (${u.barcode}): ${st.status}`);
-      }
     }
   }
 
@@ -441,35 +480,14 @@ export class N11Adapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const apiKey = credentials.apiKey;
-    const apiSecret = credentials.apiSecret;
-    if (!apiKey || !apiSecret) {
-      throw new Error('N11 fiyat güncelleme: apiKey/apiSecret eksik');
-    }
     for (const u of updates) {
-      const inner = `<sch:SaveProductRequest xmlns:sch="http://www.n11.com/ws/schemas">
-      ${this.buildAuthXml(apiKey, apiSecret)}
-      <product>
-        <productSellerCode>${this.escapeXml(u.barcode)}</productSellerCode>
-        <price>${String(u.salePrice)}</price>
-        <displayPrice>${String(u.listPrice)}</displayPrice>
-        <currencyType>TL</currencyType>
-      </product>
-    </sch:SaveProductRequest>`;
-      const xml = await this.postSoap(
+      await this.updateProductPriceAndStock(
         credentials,
-        N11_CATALOG_SERVICE_WSDL,
-        this.wrapSoapBody(inner),
+        u.barcode,
+        undefined,
+        u.salePrice,
+        u.listPrice,
       );
-      const parsed = this.parseXml(xml);
-      const fault = this.soapFaultMessage(parsed);
-      if (fault) {
-        throw new Error(`N11 fiyat (${u.barcode}): ${fault}`);
-      }
-      const st = this.findResultStatus(parsed);
-      if (st?.status && st.status !== 'success') {
-        throw new Error(`N11 fiyat (${u.barcode}): ${st.status}`);
-      }
     }
   }
 }

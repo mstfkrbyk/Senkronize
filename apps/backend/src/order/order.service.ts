@@ -789,6 +789,40 @@ export class OrderService {
     await this.cache.invalidateReportsForOrg(organizationId);
   }
 
+  /** Platform webhook kargo takip güncellemesi (Hepsiburada CARGO_TRACKING vb.). */
+  async updateCargoFromPlatform(
+    organizationId: string,
+    platform: Marketplace,
+    platformOrderId: string,
+    cargo: { trackingNumber?: string; cargoProvider?: string },
+  ): Promise<void> {
+    const data: Prisma.OrderUpdateManyMutationInput = {
+      syncedAt: new Date(),
+    };
+    if (cargo.trackingNumber !== undefined) {
+      data.cargoTrackingNumber = cargo.trackingNumber;
+    }
+    if (cargo.cargoProvider !== undefined) {
+      data.cargoProvider = cargo.cargoProvider;
+    }
+    if (
+      cargo.trackingNumber === undefined &&
+      cargo.cargoProvider === undefined
+    ) {
+      return;
+    }
+    await this.prisma.order.updateMany({
+      where: {
+        organizationId,
+        platform,
+        platformOrderId,
+        deletedAt: null,
+      },
+      data,
+    });
+    await this.cache.invalidateReportsForOrg(organizationId);
+  }
+
   async getSummary(organizationId: string): Promise<OrderSummaryDto> {
     const baseWhere: Prisma.OrderWhereInput = {
       organizationId,

@@ -1,15 +1,19 @@
 import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
 
 import { IpBlockGuard } from '../../common/guards/ip-block.guard';
+import type { RateLimitMonitorService } from '../../monitoring/rate-limit-monitor.service';
 import type { IpBlockService } from '../ip-block.service';
 
 describe('IpBlockGuard', () => {
   it('allows when IP is not blocked', async () => {
     const ipBlock = {
       normalizeClientIp: jest.fn().mockReturnValue('203.0.113.1'),
-      isBlocked: jest.fn().mockResolvedValue(false),
+      recordRequest: jest.fn().mockResolvedValue('ok'),
     } as unknown as IpBlockService;
-    const guard = new IpBlockGuard(ipBlock);
+    const rateLimitMonitor = {
+      recordIpRateLimitViolation: jest.fn(),
+    } as unknown as RateLimitMonitorService;
+    const guard = new IpBlockGuard(ipBlock, rateLimitMonitor);
     const context = {
       getType: () => 'http',
       switchToHttp: () => ({
@@ -25,9 +29,12 @@ describe('IpBlockGuard', () => {
   it('throws when IP is blocked', async () => {
     const ipBlock = {
       normalizeClientIp: jest.fn().mockReturnValue('203.0.113.9'),
-      isBlocked: jest.fn().mockResolvedValue(true),
+      recordRequest: jest.fn().mockResolvedValue('permanent_blocked'),
     } as unknown as IpBlockService;
-    const guard = new IpBlockGuard(ipBlock);
+    const rateLimitMonitor = {
+      recordIpRateLimitViolation: jest.fn(),
+    } as unknown as RateLimitMonitorService;
+    const guard = new IpBlockGuard(ipBlock, rateLimitMonitor);
     const context = {
       getType: () => 'http',
       switchToHttp: () => ({

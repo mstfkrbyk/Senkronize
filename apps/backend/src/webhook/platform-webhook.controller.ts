@@ -19,39 +19,77 @@ import { Public } from '../auth/public.decorator';
 import { PlatformWebhookService } from './platform-webhook.service';
 
 @ApiTags('webhooks')
-@Controller('webhooks/platform')
+@Controller('webhooks')
 @SkipThrottle()
 export class PlatformWebhookController {
   constructor(private readonly platformWebhookService: PlatformWebhookService) {}
 
   @Public()
-  @Post('trendyol/:orgId')
+  @Post('trendyol/:connectionId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Trendyol platform webhook (org bazlı)' })
+  @ApiOperation({ summary: 'Trendyol sipariş durum webhook (bağlantı kimliği)' })
   @ApiResponse({ status: 200, description: 'Alındı' })
   async trendyol(
-    @Param('orgId') orgId: string,
+    @Param('connectionId') connectionId: string,
     @Headers() headers: Record<string, string>,
     @Req() req: RawBodyRequest<Request>,
   ): Promise<{ received: true }> {
-    return this.handle(Marketplace.TRENDYOL, orgId, headers, req);
+    return this.handleByConnection(
+      Marketplace.TRENDYOL,
+      connectionId,
+      headers,
+      req,
+    );
   }
 
   @Public()
-  @Post('hepsiburada/:orgId')
+  @Post('hepsiburada/:connectionId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Hepsiburada platform webhook (org bazlı)' })
+  @ApiOperation({
+    summary: 'Hepsiburada kargo/sipariş webhook (bağlantı kimliği)',
+  })
   @ApiResponse({ status: 200, description: 'Alındı' })
   async hepsiburada(
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    return this.handleByConnection(
+      Marketplace.HEPSIBURADA,
+      connectionId,
+      headers,
+      req,
+    );
+  }
+
+  @Public()
+  @Post('platform/trendyol/:orgId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Trendyol platform webhook (org bazlı, eski)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async trendyolByOrg(
     @Param('orgId') orgId: string,
     @Headers() headers: Record<string, string>,
     @Req() req: RawBodyRequest<Request>,
   ): Promise<{ received: true }> {
-    return this.handle(Marketplace.HEPSIBURADA, orgId, headers, req);
+    return this.handleByOrg(Marketplace.TRENDYOL, orgId, headers, req);
   }
 
   @Public()
-  @Post('n11/:orgId')
+  @Post('platform/hepsiburada/:orgId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Hepsiburada platform webhook (org bazlı, eski)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async hepsiburadaByOrg(
+    @Param('orgId') orgId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    return this.handleByOrg(Marketplace.HEPSIBURADA, orgId, headers, req);
+  }
+
+  @Public()
+  @Post('platform/n11/:orgId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'n11 platform webhook (org bazlı)' })
   @ApiResponse({ status: 200, description: 'Alındı' })
@@ -60,11 +98,11 @@ export class PlatformWebhookController {
     @Headers() headers: Record<string, string>,
     @Req() req: RawBodyRequest<Request>,
   ): Promise<{ received: true }> {
-    return this.handle(Marketplace.N11, orgId, headers, req);
+    return this.handleByOrg(Marketplace.N11, orgId, headers, req);
   }
 
   @Public()
-  @Post('amazon/:orgId')
+  @Post('platform/amazon/:orgId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Amazon TR SNS webhook (org bazlı)' })
   @ApiResponse({ status: 200, description: 'Alındı' })
@@ -73,10 +111,28 @@ export class PlatformWebhookController {
     @Headers() headers: Record<string, string>,
     @Req() req: RawBodyRequest<Request>,
   ): Promise<{ received: true }> {
-    return this.handle(Marketplace.AMAZON_TR, orgId, headers, req);
+    return this.handleByOrg(Marketplace.AMAZON_TR, orgId, headers, req);
   }
 
-  private handle(
+  private handleByConnection(
+    platform: Marketplace,
+    connectionId: string,
+    headers: Record<string, string>,
+    req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    const raw = req.rawBody;
+    if (!raw || !Buffer.isBuffer(raw)) {
+      throw new BadRequestException('Ham gövde kullanılamıyor');
+    }
+    return this.platformWebhookService.handlePlatformWebhookByConnectionId(
+      platform,
+      connectionId.trim(),
+      headers,
+      raw,
+    );
+  }
+
+  private handleByOrg(
     platform: Marketplace,
     orgId: string,
     headers: Record<string, string>,

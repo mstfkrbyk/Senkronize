@@ -31,6 +31,7 @@ import { AmazonUkAdapter } from './amazon-uk/amazon-uk.adapter';
 import { ArcelikAdapter } from './arcelik/arcelik.adapter';
 import { AracimAdapter } from './aracim/aracim.adapter';
 import { ArticleAdapter } from './article/article.adapter';
+import { AvansasAdapter } from './avansas/avansas.adapter';
 import { ArbuzKzAdapter } from './arbuz-kz/arbuz-kz.adapter';
 import { AuchanAdapter } from './auchan/auchan.adapter';
 import { ArtsyAdapter } from './artsy/artsy.adapter';
@@ -41,6 +42,7 @@ import { BanabiAdapter } from './banabi/banabi.adapter';
 import { BaymioAdapter } from './baymio/baymio.adapter';
 import { BestbuyAdapter } from './bestbuy/bestbuy.adapter';
 import { BeymenAdapter } from './beymen/beymen.adapter';
+import { BebekComAdapter } from './bebek-com/bebek-com.adapter';
 import { BigwAdapter } from './bigw/bigw.adapter';
 import { BirchLaneAdapter } from './birch-lane/birch-lane.adapter';
 import { BidorbuyAdapter } from './bidorbuy/bidorbuy.adapter';
@@ -67,6 +69,7 @@ import { CentralOnlineAdapter } from './central-online/central-online.adapter';
 import { CarrefoursaAdapter } from './carrefoursa/carrefoursa.adapter';
 import { CarrefourMeAdapter } from './carrefour-me/carrefour-me.adapter';
 import { CarrefourFrAdapter } from './carrefour-fr/carrefour-fr.adapter';
+import { CarrefourSaAdapter } from './carrefour-sa/carrefour-sa.adapter';
 import { CasasBahiaAdapter } from './casas-bahia/casas-bahia.adapter';
 import { CasinoFrAdapter } from './casino-fr/casino-fr.adapter';
 import { CdonAdapter } from './cdon/cdon.adapter';
@@ -132,6 +135,8 @@ import { GotoBusinessAdapter } from './goto-business/goto-business.adapter';
 import { GotoLkAdapter } from './goto-lk/goto-lk.adapter';
 import { GmarketAdapter } from './gmarket/gmarket.adapter';
 import { GrabMartAdapter } from './grab-mart/grab-mart.adapter';
+import { GrabmartAdapter } from './grabmart/grabmart.adapter';
+import { GofoodAdapter } from './gofood/gofood.adapter';
 import { GlobalSourcesAdapter } from './global-sources/global-sources.adapter';
 import { GardenaAdapter } from './gardena/gardena.adapter';
 import { G2aAdapter } from './g2a/g2a.adapter';
@@ -168,10 +173,13 @@ import { JossMainAdapter } from './joss-main/joss-main.adapter';
 import { JoomAdapter } from './joom/joom.adapter';
 import { JumiaAdapter } from './jumia/jumia.adapter';
 import { JumiaEtAdapter } from './jumia-et/jumia-et.adapter';
+import { JumiaGhAdapter } from './jumia-gh/jumia-gh.adapter';
+import { JumiaTnAdapter } from './jumia-tn/jumia-tn.adapter';
 import { JuspayAdapter } from './juspay/juspay.adapter';
 import { KadinClubAdapter } from './kadin-club/kadin-club.adapter';
 import { LamodaAdapter } from './lamoda/lamoda.adapter';
 import { LeroyMerlinAdapter } from './leroy-merlin/leroy-merlin.adapter';
+import { LuluOnlineAdapter } from './lulu-online/lulu-online.adapter';
 import { KauflandAdapter } from './kaufland/kaufland.adapter';
 import { KaracaAdapter } from './karaca/karaca.adapter';
 import { KaspiAdapter } from './kaspi/kaspi.adapter';
@@ -181,6 +189,7 @@ import { KilimallAdapter } from './kilimall/kilimall.adapter';
 import { KhaadiAdapter } from './khaadi/khaadi.adapter';
 import { KinguinAdapter } from './kinguin/kinguin.adapter';
 import { KitapyurduAdapter } from './kitapyurdu/kitapyurdu.adapter';
+import { KuklaAdapter } from './kukla/kukla.adapter';
 import { KmartAuAdapter } from './kmart-au/kmart-au.adapter';
 import { KongaAdapter } from './konga/konga.adapter';
 import { KoctasAdapter } from './koctas/koctas.adapter';
@@ -261,6 +270,7 @@ import { OunassAdapter } from './ounass/ounass.adapter';
 import { OzonAdapter } from './ozon/ozon.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumAdapter } from './pazarama-premium/pazarama-premium.adapter';
+import { PandamartAdapter } from './pandamart/pandamart.adapter';
 import { Pazar365Adapter } from './pazar365/pazar365.adapter';
 import { PazaruvajAdapter } from './pazaruvaj/pazaruvaj.adapter';
 import { PowerDkAdapter } from './power-dk/power-dk.adapter';
@@ -361,6 +371,7 @@ import { VendureAdapter } from './vendure/vendure.adapter';
 import { TazeDirektAdapter } from './taze-direkt/taze-direkt.adapter';
 import { TargetPlusAdapter } from './target-plus/target-plus.adapter';
 import { TokopediaAdapter } from './tokopedia/tokopedia.adapter';
+import { TokopediaFlashAdapter } from './tokopedia-flash/tokopedia-flash.adapter';
 import { UniposAdapter } from './unipos/unipos.adapter';
 import { UberEatsAdapter } from './uber-eats/uber-eats.adapter';
 import { UzumAdapter } from './uzum/uzum.adapter';
@@ -369,6 +380,8 @@ import { UsPoloTrAdapter } from './us-polo-tr/us-polo-tr.adapter';
 import { VitacostAdapter } from './vitacost/vitacost.adapter';
 import { VatanAdapter } from './vatan/vatan.adapter';
 import { VakkoAdapter } from './vakko/vakko.adapter';
+import { ToyzzShopAdapter } from './toyzz-shop/toyzz-shop.adapter';
+import { VirginMegastoreAdapter } from './virgin-megastore/virgin-megastore.adapter';
 import { VintedAdapter } from './vinted/vinted.adapter';
 import { VeepeeAdapter } from './veepee/veepee.adapter';
 import { WadiAdapter } from './wadi/wadi.adapter';
@@ -870,13 +883,26 @@ export class AdapterRegistry {
     private readonly auchan: AuchanAdapter,
     private readonly cashi: CashiAdapter,
     private readonly jumiaEt: JumiaEtAdapter,
+    private readonly jumiaGh: JumiaGhAdapter,
+    private readonly jumiaTn: JumiaTnAdapter,
     private readonly leroyMerlin: LeroyMerlinAdapter,
+    private readonly luluOnline: LuluOnlineAdapter,
     private readonly marketKz: MarketKzAdapter,
     private readonly megatrade: MegatradeAdapter,
     private readonly tamara: TamaraAdapter,
     private readonly tabby: TabbyAdapter,
     private readonly tamtam: TamtamAdapter,
     private readonly zood: ZoodAdapter,
+    private readonly avansas: AvansasAdapter,
+    private readonly bebekCom: BebekComAdapter,
+    private readonly carrefourSa: CarrefourSaAdapter,
+    private readonly gofood: GofoodAdapter,
+    private readonly grabmart: GrabmartAdapter,
+    private readonly kukla: KuklaAdapter,
+    private readonly pandamart: PandamartAdapter,
+    private readonly tokopediaFlash: TokopediaFlashAdapter,
+    private readonly toyzzShop: ToyzzShopAdapter,
+    private readonly virginMegastore: VirginMegastoreAdapter,
     private readonly erpAdapterRegistry: ErpAdapterRegistry,
     private readonly ecommerceAdapterRegistry: EcommerceAdapterRegistry,
   ) {
@@ -1285,13 +1311,26 @@ export class AdapterRegistry {
       ['AUCHAN', auchan],
       ['CASHI', cashi],
       ['JUMIA_ET', jumiaEt],
+      ['JUMIA_GH', jumiaGh],
+      ['JUMIA_TN', jumiaTn],
       ['LEROY_MERLIN', leroyMerlin],
+      ['LULU_ONLINE', luluOnline],
       ['MARKET_KZ', marketKz],
       ['MEGATRADE', megatrade],
       ['TAMARA', tamara],
       ['TABBY', tabby],
       ['TAMTAM', tamtam],
       ['ZOOD', zood],
+      ['AVANSAS', avansas],
+      ['BEBEK_COM', bebekCom],
+      ['CARREFOUR_SA', carrefourSa],
+      ['GOFOOD', gofood],
+      ['GRABMART', grabmart],
+      ['KUKLA', kukla],
+      ['PANDAMART', pandamart],
+      ['TOKOPEDIA_FLASH', tokopediaFlash],
+      ['TOYZZ_SHOP', toyzzShop],
+      ['VIRGIN_MEGASTORE', virginMegastore],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([
       ['BIZIMHESAP', bizimhesap],

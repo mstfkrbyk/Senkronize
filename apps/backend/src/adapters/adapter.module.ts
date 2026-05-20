@@ -56,6 +56,7 @@ import { ArcelikModule } from './arcelik/arcelik.module';
 import { AracimModule } from './aracim/aracim.module';
 import { ArbuzKzModule } from './arbuz-kz/arbuz-kz.module';
 import { ArticleModule } from './article/article.module';
+import { AvansasModule } from './avansas/avansas.module';
 import { AuchanModule } from './auchan/auchan.module';
 import { ArtsyModule } from './artsy/artsy.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
@@ -74,6 +75,7 @@ import { BanabiModule } from './banabi/banabi.module';
 import { BaymioModule } from './baymio/baymio.module';
 import { BestbuyModule } from './bestbuy/bestbuy.module';
 import { BeymenModule } from './beymen/beymen.module';
+import { BebekComModule } from './bebek-com/bebek-com.module';
 import { BigwModule } from './bigw/bigw.module';
 import { BirchLaneModule } from './birch-lane/birch-lane.module';
 import { BidorbuyModule } from './bidorbuy/bidorbuy.module';
@@ -94,6 +96,7 @@ import { CentralOnlineModule } from './central-online/central-online.module';
 import { CarrefoursaModule } from './carrefoursa/carrefoursa.module';
 import { CarrefourMeModule } from './carrefour-me/carrefour-me.module';
 import { CarrefourFrModule } from './carrefour-fr/carrefour-fr.module';
+import { CarrefourSaModule } from './carrefour-sa/carrefour-sa.module';
 import { CasinoFrModule } from './casino-fr/casino-fr.module';
 import { CasasBahiaModule } from './casas-bahia/casas-bahia.module';
 import { CdonModule } from './cdon/cdon.module';
@@ -159,6 +162,8 @@ import { GotoBusinessModule } from './goto-business/goto-business.module';
 import { GotoLkModule } from './goto-lk/goto-lk.module';
 import { GmarketModule } from './gmarket/gmarket.module';
 import { GrabMartModule } from './grab-mart/grab-mart.module';
+import { GrabmartModule } from './grabmart/grabmart.module';
+import { GofoodModule } from './gofood/gofood.module';
 import { GardenaModule } from './gardena/gardena.module';
 import { G2aModule } from './g2a/g2a.module';
 import { GameflipModule } from './gameflip/gameflip.module';
@@ -193,10 +198,13 @@ import { JossMainModule } from './joss-main/joss-main.module';
 import { JoomModule } from './joom/joom.module';
 import { JumiaModule } from './jumia/jumia.module';
 import { JumiaEtModule } from './jumia-et/jumia-et.module';
+import { JumiaGhModule } from './jumia-gh/jumia-gh.module';
+import { JumiaTnModule } from './jumia-tn/jumia-tn.module';
 import { JuspayModule } from './juspay/juspay.module';
 import { KadinClubModule } from './kadin-club/kadin-club.module';
 import { LamodaModule } from './lamoda/lamoda.module';
 import { LeroyMerlinModule } from './leroy-merlin/leroy-merlin.module';
+import { LuluOnlineModule } from './lulu-online/lulu-online.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KaracaModule } from './karaca/karaca.module';
 import { KaspiModule } from './kaspi/kaspi.module';
@@ -204,6 +212,7 @@ import { KomplettModule } from './komplett/komplett.module';
 import { KupujemProdajemModule } from './kupujem-prodajem/kupujem-prodajem.module';
 import { KinguinModule } from './kinguin/kinguin.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
+import { KuklaModule } from './kukla/kukla.module';
 import { KmartAuModule } from './kmart-au/kmart-au.module';
 import { KilimallModule } from './kilimall/kilimall.module';
 import { KhaadiModule } from './khaadi/khaadi.module';
@@ -283,6 +292,7 @@ import { OverstockModule } from './overstock/overstock.module';
 import { OzonModule } from './ozon/ozon.module';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
+import { PandamartModule } from './pandamart/pandamart.module';
 import { Pazar365Module } from './pazar365/pazar365.module';
 import { PazaruvajModule } from './pazaruvaj/pazaruvaj.module';
 import { PowerDkModule } from './power-dk/power-dk.module';
@@ -377,6 +387,8 @@ import { TicimaxMpModule } from './ticimax-mp/ticimax-mp.module';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { TokopediaModule } from './tokopedia/tokopedia.module';
+import { TokopediaFlashModule } from './tokopedia-flash/tokopedia-flash.module';
+import { ToyzzShopModule } from './toyzz-shop/toyzz-shop.module';
 import { UniposModule } from './unipos/unipos.module';
 import { UberEatsModule } from './uber-eats/uber-eats.module';
 import { UzumModule } from './uzum/uzum.module';
@@ -388,6 +400,7 @@ import { VakkoModule } from './vakko/vakko.module';
 import { VendureModule } from './vendure/vendure.module';
 import { VeepeeModule } from './veepee/veepee.module';
 import { VestelModule } from './vestel/vestel.module';
+import { VirginMegastoreModule } from './virgin-megastore/virgin-megastore.module';
 import { VintedModule } from './vinted/vinted.module';
 import { VivenseModule } from './vivense/vivense.module';
 import { WildberriesModule } from './wildberries/wildberries.module';
@@ -472,13 +485,26 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AuchanModule,
     CashiModule,
     JumiaEtModule,
+    JumiaGhModule,
+    JumiaTnModule,
     LeroyMerlinModule,
+    LuluOnlineModule,
     MarketKzModule,
     MegatradeModule,
     TamaraModule,
     TabbyModule,
     TamtamModule,
     ZoodModule,
+    AvansasModule,
+    BebekComModule,
+    CarrefourSaModule,
+    GofoodModule,
+    GrabmartModule,
+    KuklaModule,
+    PandamartModule,
+    TokopediaFlashModule,
+    ToyzzShopModule,
+    VirginMegastoreModule,
     ErpAdaptersModule,
     EcommerceAdaptersModule,
     A101Module,

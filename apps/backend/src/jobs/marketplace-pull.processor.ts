@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 
 import { PlatformHealthService } from '../adapters/common/platform-health.service';
 import { RedisRateLimiter } from '../adapters/common/redis-rate-limiter';
+import { RateLimitMonitorService } from '../monitoring/rate-limit-monitor.service';
 import { ConfigService } from '@nestjs/config';
 import { Marketplace, NotificationType } from '@prisma/client';
 import * as Sentry from '@sentry/node';
@@ -53,6 +54,7 @@ export class MarketplacePullProcessor {
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
     private readonly redisRateLimiter: RedisRateLimiter,
     private readonly platformHealth: PlatformHealthService,
+    private readonly rateLimitMonitor: RateLimitMonitorService,
   ) {}
 
   private async guardPlatformApi(
@@ -61,6 +63,7 @@ export class MarketplacePullProcessor {
   ): Promise<void> {
     await this.platformHealth.checkCircuitBreaker(platform, organizationId);
     await this.redisRateLimiter.acquireWithRetry(platform, organizationId);
+    void this.rateLimitMonitor.recordPlatformRequest(platform, organizationId);
   }
 
   @Process('pull-orders')

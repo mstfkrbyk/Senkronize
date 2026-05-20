@@ -5,12 +5,15 @@ import { AkinonErpAdapter } from './akinon-erp.adapter';
 import { AliciErpAdapter } from './alici-erp.adapter';
 import { AfasOnlineErpAdapter } from './afas-online/afas-online.adapter';
 import { BimeksErpAdapter } from './bimeks-erp.adapter';
+import { BrightpearlErpAdapter } from './brightpearl-erp.adapter';
 import { BillomatErpAdapter } from './billomat/billomat.adapter';
 import { Cin7ErpAdapter } from './cin7/cin7.adapter';
 import { DebitoorErpAdapter } from './debitoor/debitoor.adapter';
+import { DearSystemsErpAdapter } from './dear-systems-erp.adapter';
 import { EdusonErpAdapter } from './eduson-erp.adapter';
 import { EtaxErpAdapter } from './etax-erp.adapter';
 import { FinnetErpAdapter } from './finnet-erp.adapter';
+import { FishbowlErpAdapter } from './fishbowl-erp.adapter';
 import { Dynamics365ErpAdapter } from './dynamics365-erp.adapter';
 import { EpicorErpAdapter } from './epicor-erp.adapter';
 import { EtradeErpAdapter } from './etrade-erp.adapter';
@@ -22,23 +25,32 @@ import { IdeasoftErpAdapter } from './ideasoft-erp.adapter';
 import { InflowErpAdapter } from './inflow/inflow.adapter';
 import { IqraErpAdapter } from './iqra-erp.adapter';
 import { KatanaMrpErpAdapter } from './katana-mrp-erp.adapter';
+import { KolaymuhasebeErpAdapter } from './kolaymuhasebe-erp.adapter';
 import { IsbirErpAdapter } from './isbir-erp.adapter';
 import { LightspeedErpAdapter } from './lightspeed-erp.adapter';
+import { LightspeedRestaurantErpAdapter } from './lightspeed-restaurant-erp.adapter';
 import { MikroErpCloudAdapter } from './mikro-erp.adapter';
 import { MoneybirdErpAdapter } from './moneybird/moneybird.adapter';
+import { MedulaErpAdapter } from './medula-erp.adapter';
 import { MrpeasyErpAdapter } from './mrpeasy-erp.adapter';
+import { MuhasebeNetErpAdapter } from './muhasebe-net-erp.adapter';
 import { NetsisErpCloudAdapter } from './netsis-erp.adapter';
 import { PoseidonPosErpAdapter } from './poseidon-pos-erp.adapter';
 import { RestmanErpAdapter } from './restman-erp.adapter';
 import { NetsuiteErpAdapter } from './netsuite-erp.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
+import { OracleMicrosErpAdapter } from './oracle-micros-erp.adapter';
+import { ParasutPlusErpAdapter } from './parasut-plus-erp.adapter';
 import { ProbilErpAdapter } from './probil-erp.adapter';
+import { ProbilEczaneErpAdapter } from './probil-eczane-erp.adapter';
 import { QuickbooksErpAdapter } from './quickbooks-erp.adapter';
 import { Sage50ErpAdapter } from './sage50-erp.adapter';
 import { SevdeskErpAdapter } from './sevdesk/sevdesk.adapter';
 import { SimpraPlusErpAdapter } from './simpra-plus-erp.adapter';
+import { TradegeckoErpAdapter } from './tradegecko-erp.adapter';
 import { SmartiksErpAdapter } from './smartiks-erp.adapter';
 import { TwinfieldErpAdapter } from './twinfield/twinfield.adapter';
+import { UnleashedErpAdapter } from './unleashed-erp.adapter';
 import { UyumsoftErpAdapter } from './uyumsoft-erp.adapter';
 import { VendPosErpAdapter } from './vend-pos-erp.adapter';
 import { VetassoftErpAdapter } from './vetassoft-erp.adapter';
@@ -48,7 +60,7 @@ import { ZirveBulutErpAdapter } from './zirve-bulut-erp.adapter';
 import { ZohoBooksErpAdapter } from './zoho-books-erp.adapter';
 import { ZohoInventoryErpAdapter } from './zoho-inventory/zoho-inventory.adapter';
 
-/** ERP 3. + 4. + 5. + 6. tur adaptör kaydı */
+/** ERP 3. + 4. + 5. + 6. + 7. tur adaptör kaydı */
 @Injectable()
 export class ErpAdapterRegistry {
   readonly adapters: ReadonlyMap<string, IErpAdapter>;
@@ -100,6 +112,18 @@ export class ErpAdapterRegistry {
     bimeksErp: BimeksErpAdapter,
     mrpeasy: MrpeasyErpAdapter,
     katanaMrp: KatanaMrpErpAdapter,
+    parasutPlus: ParasutPlusErpAdapter,
+    muhasebeNet: MuhasebeNetErpAdapter,
+    kolaymuhasebe: KolaymuhasebeErpAdapter,
+    fishbowl: FishbowlErpAdapter,
+    dearSystems: DearSystemsErpAdapter,
+    brightpearl: BrightpearlErpAdapter,
+    unleashed: UnleashedErpAdapter,
+    tradegecko: TradegeckoErpAdapter,
+    probilEczane: ProbilEczaneErpAdapter,
+    medula: MedulaErpAdapter,
+    lightspeedRestaurant: LightspeedRestaurantErpAdapter,
+    oracleMicros: OracleMicrosErpAdapter,
   ) {
     this.adapters = new Map<string, IErpAdapter>([
       ['NETSUITE', netsuite],
@@ -148,6 +172,18 @@ export class ErpAdapterRegistry {
       ['BIMEKS_ERP', bimeksErp],
       ['MRPEASY', mrpeasy],
       ['KATANA_MRP', katanaMrp],
+      ['PARASUT_PLUS', parasutPlus],
+      ['MUHASEBE_NET', muhasebeNet],
+      ['KOLAYMUHASEBE', kolaymuhasebe],
+      ['FISHBOWL', fishbowl],
+      ['DEAR_SYSTEMS', dearSystems],
+      ['BRIGHTPEARL', brightpearl],
+      ['UNLEASHED', unleashed],
+      ['TRADEGECKO', tradegecko],
+      ['PROBIL_ECZANE', probilEczane],
+      ['MEDULA', medula],
+      ['LIGHTSPEED_RESTAURANT', lightspeedRestaurant],
+      ['ORACLE_MICROS', oracleMicros],
     ]);
   }
 

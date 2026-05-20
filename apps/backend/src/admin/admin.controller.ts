@@ -28,6 +28,8 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma/prisma.service';
+import { PlatformHealthService } from '../adapters/common/platform-health.service';
+import { RateLimitMonitorService } from '../monitoring/rate-limit-monitor.service';
 import { IpBlockService } from '../security/ip-block.service';
 import { AuditLogsQueryDto } from '../users/audit-logs-query.dto';
 import { UsersService } from '../users/users.service';
@@ -93,6 +95,8 @@ export class AdminController {
     private readonly adminStatsService: AdminStatsService,
     private readonly usersService: UsersService,
     private readonly ipBlockService: IpBlockService,
+    private readonly platformHealthService: PlatformHealthService,
+    private readonly rateLimitMonitor: RateLimitMonitorService,
     private readonly partnerService: PartnerService,
     private readonly partnerLinkService: PartnerLinkService,
   ) {}
@@ -358,6 +362,64 @@ export class AdminController {
   async listBlockedIps(): Promise<{ ips: string[] }> {
     const ips = await this.ipBlockService.listBlocked();
     return { ips };
+  }
+
+  @Delete('blocked-ips/:ip')
+  @ApiOperation({ summary: 'Engellenen IP kaydını kaldır' })
+  @ApiResponse({ status: 200, description: 'Kaldırıldı' })
+  async deleteBlockedIp(
+    @Param('ip') ip: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.ipBlockService.unblock(ip);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'admin.ip_block_remove',
+        resourceType: 'Security',
+        resourceId: ip,
+        metadata: {},
+      },
+    });
+    return { ok: true };
+  }
+
+  @Get('platform-health')
+  @ApiOperation({ summary: 'Platform devre kesici durumları' })
+  @ApiResponse({ status: 200, description: 'Circuit breaker özeti' })
+  async getCircuitPlatformHealth() {
+    return this.platformHealthService.getAllPlatformHealth();
+  }
+
+  @Post('platform-health/:platform/reset')
+  @ApiOperation({ summary: 'Platform devre kesicisini manuel sıfırla' })
+  @ApiResponse({ status: 200, description: 'Sıfırlandı' })
+  async resetPlatformCircuit(
+    @Param('platform') platform: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.platformHealthService.resetCircuit(platform);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'admin.platform_circuit_reset',
+        resourceType: 'PlatformHealth',
+        resourceId: platform.toUpperCase(),
+        metadata: {},
+      },
+    });
+    return { ok: true };
+  }
+
+  @Get('rate-limit-stats')
+  @ApiOperation({ summary: 'Rate limit ihlal ve platform istek metrikleri' })
+  @ApiResponse({ status: 200, description: 'İstatistikler' })
+  async getRateLimitStats() {
+    return this.rateLimitMonitor.getStats();
   }
 
   @Get('partners')

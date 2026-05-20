@@ -27,6 +27,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { ErpModule } from './erp/erp.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { HealthModule } from './health/health.module';
 import { HelpModule } from './help/help.module';
 import { ImageModule } from './image/image.module';
@@ -82,6 +83,7 @@ import { WebhookModule } from './webhook/webhook.module';
       { name: 'long', ttl: 3_600_000, limit: 1000 },
     ]),
     PrismaModule,
+    MonitoringModule,
     AuditModule,
     SecurityModule,
     EmailModule,

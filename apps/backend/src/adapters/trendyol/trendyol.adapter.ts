@@ -93,7 +93,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     path: string,
     options?: { params?: Record<string, string | number>; data?: unknown },
   ): Promise<T> {
-    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    await this.rateLimiter.acquireOrThrow(this.platform, this.rateLimitKey(credentials));
     try {
       const { data } = await client.request<T>({
         method,

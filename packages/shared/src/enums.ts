@@ -397,7 +397,20 @@ export type Marketplace =
   | 'TAMTAM'
   | 'JUMIA_ET'
   | 'AUCHAN'
-  | 'LEROY_MERLIN';
+  | 'LEROY_MERLIN'
+  | 'JUMIA_GH'
+  | 'JUMIA_TN'
+  | 'CARREFOUR_SA'
+  | 'LULU_ONLINE'
+  | 'VIRGIN_MEGASTORE'
+  | 'TOKOPEDIA_FLASH'
+  | 'GRABMART'
+  | 'GOFOOD'
+  | 'PANDAMART'
+  | 'AVANSAS'
+  | 'KUKLA'
+  | 'BEBEK_COM'
+  | 'TOYZZ_SHOP';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -468,7 +481,19 @@ export type ErpType =
   | 'AKINON_ERP'
   | 'BIMEKS_ERP'
   | 'MRPEASY'
-  | 'KATANA_MRP';
+  | 'KATANA_MRP'
+  | 'PARASUT_PLUS'
+  | 'MUHASEBE_NET'
+  | 'KOLAYMUHASEBE'
+  | 'FISHBOWL'
+  | 'DEAR_SYSTEMS'
+  | 'BRIGHTPEARL'
+  | 'UNLEASHED'
+  | 'TRADEGECKO'
+  | 'PROBIL_ECZANE'
+  | 'MEDULA'
+  | 'LIGHTSPEED_RESTAURANT'
+  | 'ORACLE_MICROS';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =

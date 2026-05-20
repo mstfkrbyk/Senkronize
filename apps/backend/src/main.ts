@@ -168,7 +168,9 @@ API, iki kimlik doğrulama yöntemini destekler:
 - \`POST /auth/login\`: Dakikada 5 istek
 - \`POST /auth/register\`: Saatte 3 kayıt
 - \`/sync\` uçları: Dakikada 10 istek
-- API anahtarları: Dakikada 60 istek (controller düzeyi)
+- Paket bazlı günlük API limiti (Başlangıç 1000, Gelişim 10000, Pro 100000, Kurumsal sınırsız)
+- Yanıt başlıkları: \`X-RateLimit-Limit\`, \`X-RateLimit-Remaining\`, \`X-RateLimit-Reset\`
+- IP: 5 dk'da 100+ istek → 15 dk geçici blok; 3 geçici blok → kalıcı blok
 - Webhook endpoint'leri: Sınırsız (\`SkipThrottle\`)
 
 ## Sayfalama

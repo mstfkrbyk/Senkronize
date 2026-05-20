@@ -1,5 +1,26 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
-import { ThrottlerGuard } from '@nestjs/throttler';
+import {
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import {
+  InjectThrottlerOptions,
+  InjectThrottlerStorage,
+  ThrottlerGuard,
+  type ThrottlerModuleOptions,
+  type ThrottlerStorage,
+} from '@nestjs/throttler';
+import { PlanTier, SubStatus } from '@prisma/client';
+
+import type { AuthenticatedUser } from '../../auth/auth.types';
+import { RateLimitMonitorService } from '../../monitoring/rate-limit-monitor.service';
+import { PrismaService } from '../../prisma/prisma.service';
+import { PLAN_LIMITS } from '../../subscription/plan-limits';
+import { CacheKeys } from '../cache/cache-keys';
+import { CacheService } from '../cache/cache.service';
+
+const DAY_MS = 86_400_000;
 
 /** Saniye cinsinden TTL — Nest Throttler milisaniye bekler. */
 export const rateLimitConfig = {
@@ -25,14 +46,32 @@ function matchRouteLimit(path: string): { ttl: number; limit: number } {
 
 @Injectable()
 export class SenkronizeThrottlerGuard extends ThrottlerGuard {
-  protected async getTracker(req: Record<string, unknown>): Promise<string> {
+  constructor(
+    @InjectThrottlerOptions() options: ThrottlerModuleOptions,
+    @InjectThrottlerStorage() storageService: ThrottlerStorage,
+    reflector: Reflector,
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+    private readonly rateLimitMonitor: RateLimitMonitorService,
+  ) {
+    super(options, storageService, reflector);
+  }
+
+  protected async getTracker(
+    req: Record<string, unknown>,
+    _context: ExecutionContext,
+  ): Promise<string> {
+    const user = req.user as AuthenticatedUser | undefined;
+    if (user?.currentOrgId) {
+      return `org:${user.currentOrgId}`;
+    }
     const ip =
       (typeof req.ip === 'string' && req.ip) ||
       (typeof (req as { socket?: { remoteAddress?: string } }).socket
         ?.remoteAddress === 'string' &&
         (req as { socket: { remoteAddress: string } }).socket.remoteAddress) ||
       'unknown';
-    return ip;
+    return `ip:${ip}`;
   }
 
   protected getThrottlers(context: ExecutionContext) {
@@ -40,16 +79,99 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
       originalUrl?: string;
       url?: string;
       path?: string;
+      user?: AuthenticatedUser;
     }>();
     const path =
       request.originalUrl ?? request.url ?? request.path ?? '';
     const { ttl, limit } = matchRouteLimit(path);
-    return [
+    const orgId = request.user?.currentOrgId;
+
+    const throttlers = [
       {
         name: 'route',
         ttl: ttl * 1000,
         limit,
       },
     ];
+
+    if (orgId) {
+      throttlers.push({
+        name: 'daily',
+        ttl: DAY_MS,
+        limit: () => this.resolveDailyApiLimit(orgId),
+      });
+    }
+
+    return throttlers;
+  }
+
+  protected async handleRequest(
+    requestProps: Parameters<ThrottlerGuard['handleRequest']>[0],
+  ): Promise<boolean> {
+    const result = await super.handleRequest(requestProps);
+    const { context, throttler } = requestProps;
+    const { res } = this.getRequestResponse(context);
+    const ttl = await this.resolveValue(context, requestProps.ttl);
+    const resetUnix = Math.ceil(Date.now() / 1000) + Math.ceil(ttl / 1000);
+    const suffix = throttler.name === 'default' ? '' : `-${throttler.name}`;
+    res.header(`X-RateLimit-Reset${suffix}`, resetUnix);
+
+    if (throttler.name === 'daily') {
+      const limit = await this.resolveValue(context, requestProps.limit);
+      const remaining = res.getHeader('X-RateLimit-Remaining-daily');
+      res.header('X-RateLimit-Limit', limit);
+      if (remaining !== undefined) {
+        res.header('X-RateLimit-Remaining', remaining);
+        res.header('X-RateLimit-Reset', resetUnix);
+      }
+    }
+    return result;
+  }
+
+  protected async throwThrottlingException(
+    context: ExecutionContext,
+    detail: Parameters<ThrottlerGuard['throwThrottlingException']>[1],
+  ): Promise<void> {
+    const request = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>();
+    const orgId = request.user?.currentOrgId;
+    if (orgId && detail.ttl >= DAY_MS) {
+      const plan = await this.resolveOrgPlan(orgId);
+      void this.rateLimitMonitor.recordApiDailyLimitViolation(
+        orgId,
+        plan,
+        PLAN_LIMITS[plan].apiCallsPerDay,
+      );
+    }
+    await super.throwThrottlingException(context, detail);
+  }
+
+  private async resolveDailyApiLimit(orgId: string): Promise<number> {
+    const plan = await this.resolveOrgPlan(orgId);
+    const limit = PLAN_LIMITS[plan].apiCallsPerDay;
+    if (limit < 0) {
+      return 1_000_000_000;
+    }
+    return limit;
+  }
+
+  private async resolveOrgPlan(orgId: string): Promise<PlanTier> {
+    const cacheKey = CacheKeys.subscription(orgId);
+    const cached = await this.cache.get<{ plan: PlanTier }>(cacheKey);
+    if (cached?.plan) {
+      return cached.plan;
+    }
+
+    const sub = await this.prisma.subscription.findFirst({
+      where: { organizationId: orgId },
+      orderBy: { createdAt: 'desc' },
+      select: { plan: true, status: true },
+    });
+    if (!sub) {
+      throw new UnauthorizedException();
+    }
+    const plan =
+      sub.status === SubStatus.TRIAL ? PlanTier.BASLANGIC : sub.plan;
+    await this.cache.set(cacheKey, { plan }, 300);
+    return plan;
   }
 }
