@@ -171,6 +171,18 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   TIKTOK_SHOP: { label: 'TikTok Shop', logo: '🎵', color: 'rose' },
   PINTEREST: { label: 'Pinterest Shopping', logo: '📌', color: 'red' },
   INSTAGRAM_SHOP: { label: 'Instagram Shopping', logo: '📸', color: 'fuchsia' },
+  YOUTUBE_SHOP: { label: 'YouTube Shopping', logo: '▶️', color: 'red' },
+  SNAPCHAT_STORE: { label: 'Snapchat Store', logo: '👻', color: 'yellow' },
+  WHATSAPP_COMMERCE: { label: 'WhatsApp Business', logo: '💬', color: 'green' },
+  CARREFOUR_FR: { label: 'Carrefour FR', logo: '🇫🇷', color: 'blue' },
+  CASINO_FR: { label: 'Casino FR', logo: '🛒', color: 'orange' },
+  LIDL: { label: 'Lidl Plus', logo: '🏪', color: 'blue' },
+  ALDI: { label: 'Aldi', logo: '🛍️', color: 'orange' },
+  SHOPBACK: { label: 'Shopback', logo: '💰', color: 'emerald' },
+  COUPANG: { label: 'Coupang', logo: '🇰🇷', color: 'rose' },
+  STREET11: { label: '11Street KR', logo: '1️⃣1️⃣', color: 'red' },
+  BULDUMBULDUM: { label: 'Buldumbuldum', logo: '🏷️', color: 'amber' },
+  ALISVERIS_COM: { label: 'Alışveriş.com', logo: '🔍', color: 'sky' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

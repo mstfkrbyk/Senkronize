@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import type { CargoProvider } from '@senkronize/shared';
 
+import { ShipOrderModal } from '@/components/ShipOrderModal';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
@@ -92,6 +93,15 @@ const ERP_LABEL_TR: Record<string, string> = {
   SAP_B1: 'SAP Business One',
   ISNET: 'İşnet',
 };
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 function escapeCsvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -180,6 +190,10 @@ export function OrdersPage(): ReactElement {
   const [cargoOpen, setCargoOpen] = useState(false);
   const [bulkCargoProvider, setBulkCargoProvider] = useState<CargoProvider>('YURTICI');
 
+  const [shipOpen, setShipOpen] = useState(false);
+  const [shipOrder, setShipOrder] = useState<Order | null>(null);
+  const [shipBulkMode, setShipBulkMode] = useState(false);
+
   const [statusOpen, setStatusOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('PICKING');
 
@@ -192,9 +206,12 @@ export function OrdersPage(): ReactElement {
   const syncToErpMutation = useSyncOrderToErp();
   const triggerSyncMutation = useTriggerManualSync();
 
+  const [labelLoadingId, setLabelLoadingId] = useState<string | null>(null);
+  const [invoiceLoadingId, setInvoiceLoadingId] = useState<string | null>(null);
+
   const bulkInvoiceMutation = useMutation({
     mutationFn: async (orderIds: string[]): Promise<Blob> => {
-      const res = await api.post('/invoices/bulk', { orderIds }, { responseType: 'blob' });
+      const res = await api.post('/orders/bulk/invoice', { orderIds }, { responseType: 'blob' });
       return res.data as Blob;
     },
     onSuccess: (blob) => {
@@ -210,6 +227,58 @@ export function OrdersPage(): ReactElement {
       toast.error(getApiErrorMessage(err));
     },
   });
+
+  const bulkLabelsMutation = useMutation({
+    mutationFn: async (orderIds: string[]): Promise<Blob> => {
+      const res = await api.post(
+        '/orders/bulk/shipping-labels',
+        { orderIds },
+        { responseType: 'blob' },
+      );
+      return res.data as Blob;
+    },
+    onSuccess: (blob) => {
+      downloadBlob(blob, `etiketler-${new Date().toISOString().slice(0, 10)}.zip`);
+      toast.success('Toplu etiket ZIP indirildi');
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+
+  const downloadLabel = async (order: Order): Promise<void> => {
+    setLabelLoadingId(order.id);
+    try {
+      const res = await api.get(`/orders/${order.id}/shipping-label`, {
+        responseType: 'blob',
+      });
+      downloadBlob(
+        res.data as Blob,
+        `etiket-${order.platformOrderId.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`,
+      );
+      toast.success('Kargo etiketi indirildi');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setLabelLoadingId(null);
+    }
+  };
+
+  const downloadInvoice = async (order: Order): Promise<void> => {
+    setInvoiceLoadingId(order.id);
+    try {
+      const res = await api.get(`/invoices/order/${order.id}`, { responseType: 'blob' });
+      downloadBlob(
+        res.data as Blob,
+        `fatura-${order.platformOrderId.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`,
+      );
+      toast.success('Fatura PDF indirildi');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setInvoiceLoadingId(null);
+    }
+  };
 
   const bulkCargoMutation = useMutation({
     mutationFn: async (payload: {
@@ -392,6 +461,19 @@ export function OrdersPage(): ReactElement {
             );
           }}
           onRowClick={handleRowClick}
+          onPrintLabel={(order) => {
+            void downloadLabel(order);
+          }}
+          onShip={(order) => {
+            setShipOrder(order);
+            setShipBulkMode(false);
+            setShipOpen(true);
+          }}
+          onDownloadInvoice={(order) => {
+            void downloadInvoice(order);
+          }}
+          labelLoadingId={labelLoadingId}
+          invoiceLoadingId={invoiceLoadingId}
         />
       ) : null}
 
@@ -436,15 +518,36 @@ export function OrdersPage(): ReactElement {
                 variant="secondary"
                 size="sm"
                 className="gap-1"
-                disabled={selectedRows.length === 0}
+                disabled={
+                  selectedRows.length === 0 ||
+                  bulkLabelsMutation.isPending
+                }
                 onClick={() => {
-                  toast.info('Hazırlanıyor', {
-                    description: 'Toplu etiket indirme yakında eklenecek.',
-                  });
+                  bulkLabelsMutation.mutate(selectedOrderIds);
+                  track('orders_bulk_labels', { count: selectedOrderIds.length });
                 }}
               >
-                <Tag className="h-3.5 w-3.5" aria-hidden />
-                Toplu etiket indir
+                {bulkLabelsMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <Tag className="h-3.5 w-3.5" aria-hidden />
+                )}
+                Etiketleri yazdır
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={selectedRows.length === 0}
+                onClick={() => {
+                  setShipOrder(null);
+                  setShipBulkMode(true);
+                  setShipOpen(true);
+                }}
+              >
+                <Truck className="h-3.5 w-3.5" aria-hidden />
+                Toplu kargoya ver
               </Button>
               <Button
                 type="button"
@@ -582,6 +685,18 @@ export function OrdersPage(): ReactElement {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShipOrderModal
+        open={shipOpen}
+        onOpenChange={setShipOpen}
+        order={shipBulkMode ? null : shipOrder}
+        orderIds={shipBulkMode ? selectedOrderIds : undefined}
+        onSuccess={() => {
+          if (shipBulkMode) {
+            clearOrderSelection();
+          }
+        }}
+      />
 
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
         <DialogContent className="sm:max-w-md">

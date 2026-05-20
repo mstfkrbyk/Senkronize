@@ -1,7 +1,19 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -15,6 +27,8 @@ import {
   AddOrderNoteDto,
   AddTrackingNumberDto,
   BulkAssignCargoDto,
+  BulkOrderIdsDto,
+  BulkShipDto,
   BulkUpdateOrderStatusDto,
   CancellationRequestDto,
   CancelOrderDto,
@@ -24,12 +38,16 @@ import {
 } from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
 import type { BulkResult, SerializedOrderNote } from './order.types';
+import { ShippingLabelService } from './shipping-label.service';
 
 @ApiTags('orders')
 @ApiBearerAuth()
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(
+    private readonly orderService: OrderService,
+    private readonly shippingLabelService: ShippingLabelService,
+  ) {}
 
   @Get('summary')
   @UseGuards(JwtAuthGuard)
@@ -78,6 +96,55 @@ export class OrderController {
     @Body() dto: BulkUpdateOrderStatusDto,
   ): Promise<BulkResult> {
     return this.orderService.bulkUpdateStatus(org.id, dto.orderIds, dto.status);
+  }
+
+  @Post('bulk/ship')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu kargoya ver' })
+  @ApiBody({ type: BulkShipDto })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkShip(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkShipDto,
+  ): Promise<BulkResult> {
+    return this.orderService.bulkShip(org.id, dto.items);
+  }
+
+  @Post('bulk/invoice')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili siparişler için toplu fatura ZIP indir' })
+  @ApiBody({ type: BulkOrderIdsDto })
+  @ApiProduces('application/zip')
+  @ApiResponse({ status: 200, description: 'ZIP arşivi' })
+  async bulkInvoice(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkOrderIdsDto,
+  ): Promise<StreamableFile> {
+    const buffer = await this.orderService.bulkInvoice(org.id, dto.orderIds);
+    return new StreamableFile(buffer, {
+      type: 'application/zip',
+      disposition: `attachment; filename="faturalar-${org.id.slice(-6)}.zip"`,
+    });
+  }
+
+  @Post('bulk/shipping-labels')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili siparişler için toplu kargo etiketi ZIP indir' })
+  @ApiBody({ type: BulkOrderIdsDto })
+  @ApiProduces('application/zip')
+  @ApiResponse({ status: 200, description: 'ZIP arşivi' })
+  async bulkShippingLabels(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkOrderIdsDto,
+  ): Promise<StreamableFile> {
+    const buffer = await this.shippingLabelService.generateBulkLabels(
+      dto.orderIds,
+      org.id,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/zip',
+      disposition: `attachment; filename="etiketler-${org.id.slice(-6)}.zip"`,
+    });
   }
 
   @Patch(':id/status')
@@ -164,6 +231,23 @@ export class OrderController {
     @Body() dto: CancelOrderDto,
   ): Promise<{ jobId: string }> {
     return this.orderService.cancelOrder(org.id, id, dto.reason);
+  }
+
+  @Get(':id/shipping-label')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kargo etiketi PDF indir' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF dosyası' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async downloadShippingLabel(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<StreamableFile> {
+    const buffer = await this.shippingLabelService.generateLabel(id, org.id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="etiket-${id.slice(-8)}.pdf"`,
+    });
   }
 
   @Get(':id')

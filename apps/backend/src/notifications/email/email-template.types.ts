@@ -52,6 +52,19 @@ export interface LowStockEmailData {
   stockUpdateUrl: string;
 }
 
+export interface StockAlertItem {
+  name: string;
+  barcode: string;
+  currentStock: number;
+  recommendedOrderQty: number;
+}
+
+export interface StockAlertEmailData {
+  recipientName: string;
+  products: StockAlertItem[];
+  stockUrl: string;
+}
+
 export interface CriticalStockForecastRow {
   name: string;
   barcode: string;
@@ -88,6 +101,30 @@ export interface PlanChangedData {
   isUpgrade: boolean;
 }
 
+export interface SubscriptionActivatedData {
+  planName: string;
+  planFeatures: string[];
+}
+
+export interface SubscriptionExpiringData {
+  daysLeft: number;
+  renewUrl: string;
+}
+
+export interface WeeklyReportEmailData {
+  userName: string;
+  orgName: string;
+  revenue: string;
+  orderCount: string;
+  revenueGrowthPct: string;
+  orderGrowthPct: string;
+  revenueGrowthColor: string;
+  orderGrowthColor: string;
+  platformRows: string;
+  stockAlertRows: string;
+  reportsUrl: string;
+}
+
 export interface InvoiceEmailData {
   recipientName: string;
   invoiceNumber: string;
@@ -116,6 +153,11 @@ export interface PartnerInviteData {
 
 export type EmailPreviewTemplate =
   | 'welcome'
+  | 'password-reset'
+  | 'subscription-activated'
+  | 'subscription-expiring'
+  | 'stock-alert'
+  | 'weekly-report'
   | 'order-new'
   | 'low-stock'
   | 'trial-expiring'

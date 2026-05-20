@@ -21,7 +21,7 @@ describe('EmailService', () => {
 
     const templateService = new EmailTemplateService(config);
     const service = new EmailService(config, templateService);
-    await service.sendWelcome('user@example.com', { name: 'Ali' });
+    await service.sendWelcome('user@example.com', 'Ali');
 
     expect(postSpy).not.toHaveBeenCalled();
     postSpy.mockRestore();

@@ -10,8 +10,8 @@ import type {
   OrderEmailData,
   PartnerInviteData,
   PlanChangedData,
+  StockAlertItem,
   TrialExpiringData,
-  WelcomeEmailData,
 } from './email-template.types';
 import { EmailTemplateService } from './email-template.service';
 
@@ -54,11 +54,90 @@ export class EmailService {
     }
   }
 
-  async sendWelcome(to: string, data: WelcomeEmailData): Promise<void> {
-    const html = this.templateService.renderWelcome(data);
+  renderTemplate(
+    templateName: string,
+    variables: Record<string, string>,
+  ): string {
+    return this.templateService.renderTemplateByName(templateName, variables);
+  }
+
+  async sendWelcome(to: string, name: string): Promise<void> {
+    const html = this.templateService.renderWelcome({ name });
     await this.send(
       to,
-      `Senkronize'a Hoşgeldiniz, ${data.name}! 🎉`,
+      `Senkronize'a Hoşgeldiniz, ${name}! 🎉`,
+      html,
+    );
+  }
+
+  async sendPasswordReset(to: string, resetUrl: string): Promise<void> {
+    const html = this.templateService.renderPasswordReset(resetUrl);
+    await this.send(to, 'Şifre sıfırlama — Senkronize', html);
+  }
+
+  async sendSubscriptionActivated(to: string, planName: string): Promise<void> {
+    const html = this.templateService.renderSubscriptionActivated({
+      planName,
+      planFeatures: [],
+    });
+    await this.send(to, `Aboneliğiniz aktif — ${planName}`, html);
+  }
+
+  async sendSubscriptionActivatedWithFeatures(
+    to: string,
+    planName: string,
+    planFeatures: string[],
+  ): Promise<void> {
+    const html = this.templateService.renderSubscriptionActivated({
+      planName,
+      planFeatures,
+    });
+    await this.send(to, `Aboneliğiniz aktif — ${planName} 🎉`, html);
+  }
+
+  async sendSubscriptionExpiring(
+    to: string,
+    daysLeft: number,
+    renewUrl: string,
+  ): Promise<void> {
+    const html = this.templateService.renderSubscriptionExpiring({
+      daysLeft,
+      renewUrl,
+    });
+    await this.send(
+      to,
+      `Aboneliğiniz ${String(daysLeft)} gün içinde sona eriyor`,
+      html,
+    );
+  }
+
+  async sendStockAlert(to: string, products: StockAlertItem[]): Promise<void> {
+    const base = this.panelBaseUrl();
+    const html = this.templateService.renderStockAlert({
+      recipientName: 'Merhaba',
+      products,
+      stockUrl: `${base}/stock`,
+    });
+    await this.send(
+      to,
+      `⚠️ ${String(products.length)} ürününüzde stok kritik seviyede`,
+      html,
+    );
+  }
+
+  async sendStockAlertForRecipient(
+    to: string,
+    recipientName: string,
+    products: StockAlertItem[],
+  ): Promise<void> {
+    const html = this.templateService.renderStockAlert({
+      recipientName,
+      products,
+      stockUrl: `${this.panelBaseUrl()}/stock`,
+    });
+    await this.send(
+      to,
+      `⚠️ ${String(products.length)} ürününüzde stok kritik seviyede`,
       html,
     );
   }
@@ -73,12 +152,13 @@ export class EmailService {
   }
 
   async sendLowStockAlert(to: string, data: LowStockEmailData): Promise<void> {
-    const html = this.templateService.renderLowStock(data);
-    await this.send(
-      to,
-      `⚠️ ${data.count} Ürününüzde Stok Kritik Seviyede`,
-      html,
-    );
+    const products: StockAlertItem[] = data.products.map((p) => ({
+      name: p.name,
+      barcode: p.sku,
+      currentStock: p.currentStock,
+      recommendedOrderQty: Math.max(p.threshold - p.currentStock, 1),
+    }));
+    await this.sendStockAlertForRecipient(to, data.recipientName, products);
   }
 
   async sendCriticalStockForecastAlert(
@@ -114,7 +194,22 @@ export class EmailService {
     );
   }
 
-  async sendPartnerInvite(to: string, data: PartnerInviteData): Promise<void> {
+  async sendPartnerInvite(
+    to: string,
+    partnerName: string,
+    inviteUrl: string,
+  ): Promise<void> {
+    await this.sendPartnerInviteDetailed(to, {
+      partnerName,
+      platformName: 'Senkronize',
+      inviteUrl,
+    });
+  }
+
+  async sendPartnerInviteDetailed(
+    to: string,
+    data: PartnerInviteData,
+  ): Promise<void> {
     const html = this.templateService.renderPartnerInvite(data);
     await this.send(
       to,
@@ -688,93 +783,12 @@ export class EmailService {
       stockAlerts: { barcode: string; platform: string; quantity: number }[];
     },
   ): Promise<void> {
-    const esc = (s: string): string =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const formatTry = (n: number): string =>
-      new Intl.NumberFormat('tr-TR', {
-        style: 'currency',
-        currency: 'TRY',
-        maximumFractionDigits: 0,
-      }).format(n);
-    const growthLabel = (pct: number): string =>
-      pct > 0 ? `+${pct}%` : `${pct}%`;
-    const platformRowsHtml = data.platformRows
-      .map(
-        (row) => `
-        <tr>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0">${esc(row.platform)}</td>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right">${row.orderCount}</td>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right">${formatTry(row.revenue)}</td>
-        </tr>`,
-      )
-      .join('');
-    const stockRowsHtml =
-      data.stockAlerts.length > 0
-        ? data.stockAlerts
-            .map(
-              (row) => `
-        <tr>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace">${esc(row.barcode)}</td>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0">${esc(row.platform)}</td>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;color:${row.quantity === 0 ? '#dc2626' : '#d97706'}">${row.quantity}</td>
-        </tr>`,
-            )
-            .join('')
-        : `<tr><td colspan="3" style="padding:8px;color:#64748b">Kritik stok uyarısı yok.</td></tr>`;
-    const reportsUrl = `${this.panelBaseUrl()}/reports`;
+    const reportData = this.templateService.buildWeeklyReportEmailData(data);
+    const html = this.templateService.renderWeeklyReport(reportData);
     await this.send(
       to,
-      `Haftalık satış özeti — ${esc(data.orgName)}`,
-      `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
-        <h2 style="margin:0 0 8px">Merhaba ${esc(data.userName)},</h2>
-        <p style="color:#64748b;margin:0 0 20px">${esc(data.orgName)} için geçen haftanın özeti:</p>
-
-        <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
-          <tr>
-            <td style="padding:12px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0">
-              <div style="font-size:12px;color:#64748b">Sipariş</div>
-              <div style="font-size:22px;font-weight:700">${data.comparison.orderCount}</div>
-              <div style="font-size:12px;color:${data.comparison.orderGrowthPct >= 0 ? '#16a34a' : '#dc2626'}">${growthLabel(data.comparison.orderGrowthPct)} önceki haftaya göre</div>
-            </td>
-            <td style="padding:12px;background:#f8fafc;border-radius:0 8px 8px 0;border:1px solid #e2e8f0;border-left:none">
-              <div style="font-size:12px;color:#64748b">Gelir</div>
-              <div style="font-size:22px;font-weight:700">${formatTry(data.comparison.revenue)}</div>
-              <div style="font-size:12px;color:${data.comparison.revenueGrowthPct >= 0 ? '#16a34a' : '#dc2626'}">${growthLabel(data.comparison.revenueGrowthPct)} önceki haftaya göre</div>
-            </td>
-          </tr>
-        </table>
-
-        <h3 style="font-size:15px;margin:0 0 8px">Platform özeti</h3>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px">
-          <thead>
-            <tr style="background:#f1f5f9">
-              <th style="padding:8px;text-align:left">Platform</th>
-              <th style="padding:8px;text-align:right">Sipariş</th>
-              <th style="padding:8px;text-align:right">Gelir</th>
-            </tr>
-          </thead>
-          <tbody>${platformRowsHtml || '<tr><td colspan="3" style="padding:8px;color:#64748b">Veri yok</td></tr>'}</tbody>
-        </table>
-
-        <h3 style="font-size:15px;margin:0 0 8px">Kritik stok uyarıları</h3>
-        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px">
-          <thead>
-            <tr style="background:#f1f5f9">
-              <th style="padding:8px;text-align:left">Barkod</th>
-              <th style="padding:8px;text-align:left">Platform</th>
-              <th style="padding:8px;text-align:right">Adet</th>
-            </tr>
-          </thead>
-          <tbody>${stockRowsHtml}</tbody>
-        </table>
-
-        <a href="${esc(reportsUrl)}"
-           style="background:#38bdf8;color:#0f172a;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
-          Raporların Tümünü Gör
-        </a>
-      </div>
-    `,
+      `Haftalık satış özeti — ${data.orgName}`,
+      html,
     );
   }
 

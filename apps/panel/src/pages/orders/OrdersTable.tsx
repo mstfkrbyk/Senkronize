@@ -1,8 +1,10 @@
 import type { ReactElement } from 'react';
 
+import { FileDown, Loader2, Tag, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import {
@@ -13,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { ORDER_STATUS_CONFIG, orderStatusTone } from '@/lib/order-status';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { formatDateWithTimezone, getStoredTimezone } from '@/lib/timezone';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -24,6 +27,11 @@ interface Props {
   onToggleRow: (id: string, selected: boolean) => void;
   onToggleAllOnPage: (selected: boolean) => void;
   onRowClick: (order: Order) => void;
+  onPrintLabel?: (order: Order) => void;
+  onShip?: (order: Order) => void;
+  onDownloadInvoice?: (order: Order) => void;
+  labelLoadingId?: string | null;
+  invoiceLoadingId?: string | null;
 }
 
 function formatTry(amount: string, currency: string): string {
@@ -61,28 +69,15 @@ function PlatformBadge({ platform }: { platform: string }): ReactElement {
   );
 }
 
-const ORDER_STATUS_TONE: Record<OrderStatus, string> = {
-  NEW:
-    'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200',
-  PICKING:
-    'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100',
-  INVOICED:
-    'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-100',
-  SHIPPED:
-    'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-100',
-  DELIVERED:
-    'border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100',
-  CANCELLED:
-    'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200',
-  RETURNED:
-    'border-border bg-muted text-muted-foreground dark:bg-muted/40',
-};
-
 function StatusBadge({ status }: { status: OrderStatus }): ReactElement {
   const { t } = useTranslation();
+  const config = ORDER_STATUS_CONFIG[status];
+  const Icon = config?.icon;
+  const label = config?.label ?? t(ORDER_STATUS_I18N_KEY[status]);
   return (
-    <Badge variant="outline" className={ORDER_STATUS_TONE[status] ?? ''}>
-      {t(ORDER_STATUS_I18N_KEY[status])}
+    <Badge variant="outline" className={`gap-1 ${orderStatusTone(status)}`}>
+      {Icon ? <Icon className="h-3 w-3" aria-hidden /> : null}
+      {label}
     </Badge>
   );
 }
@@ -93,6 +88,11 @@ export function OrdersTable({
   onToggleRow,
   onToggleAllOnPage,
   onRowClick,
+  onPrintLabel,
+  onShip,
+  onDownloadInvoice,
+  labelLoadingId,
+  invoiceLoadingId,
 }: Props): ReactElement {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
@@ -100,11 +100,12 @@ export function OrdersTable({
   const allSelected =
     pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
   const someSelected = pageIds.some((id) => selectedIds.has(id));
+  const showActions = Boolean(onPrintLabel || onShip || onDownloadInvoice);
 
   return (
     <ResponsiveTable>
       <div className="rounded-md border border-border bg-card">
-        <Table className="min-w-[700px]">
+        <Table className="min-w-[760px]">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[44px] p-2">
@@ -130,16 +131,18 @@ export function OrdersTable({
               <TableHead className="text-right">{t('common.amount')}</TableHead>
               <TableHead>{t('common.status')}</TableHead>
               <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
-              <TableHead className="hidden lg:table-cell w-[100px]">
-                {t('common.actions')}
-              </TableHead>
+              {showActions ? (
+                <TableHead className="hidden lg:table-cell w-[120px]">
+                  {t('common.actions')}
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {orders.map((order) => (
               <TableRow
                 key={order.id}
-                className="cursor-pointer"
+                className="group cursor-pointer"
                 onClick={() => {
                   onRowClick(order);
                 }}
@@ -177,18 +180,75 @@ export function OrdersTable({
                 <TableCell className="hidden text-muted-foreground xl:table-cell">
                   {formatDate(order.platformCreatedAt, dateLocale)}
                 </TableCell>
-                <TableCell className="hidden lg:table-cell">
-                  <button
-                    type="button"
-                    className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                {showActions ? (
+                  <TableCell
+                    className="hidden lg:table-cell"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onRowClick(order);
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
                     }}
                   >
-                    {t('common.detail')}
-                  </button>
-                </TableCell>
+                    <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                      {onPrintLabel ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Etiketi yazdır"
+                          aria-label="Etiketi yazdır"
+                          disabled={labelLoadingId === order.id}
+                          onClick={() => {
+                            onPrintLabel(order);
+                          }}
+                        >
+                          {labelLoadingId === order.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          ) : (
+                            <Tag className="h-4 w-4" aria-hidden />
+                          )}
+                        </Button>
+                      ) : null}
+                      {onShip ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Kargoya ver"
+                          aria-label="Kargoya ver"
+                          onClick={() => {
+                            onShip(order);
+                          }}
+                        >
+                          <Truck className="h-4 w-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                      {onDownloadInvoice ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Fatura indir"
+                          aria-label="Fatura indir"
+                          disabled={invoiceLoadingId === order.id}
+                          onClick={() => {
+                            onDownloadInvoice(order);
+                          }}
+                        >
+                          {invoiceLoadingId === order.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                          ) : (
+                            <FileDown className="h-4 w-4" aria-hidden />
+                          )}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>

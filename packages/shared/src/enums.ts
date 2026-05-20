@@ -212,7 +212,19 @@ export type Marketplace =
   | 'ZARA_TR'
   | 'TIKTOK_SHOP'
   | 'PINTEREST'
-  | 'INSTAGRAM_SHOP';
+  | 'INSTAGRAM_SHOP'
+  | 'YOUTUBE_SHOP'
+  | 'SNAPCHAT_STORE'
+  | 'WHATSAPP_COMMERCE'
+  | 'CARREFOUR_FR'
+  | 'CASINO_FR'
+  | 'LIDL'
+  | 'ALDI'
+  | 'SHOPBACK'
+  | 'COUPANG'
+  | 'STREET11'
+  | 'BULDUMBULDUM'
+  | 'ALISVERIS_COM';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

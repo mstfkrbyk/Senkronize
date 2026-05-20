@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stok uyarısı</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="padding:24px 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#b45309;">
+              ⚠️ Kritik stok seviyesi
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:4px 24px 16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#475569;line-height:1.55;">
+              Merhaba <strong>{{recipientName}}</strong>,<br />
+              Aşağıdaki ürünlerde stok kritik seviyenin altında. Önerilen sipariş miktarlarıyla tedarik planlayabilirsiniz.
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:10px;">
+                <thead>
+                  <tr style="background-color:#fffbeb;">
+                    <th align="left" style="padding:10px 10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#92400e;">Ürün</th>
+                    <th align="left" style="padding:10px 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#92400e;">Barkod</th>
+                    <th align="center" style="padding:10px 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#92400e;">Mevcut</th>
+                    <th align="center" style="padding:10px 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#92400e;">Önerilen sipariş</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{productRows}}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 24px 24px 24px;">
+              <a href="{{stockUrl}}" style="display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;">
+                Stok Yönetimine Git
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background-color:#0f172a;text-align:center;">
+              <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#cbd5e1;line-height:1.5;">
+                Senkronize | Stok bildirimi
+              </p>
+              <a href="{{unsubscribeUrl}}" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#93c5fd;text-decoration:underline;">
+                E-posta tercihlerini yönet
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

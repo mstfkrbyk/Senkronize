@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Haftalık rapor</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;">
+          <tr>
+            <td style="padding:24px 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:700;color:#0f172a;">
+              Haftalık özet — {{orgName}}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 16px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;color:#64748b;line-height:1.5;">
+              Merhaba <strong>{{userName}}</strong>, geçen haftanın performans özeti:
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 20px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:14px;background:#eef2ff;border-radius:8px 0 0 8px;border:1px solid #c7d2fe;width:50%;vertical-align:top;">
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Bu hafta gelir</div>
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#0f172a;margin-top:4px;">{{revenue}}</div>
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:{{revenueGrowthColor}};margin-top:6px;">{{revenueGrowthPct}} önceki haftaya göre</div>
+                  </td>
+                  <td style="padding:14px;background:#eef2ff;border-radius:0 8px 8px 0;border:1px solid #c7d2fe;border-left:none;width:50%;vertical-align:top;">
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Sipariş sayısı</div>
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:700;color:#0f172a;margin-top:4px;">{{orderCount}}</div>
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:{{orderGrowthColor}};margin-top:6px;">{{orderGrowthPct}} önceki haftaya göre</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#334155;">
+              Platform dağılımı
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 20px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;font-size:14px;">
+                <thead>
+                  <tr style="background:#f1f5f9;">
+                    <th align="left" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Platform</th>
+                    <th align="right" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Sipariş</th>
+                    <th align="right" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Gelir</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{platformRows}}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 8px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#334155;">
+              Stok uyarıları (ilk 3)
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 24px 20px 24px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;font-size:14px;">
+                <thead>
+                  <tr style="background:#f1f5f9;">
+                    <th align="left" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Barkod</th>
+                    <th align="left" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Platform</th>
+                    <th align="right" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#64748b;">Stok</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {{stockAlertRows}}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:0 24px 28px 24px;">
+              <a href="{{reportsUrl}}" style="display:inline-block;padding:14px 28px;background-color:#4f46e5;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;">
+                Tüm Raporları Gör
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:16px 24px;background-color:#0f172a;text-align:center;">
+              <p style="margin:0 0 8px 0;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#cbd5e1;line-height:1.5;">
+                Senkronize | Haftalık rapor
+              </p>
+              <a href="{{unsubscribeUrl}}" style="font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#93c5fd;text-decoration:underline;">
+                E-posta tercihlerini yönet
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

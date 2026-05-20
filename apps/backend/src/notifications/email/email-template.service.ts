@@ -13,7 +13,12 @@ import type {
   OrderEmailData,
   PartnerInviteData,
   PlanChangedData,
+  StockAlertEmailData,
+  StockAlertItem,
+  SubscriptionActivatedData,
+  SubscriptionExpiringData,
   TrialExpiringData,
+  WeeklyReportEmailData,
   WelcomeEmailData,
 } from './email-template.types';
 
@@ -28,6 +33,11 @@ function escapeHtml(value: string): string {
 
 export const EMAIL_PREVIEW_TEMPLATE_KEYS: readonly EmailPreviewTemplate[] = [
   'welcome',
+  'password-reset',
+  'subscription-activated',
+  'subscription-expiring',
+  'stock-alert',
+  'weekly-report',
   'order-new',
   'low-stock',
   'trial-expiring',
@@ -70,6 +80,17 @@ export class EmailTemplateService {
     return this.interpolate(template, data);
   }
 
+  /** Önizleme ve dış çağrılar için ham şablon + değişken birleştirme */
+  renderTemplateByName(
+    templateName: string,
+    variables: Record<string, string>,
+  ): string {
+    if (!isEmailPreviewTemplate(templateName)) {
+      throw new Error(`Geçersiz e-posta şablonu: ${templateName}`);
+    }
+    return this.interpolate(this.getTemplate(templateName), variables);
+  }
+
   private interpolate(template: string, data: Record<string, unknown>): string {
     return template.replace(/\{\{(\w+)\}\}/g, (_, key: string) => {
       const v = data[key];
@@ -78,6 +99,14 @@ export class EmailTemplateService {
       }
       return String(v);
     });
+  }
+
+  private growthColor(pct: number): string {
+    return pct >= 0 ? '#16a34a' : '#dc2626';
+  }
+
+  private growthLabel(pct: number): string {
+    return pct > 0 ? `+${String(pct)}%` : `${String(pct)}%`;
   }
 
   private formatAddressForHtml(address: string): string {
@@ -155,9 +184,137 @@ export class EmailTemplateService {
     const base = this.panelBaseUrl();
     return this.renderTemplate('welcome', {
       name: escapeHtml(data.name),
-      connectionsUrl: escapeHtml(`${base}/connections`),
+      panelUrl: escapeHtml(`${base}/auth/login`),
       unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
     });
+  }
+
+  renderPasswordReset(resetUrl: string): string {
+    return this.renderTemplate('password-reset', {
+      resetUrl: escapeHtml(resetUrl),
+    });
+  }
+
+  renderSubscriptionActivated(data: SubscriptionActivatedData): string {
+    const base = this.panelBaseUrl();
+    return this.renderTemplate('subscription-activated', {
+      planName: escapeHtml(data.planName),
+      planFeatureRows: this.buildPlanFeatureRows(data.planFeatures),
+      panelUrl: escapeHtml(base),
+      unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
+    });
+  }
+
+  renderSubscriptionExpiring(data: SubscriptionExpiringData): string {
+    return this.renderTemplate('subscription-expiring', {
+      daysLeft: String(data.daysLeft),
+      renewUrl: escapeHtml(data.renewUrl),
+      unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
+    });
+  }
+
+  private buildStockAlertRows(products: StockAlertItem[]): string {
+    return products
+      .map(
+        (p) =>
+          `<tr>
+            <td style="padding:10px 10px;border-bottom:1px solid #fde68a;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;">${escapeHtml(p.name)}</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #fde68a;font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#64748b;">${escapeHtml(p.barcode)}</td>
+            <td style="padding:10px 6px;border-bottom:1px solid #fde68a;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#b45309;text-align:center;font-weight:700;">${String(p.currentStock)}</td>
+            <td style="padding:10px 8px;border-bottom:1px solid #fde68a;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:center;">${String(p.recommendedOrderQty)}</td>
+          </tr>`,
+      )
+      .join('');
+  }
+
+  renderStockAlert(data: StockAlertEmailData): string {
+    return this.renderTemplate('stock-alert', {
+      recipientName: escapeHtml(data.recipientName),
+      productRows: this.buildStockAlertRows(data.products),
+      stockUrl: escapeHtml(data.stockUrl),
+      unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
+    });
+  }
+
+  renderWeeklyReport(data: WeeklyReportEmailData): string {
+    return this.renderTemplate('weekly-report', {
+      userName: data.userName,
+      orgName: data.orgName,
+      revenue: data.revenue,
+      orderCount: data.orderCount,
+      revenueGrowthPct: data.revenueGrowthPct,
+      orderGrowthPct: data.orderGrowthPct,
+      revenueGrowthColor: data.revenueGrowthColor,
+      orderGrowthColor: data.orderGrowthColor,
+      platformRows: data.platformRows,
+      stockAlertRows: data.stockAlertRows,
+      reportsUrl: data.reportsUrl,
+      unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
+    });
+  }
+
+  buildWeeklyReportEmailData(input: {
+    userName: string;
+    orgName: string;
+    comparison: {
+      orderCount: number;
+      revenue: number;
+      orderGrowthPct: number;
+      revenueGrowthPct: number;
+    };
+    platformRows: { platform: string; orderCount: number; revenue: number }[];
+    stockAlerts: { barcode: string; platform: string; quantity: number }[];
+  }): WeeklyReportEmailData {
+    const formatTry = (n: number): string =>
+      new Intl.NumberFormat('tr-TR', {
+        style: 'currency',
+        currency: 'TRY',
+        maximumFractionDigits: 0,
+      }).format(n);
+
+    const platformRowsHtml =
+      input.platformRows.length > 0
+        ? input.platformRows
+            .map(
+              (row) =>
+                `<tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;">${escapeHtml(row.platform)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;text-align:right;">${String(row.orderCount)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;text-align:right;font-weight:600;">${formatTry(row.revenue)}</td>
+        </tr>`,
+            )
+            .join('')
+        : `<tr><td colspan="3" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#64748b;">Veri yok</td></tr>`;
+
+    const stockAlertRowsHtml =
+      input.stockAlerts.length > 0
+        ? input.stockAlerts
+            .map(
+              (row) =>
+                `<tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace,Arial,Helvetica,sans-serif;font-size:13px;color:#334155;">${escapeHtml(row.barcode)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#334155;">${escapeHtml(row.platform)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;font-size:14px;text-align:right;color:${row.quantity === 0 ? '#dc2626' : '#d97706'};">${String(row.quantity)}</td>
+        </tr>`,
+            )
+            .join('')
+        : `<tr><td colspan="3" style="padding:8px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#64748b;">Kritik stok uyarısı yok.</td></tr>`;
+
+    const reportsUrl = escapeHtml(`${this.panelBaseUrl()}/reports`);
+
+    return {
+      userName: escapeHtml(input.userName),
+      orgName: escapeHtml(input.orgName),
+      revenue: formatTry(input.comparison.revenue),
+      orderCount: String(input.comparison.orderCount),
+      revenueGrowthPct: this.growthLabel(input.comparison.revenueGrowthPct),
+      orderGrowthPct: this.growthLabel(input.comparison.orderGrowthPct),
+      revenueGrowthColor: this.growthColor(input.comparison.revenueGrowthPct),
+      orderGrowthColor: this.growthColor(input.comparison.orderGrowthPct),
+      platformRows: platformRowsHtml,
+      stockAlertRows: stockAlertRowsHtml,
+      reportsUrl,
+    };
   }
 
   renderOrderNew(data: OrderEmailData): string {
@@ -360,10 +517,79 @@ export class EmailTemplateService {
     });
   }
 
-  previewHtml(template: EmailPreviewTemplate): string {
+  previewHtml(
+    template: EmailPreviewTemplate,
+    overrides?: Record<string, string>,
+  ): string {
+    const html = this.previewHtmlSample(template);
+    if (overrides === undefined || Object.keys(overrides).length === 0) {
+      return html;
+    }
+    return this.interpolate(html, overrides);
+  }
+
+  private previewHtmlSample(template: EmailPreviewTemplate): string {
     switch (template) {
       case 'welcome':
         return this.renderWelcome({ name: 'Ayşe Yılmaz' });
+      case 'password-reset':
+        return this.renderPasswordReset(
+          `${this.panelBaseUrl()}/auth/reset-password?token=demo`,
+        );
+      case 'subscription-activated':
+        return this.renderSubscriptionActivated({
+          planName: 'Senkronize — Pro Paket',
+          planFeatures: [
+            'Aylık sipariş limiti: 10.000',
+            '10 pazaryeri bağlantısı',
+            '15 kullanıcı kotası',
+          ],
+        });
+      case 'subscription-expiring':
+        return this.renderSubscriptionExpiring({
+          daysLeft: 7,
+          renewUrl: `${this.panelBaseUrl()}/settings/subscription`,
+        });
+      case 'stock-alert':
+        return this.renderStockAlert({
+          recipientName: 'Mehmet',
+          stockUrl: `${this.panelBaseUrl()}/stock`,
+          products: [
+            {
+              name: 'Bluetooth Kulaklık V2',
+              barcode: '8680001112233',
+              currentStock: 2,
+              recommendedOrderQty: 20,
+            },
+            {
+              name: 'USB-C Kablo 2m',
+              barcode: 'SKU-CBL-2M',
+              currentStock: 1,
+              recommendedOrderQty: 15,
+            },
+          ],
+        });
+      case 'weekly-report':
+        return this.renderWeeklyReport(
+          this.buildWeeklyReportEmailData({
+            userName: 'Mehmet',
+            orgName: 'Demo Mağaza A.Ş.',
+            comparison: {
+              orderCount: 128,
+              revenue: 245_990,
+              orderGrowthPct: 12,
+              revenueGrowthPct: 8,
+            },
+            platformRows: [
+              { platform: 'Trendyol', orderCount: 72, revenue: 142_000 },
+              { platform: 'Hepsiburada', orderCount: 41, revenue: 78_500 },
+            ],
+            stockAlerts: [
+              { barcode: '8680001112233', platform: 'Trendyol', quantity: 2 },
+              { barcode: 'SKU-CBL-2M', platform: 'n11', quantity: 0 },
+            ],
+          }),
+        );
       case 'order-new':
         return this.renderOrderNew({
           orderNumber: 'TY-104821',

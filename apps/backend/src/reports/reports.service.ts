@@ -193,6 +193,18 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.TIKTOK_SHOP]: 'TikTok Shop',
   [Marketplace.PINTEREST]: 'Pinterest Shopping',
   [Marketplace.INSTAGRAM_SHOP]: 'Instagram Shopping',
+  [Marketplace.YOUTUBE_SHOP]: 'YouTube Shopping',
+  [Marketplace.SNAPCHAT_STORE]: 'Snapchat Store',
+  [Marketplace.WHATSAPP_COMMERCE]: 'WhatsApp Business',
+  [Marketplace.CARREFOUR_FR]: 'Carrefour FR',
+  [Marketplace.CASINO_FR]: 'Casino FR',
+  [Marketplace.LIDL]: 'Lidl Plus',
+  [Marketplace.ALDI]: 'Aldi',
+  [Marketplace.SHOPBACK]: 'Shopback',
+  [Marketplace.COUPANG]: 'Coupang',
+  [Marketplace.STREET11]: '11Street KR',
+  [Marketplace.BULDUMBULDUM]: 'Buldumbuldum',
+  [Marketplace.ALISVERIS_COM]: 'Alışveriş.com',
 };
 
 @Injectable()

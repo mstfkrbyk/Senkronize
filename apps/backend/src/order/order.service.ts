@@ -22,6 +22,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
+import { InvoiceService } from '../invoice/invoice.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { resolveOrderWebhookEvents } from '../webhook/order-webhook-events.util';
 import { WarehouseService } from '../warehouse/warehouse.service';
@@ -53,6 +54,7 @@ export class OrderService {
     private readonly cache: CacheService,
     private readonly warehouseService: WarehouseService,
     private readonly outboundWebhookService: OutboundWebhookService,
+    private readonly invoiceService: InvoiceService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -278,6 +280,75 @@ export class OrderService {
       await this.cache.invalidateReportsForOrg(organizationId);
     }
     return result;
+  }
+
+  async bulkShip(
+    organizationId: string,
+    items: {
+      orderId: string;
+      trackingNumber?: string;
+      cargoProvider?: CargoProvider;
+    }[],
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+
+    for (const item of items) {
+      try {
+        const existing = await this.prisma.order.findFirst({
+          where: { id: item.orderId, organizationId, deletedAt: null },
+        });
+        if (!existing) {
+          result.failed += 1;
+          result.errors.push({ id: item.orderId, message: 'Sipariş bulunamadı' });
+          continue;
+        }
+
+        const trimmedTracking = item.trackingNumber?.trim() ?? '';
+        const data: Prisma.OrderUpdateInput = {
+          ...(item.cargoProvider !== undefined && {
+            cargoProvider: String(item.cargoProvider),
+          }),
+          ...(trimmedTracking.length > 0 && {
+            cargoTrackingNumber: trimmedTracking,
+          }),
+        };
+
+        if (
+          existing.status !== OrderStatus.SHIPPED &&
+          existing.status !== OrderStatus.DELIVERED
+        ) {
+          data.status = OrderStatus.SHIPPED;
+        }
+
+        const updated = await this.prisma.order.update({
+          where: { id: item.orderId },
+          data,
+        });
+
+        if (existing.status !== updated.status) {
+          this.dispatchOrderWebhooks(organizationId, {
+            isCreate: false,
+            prevStatus: existing.status,
+            newStatus: updated.status,
+            orderId: item.orderId,
+          });
+        }
+
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id: item.orderId, message: 'Kargoya verilemedi' });
+      }
+    }
+
+    if (result.success > 0) {
+      await this.cache.invalidateReportsForOrg(organizationId);
+    }
+    return result;
+  }
+
+  async bulkInvoice(organizationId: string, orderIds: string[]): Promise<Buffer> {
+    return this.invoiceService.generateBulkInvoicePdf(orderIds, organizationId);
   }
 
   async bulkUpdateStatus(

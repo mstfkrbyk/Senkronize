@@ -462,6 +462,68 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
+  YOUTUBE_SHOP: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+    },
+  ],
+  SNAPCHAT_STORE: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+    },
+  ],
+  WHATSAPP_COMMERCE: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (Meta OAuth2)',
+      type: 'password',
+      required: true,
+    },
+  ],
+  CARREFOUR_FR: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  CASINO_FR: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  LIDL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ALDI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SHOPBACK: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  COUPANG: [
+    { key: 'accessKey', label: 'Access Key', type: 'text', required: true },
+    { key: 'secretKey', label: 'Secret Key', type: 'password', required: true },
+  ],
+  STREET11: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  BULDUMBULDUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ALISVERIS_COM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -2020,6 +2082,18 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'TIKTOK_SHOP',
   'PINTEREST',
   'INSTAGRAM_SHOP',
+  'YOUTUBE_SHOP',
+  'SNAPCHAT_STORE',
+  'WHATSAPP_COMMERCE',
+  'CARREFOUR_FR',
+  'CASINO_FR',
+  'LIDL',
+  'ALDI',
+  'SHOPBACK',
+  'COUPANG',
+  'STREET11',
+  'BULDUMBULDUM',
+  'ALISVERIS_COM',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

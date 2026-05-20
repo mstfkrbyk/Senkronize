@@ -15,6 +15,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 export class UpdateOrderStatusDto {
@@ -66,6 +67,32 @@ export class BulkUpdateOrderStatusDto extends BulkOrderIdsDto {
   @ApiProperty({ enum: OrderStatus })
   @IsEnum(OrderStatus)
   status!: OrderStatus;
+}
+
+export class BulkShipItemDto {
+  @ApiProperty({ description: 'Sipariş kimliği' })
+  @IsString()
+  @MinLength(1)
+  orderId!: string;
+
+  @ApiPropertyOptional({ description: 'Kargo takip numarası' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  trackingNumber?: string;
+
+  @ApiPropertyOptional({ enum: CargoProvider, description: 'Kargo firması' })
+  @IsOptional()
+  @IsEnum(CargoProvider)
+  cargoProvider?: CargoProvider;
+}
+
+export class BulkShipDto {
+  @ApiProperty({ type: [BulkShipItemDto], description: 'Kargoya verilecek siparişler' })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkShipItemDto)
+  items!: BulkShipItemDto[];
 }
 
 export class AddTrackingNumberDto {

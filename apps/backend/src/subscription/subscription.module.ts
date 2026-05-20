@@ -8,6 +8,7 @@ import { PaymentModule } from '../payment/payment.module';
 import { PaytrService } from './paytr.service';
 import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
+import { SubscriptionRenewalTask } from './subscription-renewal.task';
 import { TrialExpiryTask } from './trial-expiry.task';
 
 @Module({
@@ -23,7 +24,12 @@ import { TrialExpiryTask } from './trial-expiry.task';
     PartnerModule,
   ],
   controllers: [SubscriptionController],
-  providers: [PaytrService, SubscriptionService, TrialExpiryTask],
+  providers: [
+    PaytrService,
+    SubscriptionService,
+    TrialExpiryTask,
+    SubscriptionRenewalTask,
+  ],
   exports: [SubscriptionService],
 })
 export class SubscriptionModule {}

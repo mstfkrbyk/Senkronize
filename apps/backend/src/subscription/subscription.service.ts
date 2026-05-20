@@ -1332,6 +1332,18 @@ export class SubscriptionService {
               error,
             });
           });
+        void this.emailService
+          .sendSubscriptionActivatedWithFeatures(
+            ownerForEmail.email,
+            PLAN_LABEL_TR[payment.plan],
+            planLimitFeatureLines(payment.plan),
+          )
+          .catch((error: unknown) => {
+            this.logger.error('Abonelik aktivasyon e-postası gönderilemedi', {
+              organizationId: payment.organizationId,
+              error,
+            });
+          });
       }
       await this.invalidateSubscriptionCache(payment.organizationId);
       return;

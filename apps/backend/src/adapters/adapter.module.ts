@@ -8,6 +8,8 @@ import { A101Module } from './a101/a101.module';
 import { AboutYouModule } from './about-you/about-you.module';
 import { AddaxModule } from './addax/addax.module';
 import { AdidasTrModule } from './adidas-tr/adidas-tr.module';
+import { AldiModule } from './aldi/aldi.module';
+import { AlisverisComModule } from './alisveris-com/alisveris-com.module';
 import { AsosModule } from './asos/asos.module';
 import { AlibabaModule } from './alibaba/alibaba.module';
 import { AlibabaTrModule } from './alibaba-tr/alibaba-tr.module';
@@ -32,14 +34,18 @@ import { BimakilliModule } from './bimakilli/bimakilli.module';
 import { BolcomModule } from './bolcom/bolcom.module';
 import { BlibliModule } from './blibli/blibli.module';
 import { BukalapakModule } from './bukalapak/bukalapak.module';
+import { BuldumbuldumModule } from './buldumbuldum/buldumbuldum.module';
 import { BoynerModule } from './boyner/boyner.module';
 import { CatchAuModule } from './catch-au/catch-au.module';
 import { CentralOnlineModule } from './central-online/central-online.module';
 import { CarrefoursaModule } from './carrefoursa/carrefoursa.module';
 import { CarrefourMeModule } from './carrefour-me/carrefour-me.module';
+import { CarrefourFrModule } from './carrefour-fr/carrefour-fr.module';
+import { CasinoFrModule } from './casino-fr/casino-fr.module';
 import { CdiscountModule } from './cdiscount/cdiscount.module';
 import { CiceksepetiEvModule } from './ciceksepeti-ev/ciceksepeti-ev.module';
 import { CimriModule } from './cimri/cimri.module';
+import { CoupangModule } from './coupang/coupang.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { DefactoModule } from './defacto/defacto.module';
 import { DopingModule } from './doping/doping.module';
@@ -104,6 +110,7 @@ import { LaredouteModule } from './laredoute/laredoute.module';
 import { LcwaikikiModule } from './lcwaikiki/lcwaikiki.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
+import { LidlModule } from './lidl/lidl.module';
 import { LinioModule } from './linio/linio.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
@@ -174,11 +181,14 @@ import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { ShopirollModule } from './shopiroll/shopiroll.module';
 import { ShopiverseModule } from './shopiverse/shopiverse.module';
 import { ShopigoModule } from './shopigo/shopigo.module';
+import { ShopbackModule } from './shopback/shopback.module';
 import { SimpraModule } from './simpra/simpra.module';
 import { SokMarketModule } from './sok-market/sok-market.module';
 import { SnapdealModule } from './snapdeal/snapdeal.module';
+import { SnapchatStoreModule } from './snapchat-store/snapchat-store.module';
 import { SouqModule } from './souq/souq.module';
 import { SportiveModule } from './sportive/sportive.module';
+import { Street11Module } from './street11/street11.module';
 import { TakealotModule } from './takealot/takealot.module';
 import { TikiModule } from './tiki/tiki.module';
 import { TiktokShopModule } from './tiktok-shop/tiktok-shop.module';
@@ -216,9 +226,11 @@ import { WishModule } from './wish/wish.module';
 import { WalmartModule } from './walmart/walmart.module';
 import { WadiModule } from './wadi/wadi.module';
 import { WatsonsTrModule } from './watsons-tr/watsons-tr.module';
+import { WhatsappCommerceModule } from './whatsapp-commerce/whatsapp-commerce.module';
 import { WayfairModule } from './wayfair/wayfair.module';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 import { YargiciModule } from './yargici/yargici.module';
+import { YoutubeShopModule } from './youtube-shop/youtube-shop.module';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
 import { ZalandoModule } from './zalando/zalando.module';
 import { YandexMarketModule } from './yandex-market/yandex-market.module';
@@ -236,6 +248,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AboutYouModule,
     AddaxModule,
     AdidasTrModule,
+    AldiModule,
+    AlisverisComModule,
     AsosModule,
     AlibabaModule,
     AlibabaTrModule,
@@ -256,14 +270,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BolcomModule,
     BlibliModule,
     BukalapakModule,
+    BuldumbuldumModule,
     BoynerModule,
     CatchAuModule,
     CentralOnlineModule,
     CarrefourMeModule,
+    CarrefourFrModule,
+    CasinoFrModule,
     CarrefoursaModule,
     CdiscountModule,
     CiceksepetiEvModule,
     CimriModule,
+    CoupangModule,
     DefactoModule,
     DopingModule,
     DarazModule,
@@ -322,6 +340,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LidlModule,
     LinioModule,
     LogoCommerceModule,
     LogoCloudModule,
@@ -381,12 +400,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopbackModule,
     ShopirollModule,
     ShopiverseModule,
     SimpraModule,
     SnapdealModule,
+    SnapchatStoreModule,
     SokMarketModule,
     SportiveModule,
+    Street11Module,
     SouqModule,
     TikiModule,
     TiktokShopModule,
@@ -416,12 +438,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VintedModule,
     VivenseModule,
     WatsonsTrModule,
+    WhatsappCommerceModule,
     WildberriesModule,
     WishModule,
     WalmartModule,
     WadiModule,
     WayfairModule,
     YargiciModule,
+    YoutubeShopModule,
     YemeksepetiModule,
     YandexMarketModule,
     ZalandoModule,
@@ -489,6 +513,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AboutYouModule,
     AddaxModule,
     AdidasTrModule,
+    AldiModule,
+    AlisverisComModule,
     AsosModule,
     AlibabaModule,
     AlibabaTrModule,
@@ -509,14 +535,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BolcomModule,
     BlibliModule,
     BukalapakModule,
+    BuldumbuldumModule,
     BoynerModule,
     CatchAuModule,
     CentralOnlineModule,
     CarrefourMeModule,
+    CarrefourFrModule,
+    CasinoFrModule,
     CarrefoursaModule,
     CdiscountModule,
     CiceksepetiEvModule,
     CimriModule,
+    CoupangModule,
     DefactoModule,
     DopingModule,
     DarazModule,
@@ -575,6 +605,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LetgoModule,
     LcwaikikiModule,
     LidyanaModule,
+    LidlModule,
     LinioModule,
     LogoCommerceModule,
     LogoCloudModule,
@@ -634,12 +665,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopbackModule,
     ShopirollModule,
     ShopiverseModule,
     SimpraModule,
     SnapdealModule,
+    SnapchatStoreModule,
     SokMarketModule,
     SportiveModule,
+    Street11Module,
     SouqModule,
     TikiModule,
     TiktokShopModule,
@@ -669,12 +703,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VintedModule,
     VivenseModule,
     WatsonsTrModule,
+    WhatsappCommerceModule,
     WildberriesModule,
     WishModule,
     WalmartModule,
     WadiModule,
     WayfairModule,
     YargiciModule,
+    YoutubeShopModule,
     YemeksepetiModule,
     ZalandoModule,
     ZaraModule,

@@ -174,7 +174,7 @@ export class AuthService {
         });
       });
 
-    void this.emailService.sendWelcome(email, { name: dto.name }).catch((error: unknown) => {
+    void this.emailService.sendWelcome(email, dto.name).catch((error: unknown) => {
       this.logger.error('Hoş geldin e-postası gönderilemedi', {
         organizationId: newUser.organizationId!,
         error,
