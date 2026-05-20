@@ -1,11 +1,11 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Package, Plug, Receipt } from 'lucide-react';
-import { toast } from 'sonner';
+import { Check, Loader2, Package, Plug, Receipt } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAddProductLineMutation } from '@/hooks/useAddProductLineMutation';
 import { useAuthStore } from '@/store/auth.store';
 import type { OrgProductLine } from '@/types/auth';
 import { cn } from '@/lib/utils';
@@ -29,30 +29,17 @@ const CARD_ICONS: Record<
 
 interface Props {
   orgProducts?: OrgProductLine[];
-  onUpgradePlan?: () => void;
   className?: string;
 }
 
 export function SubscriptionProductLines({
   orgProducts: orgProductsProp,
-  onUpgradePlan,
   className,
 }: Props): ReactElement {
   const { t } = useTranslation();
   const storeOrgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const orgProducts = orgProductsProp ?? storeOrgProducts;
-
-  function handleUpgrade(): void {
-    toast.message(t('settings.subscriptionTab.productLines.upgradeToast'));
-    if (onUpgradePlan) {
-      onUpgradePlan();
-      return;
-    }
-    document.getElementById('subscription-plan-comparison')?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }
+  const addProductLineMutation = useAddProductLineMutation(orgProducts);
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -131,11 +118,17 @@ export function SubscriptionProductLines({
                     variant={card.id === 'BUNDLE' ? 'default' : 'outline'}
                     size="sm"
                     className="w-full"
+                    disabled={addProductLineMutation.isPending}
                     onClick={() => {
-                      handleUpgrade();
+                      addProductLineMutation.mutate(card.id);
                     }}
                   >
-                    {t('settings.subscriptionTab.productLines.upgradeCta')}
+                    {addProductLineMutation.isPending &&
+                    addProductLineMutation.variables === card.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                    ) : (
+                      t('settings.subscriptionTab.productLines.upgradeCta')
+                    )}
                   </Button>
                 </CardFooter>
               ) : active ? (

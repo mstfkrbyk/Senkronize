@@ -352,6 +352,7 @@
         "recommendedBadge": "Recommended",
         "included": "Active on your account",
         "upgradeCta": "Add to package",
+        "addSuccess": "Product line added to your account.",
         "upgradeToast": "To expand product lines, upgrade your plan below or contact support.",
         "integration": {
           "title": "Integration",

@@ -468,10 +468,6 @@ export function SubscriptionTab(): ReactElement {
   const usage: UsageOverview | undefined = usageQuery.data;
   const upgradeTargetName = upgradeTarget ? planDisplayName(upgradeTarget) : '';
 
-  function scrollToPlanComparison(): void {
-    planComparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   return (
     <div className="space-y-8">
       <div>
@@ -483,7 +479,7 @@ export function SubscriptionTab(): ReactElement {
         </p>
       </div>
 
-      <SubscriptionProductLines onUpgradePlan={scrollToPlanComparison} />
+      <SubscriptionProductLines />
 
       {subQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
 

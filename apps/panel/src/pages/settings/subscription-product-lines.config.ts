@@ -91,3 +91,27 @@ export function canUpgradeToProductLineCard(
   }
   return !hasOrgProductLine(orgProducts, 'ACCOUNTING');
 }
+
+/** Kart CTA'sı için eklenecek ürün hatları (sıralı). */
+export function productLinesToAddForCard(
+  cardId: SubscriptionProductLineCardId,
+  orgProducts: OrgProductLine[] | undefined,
+): OrgProductLine[] {
+  if (cardId === 'BUNDLE') {
+    const missing: OrgProductLine[] = [];
+    if (!hasOrgProductLine(orgProducts, 'INTEGRATION')) {
+      missing.push('INTEGRATION');
+    }
+    if (!hasOrgProductLine(orgProducts, 'ACCOUNTING')) {
+      missing.push('ACCOUNTING');
+    }
+    return missing;
+  }
+  if (cardId === 'INTEGRATION' && !hasOrgProductLine(orgProducts, 'INTEGRATION')) {
+    return ['INTEGRATION'];
+  }
+  if (cardId === 'ACCOUNTING' && !hasOrgProductLine(orgProducts, 'ACCOUNTING')) {
+    return ['ACCOUNTING'];
+  }
+  return [];
+}

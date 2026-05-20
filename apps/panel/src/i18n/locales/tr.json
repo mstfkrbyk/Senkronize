@@ -354,6 +354,7 @@
         "recommendedBadge": "Önerilen",
         "included": "Hesabınızda etkin",
         "upgradeCta": "Pakete ekle",
+        "addSuccess": "Ürün hattı hesabınıza eklendi.",
         "upgradeToast": "Ürün hattı genişletme için aşağıdaki plan karşılaştırmasından paketinizi yükseltebilir veya destek ile iletişime geçebilirsiniz.",
         "integration": {
           "title": "Entegrasyon",
