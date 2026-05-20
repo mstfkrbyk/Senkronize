@@ -132,6 +132,19 @@ describe('BuyBoxService', () => {
       expect(next).toBeGreaterThanOrEqual(Math.round(costPrice * 1.1 * 100) / 100);
     });
 
+    it('rakip minimum fiyatın altındaysa minimum fiyat döner', () => {
+      const costPrice = 100;
+      const minPrice = Math.round(costPrice * 1.1 * 100) / 100;
+      const next = svc.calculateOptimalPrice({
+        currentPrice: 200,
+        costPrice,
+        minMargin: 10,
+        competitors: [{ price: 85 }],
+        strategy: 'aggressive',
+      });
+      expect(next).toBe(minPrice);
+    });
+
     it('conservative stratejide ortalama fiyata yakın hedefler', () => {
       const next = svc.calculateOptimalPrice({
         currentPrice: 200,

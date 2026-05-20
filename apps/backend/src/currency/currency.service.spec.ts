@@ -31,6 +31,12 @@ describe('CurrencyService', () => {
     );
   });
 
+  it('aynı para birimi için tutarı değiştirmeden döner', async () => {
+    const amount = new Decimal(125.75);
+    const result = await service.convert(amount, 'TRY', 'TRY');
+    expect(Number(result)).toBe(125.75);
+  });
+
   it('USD → TRY dönüşümü rate * amount döner', async () => {
     const rate = 34.5;
     const amount = 10;

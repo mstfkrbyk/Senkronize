@@ -97,6 +97,32 @@ describe('SubscriptionService', () => {
   });
 
   describe('plan limit kontrolleri', () => {
+    it.each([
+      [PlanTier.BASLANGIC, 3],
+      [PlanTier.GELISIM, 10],
+      [PlanTier.PRO, 25],
+    ] as const)(
+      'effectiveMarketplaceLimit — %s paketi en fazla %i pazaryeri',
+      (plan, expectedMax) => {
+        const limit = service.effectiveMarketplaceLimit({
+          ...baseSubscription,
+          marketplaceLimit: null,
+          plan,
+        });
+        expect(limit).toBe(expectedMax);
+      },
+    );
+
+    it('effectiveMarketplaceLimit — KURUMSAL pakette sınırsız (-1)', () => {
+      const limit = service.effectiveMarketplaceLimit({
+        ...baseSubscription,
+        marketplaceLimit: null,
+        plan: PlanTier.KURUMSAL,
+      });
+      expect(limit).toBe(PLAN_LIMITS.KURUMSAL.marketplaces);
+      expect(limit).toBe(-1);
+    });
+
     it('effectiveMarketplaceLimit — DB null ise paket varsayılanını döner', () => {
       const limit = service.effectiveMarketplaceLimit({
         ...baseSubscription,
@@ -206,6 +232,25 @@ describe('SubscriptionService', () => {
       await expect(service.getUsageOverview(orgId)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+
+    it('getUsageOverview — KURUMSAL pakette limitler null (sınırsız)', async () => {
+      prisma.subscription.findUnique.mockResolvedValue({
+        ...baseSubscription,
+        plan: PlanTier.KURUMSAL,
+        status: SubStatus.ACTIVE,
+      });
+      prisma.order.count.mockResolvedValue(0);
+      prisma.marketplaceConnection.count.mockResolvedValue(0);
+      prisma.product.count.mockResolvedValue(0);
+      prisma.user.count.mockResolvedValue(1);
+      prisma.warehouse.count.mockResolvedValue(0);
+
+      const overview = await service.getUsageOverview(orgId);
+
+      expect(overview.usage.marketplaces.limit).toBeNull();
+      expect(overview.usage.orders.limit).toBeNull();
+      expect(overview.usage.products.limit).toBeNull();
     });
   });
 });
