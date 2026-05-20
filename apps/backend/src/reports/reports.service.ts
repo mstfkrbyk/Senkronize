@@ -3,6 +3,7 @@ import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 
 import { readThroughCache } from '../common/cache/cache.decorator';
+import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { CurrencyService } from '../currency/currency.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -193,8 +194,8 @@ export class ReportsService {
     period: 'default' | '24h' | '7d' | 'month' | undefined,
   ): Promise<DashboardSummaryDto> {
     const p = period ?? 'default';
-    const cacheKey = CacheService.key('dashboard', organizationId, p);
-    return readThroughCache(this.cache, cacheKey, 120, async () => {
+    const cacheKey = `${CacheKeys.dashboard(organizationId)}:${p}`;
+    return this.cache.readThrough(cacheKey, 60, async () => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);
@@ -359,6 +360,25 @@ export class ReportsService {
       returnRatePct,
     };
     });
+  }
+
+  /**
+   * Ağır rapor üretimi için read-through önbellek (10 dakika).
+   */
+  async generateReport<T>(
+    organizationId: string,
+    reportType: string,
+    configDigest: string,
+    producer: () => Promise<T>,
+  ): Promise<T> {
+    const cacheKey = CacheService.key(
+      'reports',
+      'generate',
+      organizationId,
+      reportType,
+      configDigest,
+    );
+    return this.cache.readThrough(cacheKey, 600, producer);
   }
 
   async getSalesReport(

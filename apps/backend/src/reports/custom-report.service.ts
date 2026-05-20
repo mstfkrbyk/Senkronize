@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Marketplace, OrderStatus, Prisma, ReportType, type SavedReport } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { createHash } from 'crypto';
 
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -327,6 +328,28 @@ export class CustomReportService {
   ) {}
 
   async runReport(
+    organizationId: string,
+    configInput: ReportConfig,
+    opts?: { preview?: boolean },
+  ): Promise<ReportResult> {
+    const config = { ...configInput, reportType: configInput.reportType };
+    const preview = opts?.preview === true;
+    if (preview) {
+      return this.runReportUncached(organizationId, config, opts);
+    }
+    const digest = createHash('sha256')
+      .update(JSON.stringify({ organizationId, config }))
+      .digest('hex')
+      .slice(0, 24);
+    return this.reportsService.generateReport(
+      organizationId,
+      config.reportType,
+      digest,
+      () => this.runReportUncached(organizationId, config, opts),
+    );
+  }
+
+  private async runReportUncached(
     organizationId: string,
     configInput: ReportConfig,
     opts?: { preview?: boolean },

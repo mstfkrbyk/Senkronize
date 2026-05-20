@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
 
 import { readThroughCache } from '../common/cache/cache.decorator';
+import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import {
   MARKETPLACE_LABEL_TR,
@@ -88,14 +89,9 @@ export class AnalyticsService {
   ): Promise<PlatformComparisonResponse> {
     const periodDays = parsePeriodDays(period, 30);
     const { current, previous } = rangeWithPrevious(periodDays);
-    const cacheKey = CacheService.key(
-      'analytics',
-      'platform-comparison',
-      organizationId,
-      String(periodDays),
-    );
+    const cacheKey = `${CacheKeys.platformStats(organizationId)}:${String(periodDays)}`;
 
-    return readThroughCache(this.cache, cacheKey, 300, async () => {
+    return this.cache.readThrough(cacheKey, 300, async () => {
       const baseWhere = (from: Date, to: Date): Prisma.OrderWhereInput => ({
         organizationId,
         deletedAt: null,

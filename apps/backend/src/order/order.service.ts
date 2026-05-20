@@ -16,6 +16,7 @@ import {
 import type { MarketplaceOrder } from '@senkronize/shared';
 import type { Queue } from 'bull';
 
+import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
@@ -628,7 +629,10 @@ export class OrderService {
       }
     }
 
-    await this.cache.invalidateReportsForOrg(organizationId);
+    await Promise.all([
+      this.cache.invalidateReportsForOrg(organizationId),
+      this.cache.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
+    ]);
     return { createdOrders };
   }
 

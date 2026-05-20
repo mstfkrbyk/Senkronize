@@ -21,6 +21,8 @@ import { EmailService } from '../notifications/email/email.service';
 import type { InvoiceEmailData } from '../notifications/email/email-template.types';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PartnerService } from '../partner/partner.service';
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { IyzicoService } from '../payment/iyzico.service';
 import {
@@ -157,6 +159,7 @@ export class SubscriptionService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
     private readonly paytrService: PaytrService,
     private readonly iyzicoService: IyzicoService,
     private readonly encryptionService: EncryptionService,
@@ -179,14 +182,26 @@ export class SubscriptionService {
     );
   }
 
+  private async invalidateSubscriptionCache(
+    organizationId: string,
+  ): Promise<void> {
+    await this.cache.del(CacheKeys.subscription(organizationId));
+  }
+
   async getSubscription(organizationId: string): Promise<Subscription> {
-    const sub = await this.prisma.subscription.findUnique({
-      where: { organizationId },
-    });
-    if (!sub) {
-      throw new NotFoundException('Abonelik bulunamadı.');
-    }
-    return sub;
+    return this.cache.readThrough(
+      CacheKeys.subscription(organizationId),
+      1_800,
+      async () => {
+        const sub = await this.prisma.subscription.findUnique({
+          where: { organizationId },
+        });
+        if (!sub) {
+          throw new NotFoundException('Abonelik bulunamadı.');
+        }
+        return sub;
+      },
+    );
   }
 
   async changePlan(
@@ -288,6 +303,7 @@ export class SubscriptionService {
         });
     }
 
+    await this.invalidateSubscriptionCache(organizationId);
     return updated;
   }
 
@@ -393,6 +409,8 @@ export class SubscriptionService {
           });
         });
     }
+
+    await this.invalidateSubscriptionCache(organizationId);
   }
 
   async reactivateSubscription(
@@ -467,6 +485,7 @@ export class SubscriptionService {
       });
     }
 
+    await this.invalidateSubscriptionCache(organizationId);
     return updated;
   }
 
@@ -880,6 +899,7 @@ export class SubscriptionService {
             subscriptionEndsAt: orgSub.subscriptionEndsAt ?? orgSub.currentPeriodEnd,
           },
         });
+        await this.invalidateSubscriptionCache(orgSub.organizationId);
       }
       return;
     }
@@ -982,6 +1002,8 @@ export class SubscriptionService {
         message: notifyErr instanceof Error ? notifyErr.message : 'unknown',
       });
     }
+
+    await this.invalidateSubscriptionCache(payment.organizationId);
   }
 
   async requestPlanUpgrade(
@@ -1311,6 +1333,7 @@ export class SubscriptionService {
             });
           });
       }
+      await this.invalidateSubscriptionCache(payment.organizationId);
       return;
     }
 

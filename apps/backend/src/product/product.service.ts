@@ -62,8 +62,27 @@ const productListSelect = {
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
 
+const productListListingSelect = {
+  platform: true,
+  salePrice: true,
+  quantity: true,
+  isActive: true,
+} satisfies Prisma.ListingSelect;
+
+const productListWithRelationsSelect = {
+  ...productListSelect,
+  listings: {
+    where: { deletedAt: null },
+    select: productListListingSelect,
+  },
+  variants: {
+    where: { deletedAt: null },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.ProductSelect;
+
 export type ProductListItem = Prisma.ProductGetPayload<{
-  select: typeof productListSelect;
+  select: typeof productListWithRelationsSelect;
 }>;
 
 export interface ProductDetailListing {
@@ -195,7 +214,7 @@ export class ProductService {
     const [items, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        select: productListSelect,
+        select: productListWithRelationsSelect,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,

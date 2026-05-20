@@ -8,6 +8,7 @@ import {
 import type Redis from 'ioredis';
 
 import { REDIS_CACHE } from './cache.constants';
+import { CacheKeys } from './cache-keys';
 
 @Injectable()
 export class CacheService implements OnModuleDestroy {
@@ -171,9 +172,47 @@ export class CacheService implements OnModuleDestroy {
     await this.delPattern(pattern);
   }
 
+  /** Read-through: önbellekte varsa döner, yoksa üretir ve yazar. */
+  async readThrough<T>(
+    key: string,
+    ttlSeconds: number,
+    fetcher: () => Promise<T>,
+  ): Promise<T> {
+    const hit = await this.get<T>(key);
+    if (hit !== null) {
+      return hit;
+    }
+    const value = await fetcher();
+    await this.set(key, value, ttlSeconds);
+    return value;
+  }
+
+  /** Organizasyona ait panel, rapor ve liste önbelleklerini temizler. */
+  async invalidateOrg(organizationId: string): Promise<void> {
+    await Promise.all([
+      this.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
+      this.delPattern(`${CacheKeys.platformStats(organizationId)}*`),
+      this.delPattern(`${CacheKeys.listing(organizationId)}*`),
+      this.delPattern(`${CacheKeys.product(organizationId, '*')}`),
+      this.del(CacheKeys.subscription(organizationId)),
+      this.delPattern(CacheService.key('reports', '*', organizationId, '*')),
+      this.delPattern(CacheService.key('reports', organizationId, '*')),
+      this.delPattern(CacheService.key('dashboard', organizationId, '*')),
+      this.delPattern(CacheService.key('analytics', '*', organizationId, '*')),
+      this.delPattern(CacheService.key('products', organizationId, '*')),
+      this.delPattern(CacheService.key('listings', organizationId, '*')),
+    ]);
+  }
+
+  /** Tek listeleme buybox / fiyat önbelleğini temizler. */
+  async invalidateListing(listingId: string): Promise<void> {
+    await this.del(CacheKeys.buyboxScore(listingId));
+  }
+
   /** Rapor + panel özet önbelleğini temizle (sipariş senkronu vb.) */
   async invalidateReportsForOrg(organizationId: string): Promise<void> {
     await Promise.all([
+      this.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
       this.delPattern(CacheService.key('reports', '*', organizationId, '*')),
       this.delPattern(CacheService.key('reports', organizationId, '*')),
       this.delPattern(CacheService.key('dashboard', organizationId, '*')),

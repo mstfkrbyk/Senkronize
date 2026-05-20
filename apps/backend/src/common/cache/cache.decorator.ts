@@ -13,13 +13,7 @@ export async function readThroughCache<T>(
   ttlSeconds: number,
   producer: () => Promise<T>,
 ): Promise<T> {
-  const hit = await cache.get<T>(key);
-  if (hit !== null) {
-    return hit;
-  }
-  const value = await producer();
-  await cache.set(key, value, ttlSeconds);
-  return value;
+  return cache.readThrough(key, ttlSeconds, producer);
 }
 
 /**
