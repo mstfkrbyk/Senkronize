@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer';
+
 import { Injectable, Logger } from '@nestjs/common';
 import type {
   IMarketplaceAdapter,
@@ -26,19 +28,18 @@ export class NoonAdapter implements IMarketplaceAdapter {
     return PLATFORM_RATE_LIMITS.NOON ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private headers(
+  private authHeader(
     apiKey: string,
-    apiSecret?: string,
+    apiSecret: string,
   ): { headers: Record<string, string> } {
-    const headers: Record<string, string> = {
-      'Api-Key': apiKey,
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
+    const basic = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+    return {
+      headers: {
+        Authorization: `Basic ${basic}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
     };
-    if (apiSecret) {
-      headers['Api-Secret'] = apiSecret;
-    }
-    return { headers };
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
@@ -48,13 +49,21 @@ export class NoonAdapter implements IMarketplaceAdapter {
       if (!apiKey || !apiSecret) {
         return false;
       }
+      const end = new Date().toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
       await axiosWithRetry<unknown>(
         {
           method: 'GET',
-          url: `${NOON_API_BASE}/orders`,
+          url: `${NOON_API_BASE}/order/export`,
           timeout: 12_000,
-          params: { page_size: 1 },
-          ...this.headers(apiKey, apiSecret),
+          params: {
+            status: 'CREATED',
+            start_date: start,
+            end_date: end,
+            limit: 1,
+            page: 1,
+          },
+          ...this.authHeader(apiKey, apiSecret),
         },
         { maxRetries: 1 },
       );
@@ -110,7 +119,7 @@ export class NoonAdapter implements IMarketplaceAdapter {
     }
     return {
       platformOrderId: idRaw,
-      status: typeof row.status === 'string' ? row.status : 'NEW',
+      status: typeof row.status === 'string' ? row.status : 'CREATED',
       customerName: '—',
       items: lines.map((l, i) => {
         const sku =
@@ -147,25 +156,49 @@ export class NoonAdapter implements IMarketplaceAdapter {
       if (!apiKey || !apiSecret) {
         throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
-      return await withRateLimit('NOON', this.rpm(), async () => {
-        const data = await axiosWithRetry<unknown>(
-          {
-            method: 'GET',
-            url: `${NOON_API_BASE}/orders`,
-            timeout: 25_000,
-            params: {
-              page_size: 50,
-              ...(since !== undefined ? { updated_from: since.toISOString() } : {}),
+      const endDate = new Date().toISOString().slice(0, 10);
+      const startDate =
+        since !== undefined
+          ? since.toISOString().slice(0, 10)
+          : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      const orders: MarketplaceOrder[] = [];
+      let page = 1;
+      const limit = 50;
+      for (;;) {
+        const data = await withRateLimit('NOON', this.rpm(), async () =>
+          axiosWithRetry<unknown>(
+            {
+              method: 'GET',
+              url: `${NOON_API_BASE}/order/export`,
+              timeout: 25_000,
+              params: {
+                status: 'CREATED',
+                start_date: startDate,
+                end_date: endDate,
+                limit,
+                page,
+              },
+              ...this.authHeader(apiKey, apiSecret),
             },
-            ...this.headers(apiKey, apiSecret),
-          },
-          {},
+            {},
+          ),
         );
         const rows = this.extractOrderRows(data);
-        return rows
-          .map((r) => this.mapOrder(r))
-          .filter((x): x is MarketplaceOrder => x !== null);
-      });
+        if (rows.length === 0) {
+          break;
+        }
+        for (const row of rows) {
+          const mapped = this.mapOrder(row);
+          if (mapped) {
+            orders.push(mapped);
+          }
+        }
+        if (rows.length < limit) {
+          break;
+        }
+        page += 1;
+      }
+      return orders;
     } catch (error) {
       throwSyncFailed('NOON', 'getOrders', error);
     }
@@ -191,21 +224,18 @@ export class NoonAdapter implements IMarketplaceAdapter {
         throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
       await withRateLimit('NOON', this.rpm(), async () => {
-        await axiosWithRetry<unknown>(
-          {
-            method: 'POST',
-            url: `${NOON_API_BASE}/catalog/stock`,
-            timeout: 25_000,
-            data: {
-              items: updates.map((u) => ({
-                partner_sku: u.barcode,
-                stock: u.quantity,
-              })),
+        for (const u of updates) {
+          await axiosWithRetry<unknown>(
+            {
+              method: 'PUT',
+              url: `${NOON_API_BASE}/catalog/items/${encodeURIComponent(u.barcode)}/price-and-availability`,
+              timeout: 25_000,
+              data: { availableQuantity: u.quantity },
+              ...this.authHeader(apiKey, apiSecret),
             },
-            ...this.headers(apiKey, apiSecret),
-          },
-          {},
-        );
+            {},
+          );
+        }
       });
     } catch (error) {
       throwSyncFailed('NOON', 'updateStock', error);
@@ -223,25 +253,52 @@ export class NoonAdapter implements IMarketplaceAdapter {
         throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
       await withRateLimit('NOON', this.rpm(), async () => {
+        for (const u of updates) {
+          const sale = u.salePrice;
+          await axiosWithRetry<unknown>(
+            {
+              method: 'PUT',
+              url: `${NOON_API_BASE}/catalog/items/${encodeURIComponent(u.barcode)}/price-and-availability`,
+              timeout: 25_000,
+              data: { sellingPrice: sale },
+              ...this.authHeader(apiKey, apiSecret),
+            },
+            {},
+          );
+        }
+      });
+    } catch (error) {
+      throwSyncFailed('NOON', 'updatePrice', error);
+    }
+  }
+
+  /** Stok + fiyat tek istek — PUT /catalog/items/{sku}/price-and-availability */
+  async updatePriceAndAvailability(
+    credentials: Record<string, string>,
+    sku: string,
+    sellingPrice: number,
+    availableQuantity: number,
+  ): Promise<void> {
+    try {
+      const apiKey = credentials.apiKey?.trim();
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!apiKey || !apiSecret) {
+        throw new Error('Noon: apiKey ve apiSecret zorunludur');
+      }
+      await withRateLimit('NOON', this.rpm(), async () => {
         await axiosWithRetry<unknown>(
           {
-            method: 'POST',
-            url: `${NOON_API_BASE}/catalog/price`,
+            method: 'PUT',
+            url: `${NOON_API_BASE}/catalog/items/${encodeURIComponent(sku)}/price-and-availability`,
             timeout: 25_000,
-            data: {
-              items: updates.map((u) => ({
-                partner_sku: u.barcode,
-                sale_price: u.salePrice,
-                list_price: u.listPrice > 0 ? u.listPrice : u.salePrice,
-              })),
-            },
-            ...this.headers(apiKey, apiSecret),
+            data: { sellingPrice, availableQuantity },
+            ...this.authHeader(apiKey, apiSecret),
           },
           {},
         );
       });
     } catch (error) {
-      throwSyncFailed('NOON', 'updatePrice', error);
+      throwSyncFailed('NOON', 'updatePriceAndAvailability', error);
     }
   }
 }
