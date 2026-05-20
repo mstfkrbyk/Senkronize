@@ -1,5 +1,8 @@
 import { BullModule } from '@nestjs/bull';
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import type { JwtSignOptions } from '@nestjs/jwt';
+import { JwtModule } from '@nestjs/jwt';
 
 import { AdaptersCommonModule } from '../adapters/common/adapters-common.module';
 import { ApiKeyModule } from '../api-key/api-key.module';
@@ -21,6 +24,18 @@ import { SyncLogService } from './sync-log.service';
 
 @Module({
   imports: [
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+        signOptions: {
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
+            '15m') as NonNullable<JwtSignOptions['expiresIn']>,
+        },
+      }),
+      inject: [ConfigService],
+    }),
     PrismaModule,
     StockModule,
     ApiKeyModule,
