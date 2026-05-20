@@ -73,6 +73,7 @@ export class SyncLogService {
       platform?: Marketplace;
       status?: SyncLogStatus;
       limit?: number;
+      jobTypeStartsWith?: string;
     },
   ): Promise<SyncLog[]> {
     const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
@@ -84,6 +85,9 @@ export class SyncLogService {
     }
     if (options?.status) {
       where.status = options.status;
+    }
+    if (options?.jobTypeStartsWith) {
+      where.jobType = { startsWith: options.jobTypeStartsWith };
     }
     return this.prisma.syncLog.findMany({
       where,

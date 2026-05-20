@@ -2,6 +2,8 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { Settings } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import {
@@ -209,6 +211,12 @@ export function ErpConnectionCard({ connection, onEditPress }: Props): ReactElem
               {testMutation.isPending ? 'Test…' : 'Test Et'}
             </Button>
           )}
+          <Button size="sm" variant="outline" asChild>
+            <Link to={`/connections/erp/${connection.id}`}>
+              <Settings className="mr-1.5 h-3.5 w-3.5" />
+              Ayarlar
+            </Link>
+          </Button>
           <Button
             type="button"
             size="sm"

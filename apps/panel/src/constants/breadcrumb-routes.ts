@@ -74,4 +74,9 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     parentPath: '/support',
     parentLabel: 'Destek',
   },
+  {
+    pattern: /^\/connections\/erp\/[^/]+$/,
+    parentPath: '/connections',
+    parentLabel: 'Bağlantılar',
+  },
 ];

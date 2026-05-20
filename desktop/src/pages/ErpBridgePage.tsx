@@ -2,8 +2,9 @@ import { listen } from '@tauri-apps/api/event';
 import { Activity, Link2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 
+import { loadCloudErpSyncSettings } from '@/lib/cloud-erp-api';
 import { appendSyncLog } from '@/lib/sync-log-store';
-import { loadSyncSettings } from '@/lib/sync-settings-store';
+import { loadSyncSettings, saveSyncSettings } from '@/lib/sync-settings-store';
 import { tauriApi, type ErpSyncEngineResult } from '@/lib/tauri';
 import { useAppStore } from '@/store/app.store';
 
@@ -148,6 +149,22 @@ export function ErpBridgePage(): ReactElement {
   useEffect(() => {
     void refreshSyncStatus();
   }, [refreshSyncStatus]);
+
+  useEffect(() => {
+    if (!token?.token) {
+      return;
+    }
+    void (async () => {
+      try {
+        const cloud = await loadCloudErpSyncSettings(apiUrl.trim(), token.token, erpType);
+        if (cloud) {
+          saveSyncSettings(cloud);
+        }
+      } catch {
+        /* bulut ayarları yoksa yerel varsayılanlar kullanılır */
+      }
+    })();
+  }, [apiUrl, erpType, token?.token]);
 
   useEffect(() => {
     if (!token) {

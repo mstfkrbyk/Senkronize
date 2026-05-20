@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -23,6 +24,9 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
 
+import { UpsertErpSyncSettingsDto } from '../erp/erp-sync-settings.dto';
+import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
+
 import {
   CreateErpConnectionDto,
   TestErpConnectionDto,
@@ -34,7 +38,10 @@ import { ErpConnectionService } from './erp-connection.service';
 @ApiBearerAuth()
 @Controller('erp-connections')
 export class ErpConnectionController {
-  constructor(private readonly erpConnectionService: ErpConnectionService) {}
+  constructor(
+    private readonly erpConnectionService: ErpConnectionService,
+    private readonly erpSyncSettingsService: ErpSyncSettingsService,
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -91,6 +98,55 @@ export class ErpConnectionController {
     @Body() dto: UpdateErpConnectionDto,
   ) {
     return this.erpConnectionService.update(org.id, id, dto);
+  }
+
+  @Get(':id/sync-settings')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'ERP senkron ayarlarını getir' })
+  @ApiResponse({ status: 200, description: 'Senkron ayarları' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async getSyncSettings(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ) {
+    const data = await this.erpSyncSettingsService.getSettings(org.id, id);
+    return { data };
+  }
+
+  @Put(':id/sync-settings')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'ERP senkron ayarlarını kaydet' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async upsertSyncSettings(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpsertErpSyncSettingsDto,
+  ) {
+    const data = await this.erpSyncSettingsService.upsertSettings(
+      org.id,
+      id,
+      dto,
+    );
+    return { data };
+  }
+
+  @Post(':id/sync-now')
+  @Throttle({ default: { limit: 10 } })
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'ERP bağlantısı için manuel senkron başlat' })
+  @ApiResponse({ status: 200, description: 'Kuyruğa alındı' })
+  @ApiResponse({ status: 400, description: 'Geçersiz istek' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async syncNow(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ message: string }> {
+    return this.erpSyncSettingsService.triggerManualSync(org.id, id);
   }
 
   @Post(':id/sync-order/:orderId')

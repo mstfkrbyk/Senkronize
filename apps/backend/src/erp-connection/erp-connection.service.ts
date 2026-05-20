@@ -9,6 +9,7 @@ import type { ERPConnectionResult } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -27,6 +28,7 @@ export class ErpConnectionService {
     private readonly prisma: PrismaService,
     private readonly encryptionService: EncryptionService,
     private readonly adapterRegistry: AdapterRegistry,
+    private readonly erpSyncSettingsService: ErpSyncSettingsService,
   ) {}
 
   private parseCredentialsRecord(
@@ -217,6 +219,10 @@ export class ErpConnectionService {
           lastErrorMessage: null,
         },
       });
+      await this.erpSyncSettingsService.createDefaultForConnection(
+        organizationId,
+        row.id,
+      );
       return this.toPublic(row);
     }
     const row = await this.prisma.erpConnection.create({
@@ -226,6 +232,10 @@ export class ErpConnectionService {
         credentialsEnc,
       },
     });
+    await this.erpSyncSettingsService.createDefaultForConnection(
+      organizationId,
+      row.id,
+    );
     return this.toPublic(row);
   }
 

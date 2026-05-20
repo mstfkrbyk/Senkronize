@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AdaptersCommonModule } from '../adapters/common/adapters-common.module';
 import { ErpConnectionModule } from '../erp-connection/erp-connection.module';
+import { ErpModule } from '../erp/erp.module';
 import { CustomerModule } from '../customer/customer.module';
 import { ImageModule } from '../image/image.module';
 import { ImageSyncProcessor } from '../image/image-sync.processor';
@@ -25,6 +26,7 @@ import {
   MarketplacePushDlqHooks,
 } from './dlq.processor';
 import { ErpSyncProcessor } from './erp-sync.processor';
+import { ErpSyncTask } from './erp-sync.task';
 import { MarketplacePullProcessor } from './marketplace-pull.processor';
 import { MarketplacePushProcessor } from './marketplace-push.processor';
 import { PricingProcessor } from './pricing.processor';
@@ -42,6 +44,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     OrderModule,
     CustomerModule,
     ErpConnectionModule,
+    ErpModule,
     ListingModule,
     PricingModule,
     ImageModule,
@@ -57,6 +60,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     MarketplacePullProcessor,
     MarketplacePushProcessor,
     ErpSyncProcessor,
+    ErpSyncTask,
     PricingProcessor,
     ImageProcessor,
     ImageSyncProcessor,

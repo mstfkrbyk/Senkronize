@@ -57,6 +57,7 @@ export class SyncController {
       platform: query.platform,
       status: query.status,
       limit: query.limit,
+      jobTypeStartsWith: query.jobTypeStartsWith,
     });
     return { data: rows.map(serializeSyncLog) };
   }

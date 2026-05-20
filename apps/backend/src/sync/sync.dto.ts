@@ -53,4 +53,8 @@ export class SyncLogListQueryDto {
   @Min(1)
   @Max(200)
   limit?: number;
+
+  @IsOptional()
+  @IsString()
+  jobTypeStartsWith?: string;
 }

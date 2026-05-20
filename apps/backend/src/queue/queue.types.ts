@@ -19,9 +19,10 @@ export interface MarketplacePullJobData {
 /** erp-sync job payload */
 export interface ErpSyncJobData {
   organizationId: string;
+  erpConnectionId: string;
   erpType: string;
   direction: 'push' | 'pull';
-  type: 'products' | 'orders' | 'stock';
+  type: 'products' | 'orders' | 'stock' | 'invoices';
 }
 
 /** notification-dispatch job payload */
