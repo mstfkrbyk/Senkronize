@@ -5,8 +5,6 @@ import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
-  CheckCircle2,
-  Circle,
   ExternalLink,
   FileDown,
   FileText,
@@ -15,15 +13,20 @@ import {
   Truck,
   XCircle,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-import { ReturnCreateModal } from '@/components/orders/ReturnCreateModal';
+import { OrderReturnDialog } from '@/components/orders/OrderReturnDialog';
 import { ShipOrderModal } from '@/components/orders/ShipOrderModal';
-import { CargoTrackingModal } from '@/components/shipping/CargoTrackingModal';
+import {
+  TrackingTimeline,
+  type TrackingTimelineStep,
+} from '@/components/orders/TrackingTimeline';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -35,7 +38,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -44,50 +46,28 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
 import { CARGO_PROVIDER_OPTIONS, normalizeCargoProviderKey } from '@/lib/cargo-providers';
-import { getTrackingUrl } from '@/lib/cargo-tracking';
-import { ORDER_STATUS_CONFIG, orderStatusTone } from '@/lib/order-status';
+import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import type { InvoiceDto } from '@/types/invoice';
 import type { Order, OrderNote, OrderStatus } from '@/types/order';
 
-const STATUS_TIMELINE: readonly {
-  status: OrderStatus;
-  label: string;
-}[] = [
-  { status: 'NEW', label: 'Yeni sipariş' },
-  { status: 'PICKING', label: 'İşlemde' },
-  { status: 'SHIPPED', label: 'Kargoya verildi' },
-  { status: 'DELIVERED', label: 'Teslim edildi' },
-];
-
-function statusRank(status: OrderStatus): number {
-  switch (status) {
-    case 'DELIVERED':
-      return 4;
-    case 'SHIPPED':
-      return 3;
-    case 'INVOICED':
-    case 'PICKING':
-      return 2;
-    case 'NEW':
-    default:
-      return 1;
-  }
-}
-
-function formatTry(amount: string | number, currency: string): string {
-  return new Intl.NumberFormat('tr-TR', {
+function formatTry(amount: string | number, currency: string, locale: string): string {
+  return new Intl.NumberFormat(locale === 'en' ? 'en-US' : 'tr-TR', {
     style: 'currency',
     currency: currency || 'TRY',
   }).format(Number(amount));
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
   try {
-    return new Intl.DateTimeFormat('tr-TR', {
+    return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'tr-TR', {
       dateStyle: 'medium',
       timeStyle: 'short',
     }).format(new Date(iso));
@@ -105,28 +85,78 @@ function cargoLabel(provider: string | null | undefined): string {
   return found?.label ?? provider;
 }
 
-function estimatedDeliveryDate(order: Order): string {
-  if (order.status === 'DELIVERED') {
-    return 'Teslim edildi';
+function statusRank(status: OrderStatus): number {
+  switch (status) {
+    case 'DELIVERED':
+      return 4;
+    case 'SHIPPED':
+      return 3;
+    case 'INVOICED':
+    case 'PICKING':
+      return 2;
+    case 'NEW':
+    default:
+      return 1;
   }
-  if (order.status !== 'SHIPPED') {
-    return '—';
+}
+
+function buildTrackingSteps(order: Order, locale: string, t: (key: string) => string): TrackingTimelineStep[] {
+  const date = formatDate(order.platformCreatedAt, locale);
+  const rank = statusRank(order.status);
+  const isCancelled = order.status === 'CANCELLED' || order.status === 'RETURNED';
+
+  if (isCancelled) {
+    return [
+      {
+        status: t('orders.detail.tracking.received'),
+        date,
+        done: true,
+      },
+      {
+        status:
+          order.status === 'CANCELLED'
+            ? t('orders.detail.tracking.cancelled')
+            : t('orders.detail.tracking.returned'),
+        date,
+        done: true,
+      },
+    ];
   }
-  const base = new Date(order.platformCreatedAt);
-  base.setDate(base.getDate() + 3);
-  return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium' }).format(base);
+
+  return [
+    { status: t('orders.detail.tracking.received'), date, done: rank >= 1 },
+    {
+      status: t('orders.detail.tracking.preparing'),
+      date: rank >= 2 ? date : '',
+      done: rank >= 2,
+    },
+    {
+      status: t('orders.detail.tracking.shipped'),
+      date: rank >= 3 ? date : '',
+      done: rank >= 3,
+    },
+    {
+      status: t('orders.detail.tracking.delivered'),
+      date: rank >= 4 ? date : '',
+      done: rank >= 4,
+    },
+  ];
 }
 
 export function OrderDetailPage(): ReactElement {
   const { id: orderId = '' } = useParams<{ id: string }>();
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState('general');
   const [noteText, setNoteText] = useState('');
   const [noteInternal, setNoteInternal] = useState(true);
   const [shipOpen, setShipOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [cargoTrackingOpen, setCargoTrackingOpen] = useState(false);
+  const [invoiceMeta, setInvoiceMeta] = useState<InvoiceDto | null>(null);
+  const [labelLoading, setLabelLoading] = useState(false);
 
   const detailQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
@@ -138,7 +168,11 @@ export function OrderDetailPage(): ReactElement {
   });
 
   const order = detailQuery.data;
-  usePageTitle(order ? `Sipariş ${order.platformOrderId}` : 'Sipariş detayı');
+  usePageTitle(
+    order
+      ? t('orders.detail.pageTitle', { orderNo: order.platformOrderId })
+      : t('orders.detail.title'),
+  );
 
   const notesQuery = useQuery({
     queryKey: ['orders', orderId, 'notes'],
@@ -158,7 +192,7 @@ export function OrderDetailPage(): ReactElement {
       return data;
     },
     onSuccess: () => {
-      toast.success('Not eklendi');
+      toast.success(t('orders.detail.notes.added'));
       setNoteText('');
       void queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'notes'] });
     },
@@ -167,31 +201,49 @@ export function OrderDetailPage(): ReactElement {
     },
   });
 
-  const invoicePdfMutation = useMutation({
-    mutationFn: async (): Promise<Blob> => {
-      const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
-      return res.data as Blob;
+  const createInvoiceMutation = useMutation({
+    mutationFn: async (): Promise<InvoiceDto> => {
+      const { data } = await api.post<{ data: InvoiceDto }>(
+        `/invoices/from-order/${orderId}`,
+      );
+      return data.data;
     },
-    onSuccess: (blob) => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `fatura-${order?.platformOrderId ?? orderId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Fatura PDF indirildi');
+    onSuccess: (invoice) => {
+      setInvoiceMeta(invoice);
+      toast.success(t('orders.detail.documents.invoiceCreated'));
+      void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
     },
   });
 
-  const createInvoiceMutation = useMutation({
+  const invoicePdfMutation = useMutation({
     mutationFn: async (): Promise<void> => {
-      await api.post(`/invoices/from-order/${orderId}`);
+      if (invoiceMeta?.id) {
+        const res = await api.get(`/invoices/${invoiceMeta.id}/pdf`, {
+          responseType: 'blob',
+        });
+        const blob = new Blob([res.data], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `fatura-${invoiceMeta.invoiceNumber.replace(/\//g, '-')}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+      const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fatura-${order?.platformOrderId ?? orderId}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
     },
     onSuccess: () => {
-      toast.success('Fatura oluşturuldu');
+      toast.success(t('orders.detail.documents.pdfDownloaded'));
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -205,7 +257,7 @@ export function OrderDetailPage(): ReactElement {
       });
     },
     onSuccess: () => {
-      toast.success('İptal işlemi kuyruğa alındı');
+      toast.success(t('orders.detail.cancelQueued'));
       setCancelOpen(false);
       setCancelReason('');
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -220,11 +272,15 @@ export function OrderDetailPage(): ReactElement {
     if (!order?.cargoTrackingNumber?.trim()) {
       return '';
     }
-    const url = getTrackingUrl(order.cargoProvider ?? '', order.cargoTrackingNumber);
-    return url !== '#' ? url : '';
+    return buildCargoTrackingUrl(order.cargoTrackingNumber, order.cargoProvider);
   }, [order]);
 
-  const currentRank = order ? statusRank(order.status) : 0;
+  const trackingSteps = useMemo(() => {
+    if (!order) {
+      return [];
+    }
+    return buildTrackingSteps(order, locale, t);
+  }, [order, locale, t]);
 
   const totals = useMemo(() => {
     if (!order) {
@@ -241,15 +297,39 @@ export function OrderDetailPage(): ReactElement {
     return { subtotal, shipping, tax, total };
   }, [order]);
 
+  const hasInvoice =
+    invoiceMeta !== null || order?.status === 'INVOICED' || order?.status === 'DELIVERED';
+
+  const downloadShippingLabel = async (): Promise<void> => {
+    if (!order) {
+      return;
+    }
+    setLabelLoading(true);
+    try {
+      const res = await api.get(`/orders/${order.id}/shipping-label`, {
+        responseType: 'blob',
+      });
+      const blob = res.data as Blob;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `etiket-${order.platformOrderId.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(t('orders.detail.documents.labelDownloaded'));
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err));
+    } finally {
+      setLabelLoading(false);
+    }
+  };
+
   if (detailQuery.isLoading) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 lg:grid-cols-12">
-          <Skeleton className="h-96 lg:col-span-3" />
-          <Skeleton className="h-96 lg:col-span-6" />
-          <Skeleton className="h-96 lg:col-span-3" />
-        </div>
+        <Skeleton className="h-10 w-full max-w-xl" />
+        <Skeleton className="h-96 w-full" />
       </div>
     );
   }
@@ -260,7 +340,7 @@ export function OrderDetailPage(): ReactElement {
         <Button type="button" variant="ghost" size="sm" asChild>
           <Link to="/orders">
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-            Siparişlere dön
+            {t('orders.detail.back')}
           </Link>
         </Button>
         <p className="text-sm text-destructive">{getApiErrorMessage(detailQuery.error)}</p>
@@ -269,170 +349,173 @@ export function OrderDetailPage(): ReactElement {
   }
 
   const branding = getMarketplaceBranding(order.platform);
-  const statusConfig = ORDER_STATUS_CONFIG[order.status];
   const isTerminal = order.status === 'CANCELLED' || order.status === 'RETURNED';
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <Link to="/orders">
-            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-            Siparişler
-          </Link>
-        </Button>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Sipariş {order.platformOrderId}
-        </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="button" variant="ghost" size="sm" asChild>
+            <Link to="/orders">
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+              {t('orders.detail.back')}
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {t('orders.detail.heading', { orderNo: order.platformOrderId })}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              <span aria-hidden className="mr-1">
+                {branding.logo}
+              </span>
+              {branding.label} · {formatDate(order.platformCreatedAt, locale)}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="outline" className={`gap-1 ${orderStatusTone(order.status)}`}>
+            {t(ORDER_STATUS_I18N_KEY[order.status])}
+          </Badge>
+          <span className="text-lg font-semibold tabular-nums">
+            {formatTry(order.totalAmount, order.currency, locale)}
+          </span>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* Sol panel — sipariş bilgileri */}
-        <div className="space-y-4 lg:col-span-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Sipariş bilgileri</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div>
-                <span className="text-muted-foreground">Sipariş no</span>
-                <p className="mt-0.5 font-mono font-medium">{order.platformOrderId}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Platform</span>
-                <p className="mt-0.5 flex items-center gap-2 font-medium">
-                  <span aria-hidden>{branding.logo}</span>
-                  {branding.label}
-                </p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Tarih</span>
-                <p className="mt-0.5">{formatDate(order.platformCreatedAt)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Durum</span>
-                <div className="mt-1">
-                  <Badge variant="outline" className={`gap-1 ${orderStatusTone(order.status)}`}>
-                    {statusConfig?.label ?? order.status}
-                  </Badge>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          disabled={order.status === 'CANCELLED' || order.status === 'SHIPPED'}
+          onClick={() => {
+            setShipOpen(true);
+          }}
+        >
+          <Truck className="h-4 w-4" aria-hidden />
+          {t('orders.detail.actions.ship')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          disabled={order.status === 'CANCELLED' || order.status === 'RETURNED'}
+          onClick={() => {
+            setReturnOpen(true);
+          }}
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden />
+          {t('orders.detail.actions.return')}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          disabled={order.status === 'CANCELLED'}
+          onClick={() => {
+            setCancelOpen(true);
+          }}
+        >
+          <XCircle className="h-4 w-4" aria-hidden />
+          {t('orders.detail.actions.cancel')}
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+          <TabsTrigger value="general">{t('orders.detail.tabs.general')}</TabsTrigger>
+          <TabsTrigger value="shipping">{t('orders.detail.tabs.shipping')}</TabsTrigger>
+          <TabsTrigger value="notes">{t('orders.detail.tabs.notes')}</TabsTrigger>
+          <TabsTrigger value="documents">{t('orders.detail.tabs.documents')}</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="mt-4 space-y-4">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="text-base">{t('orders.detail.summary.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">{t('orders.orderNo')}</span>
+                  <p className="mt-0.5 font-mono font-medium">{order.platformOrderId}</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Durum geçmişi</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isTerminal ? (
-                <p className="text-sm text-muted-foreground">
-                  {order.status === 'CANCELLED' ? 'Sipariş iptal edildi.' : 'Sipariş iade edildi.'}
-                </p>
-              ) : (
-                <ul className="space-y-3">
-                  {STATUS_TIMELINE.map((step) => {
-                    const stepRank =
-                      step.status === 'NEW'
-                        ? 1
-                        : step.status === 'PICKING'
-                          ? 2
-                          : step.status === 'SHIPPED'
-                            ? 3
-                            : 4;
-                    const done = currentRank >= stepRank;
-                    const Icon = done ? CheckCircle2 : Circle;
-                    return (
-                      <li key={step.status} className="flex gap-3">
-                        <Icon
-                          className={
-                            done
-                              ? 'mt-0.5 h-4 w-4 shrink-0 text-green-600'
-                              : 'mt-0.5 h-4 w-4 shrink-0 text-muted-foreground'
-                          }
-                          aria-hidden
-                        />
-                        <div>
-                          <p className={done ? 'text-sm font-medium' : 'text-sm text-muted-foreground'}>
-                            {step.label}
-                          </p>
-                          {done ? (
-                            <p className="text-xs text-muted-foreground">
-                              {formatDate(order.platformCreatedAt)}
-                            </p>
-                          ) : null}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Kargo bilgileri</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Kargo firması</span>
-                <p className="font-medium">{cargoLabel(order.cargoProvider)}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Takip numarası</span>
-                <p className="font-mono">{order.cargoTrackingNumber?.trim() || '—'}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Tahmini teslimat</span>
-                <p>{estimatedDeliveryDate(order)}</p>
-              </div>
-              {order.cargoTrackingNumber?.trim() ? (
-                <div className="mt-2 flex flex-col gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setCargoTrackingOpen(true)}
-                  >
-                    Kargo durumu
-                  </Button>
-                  {trackingUrl ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-full gap-1"
-                      asChild
-                    >
-                      <a href={trackingUrl} target="_blank" rel="noopener noreferrer">
-                        Kargo firmasında aç
-                        <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                      </a>
-                    </Button>
-                  ) : null}
+                <div>
+                  <span className="text-muted-foreground">{t('orders.platform')}</span>
+                  <p className="mt-0.5 flex items-center gap-2 font-medium">
+                    <span aria-hidden>{branding.logo}</span>
+                    {branding.label}
+                  </p>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
+                <div>
+                  <span className="text-muted-foreground">{t('orders.date')}</span>
+                  <p className="mt-0.5">{formatDate(order.platformCreatedAt, locale)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('orders.statusLabel')}</span>
+                  <div className="mt-1">
+                    <Badge variant="outline" className={orderStatusTone(order.status)}>
+                      {t(ORDER_STATUS_I18N_KEY[order.status])}
+                    </Badge>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('orders.amount')}</span>
+                  <p className="mt-0.5 text-base font-semibold tabular-nums">
+                    {formatTry(order.totalAmount, order.currency, locale)}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* Orta — ürünler */}
-        <div className="space-y-4 lg:col-span-6">
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">{t('orders.detail.customer.title')}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <span className="text-muted-foreground">{t('orders.detail.customer.name')}</span>
+                  <p className="font-medium">{order.customerName}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('orders.detail.customer.email')}</span>
+                  <p>—</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">{t('orders.detail.customer.phone')}</span>
+                  <p>{order.customerPhone?.trim() || '—'}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="text-muted-foreground">{t('orders.detail.customer.address')}</span>
+                  <p className="whitespace-pre-wrap">
+                    {order.shippingAddress?.trim() || '—'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Ürünler</CardTitle>
+              <CardTitle className="text-base">{t('orders.detail.products.title')}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-14" />
-                    <TableHead>Ürün</TableHead>
-                    <TableHead className="text-right">Adet</TableHead>
-                    <TableHead className="text-right">Birim fiyat</TableHead>
-                    <TableHead className="text-right">Toplam</TableHead>
+                    <TableHead>{t('orders.detail.products.product')}</TableHead>
+                    <TableHead className="text-right">{t('orders.detail.products.qty')}</TableHead>
+                    <TableHead className="text-right">
+                      {t('orders.detail.products.unitPrice')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('orders.detail.products.lineTotal')}
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -454,7 +537,7 @@ export function OrderDetailPage(): ReactElement {
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="max-w-[220px]">
+                        <TableCell className="max-w-[280px]">
                           <p className="truncate font-medium">
                             {item.productName ?? item.sku}
                           </p>
@@ -466,10 +549,10 @@ export function OrderDetailPage(): ReactElement {
                           {item.quantity}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {formatTry(item.unitPrice, order.currency)}
+                          {formatTry(item.unitPrice, order.currency, locale)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium">
-                          {formatTry(lineTotal, order.currency)}
+                          {formatTry(lineTotal, order.currency, locale)}
                         </TableCell>
                       </TableRow>
                     );
@@ -482,80 +565,114 @@ export function OrderDetailPage(): ReactElement {
           <Card>
             <CardContent className="space-y-2 pt-6 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Alt toplam</span>
-                <span className="tabular-nums">{formatTry(totals.subtotal, order.currency)}</span>
+                <span className="text-muted-foreground">{t('orders.detail.totals.subtotal')}</span>
+                <span className="tabular-nums">
+                  {formatTry(totals.subtotal, order.currency, locale)}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Kargo ücreti</span>
+                <span className="text-muted-foreground">{t('orders.detail.totals.shipping')}</span>
                 <span className="tabular-nums">
                   {totals.shipping > 0
-                    ? formatTry(totals.shipping, order.currency)
+                    ? formatTry(totals.shipping, order.currency, locale)
                     : '—'}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">KDV (%20, tahmini)</span>
-                <span className="tabular-nums">{formatTry(totals.tax, order.currency)}</span>
+                <span className="text-muted-foreground">{t('orders.detail.totals.tax')}</span>
+                <span className="tabular-nums">
+                  {formatTry(totals.tax, order.currency, locale)}
+                </span>
               </div>
               <div className="flex justify-between border-t pt-2 text-base font-semibold">
-                <span>Genel toplam</span>
-                <span className="tabular-nums">{formatTry(totals.total, order.currency)}</span>
+                <span>{t('orders.detail.totals.grand')}</span>
+                <span className="tabular-nums">
+                  {formatTry(totals.total, order.currency, locale)}
+                </span>
               </div>
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        {/* Sağ panel — müşteri & işlemler */}
-        <div className="space-y-4 lg:col-span-3">
+        <TabsContent value="shipping" className="mt-4 space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('orders.detail.shipping.info')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">
+                    {t('orders.detail.shipping.provider')}
+                  </span>
+                  <p className="font-medium">{cargoLabel(order.cargoProvider)}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">
+                    {t('orders.detail.shipping.trackingNo')}
+                  </span>
+                  <p className="font-mono">{order.cargoTrackingNumber?.trim() || '—'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    type="button"
+                    disabled={isTerminal || order.status === 'SHIPPED'}
+                    onClick={() => {
+                      setShipOpen(true);
+                    }}
+                  >
+                    <Truck className="mr-2 h-4 w-4" aria-hidden />
+                    {t('orders.detail.shipping.shipButton')}
+                  </Button>
+                  {trackingUrl ? (
+                    <Button type="button" variant="outline" asChild>
+                      <a href={trackingUrl} target="_blank" rel="noopener noreferrer">
+                        {t('orders.detail.shipping.externalTrack')}
+                        <ExternalLink className="ml-2 h-3.5 w-3.5" aria-hidden />
+                      </a>
+                    </Button>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('orders.detail.shipping.timeline')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <TrackingTimeline steps={trackingSteps} />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Müşteri</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div>
-                <span className="text-muted-foreground">Ad</span>
-                <p className="font-medium">{order.customerName}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">E-posta</span>
-                <p>—</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Telefon</span>
-                <p>{order.customerPhone?.trim() || '—'}</p>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Adres</span>
-                <p className="whitespace-pre-wrap">
-                  {order.shippingAddress?.trim() || '—'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Dahili notlar</CardTitle>
+              <CardTitle className="text-base">{t('orders.detail.notes.title')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {notesQuery.isLoading ? (
-                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-24 w-full" />
               ) : (
-                <ul className="max-h-40 space-y-2 overflow-y-auto text-sm">
+                <ul className="max-h-72 space-y-2 overflow-y-auto text-sm">
                   {(notesQuery.data ?? []).length === 0 ? (
-                    <li className="text-muted-foreground">Henüz not yok</li>
+                    <li className="text-muted-foreground">{t('orders.detail.notes.empty')}</li>
                   ) : (
                     (notesQuery.data ?? []).map((n) => (
                       <li
                         key={n.id}
-                        className="rounded-md border bg-muted/30 px-3 py-2"
+                        className="rounded-md border bg-muted/30 px-3 py-2 dark:bg-muted/20"
                       >
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                           <span>{n.userName}</span>
                           <span>·</span>
-                          <span>{formatDate(n.createdAt)}</span>
+                          <span>{formatDate(n.createdAt, locale)}</span>
                           <Badge variant="secondary" className="text-[10px]">
-                            {n.isInternal ? 'İç' : 'Müşteri'}
+                            {n.isInternal
+                              ? t('orders.detail.notes.internal')
+                              : t('orders.detail.notes.customer')}
                           </Badge>
                         </div>
                         <p className="mt-1 whitespace-pre-wrap">{n.content}</p>
@@ -564,115 +681,114 @@ export function OrderDetailPage(): ReactElement {
                   )}
                 </ul>
               )}
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="note-internal" className="text-sm">
-                  İç not
-                </Label>
-                <Switch
+              <div className="flex items-center gap-2">
+                <Checkbox
                   id="note-internal"
                   checked={noteInternal}
-                  onCheckedChange={setNoteInternal}
+                  onCheckedChange={(v) => {
+                    setNoteInternal(v === true);
+                  }}
                 />
+                <Label htmlFor="note-internal" className="text-sm font-normal">
+                  {t('orders.detail.notes.internal')}
+                </Label>
               </div>
               <Textarea
                 rows={3}
                 value={noteText}
-                placeholder="Yeni not yazın…"
+                placeholder={t('orders.detail.notes.placeholder')}
                 onChange={(e) => {
                   setNoteText(e.target.value);
                 }}
               />
               <Button
                 type="button"
-                variant="secondary"
-                className="w-full"
                 disabled={addNoteMutation.isPending || noteText.trim().length === 0}
                 onClick={() => {
                   addNoteMutation.mutate();
                 }}
               >
-                Not ekle
+                {t('orders.detail.notes.add')}
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
 
+        <TabsContent value="documents" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Hızlı aksiyonlar</CardTitle>
+              <CardTitle className="text-base">{t('orders.detail.documents.title')}</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-2">
-              <Button
-                type="button"
-                className="w-full justify-start gap-2"
-                variant="outline"
-                disabled={order.status === 'CANCELLED' || order.status === 'SHIPPED'}
-                onClick={() => {
-                  setShipOpen(true);
-                }}
-              >
-                <Truck className="h-4 w-4" aria-hidden />
-                Kargo ver
-              </Button>
-              <Button
-                type="button"
-                className="w-full justify-start gap-2"
-                variant="outline"
-                disabled={order.status === 'CANCELLED'}
-                onClick={() => {
-                  setCancelOpen(true);
-                }}
-              >
-                <XCircle className="h-4 w-4" aria-hidden />
-                İptal et
-              </Button>
-              <Button
-                type="button"
-                className="w-full justify-start gap-2"
-                variant="outline"
-                disabled={order.status === 'CANCELLED' || order.status === 'RETURNED'}
-                onClick={() => {
-                  setReturnOpen(true);
-                }}
-              >
-                <RotateCcw className="h-4 w-4" aria-hidden />
-                İade oluştur
-              </Button>
-              <Button
-                type="button"
-                className="w-full justify-start gap-2"
-                variant="outline"
-                disabled={createInvoiceMutation.isPending}
-                onClick={() => {
-                  createInvoiceMutation.mutate();
-                }}
-              >
-                {createInvoiceMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <FileText className="h-4 w-4" aria-hidden />
-                )}
-                Fatura oluştur
-              </Button>
-              <Button
-                type="button"
-                className="w-full justify-start gap-2"
-                variant="outline"
-                disabled={invoicePdfMutation.isPending}
-                onClick={() => {
-                  invoicePdfMutation.mutate();
-                }}
-              >
-                {invoicePdfMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                ) : (
-                  <FileDown className="h-4 w-4" aria-hidden />
-                )}
-                Fatura indir (PDF)
-              </Button>
+            <CardContent className="space-y-4">
+              <div className="rounded-md border bg-muted/20 p-4 text-sm dark:bg-muted/10">
+                <p className="text-muted-foreground">{t('orders.detail.documents.status')}</p>
+                <p className="mt-1 font-medium">
+                  {hasInvoice
+                    ? t('orders.detail.documents.created')
+                    : t('orders.detail.documents.notCreated')}
+                </p>
+                {invoiceMeta ? (
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {t('orders.detail.documents.invoiceNo', {
+                      no: invoiceMeta.invoiceNumber,
+                    })}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  className="gap-1"
+                  disabled={createInvoiceMutation.isPending}
+                  onClick={() => {
+                    createInvoiceMutation.mutate();
+                  }}
+                >
+                  {createInvoiceMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <FileText className="h-4 w-4" aria-hidden />
+                  )}
+                  {t('orders.detail.documents.createInvoice')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={invoicePdfMutation.isPending}
+                  onClick={() => {
+                    invoicePdfMutation.mutate();
+                  }}
+                >
+                  {invoicePdfMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <FileDown className="h-4 w-4" aria-hidden />
+                  )}
+                  {t('orders.detail.documents.downloadPdf')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1"
+                  disabled={labelLoading}
+                  onClick={() => {
+                    void downloadShippingLabel();
+                  }}
+                >
+                  {labelLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  ) : (
+                    <FileDown className="h-4 w-4" aria-hidden />
+                  )}
+                  {t('orders.detail.documents.downloadLabel')}
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       <ShipOrderModal
         open={shipOpen}
@@ -683,7 +799,7 @@ export function OrderDetailPage(): ReactElement {
         }}
       />
 
-      <ReturnCreateModal
+      <OrderReturnDialog
         open={returnOpen}
         onOpenChange={setReturnOpen}
         order={order}
@@ -695,25 +811,23 @@ export function OrderDetailPage(): ReactElement {
       <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Siparişi iptal et</DialogTitle>
-            <DialogDescription>
-              İptal işlemi platforma iletilir ve stok güncellenir.
-            </DialogDescription>
+            <DialogTitle>{t('orders.detail.cancelTitle')}</DialogTitle>
+            <DialogDescription>{t('orders.detail.cancelDescription')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="cancel-reason">İptal nedeni (opsiyonel)</Label>
+            <Label htmlFor="cancel-reason">{t('orders.detail.cancelReason')}</Label>
             <Input
               id="cancel-reason"
               value={cancelReason}
               onChange={(e) => {
                 setCancelReason(e.target.value);
               }}
-              placeholder="Müşteri talebi…"
+              placeholder={t('orders.detail.cancelReasonPlaceholder')}
             />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCancelOpen(false)}>
-              Vazgeç
+              {t('common.cancel')}
             </Button>
             <Button
               type="button"
@@ -726,20 +840,11 @@ export function OrderDetailPage(): ReactElement {
               {cancelMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : null}
-              İptal et
+              {t('orders.detail.actions.cancel')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {order?.cargoTrackingNumber?.trim() ? (
-        <CargoTrackingModal
-          open={cargoTrackingOpen}
-          onOpenChange={setCargoTrackingOpen}
-          trackingNumber={order.cargoTrackingNumber}
-          cargoProvider={order.cargoProvider}
-        />
-      ) : null}
     </div>
   );
 }
