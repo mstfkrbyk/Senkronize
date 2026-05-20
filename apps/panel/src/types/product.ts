@@ -91,13 +91,43 @@ export interface ProductAnalyticsResponse {
     totalRevenue: number;
     averageDailySales: number;
     bestDay: { date: string; quantity: number } | null;
+    revenueThisMonth: number;
+    revenueLastMonth: number;
+    revenueChangePct: number | null;
+    averageOrderValue: number;
+    returnRatePct: number;
+    orderCount: number;
   };
   platformDistribution: {
     platform: string;
     quantity: number;
     revenue: number;
+    orderCount: number;
+    returnRatePct: number;
+    weekOrderCount: number;
+    monthOrderCount: number;
   }[];
   priceHistory: { date: string; price: number; platform: string }[];
+}
+
+export interface StockForecastDataPoint {
+  date: string;
+  actual?: number;
+  forecast?: number;
+  reorderPoint: number;
+}
+
+export interface ProductStockForecastResult {
+  productId: string;
+  barcode: string;
+  currentStock: number;
+  dailySalesAvg: number;
+  dailySales: number;
+  reorderPoint: number;
+  forecastDays: number;
+  daysUntilStockout: number | null;
+  daysUntilReorderPoint: number | null;
+  forecastData: StockForecastDataPoint[];
 }
 
 export interface ImportPreviewRow {

@@ -5,7 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Marketplace, Prisma, type Product, type ProductVariant } from '@prisma/client';
+import {
+  Marketplace,
+  OrderStatus,
+  Prisma,
+  type Product,
+  type ProductVariant,
+} from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { Cacheable } from '../common/cache/cache.decorator';
@@ -668,6 +674,18 @@ export class ProductService {
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);
 
+    const now = new Date();
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const lastMonthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const lastMonthEnd = new Date(monthStart.getTime() - 1);
+    const weekStart = new Date(now);
+    weekStart.setUTCDate(weekStart.getUTCDate() - 7);
+    weekStart.setUTCHours(0, 0, 0, 0);
+
     const orderItems = await this.prisma.orderItem.findMany({
       where: {
         organizationId,
@@ -680,31 +698,92 @@ export class ProductService {
       select: {
         quantity: true,
         unitPrice: true,
-        order: { select: { platform: true, createdAt: true } },
+        order: {
+          select: {
+            id: true,
+            platform: true,
+            createdAt: true,
+            status: true,
+          },
+        },
       },
     });
 
     const dailyMap = new Map<string, { quantity: number; revenue: number }>();
-    const platformMap = new Map<string, { quantity: number; revenue: number }>();
+    const platformMap = new Map<
+      string,
+      {
+        quantity: number;
+        revenue: number;
+        orderIds: Set<string>;
+        returnedQty: number;
+        weekOrderIds: Set<string>;
+        monthOrderIds: Set<string>;
+      }
+    >();
     let totalSales = 0;
     let totalRevenue = 0;
+    let returnedQty = 0;
+    let revenueThisMonth = 0;
+    let revenueLastMonth = 0;
+    const orderIds = new Set<string>();
 
     for (const item of orderItems) {
-      const day = item.order.createdAt.toISOString().slice(0, 10);
+      const order = item.order;
+      const createdAt = order.createdAt;
+      const day = createdAt.toISOString().slice(0, 10);
       const qty = item.quantity;
       const rev = qty * Number(item.unitPrice);
-      totalSales += qty;
-      totalRevenue += rev;
+      const isReturned = order.status === OrderStatus.RETURNED;
+
+      if (!isReturned) {
+        totalSales += qty;
+        totalRevenue += rev;
+        orderIds.add(order.id);
+      } else {
+        returnedQty += qty;
+      }
+
+      if (createdAt >= monthStart && !isReturned) {
+        revenueThisMonth += rev;
+      }
+      if (
+        createdAt >= lastMonthStart &&
+        createdAt <= lastMonthEnd &&
+        !isReturned
+      ) {
+        revenueLastMonth += rev;
+      }
 
       const dayRow = dailyMap.get(day) ?? { quantity: 0, revenue: 0 };
-      dayRow.quantity += qty;
-      dayRow.revenue += rev;
+      if (!isReturned) {
+        dayRow.quantity += qty;
+        dayRow.revenue += rev;
+      }
       dailyMap.set(day, dayRow);
 
-      const plat = item.order.platform;
-      const platRow = platformMap.get(plat) ?? { quantity: 0, revenue: 0 };
-      platRow.quantity += qty;
-      platRow.revenue += rev;
+      const plat = order.platform;
+      const platRow = platformMap.get(plat) ?? {
+        quantity: 0,
+        revenue: 0,
+        orderIds: new Set<string>(),
+        returnedQty: 0,
+        weekOrderIds: new Set<string>(),
+        monthOrderIds: new Set<string>(),
+      };
+      if (isReturned) {
+        platRow.returnedQty += qty;
+      } else {
+        platRow.quantity += qty;
+        platRow.revenue += rev;
+        platRow.orderIds.add(order.id);
+        if (createdAt >= weekStart) {
+          platRow.weekOrderIds.add(order.id);
+        }
+        if (createdAt >= monthStart) {
+          platRow.monthOrderIds.add(order.id);
+        }
+      }
       platformMap.set(plat, platRow);
     }
 
@@ -740,6 +819,21 @@ export class ProductService {
     }));
 
     const dayCount = Math.max(1, days);
+    const soldPlusReturned = totalSales + returnedQty;
+    const returnRatePct =
+      soldPlusReturned > 0
+        ? Math.round((returnedQty / soldPlusReturned) * 10_000) / 100
+        : 0;
+    const revenueChangePct =
+      revenueLastMonth > 0
+        ? Math.round(
+            ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) *
+              10_000,
+          ) / 100
+        : revenueThisMonth > 0
+          ? 100
+          : null;
+
     return {
       days,
       dailySales,
@@ -748,13 +842,32 @@ export class ProductService {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         averageDailySales: Math.round((totalSales / dayCount) * 100) / 100,
         bestDay,
+        revenueThisMonth: Math.round(revenueThisMonth * 100) / 100,
+        revenueLastMonth: Math.round(revenueLastMonth * 100) / 100,
+        revenueChangePct,
+        averageOrderValue:
+          orderIds.size > 0
+            ? Math.round((totalRevenue / orderIds.size) * 100) / 100
+            : 0,
+        returnRatePct,
+        orderCount: orderIds.size,
       },
       platformDistribution: [...platformMap.entries()].map(
-        ([platform, row]) => ({
-          platform,
-          quantity: row.quantity,
-          revenue: Math.round(row.revenue * 100) / 100,
-        }),
+        ([platform, row]) => {
+          const platSold = row.quantity + row.returnedQty;
+          return {
+            platform,
+            quantity: row.quantity,
+            revenue: Math.round(row.revenue * 100) / 100,
+            orderCount: row.orderIds.size,
+            returnRatePct:
+              platSold > 0
+                ? Math.round((row.returnedQty / platSold) * 10_000) / 100
+                : 0,
+            weekOrderCount: row.weekOrderIds.size,
+            monthOrderCount: row.monthOrderIds.size,
+          };
+        },
       ),
       priceHistory,
     };

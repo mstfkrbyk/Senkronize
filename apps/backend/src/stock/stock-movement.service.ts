@@ -22,8 +22,10 @@ export interface StockMovementHistoryOptions {
   from?: Date;
   to?: Date;
   movementType?: StockMovementType;
+  movementTypes?: StockMovementType[];
   barcode?: string;
   platform?: string;
+  warehouseId?: string;
   page?: number;
   limit?: number;
 }
@@ -32,6 +34,12 @@ export interface MovementSummary {
   from: string;
   to: string;
   byType: Record<string, number>;
+}
+
+export interface DailyMovementFlowPoint {
+  date: string;
+  inflow: number;
+  outflow: number;
 }
 
 @Injectable()
@@ -108,11 +116,16 @@ export class StockMovementService {
             },
           }
         : {}),
-      ...(options.movementType
-        ? { movementType: options.movementType }
-        : {}),
+      ...(options.movementTypes && options.movementTypes.length > 0
+        ? { movementType: { in: options.movementTypes } }
+        : options.movementType
+          ? { movementType: options.movementType }
+          : {}),
       ...(options.platform !== undefined && options.platform !== ''
         ? { platform: options.platform }
+        : {}),
+      ...(options.warehouseId && options.warehouseId.length > 0
+        ? { warehouseId: options.warehouseId }
         : {}),
       ...(search && search.length > 0
         ? { barcode: { contains: search, mode: 'insensitive' } }
@@ -130,6 +143,55 @@ export class StockMovementService {
     ]);
 
     return { data, total };
+  }
+
+  async getDailyMovementFlow(
+    organizationId: string,
+    days = 30,
+  ): Promise<DailyMovementFlowPoint[]> {
+    const safeDays = Math.min(Math.max(1, days), 90);
+    const to = new Date();
+    const from = new Date(to);
+    from.setUTCDate(from.getUTCDate() - safeDays);
+    from.setUTCHours(0, 0, 0, 0);
+
+    const rows = await this.prisma.stockMovement.findMany({
+      where: {
+        organizationId,
+        createdAt: { gte: from, lte: to },
+      },
+      select: { createdAt: true, quantity: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const byDay = new Map<string, { inflow: number; outflow: number }>();
+    for (let i = 0; i <= safeDays; i += 1) {
+      const d = new Date(from);
+      d.setUTCDate(d.getUTCDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      byDay.set(key, { inflow: 0, outflow: 0 });
+    }
+
+    for (const row of rows) {
+      const key = row.createdAt.toISOString().slice(0, 10);
+      const bucket = byDay.get(key);
+      if (!bucket) {
+        continue;
+      }
+      if (row.quantity > 0) {
+        bucket.inflow += row.quantity;
+      } else if (row.quantity < 0) {
+        bucket.outflow += Math.abs(row.quantity);
+      }
+    }
+
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, row]) => ({
+        date,
+        inflow: row.inflow,
+        outflow: row.outflow,
+      }));
   }
 
   async getMovementSummary(

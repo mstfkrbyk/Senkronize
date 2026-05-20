@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -46,18 +46,17 @@ import { getMarketplaceBranding } from '@/pages/connections/marketplace-display'
 import type { StockMovementDto, WarehouseDto } from '@/types/stock';
 
 import {
-  useAdjustStock,
   useCreateWarehouse,
   useDeleteWarehouse,
   useSetDefaultWarehouse,
   useStockHistoryOrg,
-  useStockOverview,
   useStockSummary,
   useTransferStock,
   useWarehouseStock,
   useWarehouses,
 } from './hooks/useStockManagement';
 import { StockDistributionTab } from './StockDistributionTab';
+import { StockStatusPage } from './StockStatusPage';
 
 const MOVEMENT_LABELS: Record<string, string> = {
   SALE: 'Satış',
@@ -126,7 +125,6 @@ function WarehouseStockCount({
 export function StockManagementPage(): ReactElement {
   usePageTitle('Stok yönetimi');
 
-  const overviewQuery = useStockOverview();
   const warehousesQuery = useWarehouses();
 
   const [range, setRange] = useState(defaultDateRange);
@@ -155,17 +153,10 @@ export function StockManagementPage(): ReactElement {
     historyFilters.to ?? '',
   );
 
-  const adjustMutation = useAdjustStock();
   const createWhMutation = useCreateWarehouse();
   const transferMutation = useTransferStock();
   const setDefaultMutation = useSetDefaultWarehouse();
   const deleteWhMutation = useDeleteWarehouse();
-
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  const [adjustBarcode, setAdjustBarcode] = useState('');
-  const [adjustTitle, setAdjustTitle] = useState('');
-  const [adjustQty, setAdjustQty] = useState(0);
-  const [adjustNote, setAdjustNote] = useState('');
 
   const [whOpen, setWhOpen] = useState(false);
   const [whName, setWhName] = useState('');
@@ -177,31 +168,6 @@ export function StockManagementPage(): ReactElement {
   const [trTo, setTrTo] = useState('');
   const [trBarcode, setTrBarcode] = useState('');
   const [trQty, setTrQty] = useState(1);
-
-  const openAdjust = useCallback((barcode: string, title: string, qty: number) => {
-    setAdjustBarcode(barcode);
-    setAdjustTitle(title);
-    setAdjustQty(qty);
-    setAdjustNote('');
-    setAdjustOpen(true);
-  }, []);
-
-  const submitAdjust = (): void => {
-    adjustMutation.mutate(
-      {
-        barcode: adjustBarcode,
-        newQuantity: adjustQty,
-        note: adjustNote || undefined,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Stok güncellendi');
-          setAdjustOpen(false);
-        },
-        onError: (e) => toast.error(getApiErrorMessage(e)),
-      },
-    );
-  };
 
   const submitWarehouse = (): void => {
     createWhMutation.mutate(
@@ -311,119 +277,7 @@ export function StockManagementPage(): ReactElement {
         </TabsList>
 
         <TabsContent value="status" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Ürün bazlı stok</CardTitle>
-              <CardDescription>
-                Toplam, rezerve, kullanılabilir ve depo / platform dağılımı.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {overviewQuery.isLoading ? (
-                <p className="text-muted-foreground text-sm">Yükleniyor…</p>
-              ) : overviewQuery.isError ? (
-                <p className="text-destructive text-sm">
-                  {getApiErrorMessage(overviewQuery.error)}
-                </p>
-              ) : (overviewQuery.data?.length ?? 0) === 0 ? (
-                <p className="text-muted-foreground text-sm">Kayıt yok.</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ürün</TableHead>
-                        <TableHead>Barkod</TableHead>
-                        <TableHead className="text-right">Toplam</TableHead>
-                        <TableHead className="text-right">Rezerve</TableHead>
-                        <TableHead className="text-right">Kullanılabilir</TableHead>
-                        <TableHead>Platform</TableHead>
-                        <TableHead>Depolar</TableHead>
-                        <TableHead className="w-[120px]" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {overviewQuery.data?.map((row) => (
-                        <TableRow key={row.barcode}>
-                          <TableCell className="max-w-[200px]">
-                            <div className="font-medium line-clamp-2">
-                              {row.productName ?? '—'}
-                            </div>
-                            {row.sku ? (
-                              <div className="text-xs text-muted-foreground">
-                                SKU: {row.sku}
-                              </div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {row.barcode}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.totalQuantity.toLocaleString('tr-TR')}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.totalReserved.toLocaleString('tr-TR')}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.available.toLocaleString('tr-TR')}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-wrap gap-1">
-                              {row.byPlatform.map((p) => (
-                                <Badge
-                                  key={`${row.barcode}-p-${p.platform ?? 'c'}`}
-                                  variant="outline"
-                                  className="text-xs"
-                                >
-                                  {platformLabel(p.platform)}:{' '}
-                                  {p.quantity.toLocaleString('tr-TR')}
-                                </Badge>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1 text-xs">
-                              {row.byWarehouse.map((w) => (
-                                <span key={w.warehouseId}>
-                                  <span className="font-medium">{w.code}</span>:{' '}
-                                  {w.quantity.toLocaleString('tr-TR')}
-                                  {w.reservedQty > 0
-                                    ? ` (rez: ${w.reservedQty.toLocaleString('tr-TR')})`
-                                    : ''}
-                                </span>
-                              ))}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col items-end gap-1">
-                              {row.lowStock ? (
-                                <Badge variant="destructive" className="text-xs">
-                                  Düşük stok
-                                </Badge>
-                              ) : null}
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() =>
-                                  openAdjust(
-                                    row.barcode,
-                                    row.productName ?? row.barcode,
-                                    row.totalQuantity,
-                                  )
-                                }
-                              >
-                                Manuel düzelt
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <StockStatusPage />
         </TabsContent>
 
         <TabsContent value="distribution">
@@ -719,45 +573,6 @@ export function StockManagementPage(): ReactElement {
           </Card>
         </TabsContent>
       </Tabs>
-
-      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Manuel stok düzeltmesi</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 py-2">
-            <p className="text-sm text-muted-foreground">{adjustTitle}</p>
-            <p className="font-mono text-xs">{adjustBarcode}</p>
-            <div className="space-y-1">
-              <Label htmlFor="adj-qty">Yeni miktar (ana depo, merkezi stok)</Label>
-              <Input
-                id="adj-qty"
-                type="number"
-                min={0}
-                value={adjustQty}
-                onChange={(e) => setAdjustQty(Number(e.target.value))}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="adj-note">Not</Label>
-              <Textarea
-                id="adj-note"
-                rows={3}
-                value={adjustNote}
-                onChange={(e) => setAdjustNote(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustOpen(false)}>
-              İptal
-            </Button>
-            <Button onClick={submitAdjust} disabled={adjustMutation.isPending}>
-              Kaydet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={whOpen} onOpenChange={setWhOpen}>
         <DialogContent>

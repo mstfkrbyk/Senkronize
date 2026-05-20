@@ -3,30 +3,55 @@ import type { ReactElement } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Loader2 } from 'lucide-react';
+import { Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import {
   CartesianGrid,
-  Cell,
-  Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
-import type { ProductAnalyticsResponse } from '@/types/product';
-
-const PIE_COLORS = ['#38bdf8', '#f97316', '#22c55e', '#a855f7', '#ef4444'];
+import { PlatformSalesChart } from '@/pages/products/components/PlatformSalesChart';
+import { StockForecastChart } from '@/pages/stock/components/StockForecastChart';
+import type {
+  ProductAnalyticsResponse,
+  ProductStockForecastResult,
+} from '@/types/product';
 
 interface Props {
   productId: string;
+}
+
+function formatTry(value: number): string {
+  return `${value.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺`;
+}
+
+function revenueChangeLabel(pct: number | null): ReactElement {
+  if (pct === null) {
+    return <span className="text-muted-foreground text-xs">Karşılaştırma yok</span>;
+  }
+  const up = pct >= 0;
+  const Icon = up ? TrendingUp : TrendingDown;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-xs ${up ? 'text-emerald-700' : 'text-red-700'}`}
+    >
+      <Icon className="size-3.5" />
+      {up ? '+' : ''}
+      {pct.toLocaleString('tr-TR')}% geçen aya göre
+    </span>
+  );
 }
 
 export function ProductPerformanceTab({ productId }: Props): ReactElement {
@@ -36,6 +61,16 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
       const { data } = await api.get<ProductAnalyticsResponse>(
         `/products/${productId}/analytics`,
         { params: { days: 30 } },
+      );
+      return data;
+    },
+  });
+
+  const forecastQuery = useQuery({
+    queryKey: ['stock-forecast', 'product', productId],
+    queryFn: async (): Promise<ProductStockForecastResult> => {
+      const { data } = await api.get<ProductStockForecastResult>(
+        `/stock/forecast/product/${productId}`,
       );
       return data;
     },
@@ -68,11 +103,6 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
     quantity: d.quantity,
   }));
 
-  const platformChart = platformDistribution.map((p) => ({
-    name: getMarketplaceBranding(p.platform).label,
-    value: p.quantity,
-  }));
-
   const priceChart = priceHistory.map((p) => ({
     label: format(parseISO(p.date), 'd MMM', { locale: tr }),
     price: p.price,
@@ -80,30 +110,43 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Toplam satış (30 gün)</CardDescription>
+            <CardDescription>Bu ay gelir</CardDescription>
             <CardTitle className="text-2xl tabular-nums">
-              {kpis.totalSales.toLocaleString('tr-TR')} adet
+              {formatTry(kpis.revenueThisMonth)}
             </CardTitle>
+            {revenueChangeLabel(kpis.revenueChangePct)}
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Ortalama günlük satış</CardDescription>
+            <CardDescription>Toplam satış adedi</CardDescription>
             <CardTitle className="text-2xl tabular-nums">
-              {kpis.averageDailySales.toLocaleString('tr-TR')}
+              {kpis.totalSales.toLocaleString('tr-TR')}
             </CardTitle>
+            <p className="text-muted-foreground text-xs">
+              Son {analyticsQuery.data.days} gün
+            </p>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>En iyi satış günü</CardDescription>
-            <CardTitle className="text-lg">
-              {kpis.bestDay
-                ? `${format(parseISO(kpis.bestDay.date), 'd MMM yyyy', { locale: tr })} (${kpis.bestDay.quantity})`
-                : '—'}
+            <CardDescription>Ortalama sipariş değeri</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">
+              {formatTry(kpis.averageOrderValue)}
+            </CardTitle>
+            <p className="text-muted-foreground text-xs">
+              {kpis.orderCount.toLocaleString('tr-TR')} sipariş
+            </p>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>İade oranı</CardDescription>
+            <CardTitle className="text-2xl tabular-nums">
+              %{kpis.returnRatePct.toLocaleString('tr-TR')}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -111,7 +154,7 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Son 30 gün satış miktarı</CardTitle>
+          <CardTitle className="text-base">Son 30 gün satış trendi</CardTitle>
         </CardHeader>
         <CardContent className="h-72">
           {salesChart.length === 0 ? (
@@ -141,31 +184,10 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Platform dağılımı</CardTitle>
+            <CardDescription>Sipariş, gelir ve iade oranı</CardDescription>
           </CardHeader>
-          <CardContent className="h-64">
-            {platformChart.length === 0 ? (
-              <p className="text-muted-foreground text-sm">Veri yok.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={platformChart}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label
-                  >
-                    {platformChart.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
+          <CardContent>
+            <PlatformSalesChart platforms={platformDistribution} />
           </CardContent>
         </Card>
 
@@ -201,6 +223,54 @@ export function ProductPerformanceTab({ productId }: Props): ReactElement {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Stok tahmini</CardTitle>
+          <CardDescription>
+            Mevcut stok, AI projeksiyonu ve kritik seviye (30 gün)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {forecastQuery.isLoading ? (
+            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+              <Loader2 className="size-4 animate-spin" />
+              Tahmin yükleniyor…
+            </div>
+          ) : forecastQuery.isError ? (
+            <p className="text-destructive text-sm">
+              {getApiErrorMessage(forecastQuery.error)}
+            </p>
+          ) : forecastQuery.data ? (
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-sm">
+                Mevcut:{' '}
+                <span className="font-medium text-foreground tabular-nums">
+                  {forecastQuery.data.currentStock.toLocaleString('tr-TR')}
+                </span>
+                {' · '}
+                Günlük ort. satış:{' '}
+                <span className="tabular-nums">
+                  {forecastQuery.data.dailySalesAvg.toLocaleString('tr-TR')}
+                </span>
+                {forecastQuery.data.daysUntilStockout !== null ? (
+                  <>
+                    {' · '}
+                    Tükenme: ~
+                    {Math.ceil(forecastQuery.data.daysUntilStockout)} gün
+                  </>
+                ) : null}
+              </p>
+              <StockForecastChart
+                data={forecastQuery.data.forecastData}
+                daysUntilStockout={forecastQuery.data.daysUntilStockout}
+              />
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">Tahmin verisi yok.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

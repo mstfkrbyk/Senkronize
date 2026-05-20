@@ -9,12 +9,22 @@ export interface ProductAnalyticsKpis {
   totalRevenue: number;
   averageDailySales: number;
   bestDay: { date: string; quantity: number } | null;
+  revenueThisMonth: number;
+  revenueLastMonth: number;
+  revenueChangePct: number | null;
+  averageOrderValue: number;
+  returnRatePct: number;
+  orderCount: number;
 }
 
 export interface ProductAnalyticsPlatformSlice {
   platform: string;
   quantity: number;
   revenue: number;
+  orderCount: number;
+  returnRatePct: number;
+  weekOrderCount: number;
+  monthOrderCount: number;
 }
 
 export interface ProductAnalyticsPricePoint {

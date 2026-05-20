@@ -56,6 +56,7 @@ import type {
 } from './stock-distribution.types';
 import { StockForecastService } from './stock-forecast.service';
 import type {
+  ProductStockForecastResultDto,
   SeasonalityDataDto,
   StockForecastSummaryDto,
   StockoutEstimateDto,
@@ -63,6 +64,7 @@ import type {
 } from './stock-forecast.types';
 import {
   StockMovementService,
+  type DailyMovementFlowPoint,
   type MovementSummary,
 } from './stock-movement.service';
 import {
@@ -194,6 +196,17 @@ export class StockController {
     return { data };
   }
 
+  @Get('forecast/product/:productId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün bazlı 30 günlük stok tahmin verisi' })
+  @ApiResponse({ status: 200 })
+  async forecastByProduct(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('productId') productId: string,
+  ): Promise<ProductStockForecastResultDto> {
+    return this.stockForecastService.getForecastData(org.id, productId);
+  }
+
   @Get('forecast/:barcode/seasonality')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Basit sezonsallık karşılaştırması (son 30 gün vs önceki 30 gün)' })
@@ -224,6 +237,21 @@ export class StockController {
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<{ rows: StockOverviewRow[] }> {
     return this.stockService.getManagementOverview(org.id);
+  }
+
+  @Get('movements/daily')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Son N gün günlük stok giriş/çıkış özeti' })
+  @ApiResponse({ status: 200 })
+  async dailyMovementFlow(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
+  ): Promise<{ data: DailyMovementFlowPoint[] }> {
+    const data = await this.stockMovementService.getDailyMovementFlow(
+      org.id,
+      days,
+    );
+    return { data };
   }
 
   @Get('summary')
@@ -266,12 +294,20 @@ export class StockController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Query() query: StockHistoryQueryDto,
   ): Promise<{ data: StockMovement[]; total: number }> {
+    const movementTypes = query.movementTypes
+      ?.split(',')
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0) as StockMovementType[] | undefined;
+
     return this.stockMovementService.getOrgHistory(org.id, {
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
       movementType: query.movementType,
+      movementTypes:
+        movementTypes && movementTypes.length > 0 ? movementTypes : undefined,
       barcode: query.barcode,
       platform: query.platform,
+      warehouseId: query.warehouseId,
       page: query.page,
       limit: query.limit,
     });

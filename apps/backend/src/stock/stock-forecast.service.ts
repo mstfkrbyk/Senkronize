@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
+  ProductStockForecastResultDto,
   SeasonalityDataDto,
   StockForecastSummaryDto,
   StockoutEstimateDto,
@@ -331,6 +332,95 @@ export class StockForecastService {
       priorVelocity: Math.round(priorVelocity * 10_000) / 10_000,
       seasonalityIndex: Math.round(seasonalityIndex * 100) / 100,
       trendLabel,
+    };
+  }
+
+  async getForecastData(
+    organizationId: string,
+    productId: string,
+    horizonDays = 30,
+  ): Promise<ProductStockForecastResultDto> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId, deletedAt: null },
+      select: {
+        id: true,
+        barcode: true,
+        reorderPoint: true,
+      },
+    });
+    if (!product) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+
+    const velocity = await this.calculateVelocity(
+      organizationId,
+      product.barcode,
+    );
+    const seasonality = await this.analyzeSeasonality(
+      organizationId,
+      product.barcode,
+    );
+    const forecastVelocity =
+      Math.round(velocity * seasonality.seasonalityIndex * 10_000) / 10_000;
+
+    const currentStock = await this.getCurrentStock(
+      organizationId,
+      product.barcode,
+    );
+    const reorderPoint = product.reorderPoint ?? 0;
+
+    const daysUntilStockout =
+      velocity > 0 ? currentStock / velocity : null;
+    const daysUntilReorderPoint =
+      velocity > 0 && reorderPoint > 0 && currentStock > reorderPoint
+        ? (currentStock - reorderPoint) / velocity
+        : velocity > 0 && reorderPoint > 0 && currentStock <= reorderPoint
+          ? 0
+          : null;
+
+    const base = startOfUtcDay(new Date());
+    const stockoutDay =
+      daysUntilStockout !== null && Number.isFinite(daysUntilStockout)
+        ? Math.ceil(daysUntilStockout)
+        : null;
+
+    const forecastData: ProductStockForecastResultDto['forecastData'] = [];
+    for (let d = 0; d <= horizonDays; d += 1) {
+      const dateIso = addDaysUtc(base, d).toISOString().slice(0, 10);
+      const linearActual = Math.max(0, currentStock - velocity * d);
+      const linearForecast = Math.max(0, currentStock - forecastVelocity * d);
+      const point: ProductStockForecastResultDto['forecastData'][number] = {
+        date: dateIso,
+        forecast: Math.round(linearForecast * 100) / 100,
+        reorderPoint,
+      };
+      if (
+        stockoutDay === null ||
+        d <= stockoutDay
+      ) {
+        point.actual = Math.round(linearActual * 100) / 100;
+      }
+      forecastData.push(point);
+    }
+
+    return {
+      productId: product.id,
+      barcode: product.barcode,
+      currentStock,
+      dailySalesAvg: Math.round(velocity * 10_000) / 10_000,
+      dailySales: Math.round(velocity * 10_000) / 10_000,
+      reorderPoint,
+      forecastDays: horizonDays,
+      daysUntilStockout:
+        daysUntilStockout === null || !Number.isFinite(daysUntilStockout)
+          ? null
+          : Math.round(daysUntilStockout * 100) / 100,
+      daysUntilReorderPoint:
+        daysUntilReorderPoint === null ||
+        !Number.isFinite(daysUntilReorderPoint)
+          ? null
+          : Math.round(daysUntilReorderPoint * 100) / 100,
+      forecastData,
     };
   }
 

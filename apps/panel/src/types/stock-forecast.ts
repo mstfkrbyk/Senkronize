@@ -43,3 +43,29 @@ export interface StockProjectionDto {
   reorderPoint: number | null;
   points: StockProjectionPointDto[];
 }
+
+export interface StockForecastDataPoint {
+  date: string;
+  actual?: number;
+  forecast?: number;
+  reorderPoint: number;
+}
+
+export interface ProductStockForecastResult {
+  productId: string;
+  barcode: string;
+  currentStock: number;
+  dailySalesAvg: number;
+  dailySales: number;
+  reorderPoint: number;
+  forecastDays: number;
+  daysUntilStockout: number | null;
+  daysUntilReorderPoint: number | null;
+  forecastData: StockForecastDataPoint[];
+}
+
+export interface DailyMovementFlowPoint {
+  date: string;
+  inflow: number;
+  outflow: number;
+}
