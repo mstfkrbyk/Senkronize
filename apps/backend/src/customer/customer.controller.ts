@@ -20,14 +20,17 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  CustomerBulkTagsDto,
   CustomerNoteDto,
   CustomerQueryDto,
   CustomerTagsDto,
+  CustomerUpdateDto,
 } from './customer.dto';
 import { CustomerService } from './customer.service';
 import type {
   CustomerDetail,
   CustomerSegmentsSummary,
+  CustomerSummary,
   SerializedCustomer,
 } from './customer.types';
 
@@ -60,6 +63,35 @@ export class CustomerController {
     return this.customerService.exportCsv(org.id);
   }
 
+  @Get('summary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Müşteri özet KPI' })
+  @ApiResponse({ status: 200, description: 'Özet' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async getSummary(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: CustomerSummary }> {
+    const data = await this.customerService.getSummary(org.id);
+    return { data };
+  }
+
+  @Patch('bulk/tags')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu etiket ekle veya kaldır' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async bulkUpdateTags(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: CustomerBulkTagsDto,
+  ): Promise<{ updated: number }> {
+    return this.customerService.bulkUpdateTags(
+      org.id,
+      dto.customerIds,
+      dto.action,
+      dto.tag,
+    );
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Müşteri listesi' })
@@ -88,6 +120,21 @@ export class CustomerController {
     @Param('id') id: string,
   ): Promise<{ data: CustomerDetail }> {
     const data = await this.customerService.findOne(org.id, id);
+    return { data };
+  }
+
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Müşteri profil güncelle' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async updateProfile(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CustomerUpdateDto,
+  ): Promise<{ data: SerializedCustomer }> {
+    const data = await this.customerService.updateProfile(org.id, id, dto);
     return { data };
   }
 

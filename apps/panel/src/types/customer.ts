@@ -1,4 +1,4 @@
-export type CustomerSegmentKey = 'VIP' | 'sadik' | 'yeni' | 'riskAlti';
+export type CustomerSegmentKey = 'VIP' | 'sadik' | 'yeni' | 'risk' | 'kayip';
 
 export interface CustomerDto {
   id: string;
@@ -45,3 +45,10 @@ export type CustomerSegmentsSummary = Record<
   CustomerSegmentKey,
   CustomerSegmentStats
 >;
+
+export interface CustomerSummary {
+  total: number;
+  newThisMonth: number;
+  highValue: number;
+  churned: number;
+}

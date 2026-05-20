@@ -4,29 +4,58 @@ export const SEGMENT_LABELS: Record<CustomerSegmentKey, string> = {
   VIP: 'VIP',
   sadik: 'Sadık',
   yeni: 'Yeni',
-  riskAlti: 'Risk Altında',
+  risk: 'Risk',
+  kayip: 'Kayıp',
 };
 
 export const SEGMENT_BADGE_CLASS: Record<CustomerSegmentKey, string> = {
   VIP: 'bg-amber-100 text-amber-900 border-amber-200',
-  sadik: 'bg-sky-100 text-sky-900 border-sky-200',
-  yeni: 'bg-emerald-100 text-emerald-900 border-emerald-200',
-  riskAlti: 'bg-red-100 text-red-900 border-red-200',
+  sadik: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+  yeni: 'bg-sky-100 text-sky-900 border-sky-200',
+  risk: 'bg-orange-100 text-orange-900 border-orange-200',
+  kayip: 'bg-red-100 text-red-900 border-red-200',
 };
 
 export const SEGMENT_CHART_COLORS: Record<CustomerSegmentKey, string> = {
   VIP: '#f59e0b',
-  sadik: '#0ea5e9',
-  yeni: '#22c55e',
-  riskAlti: '#ef4444',
+  sadik: '#22c55e',
+  yeni: '#0ea5e9',
+  risk: '#f97316',
+  kayip: '#ef4444',
 };
 
-export const SEGMENT_OPTIONS: Array<{ value: CustomerSegmentKey; label: string }> = [
-  { value: 'VIP', label: SEGMENT_LABELS.VIP },
-  { value: 'sadik', label: SEGMENT_LABELS.sadik },
-  { value: 'yeni', label: SEGMENT_LABELS.yeni },
-  { value: 'riskAlti', label: SEGMENT_LABELS.riskAlti },
+export const SEGMENT_CRITERIA: Record<CustomerSegmentKey, string> = {
+  VIP: 'Son 90 günde 5.000 ₺ üzeri harcama',
+  sadik: '10+ sipariş, son 30 günde aktif',
+  yeni: 'Son 30 günde kayıtlı',
+  risk: '60–90 gündür sipariş yok',
+  kayip: '90+ gündür sipariş yok',
+};
+
+export const SEGMENT_OPTIONS: Array<{ value: CustomerSegmentKey; label: string }> =
+  (Object.keys(SEGMENT_LABELS) as CustomerSegmentKey[]).map((value) => ({
+    value,
+    label: SEGMENT_LABELS[value],
+  }));
+
+const SEGMENT_PRIORITY: CustomerSegmentKey[] = [
+  'VIP',
+  'sadik',
+  'yeni',
+  'risk',
+  'kayip',
 ];
+
+export function primarySegment(
+  segments: CustomerSegmentKey[],
+): CustomerSegmentKey | null {
+  for (const key of SEGMENT_PRIORITY) {
+    if (segments.includes(key)) {
+      return key;
+    }
+  }
+  return null;
+}
 
 export function formatTryAmount(value: string | number): string {
   const n = typeof value === 'string' ? Number(value) : value;

@@ -387,9 +387,85 @@ export class CustomerService {
         VIP: { count: 0, totalRevenue: '0' },
         sadik: { count: 0, totalRevenue: '0' },
         yeni: { count: 0, totalRevenue: '0' },
-        riskAlti: { count: 0, totalRevenue: '0' },
+        risk: { count: 0, totalRevenue: '0' },
+        kayip: { count: 0, totalRevenue: '0' },
       },
     );
+  }
+
+  async getSummary(organizationId: string): Promise<CustomerSummary> {
+    const baseWhere: Prisma.CustomerWhereInput = {
+      organizationId,
+      deletedAt: null,
+    };
+    const monthStart = startOfCurrentMonth();
+
+    const [total, newThisMonth, churned, spentRows] = await Promise.all([
+      this.prisma.customer.count({ where: baseWhere }),
+      this.prisma.customer.count({
+        where: { ...baseWhere, createdAt: { gte: monthStart } },
+      }),
+      this.prisma.customer.count({
+        where: {
+          ...baseWhere,
+          OR: [
+            { lastOrderAt: { lt: daysAgo(90) } },
+            { lastOrderAt: null, totalOrders: { gt: 0 } },
+          ],
+        },
+      }),
+      this.prisma.customer.findMany({
+        where: baseWhere,
+        select: { totalSpent: true },
+        orderBy: { totalSpent: 'desc' },
+      }),
+    ]);
+
+    const cutoffIdx = Math.max(0, Math.floor(spentRows.length * 0.1) - 1);
+    const threshold =
+      spentRows[cutoffIdx]?.totalSpent ?? new Prisma.Decimal(0);
+    const highValue = await this.prisma.customer.count({
+      where: { ...baseWhere, totalSpent: { gte: threshold } },
+    });
+
+    return { total, newThisMonth, highValue, churned };
+  }
+
+  async bulkUpdateTags(
+    organizationId: string,
+    customerIds: string[],
+    action: 'add' | 'remove',
+    tag: string,
+  ): Promise<{ updated: number }> {
+    let updated = 0;
+    for (const id of customerIds) {
+      try {
+        if (action === 'add') {
+          await this.addTag(organizationId, id, tag);
+        } else {
+          await this.removeTag(organizationId, id, tag);
+        }
+        updated += 1;
+      } catch {
+        // skip missing customers
+      }
+    }
+    return { updated };
+  }
+
+  async updateProfile(
+    organizationId: string,
+    id: string,
+    data: { notes?: string },
+  ): Promise<SerializedCustomer> {
+    const customer = await this.requireCustomer(organizationId, id);
+    const updated = await this.prisma.customer.update({
+      where: { id: customer.id },
+      data: {
+        ...(data.notes !== undefined ? { notes: data.notes } : {}),
+      },
+    });
+    return serializeCustomer(updated);
   }
 
   async exportCsv(organizationId: string): Promise<string> {

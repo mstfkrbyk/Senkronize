@@ -14,6 +14,12 @@ export type OrgPlanTier = 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL';
 
 export type OrgType = 'DIRECT' | 'PARTNER';
 
+export interface AuthOrganizationSecurityDto {
+  requiresTwoFactorSetup?: boolean;
+  passwordChangeRequired?: boolean;
+  passwordChangeWarning?: boolean;
+}
+
 export interface AuthOrganizationDto {
   id: string;
   slug: string;
@@ -23,6 +29,7 @@ export interface AuthOrganizationDto {
   createdAt: string;
   onboardingCompleted: boolean;
   plan: OrgPlanTier;
+  security?: AuthOrganizationSecurityDto;
 }
 
 export interface MeResponse {
