@@ -12,6 +12,8 @@ import { Marketplace, type MarketplaceConnection } from '@prisma/client';
 
 import { PostHogService } from '../analytics/posthog.service';
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { ShopifyAdapter } from '../adapters/shopify/shopify.adapter';
+import { WoocommerceAdapter } from '../adapters/woocommerce/woocommerce.adapter';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionService } from '../subscription/subscription.service';
@@ -690,8 +692,56 @@ export class MarketplaceConnectionService {
       /\/$/,
       '',
     );
-    const webhookUrl = `${base}/api/v1/webhooks/${row.platform.toLowerCase()}/${connectionId}`;
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
+    const webhookUrl = this.buildInboundWebhookUrl(
+      base,
+      row.platform,
+      connectionId,
+      creds,
+    );
+    if (creds) {
+      await this.provisionInboundWebhooks(row.platform, creds, webhookUrl, secret);
+    }
     return { webhookUrl };
+  }
+
+  private buildInboundWebhookUrl(
+    base: string,
+    platform: Marketplace,
+    connectionId: string,
+    creds: Record<string, string> | null,
+  ): string {
+    if (platform === Marketplace.WOOCOMMERCE) {
+      return `${base}/api/v1/webhooks/woocommerce/${connectionId}`;
+    }
+    if (platform === Marketplace.SHOPIFY) {
+      const shop = (creds?.shopDomain ?? 'shop')
+        .replace(/^https?:\/\//, '')
+        .split('/')[0];
+      return `${base}/api/v1/webhooks/shopify/${encodeURIComponent(shop)}`;
+    }
+    return `${base}/api/v1/webhooks/${platform.toLowerCase()}/${connectionId}`;
+  }
+
+  private async provisionInboundWebhooks(
+    platform: Marketplace,
+    credentials: Record<string, string>,
+    webhookUrl: string,
+    secret: string,
+  ): Promise<void> {
+    if (platform === Marketplace.WOOCOMMERCE) {
+      const adapter = this.adapterRegistry.get('WOOCOMMERCE');
+      if (adapter instanceof WoocommerceAdapter) {
+        await adapter.registerInboundWebhooks(credentials, webhookUrl, secret);
+      }
+      return;
+    }
+    if (platform === Marketplace.SHOPIFY) {
+      const adapter = this.adapterRegistry.get('SHOPIFY');
+      if (adapter instanceof ShopifyAdapter) {
+        await adapter.registerInboundWebhooks(credentials, webhookUrl);
+      }
+    }
   }
 
   /**

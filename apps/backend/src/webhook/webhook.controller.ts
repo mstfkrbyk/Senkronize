@@ -259,6 +259,29 @@ export class WebhookController {
   }
 
   @Public()
+  @Post(':platform/:connectionId')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Pazaryeri webhook (bağlantı kimliği ile)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async handleWebhookByConnection(
+    @Param('platform') platform: string,
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    const raw = req.rawBody;
+    if (!raw || !Buffer.isBuffer(raw)) {
+      throw new BadRequestException('Ham gövde kullanılamıyor');
+    }
+    return this.webhookService.handleInboundPlatformWebhook(
+      platform,
+      headers,
+      raw,
+      connectionId,
+    );
+  }
+
+  @Public()
   @Post(':platform')
   @HttpCode(200)
   @ApiOperation({ summary: 'Pazaryeri webhook (imza doğrulamalı)' })

@@ -433,6 +433,9 @@ export class WebhookProcessorService {
     }
 
     if (
+      normalized === 'ORDER_UPDATED' ||
+      normalized === 'ORDER.UPDATED' ||
+      normalized.includes('ORDER_UPDATED') ||
       normalized === 'WOOCOMMERCE_ORDER_STATUS_CHANGED' ||
       normalized.includes('ORDER_STATUS')
     ) {

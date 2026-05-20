@@ -157,7 +157,7 @@ export class PlatformWebhookService {
       throw new BadRequestException('Geçersiz JSON');
     }
 
-    const event = this.detectEvent(platform, parsedBody);
+    const event = this.detectEvent(platform, parsedBody, headers);
     await this.dispatchEvent(orgId, platform, event, parsedBody);
 
     this.logger.log('Platform webhook işlendi', {
@@ -204,12 +204,30 @@ export class PlatformWebhookService {
           '';
         return this.webhookSignature.verifyHmacSha256(rawBody, sig, secret, 'hex');
       }
+      case Marketplace.SHOPIFY: {
+        const sig =
+          getHeader(headers, 'x-shopify-hmac-sha256') ??
+          getHeader(headers, 'X-Shopify-Hmac-Sha256') ??
+          '';
+        return this.webhookSignature.verifyShopify(rawBody, sig, secret);
+      }
+      case Marketplace.WOOCOMMERCE: {
+        const sig =
+          getHeader(headers, 'x-wc-webhook-signature') ??
+          getHeader(headers, 'X-WC-Webhook-Signature') ??
+          '';
+        return this.webhookSignature.verifyWooCommerce(rawBody, sig, secret);
+      }
       default:
         return false;
     }
   }
 
-  detectEvent(platform: Marketplace, body: unknown): PlatformWebhookEvent {
+  detectEvent(
+    platform: Marketplace,
+    body: unknown,
+    headers: Record<string, string> = {},
+  ): PlatformWebhookEvent {
     switch (platform) {
       case Marketplace.TRENDYOL:
         return this.detectTrendyolEvent(body);
@@ -221,9 +239,52 @@ export class PlatformWebhookService {
         return this.detectAmazonEvent(body);
       case Marketplace.ETSY:
         return this.detectEtsyEvent(body);
+      case Marketplace.SHOPIFY:
+        return this.detectShopifyEvent(headers);
+      case Marketplace.WOOCOMMERCE:
+        return this.detectWooCommerceEvent(body);
       default:
         return 'unknown';
     }
+  }
+
+  private detectShopifyEvent(headers: Record<string, string>): PlatformWebhookEvent {
+    const topic = (getHeader(headers, 'x-shopify-topic') ?? '').toLowerCase();
+    if (topic === 'orders/create') {
+      return 'order.created';
+    }
+    if (topic === 'orders/updated' || topic === 'orders/edited') {
+      return 'order.updated';
+    }
+    if (topic.includes('cancel')) {
+      return 'order.cancelled';
+    }
+    if (topic.includes('inventory')) {
+      return 'stock.updated';
+    }
+    if (topic.includes('products/')) {
+      return 'listing.updated';
+    }
+    return 'unknown';
+  }
+
+  private detectWooCommerceEvent(body: unknown): PlatformWebhookEvent {
+    if (typeof body !== 'object' || body === null) {
+      return 'unknown';
+    }
+    const action = String(
+      (body as Record<string, unknown>).action ?? '',
+    ).toLowerCase();
+    if (action === 'order.created' || action.includes('new_order')) {
+      return 'order.created';
+    }
+    if (action === 'order.updated' || action.includes('order_status')) {
+      return 'order.updated';
+    }
+    if (action.includes('cancel')) {
+      return 'order.cancelled';
+    }
+    return 'unknown';
   }
 
   private detectTrendyolEvent(body: unknown): PlatformWebhookEvent {

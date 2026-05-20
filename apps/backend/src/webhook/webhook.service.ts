@@ -125,6 +125,7 @@ export class WebhookService {
     headers: Record<string, string>,
     rawBody: Buffer,
     connectionIdHint?: string,
+    eventTypeHint?: string,
   ): Promise<{ received: true }> {
     const slug = platformParam.trim().toLowerCase();
     if (slug === 'ciceksepeti') {
@@ -192,7 +193,9 @@ export class WebhookService {
     }
 
     const payloadHash = createHash('sha256').update(rawBody).digest('hex');
-    const eventType = this.extractEventTypeForLog(slug, parsedBody, headers);
+    const eventType =
+      eventTypeHint?.trim() ||
+      this.extractEventTypeForLog(slug, parsedBody, headers);
 
     const existing = await this.prisma.webhookLog.findUnique({
       where: {

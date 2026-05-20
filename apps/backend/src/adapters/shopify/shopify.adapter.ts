@@ -15,14 +15,27 @@ import type {
   ShopifyOrder,
   ShopifyProduct,
   ShopifyVariant,
+  ShopifyWebhook,
 } from './shopify.types';
+
+export interface ShopifyFulfillmentInput {
+  trackingNumber?: string;
+  trackingCompany?: string;
+  notifyCustomer?: boolean;
+}
 
 @Injectable()
 export class ShopifyAdapter implements IMarketplaceAdapter {
   readonly platform = 'SHOPIFY';
   private readonly logger = new Logger(ShopifyAdapter.name);
 
-  private getClient(credentials: Record<string, string>): AxiosInstance {
+  private hasCredentials(credentials: Record<string, string>): boolean {
+    return Boolean(
+      credentials.shopDomain?.trim() && credentials.accessToken?.trim(),
+    );
+  }
+
+  getClient(credentials: Record<string, string>): AxiosInstance {
     const shop = credentials.shopDomain ?? '';
     return axios.create({
       baseURL: shopifyBaseUrl(shop),
@@ -30,14 +43,13 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
         'X-Shopify-Access-Token': credentials.accessToken ?? '',
         'Content-Type': 'application/json',
       },
-      timeout: 15_000,
+      timeout: 30_000,
     });
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const { shopDomain, accessToken } = credentials;
-      if (!shopDomain || !accessToken) {
+      if (!this.hasCredentials(credentials)) {
         return false;
       }
       await this.getClient(credentials).get('/shop.json');
@@ -54,8 +66,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
-    const { shopDomain, accessToken } = credentials;
-    if (!shopDomain || !accessToken) {
+    if (!this.hasCredentials(credentials)) {
       return [];
     }
     const created_at_min = (since ?? new Date(Date.now() - 7 * 86_400_000)).toISOString();
@@ -65,6 +76,52 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     });
     const rows = data.orders ?? [];
     return rows.map((o) => this.mapOrder(o));
+  }
+
+  /** Shopify sipariş güncelle (PUT /orders/{id}.json) */
+  async updateOrder(
+    credentials: Record<string, string>,
+    platformOrderId: string,
+    patch: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.hasCredentials(credentials)) {
+      return;
+    }
+    const client = this.getClient(credentials);
+    await client.put(`/orders/${platformOrderId}.json`, {
+      order: { id: Number(platformOrderId), ...patch },
+    });
+  }
+
+  /**
+   * Kargo bildirimi — POST /orders/{orderId}/fulfillments.json
+   */
+  async createFulfillment(
+    credentials: Record<string, string>,
+    platformOrderId: string,
+    input: ShopifyFulfillmentInput = {},
+  ): Promise<void> {
+    if (!this.hasCredentials(credentials)) {
+      return;
+    }
+    const client = this.getClient(credentials);
+    const { data: orderData } = await client.get<{ order?: ShopifyOrder }>(
+      `/orders/${platformOrderId}.json`,
+    );
+    const lineItems = (orderData.order?.line_items ?? [])
+      .map((li: ShopifyLineItem) => li.id)
+      .filter((id): id is number => typeof id === 'number');
+    if (lineItems.length === 0) {
+      return;
+    }
+    await client.post(`/orders/${platformOrderId}/fulfillments.json`, {
+      fulfillment: {
+        notify_customer: input.notifyCustomer ?? true,
+        tracking_number: input.trackingNumber,
+        tracking_company: input.trackingCompany,
+        line_items: lineItems.map((id) => ({ id })),
+      },
+    });
   }
 
   private mapOrder(o: ShopifyOrder): MarketplaceOrder {
@@ -93,7 +150,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     const total = parseFloat(o.total_price ?? '0');
     return {
       platformOrderId: String(o.id),
-      status: String(o.financial_status ?? ''),
+      status: String(o.financial_status ?? o.fulfillment_status ?? ''),
       customerName: customerWithEmail,
       items,
       totalAmount: Number.isFinite(total) ? total : 0,
@@ -106,9 +163,8 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
-    const { shopDomain, accessToken } = credentials;
-    if (!shopDomain || !accessToken) {
-      return { items: [], total: 0, page: 0, pageSize: 1 };
+    if (!this.hasCredentials(credentials)) {
+      return { items: [], total: 0, page: 0, pageSize: 250 };
     }
     if (page > 0) {
       return { items: [], total: 0, page, pageSize: 250 };
@@ -150,6 +206,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     const v0: ShopifyVariant | undefined = p.variants?.[0];
     const sku = String(v0?.sku ?? p.id);
     const price = parseFloat(v0?.price ?? '0');
+    const compare = parseFloat(v0?.compare_at_price ?? v0?.price ?? '0');
     const qty = v0?.inventory_quantity ?? 0;
     const images = (p.images ?? [])
       .map((im) => im.src)
@@ -160,7 +217,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
       title: String(p.title ?? sku),
       quantity: typeof qty === 'number' && Number.isFinite(qty) ? qty : 0,
       salePrice: Number.isFinite(price) ? price : 0,
-      listPrice: Number.isFinite(price) ? price : 0,
+      listPrice: Number.isFinite(compare) ? compare : price,
       approved: p.status === 'active',
       images,
     };
@@ -170,8 +227,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const { shopDomain, accessToken } = credentials;
-    if (!shopDomain || !accessToken || updates.length === 0) {
+    if (!this.hasCredentials(credentials) || updates.length === 0) {
       return;
     }
     const client = this.getClient(credentials);
@@ -248,8 +304,7 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const { shopDomain, accessToken } = credentials;
-    if (!shopDomain || !accessToken) {
+    if (!this.hasCredentials(credentials)) {
       return;
     }
     const client = this.getClient(credentials);
@@ -267,11 +322,37 @@ export class ShopifyAdapter implements IMarketplaceAdapter {
             price: String(u.salePrice),
             ...(u.listPrice > u.salePrice
               ? { compare_at_price: String(u.listPrice) }
-              : {}),
+              : { compare_at_price: null }),
           },
         });
       } catch (error) {
         this.logger.warn('Shopify fiyat güncellemesi başarısız', {
+          error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        });
+      }
+    }
+  }
+
+  /**
+   * Shopify Admin API üzerinde orders/create ve orders/updated webhook kaydı.
+   */
+  async registerInboundWebhooks(
+    credentials: Record<string, string>,
+    address: string,
+  ): Promise<void> {
+    if (!this.hasCredentials(credentials)) {
+      throw new Error('Shopify kimlik bilgileri eksik');
+    }
+    const client = this.getClient(credentials);
+    const topics = ['orders/create', 'orders/updated'] as const;
+    for (const topic of topics) {
+      try {
+        await client.post<{ webhook?: ShopifyWebhook }>('/webhooks.json', {
+          webhook: { topic, address, format: 'json' },
+        });
+      } catch (error) {
+        this.logger.warn('Shopify webhook kaydı başarısız', {
+          topic,
           error: error instanceof Error ? error.message : 'Bilinmeyen hata',
         });
       }

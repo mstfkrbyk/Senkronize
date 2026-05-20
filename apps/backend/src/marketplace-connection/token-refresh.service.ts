@@ -2,12 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Marketplace } from '@prisma/client';
 
+import { refreshIdeasoftAccessToken } from '../adapters/ecommerce/ideasoft/ideasoft.oauth';
 import { refreshEtsyAccessToken } from '../adapters/etsy/etsy.oauth';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
-const OAUTH_PLATFORMS: Marketplace[] = [Marketplace.ETSY, Marketplace.GITTIGIDIYOR];
+const OAUTH_PLATFORMS: Marketplace[] = [
+  Marketplace.ETSY,
+  Marketplace.GITTIGIDIYOR,
+  Marketplace.IDEASOFT,
+];
 
 function parseCredentialsRecord(
   encryptionService: EncryptionService,
@@ -32,20 +37,21 @@ function parseCredentialsRecord(
 }
 
 function shouldRefreshToken(credentials: Record<string, string>): boolean {
-  const refreshToken = credentials.refreshToken?.trim();
-  if (!refreshToken) {
-    return false;
-  }
   const expiresRaw = credentials.tokenExpiresAt?.trim();
-  if (!expiresRaw) {
+  if (expiresRaw) {
+    const expiresAt = Number.parseInt(expiresRaw, 10);
+    if (!Number.isFinite(expiresAt)) {
+      return true;
+    }
+    return Date.now() >= expiresAt - REFRESH_BUFFER_MS;
+  }
+  const refreshToken = credentials.refreshToken?.trim();
+  if (refreshToken) {
     const access = credentials.accessToken?.trim();
     return !access || access.length === 0;
   }
-  const expiresAt = Number.parseInt(expiresRaw, 10);
-  if (!Number.isFinite(expiresAt)) {
-    return true;
-  }
-  return Date.now() >= expiresAt - REFRESH_BUFFER_MS;
+  const access = credentials.accessToken?.trim();
+  return !access || access.length === 0;
 }
 
 function tokensToCredentialPatch(tokens: {
@@ -136,6 +142,9 @@ export class TokenRefreshService {
   ): Promise<Record<string, string>> {
     if (platform === Marketplace.ETSY) {
       return this.refreshEtsy(credentials);
+    }
+    if (platform === Marketplace.IDEASOFT) {
+      return refreshIdeasoftAccessToken(credentials);
     }
     return credentials;
   }

@@ -3,6 +3,7 @@ export interface WcOrderLineItem {
   id?: number;
   sku?: string;
   product_id?: number;
+  variation_id?: number;
   name?: string;
   quantity?: number;
   price?: string;
@@ -39,7 +40,28 @@ export interface WcProduct {
   name?: string;
   price?: string;
   regular_price?: string;
+  sale_price?: string;
   status?: string;
+  type?: string;
   stock_quantity?: number | null;
+  manage_stock?: boolean;
   images?: WcProductImage[];
+}
+
+/** WooCommerce REST — varyant */
+export interface WcVariation {
+  id: number;
+  sku?: string;
+  regular_price?: string;
+  sale_price?: string;
+  stock_quantity?: number | null;
+  manage_stock?: boolean;
+}
+
+/** WooCommerce REST — webhook kaydı */
+export interface WcWebhook {
+  id: number;
+  topic?: string;
+  delivery_url?: string;
+  status?: string;
 }

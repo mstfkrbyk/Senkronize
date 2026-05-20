@@ -3,6 +3,7 @@ export interface ShopifyVariant {
   id?: number;
   sku?: string | null;
   price?: string;
+  compare_at_price?: string | null;
   inventory_item_id?: number | null;
   inventory_quantity?: number | null;
 }
@@ -28,6 +29,7 @@ export interface ShopifyLineItem {
   title?: string;
   quantity?: number;
   price?: string;
+  variant_id?: number | null;
 }
 
 /** Shopify Admin REST — müşteri */
@@ -41,6 +43,7 @@ export interface ShopifyCustomer {
 export interface ShopifyOrder {
   id: number;
   financial_status?: string | null;
+  fulfillment_status?: string | null;
   email?: string | null;
   customer?: ShopifyCustomer | null;
   total_price?: string;
@@ -54,6 +57,20 @@ export interface ShopifyLocation {
   id: number;
 }
 
+/** Shopify Admin REST — envanter seviyesi */
+export interface ShopifyInventoryLevel {
+  inventory_item_id: number;
+  location_id: number;
+  available: number;
+}
+
+/** Shopify Admin REST — webhook */
+export interface ShopifyWebhook {
+  id?: number;
+  topic?: string;
+  address?: string;
+}
+
 export interface ShopifyProductsListResponse {
   products?: ShopifyProduct[];
 }
@@ -64,4 +81,14 @@ export interface ShopifyOrdersListResponse {
 
 export interface ShopifyLocationsListResponse {
   locations?: ShopifyLocation[];
+}
+
+export interface ShopifyFulfillmentLineItem {
+  id: number;
+}
+
+export interface ShopifyFulfillment {
+  id?: number;
+  tracking_number?: string | null;
+  tracking_company?: string | null;
 }
