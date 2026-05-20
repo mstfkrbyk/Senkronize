@@ -11,6 +11,7 @@ import {
   MinLength,
   ValidateIf,
   ValidateNested,
+  ArrayMinSize,
 } from 'class-validator';
 
 export class CreateVariantDto {
@@ -185,4 +186,58 @@ export class CreateBulkVariantsDto {
   @ValidateNested({ each: true })
   @Type(() => CreateBulkVariantItemDto)
   variants!: CreateBulkVariantItemDto[];
+}
+
+export class VariantMatrixAttributeDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  values!: string[];
+}
+
+export class GenerateVariantMatrixDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => VariantMatrixAttributeDto)
+  attributes!: VariantMatrixAttributeDto[];
+}
+
+export class BulkVariantFieldUpdateItemDto {
+  @IsString()
+  @MinLength(1)
+  id!: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock?: number;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  sku?: string;
+}
+
+export class BulkVariantFieldUpdateDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkVariantFieldUpdateItemDto)
+  updates!: BulkVariantFieldUpdateItemDto[];
+}
+
+export class AssignVariantImagesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  imageUrls!: string[];
 }

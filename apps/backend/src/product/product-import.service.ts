@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, type Product, type ProductVariant } from '@prisma/client';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { ImportResult } from './product-import.types';
+import { buildProductFilterWhere } from './product-query.util';
+import type { ProductFilters } from './product.dto';
 import { ProductVariantService } from './product-variant.service';
 import type { BulkVariantItemDto } from './product-variant.dto';
 
@@ -103,15 +106,53 @@ export class ProductImportService {
     organizationId: string,
     csvBuffer: Buffer,
   ): Promise<ImportResult> {
-    const csv = csvBuffer.toString('utf-8');
-    const parsed = Papa.parse<Record<string, unknown>>(csv, {
-      header: true,
-      skipEmptyLines: 'greedy',
-    });
-    if (parsed.errors.length > 0) {
-      this.logger.warn('CSV parse uyarıları', { count: parsed.errors.length });
+    return this.importProductsFromFile(organizationId, csvBuffer, 'csv');
+  }
+
+  async importProductsFromFile(
+    organizationId: string,
+    file: Buffer,
+    format: 'csv' | 'xlsx',
+  ): Promise<ImportResult> {
+    const rows = this.parseImportRows(file, format);
+    return this.importProductRows(organizationId, rows);
+  }
+
+  private parseImportRows(
+    file: Buffer,
+    format: 'csv' | 'xlsx',
+  ): Record<string, string>[] {
+    if (format === 'csv') {
+      const csv = file.toString('utf-8');
+      const parsed = Papa.parse<Record<string, unknown>>(csv, {
+        header: true,
+        skipEmptyLines: 'greedy',
+      });
+      if (parsed.errors.length > 0) {
+        this.logger.warn('CSV parse uyarıları', { count: parsed.errors.length });
+      }
+      return (parsed.data ?? []).map((row) => normalizeRowKeys(row));
     }
 
+    const workbook = XLSX.read(file, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) {
+      throw new BadRequestException('Excel dosyası boş');
+    }
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) {
+      throw new BadRequestException('Excel sayfası okunamadı');
+    }
+    const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: '',
+    });
+    return rawRows.map((row) => normalizeRowKeys(row));
+  }
+
+  private async importProductRows(
+    organizationId: string,
+    rows: Record<string, string>[],
+  ): Promise<ImportResult> {
     const result: ImportResult = {
       created: 0,
       updated: 0,
@@ -119,11 +160,9 @@ export class ProductImportService {
       errors: [],
     };
 
-    const rows = parsed.data ?? [];
     let lineNo = 1;
-    for (const raw of rows) {
+    for (const row of rows) {
       lineNo += 1;
-      const row = normalizeRowKeys(raw);
       const sku = rowGet(row, ['sku']);
       const barcode = rowGet(row, ['barcode', 'barkod']);
       const title =
@@ -328,6 +367,63 @@ export class ProductImportService {
       '\uFEFFbarcode,sku,name,category,salePrice,listPrice,stock,description\n' +
       '8690001,SKU-001,Örnek Ürün,Elektronik,199.90,299.90,50,Ürün açıklaması\n'
     );
+  }
+
+  async exportProductsBuffer(
+    organizationId: string,
+    format: 'csv' | 'xlsx',
+    filters?: ProductFilters & { productIds?: string[] },
+  ): Promise<Buffer> {
+    const where = {
+      ...buildProductFilterWhere(organizationId, filters ?? {}),
+      ...(filters?.productIds?.length ? { id: { in: filters.productIds } } : {}),
+    };
+
+    const products = await this.prisma.product.findMany({
+      where,
+      include: {
+        variants: { where: { deletedAt: null } },
+        listings: {
+          where: { deletedAt: null },
+          select: { salePrice: true, listPrice: true },
+          take: 1,
+          orderBy: { updatedAt: 'desc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const rows = products.map((p) => {
+      const listing = p.listings[0];
+      const stock = p.variants.reduce((sum, v) => sum + v.stock, 0);
+      return {
+        barcode: p.barcode,
+        sku: p.sku ?? '',
+        name: p.name,
+        category: p.category ?? '',
+        categoryId: p.categoryId ?? '',
+        salePrice: listing?.salePrice?.toString() ?? '',
+        listPrice: listing?.listPrice?.toString() ?? '',
+        stock: String(stock),
+        description: p.description ?? '',
+        brand: p.brand ?? '',
+        costPrice: p.costPrice?.toString() ?? '',
+        isActive: p.isActive ? 'true' : 'false',
+      };
+    });
+
+    if (format === 'xlsx') {
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Urunler');
+      return Buffer.from(
+        XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
+      );
+    }
+
+    const csv = Papa.unparse(rows, { header: true });
+    const body = csv.startsWith('\uFEFF') ? csv : `\uFEFF${csv}`;
+    return Buffer.from(body, 'utf-8');
   }
 
   async exportProductsToCsv(

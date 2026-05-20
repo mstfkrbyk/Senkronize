@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { Marketplace, Prisma } from '@prisma/client';
 
 import { CacheService } from '../common/cache/cache.service';
@@ -113,13 +113,30 @@ export class ProductBulkService {
     organizationId: string,
     dto: BulkCategoryAssignDto,
   ): Promise<{ updated: number }> {
+    if (!dto.category && !dto.categoryId) {
+      throw new BadRequestException('category veya categoryId gerekli');
+    }
+    const data: { category?: string; categoryId?: string } = {};
+    if (dto.category) {
+      data.category = dto.category;
+    }
+    if (dto.categoryId) {
+      const row = await this.prisma.productCategory.findFirst({
+        where: { id: dto.categoryId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!row) {
+        throw new BadRequestException('Geçersiz kategori');
+      }
+      data.categoryId = dto.categoryId;
+    }
     const result = await this.prisma.product.updateMany({
       where: {
         organizationId,
         deletedAt: null,
         id: { in: dto.productIds },
       },
-      data: { category: dto.category },
+      data,
     });
     await this.cache.invalidateProductsForOrg(organizationId);
     return { updated: result.count };

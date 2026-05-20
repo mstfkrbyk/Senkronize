@@ -8,9 +8,11 @@ import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 import { ProductBulkService } from './product-bulk.service';
 import { BarcodeService } from './barcode.service';
 import { ProductController } from './product.controller';
+import { ProductImageService } from './image.service';
 import { ProductImportService } from './product-import.service';
 import { ProductVariantService } from './product-variant.service';
 import { ProductService } from './product.service';
+import { VariantService } from './variant.service';
 
 @Module({
   imports: [PrismaModule, ImageModule, OutboundWebhookModule, SyncModule],
@@ -18,6 +20,8 @@ import { ProductService } from './product.service';
   providers: [
     ProductService,
     ProductVariantService,
+    VariantService,
+    ProductImageService,
     ProductImportService,
     ProductBulkService,
     BarcodeService,
@@ -25,6 +29,8 @@ import { ProductService } from './product.service';
   exports: [
     ProductService,
     ProductVariantService,
+    VariantService,
+    ProductImageService,
     ProductImportService,
     ProductBulkService,
     BarcodeService,

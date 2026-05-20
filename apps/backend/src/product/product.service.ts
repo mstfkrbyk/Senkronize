@@ -26,6 +26,7 @@ import type { ProductAnalyticsResponse } from './product-analytics.types';
 import type { ProductPerformanceResponse } from './product-performance.types';
 import type { ImportResult } from './product-import.types';
 import { ProductImportService } from './product-import.service';
+import { buildProductFilterWhere } from './product-query.util';
 import {
   CreateProductDto,
   ProductQueryDto,
@@ -46,7 +47,7 @@ function productListCacheKey(
     limit,
     search: query.search ?? null,
     isActive: query.isActive ?? null,
-    category: query.category ?? null,
+    category: 'category' in query ? (query.category ?? null) : null,
     categoryId: query.categoryId ?? null,
     minPrice: query.minPrice ?? null,
     maxPrice: query.maxPrice ?? null,
@@ -189,105 +190,7 @@ export class ProductService {
     organizationId: string,
     query: ProductQueryDto | ProductFilters,
   ): Prisma.ProductWhereInput {
-    const priceRange =
-      query.minPrice !== undefined || query.maxPrice !== undefined
-        ? {
-            ...(query.minPrice !== undefined ? { gte: query.minPrice } : {}),
-            ...(query.maxPrice !== undefined ? { lte: query.maxPrice } : {}),
-          }
-        : undefined;
-
-    const stockRange =
-      query.minStock !== undefined || query.maxStock !== undefined
-        ? {
-            ...(query.minStock !== undefined ? { gte: query.minStock } : {}),
-            ...(query.maxStock !== undefined ? { lte: query.maxStock } : {}),
-          }
-        : undefined;
-
-    return {
-      organizationId,
-      deletedAt: null,
-      ...(query.isActive !== undefined && { isActive: query.isActive }),
-      ...(query.category !== undefined && { category: query.category }),
-      ...(query.categoryId !== undefined && { categoryId: query.categoryId }),
-      ...(query.minCostPrice !== undefined || query.maxCostPrice !== undefined
-        ? {
-            costPrice: {
-              ...(query.minCostPrice !== undefined
-                ? { gte: query.minCostPrice }
-                : {}),
-              ...(query.maxCostPrice !== undefined
-                ? { lte: query.maxCostPrice }
-                : {}),
-            },
-          }
-        : {}),
-      ...(query.search && {
-        OR: [
-          {
-            name: {
-              contains: query.search,
-              mode: Prisma.QueryMode.insensitive,
-            },
-          },
-          {
-            barcode: {
-              contains: query.search,
-              mode: Prisma.QueryMode.insensitive,
-            },
-          },
-          {
-            sku: {
-              contains: query.search,
-              mode: Prisma.QueryMode.insensitive,
-            },
-          },
-        ],
-      }),
-      ...(priceRange && {
-        OR: [
-          {
-            variants: {
-              some: {
-                deletedAt: null,
-                price: priceRange,
-              },
-            },
-          },
-          {
-            listings: {
-              some: {
-                deletedAt: null,
-                salePrice: priceRange,
-              },
-            },
-          },
-        ],
-      }),
-      ...(stockRange && {
-        variants: {
-          some: {
-            deletedAt: null,
-            stock: stockRange,
-          },
-        },
-      }),
-      ...(query.hasVariants === true && {
-        variants: { some: { deletedAt: null } },
-      }),
-      ...(query.hasVariants === false && {
-        variants: { none: { deletedAt: null } },
-      }),
-      ...(query.platform && {
-        listings: {
-          some: {
-            deletedAt: null,
-            platform: query.platform,
-          },
-        },
-      }),
-    };
+    return buildProductFilterWhere(organizationId, query);
   }
 
   private buildProductOrderBy(
@@ -300,9 +203,8 @@ export class ProductService {
       case 'updatedAt':
         return { updatedAt: order };
       case 'price':
-        return { variants: { _min: { price: order } } };
       case 'stock':
-        return { variants: { _sum: { stock: order } } };
+        return { updatedAt: order };
       case 'createdAt':
       default:
         return { createdAt: order };
@@ -1070,25 +972,10 @@ export class ProductService {
     format: 'csv' | 'xlsx',
     filters?: ProductFilters,
   ): Promise<Buffer> {
-    const where = this.buildProductWhere(organizationId, filters ?? {});
-    const products = await this.prisma.product.findMany({
-      where,
-      include: {
-        variants: { where: { deletedAt: null } },
-        listings: {
-          where: { deletedAt: null },
-          select: { salePrice: true, listPrice: true },
-          take: 1,
-          orderBy: { updatedAt: 'desc' },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    const productIds = products.map((p) => p.id);
     return this.productImportService.exportProductsBuffer(
       organizationId,
       format,
-      { productIds },
+      filters,
     );
   }
 

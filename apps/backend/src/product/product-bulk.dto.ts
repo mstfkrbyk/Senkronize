@@ -63,10 +63,31 @@ export class BulkStockUpdateDto extends BulkProductIdsDto {
 }
 
 export class BulkCategoryAssignDto extends BulkProductIdsDto {
-  @ApiProperty({ example: 'Elektronik' })
+  @ApiPropertyOptional({ example: 'Elektronik', description: 'Metin kategori adı' })
+  @IsOptional()
   @IsString()
   @MinLength(1)
-  category!: string;
+  category?: string;
+
+  @ApiPropertyOptional({ description: 'Hiyerarşik kategori kimliği' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  categoryId?: string;
+}
+
+export class BulkStatusUpdateDto extends BulkProductIdsDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+export class ReorderProductImageIdsDto {
+  @ApiProperty({ type: [String], description: 'Yeni sıra (görsel kimlikleri)' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  imageIds!: string[];
 }
 
 export class BulkPlatformSyncDto extends BulkProductIdsDto {

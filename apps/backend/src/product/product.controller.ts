@@ -32,17 +32,22 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ImageService } from '../image/image.service';
 
 import type { ProductAnalyticsResponse } from './product-analytics.types';
+import type { ProductPerformanceResponse } from './product-performance.types';
+import type { ProductImageRecord } from './image.service';
+import { ProductImageService } from './image.service';
 import {
   BulkCategoryAssignDto,
   BulkPlatformSyncDto,
   BulkPriceUpdateDto,
   BulkProductIdsDto,
+  BulkStatusUpdateDto,
   BulkStockUpdateDto,
   BulkVariantActiveDto,
   BulkVariantBarcodeDto,
   BulkVariantPriceUpdateDto,
   BulkVariantStockDeltaDto,
   ReorderProductImagesDto,
+  ReorderProductImageIdsDto,
 } from './product-bulk.dto';
 import { ProductBulkService } from './product-bulk.service';
 import { BarcodeService } from './barcode.service';
@@ -50,12 +55,16 @@ import type { ProductBarcodeSearchResult } from './barcode.service';
 import type { ImportResult } from './product-import.types';
 import { ProductImportService } from './product-import.service';
 import {
+  AssignVariantImagesDto,
   BulkUpsertVariantsDto,
+  BulkVariantFieldUpdateDto,
   CreateBulkVariantsDto,
   CreateVariantDto,
+  GenerateVariantMatrixDto,
   UpdateVariantDto,
 } from './product-variant.dto';
 import { ProductVariantService } from './product-variant.service';
+import { VariantService } from './variant.service';
 import {
   CreateProductDto,
   ProductQueryDto,
@@ -90,8 +99,10 @@ export class ProductController {
   constructor(
     private readonly productService: ProductService,
     private readonly productVariantService: ProductVariantService,
+    private readonly variantService: VariantService,
     private readonly productImportService: ProductImportService,
     private readonly productBulkService: ProductBulkService,
+    private readonly productImageService: ProductImageService,
     private readonly imageService: ImageService,
     private readonly barcodeService: BarcodeService,
     private readonly listingSyncService: ListingSyncService,
@@ -223,6 +234,73 @@ export class ProductController {
     });
   }
 
+  @Post('bulk/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili ürünleri aktif/pasif yap' })
+  async bulkStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkStatusUpdateDto,
+  ): Promise<{ updated: number }> {
+    return this.productService.bulkUpdateStatus(
+      dto.productIds,
+      dto.isActive,
+      org.id,
+    );
+  }
+
+  @Get('bulk/export')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürünleri CSV veya Excel olarak dışa aktar' })
+  async bulkExport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('format') format: 'csv' | 'xlsx' = 'csv',
+    @Query() query: ProductQueryDto,
+  ): Promise<StreamableFile> {
+    const safeFormat = format === 'xlsx' ? 'xlsx' : 'csv';
+    const buffer = await this.productService.bulkExport(org.id, safeFormat, query);
+    const filename =
+      safeFormat === 'xlsx' ? 'urunler.xlsx' : 'urunler.csv';
+    const mime =
+      safeFormat === 'xlsx'
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        : 'text/csv; charset=utf-8';
+    return new StreamableFile(buffer, {
+      type: mime,
+      disposition: `attachment; filename="${filename}"`,
+    });
+  }
+
+  @Post('bulk/import')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: CSV_MAX_BYTES },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        format: { type: 'string', enum: ['csv', 'xlsx'] },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOperation({ summary: 'CSV veya Excel ile ürün içe aktar' })
+  async bulkImport(
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('format') format: 'csv' | 'xlsx' = 'csv',
+  ): Promise<ImportResult> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Dosya gerekli');
+    }
+    const safeFormat = format === 'xlsx' ? 'xlsx' : 'csv';
+    return this.productService.bulkImport(org.id, file.buffer, safeFormat);
+  }
+
   @Post('bulk/price')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Seçili ürünlerin listing fiyatlarını toplu güncelle' })
@@ -352,6 +430,19 @@ export class ProductController {
     return this.productService.getProductDetail(org.id, id);
   }
 
+  @Get(':id/performance')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün performans metrikleri' })
+  async getPerformance(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Query('period', new DefaultValuePipe('30d')) period: string,
+  ): Promise<ProductPerformanceResponse> {
+    const days = Number.parseInt(period.replace(/\D/g, ''), 10) || 30;
+    const safeDays = Math.min(365, Math.max(1, days));
+    return this.productService.getProductPerformance(org.id, id, safeDays);
+  }
+
   @Get(':id/analytics')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Ürün satış ve fiyat analitiği' })
@@ -362,6 +453,96 @@ export class ProductController {
   ): Promise<ProductAnalyticsResponse> {
     const safeDays = Math.min(365, Math.max(1, days));
     return this.productService.getProductAnalytics(org.id, id, safeDays);
+  }
+
+  @Post(':id/images')
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: PRODUCT_IMAGE_LIMIT },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_MIMES.includes(file.mimetype as (typeof ALLOWED_MIMES)[number])) {
+          cb(
+            new BadRequestException(
+              'Geçersiz dosya türü. Yalnızca JPG, PNG veya WebP yükleyebilirsiniz.',
+            ),
+            false,
+          );
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+        watermark: { type: 'boolean' },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOperation({ summary: 'Ürün görseli yükle (R2)' })
+  async uploadImages(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Query('watermark') watermark?: string,
+  ): Promise<{ data: ProductImageRecord }> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Dosya gerekli');
+    }
+    const data = await this.productImageService.uploadImage(org.id, id, file, {
+      watermark: watermark === 'true',
+    });
+    return { data };
+  }
+
+  @Delete(':id/images/:imageId')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün görselini sil (R2 dahil)' })
+  async deleteProductImage(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+  ): Promise<{ data: ProductImageRecord[] }> {
+    const data = await this.productImageService.deleteImage(org.id, id, imageId);
+    return { data };
+  }
+
+  @Patch(':id/images/reorder')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Görsel sıralamasını güncelle' })
+  async patchReorderImages(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: ReorderProductImageIdsDto,
+  ): Promise<{ data: ProductImageRecord[] }> {
+    const data = await this.productImageService.reorderImages(
+      org.id,
+      id,
+      dto.imageIds,
+    );
+    return { data };
+  }
+
+  @Patch(':id/images/:imageId/set-primary')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ana görsel ata' })
+  async setPrimaryImage(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Param('imageId') imageId: string,
+  ): Promise<{ data: ProductImageRecord[] }> {
+    const data = await this.productImageService.setPrimaryImage(
+      org.id,
+      id,
+      imageId,
+    );
+    return { data };
   }
 
   @Post(':id/images/reorder')
@@ -395,6 +576,44 @@ export class ProductController {
     @Param('id') id: string,
   ) {
     return this.productVariantService.getVariantsByProduct(org.id, id);
+  }
+
+  @Post(':id/variants/matrix')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Özellik matrisinden otomatik varyant oluştur' })
+  async generateVariantMatrix(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: GenerateVariantMatrixDto,
+  ): Promise<ProductVariant[]> {
+    return this.variantService.generateVariantMatrix(
+      org.id,
+      id,
+      dto.attributes,
+    );
+  }
+
+  @Patch(':id/variants/bulk')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Varyant fiyat/stok/SKU toplu güncelle' })
+  async bulkUpdateVariants(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkVariantFieldUpdateDto,
+  ): Promise<{ ok: true }> {
+    await this.variantService.bulkUpdate(org.id, dto.updates);
+    return { ok: true };
+  }
+
+  @Patch(':id/variants/:variantId/images')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Varyanta görsel bağla' })
+  async assignVariantImages(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('variantId') variantId: string,
+    @Body() dto: AssignVariantImagesDto,
+  ): Promise<{ ok: true }> {
+    await this.variantService.assignImages(org.id, variantId, dto.imageUrls);
+    return { ok: true };
   }
 
   @Post(':id/variants/bulk')
