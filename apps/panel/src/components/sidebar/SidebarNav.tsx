@@ -4,13 +4,20 @@ import { useTranslation } from 'react-i18next';
 
 import { BarChart3 } from 'lucide-react';
 
+import { CollapsibleNavGroup } from '@/components/sidebar/CollapsibleNavGroup';
 import {
-  ACCOUNTING_NAV_ITEMS,
   COMMON_NAV_ITEMS,
+  ECOMMERCE_CUSTOMERS_NAV_ITEM,
   ECOMMERCE_NAV_ITEMS,
+  EXTERNAL_ERP_NAV_ITEMS,
+  INTEGRATION_SYNC_NAV_ITEMS,
+  NATIVE_ACCOUNTING_NAV_ITEMS,
   type NavItem,
 } from '@/constants/navigation';
 import { prefetchRoute } from '@/lib/routePreload';
+import { hasOrgProductLine } from '@/lib/org-products';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useAuthStore } from '@/store/auth.store';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -22,7 +29,6 @@ import {
   SidebarSeparator,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { useAuthStore } from '@/store/auth.store';
 
 const NAV_TOUR_ATTR: Partial<Record<string, string>> = {
   '/connections': 'sidebar-connections',
@@ -35,6 +41,45 @@ function filterVisible(items: NavItem[], orgType: string | undefined): NavItem[]
   return items.filter(
     (item) => !item.partnerOnly || orgType === 'PARTNER',
   );
+}
+
+function navItemTo(navItem: NavItem): string | { pathname: string; search?: string } {
+  if (navItem.search) {
+    return { pathname: navItem.path, search: navItem.search };
+  }
+  return navItem.path;
+}
+
+function isNavItemActive(
+  item: NavItem,
+  pathname: string,
+  search: string,
+): boolean {
+  const pathMatch =
+    pathname === item.path ||
+    (!item.matchExact &&
+      item.path !== '/' &&
+      pathname.startsWith(`${item.path}/`));
+  if (!pathMatch) {
+    return false;
+  }
+  if (!item.search) {
+    return true;
+  }
+  return search === item.search || search.startsWith(`${item.search}&`);
+}
+
+function isNavGroupActive(
+  item: NavItem,
+  pathname: string,
+  search: string,
+): boolean {
+  if (item.children?.length) {
+    return item.children.some((child) =>
+      isNavItemActive(child, pathname, search),
+    );
+  }
+  return isNavItemActive(item, pathname, search);
 }
 
 interface NavGroupProps {
@@ -58,6 +103,9 @@ function NavGroup({
     return null;
   }
 
+  const isChildActive = (child: NavItem): boolean =>
+    isNavItemActive(child, location.pathname, location.search);
+
   return (
     <SidebarGroup>
       {labelKey ? (
@@ -68,21 +116,41 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
+            if (item.children?.length) {
+              return (
+                <CollapsibleNavGroup
+                  key={`${item.path}${item.search ?? ''}-group`}
+                  item={item}
+                  isActive={isNavGroupActive(
+                    item,
+                    location.pathname,
+                    location.search,
+                  )}
+                  isChildActive={isChildActive}
+                  navItemTo={navItemTo}
+                  t={t}
+                  isMobile={isMobile}
+                  setOpenMobile={setOpenMobile}
+                />
+              );
+            }
+
             const Icon = item.icon;
-            const isActive =
-              location.pathname === item.path ||
-              (item.path !== '/' &&
-                location.pathname.startsWith(`${item.path}/`));
+            const isActive = isNavItemActive(
+              item,
+              location.pathname,
+              location.search,
+            );
 
             return (
-              <SidebarMenuItem key={item.path}>
+              <SidebarMenuItem key={`${item.path}${item.search ?? ''}`}>
                 <SidebarMenuButton
                   asChild
                   isActive={isActive}
                   tooltip={t(item.labelKey)}
                 >
                   <NavLink
-                    to={item.path}
+                    to={navItemTo(item)}
                     data-onboarding={item.path}
                     data-tour={NAV_TOUR_ATTR[item.path]}
                     onMouseEnter={() => {
@@ -120,15 +188,55 @@ function NavGroup({
   );
 }
 
+function buildEcommerceNavItems(
+  orgType: string | undefined,
+  hasAccounting: boolean,
+  hasIntegration: boolean,
+  showIntegrationSync: boolean,
+): NavItem[] {
+  if (!hasIntegration) {
+    return [];
+  }
+
+  const items: NavItem[] = [...ECOMMERCE_NAV_ITEMS];
+  if (!hasAccounting) {
+    items.splice(4, 0, ECOMMERCE_CUSTOMERS_NAV_ITEM);
+  }
+  if (showIntegrationSync) {
+    items.push(...INTEGRATION_SYNC_NAV_ITEMS);
+  }
+  return filterVisible(items, orgType);
+}
+
 export function SidebarNav(): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const userRole = useAuthStore((s) => s.user?.role);
   const { isMobile, setOpenMobile } = useSidebar();
+  const { mode } = useAccountingMode();
 
-  const ecommerceItems = filterVisible(ECOMMERCE_NAV_ITEMS, orgType);
-  const accountingItems = filterVisible(ACCOUNTING_NAV_ITEMS, orgType);
+  const hasIntegration = hasOrgProductLine(orgProducts, 'INTEGRATION');
+  const hasAccounting = hasOrgProductLine(orgProducts, 'ACCOUNTING');
+  const showExternalErp =
+    mode === 'EXTERNAL_ERP' && (hasAccounting || hasIntegration);
+  const showNativeAccounting = hasAccounting && mode === 'NATIVE';
+  const showIntegrationSyncInEcommerce =
+    hasIntegration && !showExternalErp;
+
+  const ecommerceItems = buildEcommerceNavItems(
+    orgType,
+    hasAccounting,
+    hasIntegration,
+    showIntegrationSyncInEcommerce,
+  );
+  const nativeAccountingItems = showNativeAccounting
+    ? filterVisible(NATIVE_ACCOUNTING_NAV_ITEMS, orgType)
+    : [];
+  const externalErpItems = showExternalErp
+    ? filterVisible(EXTERNAL_ERP_NAV_ITEMS, orgType)
+    : [];
   const commonItems = filterVisible(COMMON_NAV_ITEMS, orgType);
 
   const groupProps = {
@@ -146,8 +254,13 @@ export function SidebarNav(): ReactElement {
         {...groupProps}
       />
       <NavGroup
-        labelKey="nav.accounting"
-        items={accountingItems}
+        labelKey="nav.nativeAccounting"
+        items={nativeAccountingItems}
+        {...groupProps}
+      />
+      <NavGroup
+        labelKey="nav.externalErp"
+        items={externalErpItems}
         {...groupProps}
       />
       <NavGroup items={commonItems} {...groupProps} />
