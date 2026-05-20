@@ -7,63 +7,59 @@ on:
     branches: [main]
 
 jobs:
-  lint-and-typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with: { version: 9 }
-      - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @senkronize/shared build
-      - run: pnpm --filter backend exec prisma generate
-      - run: pnpm --filter backend exec tsc --noEmit
-      - run: pnpm --filter panel exec tsc --noEmit
-      - run: pnpm --filter marketing exec tsc --noEmit
-
-  test-backend:
+  backend:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:16
         env:
+          POSTGRES_DB: senkronize_test
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
-          POSTGRES_DB: senkronize_test
-        ports: ['5432:5432']
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
       redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
-    env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/senkronize_test
-      REDIS_URL: redis://localhost:6379
-      JWT_SECRET: test-secret-32-chars-minimum-here
-      JWT_REFRESH_SECRET: test-refresh-secret-32-chars-minimum
-      ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
-      NODE_ENV: test
+        image: redis:7
+        options: --health-cmd "redis-cli ping"
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v3
         with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
+        with: { node-version: 20, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @senkronize/shared build
       - run: pnpm --filter backend exec prisma generate
-      - run: pnpm --filter backend exec prisma migrate deploy
-        working-directory: apps/backend
-      - run: pnpm --filter backend test --passWithNoTests
+      - run: pnpm --filter backend build
+      - run: pnpm --filter backend test:unit
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/senkronize_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-32-chars-minimum-here
+          JWT_REFRESH_SECRET: test-refresh-secret-32-chars-minimum
+          ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
+          NODE_ENV: test
 
-  build-check:
+  panel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v3
         with: { version: 9 }
       - uses: actions/setup-node@v4
-        with: { node-version: '20', cache: 'pnpm' }
+        with: { node-version: 20, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @senkronize/shared build
       - run: pnpm --filter panel build
+
+  marketing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
       - run: pnpm --filter marketing build
