@@ -10,6 +10,7 @@ import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { BreadcrumbProvider } from '@/contexts/breadcrumb.context';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
+import { PushNotificationBanner } from '@/components/notifications/PushNotificationBanner';
 import { DemoBanner } from '@/components/DemoBanner';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { CurrencyWidget } from '@/components/CurrencyWidget';
@@ -119,6 +120,7 @@ export function DashboardLayout(): ReactElement {
             <SidebarInset className="flex max-h-svh flex-col overflow-hidden">
               <DemoBanner />
               <ImpersonationBanner />
+              <PushNotificationBanner />
               <TopBar />
               <main
                 id="main-content"

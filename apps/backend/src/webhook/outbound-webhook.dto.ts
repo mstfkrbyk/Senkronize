@@ -15,15 +15,13 @@ import {
   Min,
 } from 'class-validator';
 
-import {
-  WEBHOOK_EVENT_VALUES,
-  WebhookEvent,
-} from './webhook-event.enum';
+import { WEBHOOK_EVENT_VALUES, WebhookEvent } from './webhook-event.enum';
+import type { WebhookEvent as WebhookEventType } from './webhook-event.types';
 
 /** Panel ve doğrulama için desteklenen giden olay adları */
 export const OUTBOUND_WEBHOOK_EVENT_OPTIONS = WEBHOOK_EVENT_VALUES;
 
-export type OutboundWebhookEventId = WebhookEvent;
+export type OutboundWebhookEventId = WebhookEventType;
 
 export class CreateWebhookEndpointDto {
   @ApiProperty({ example: 'Üretim ERP' })
@@ -146,6 +144,9 @@ export class WebhookEndpointSummaryDto {
 
   @ApiProperty()
   isActive!: boolean;
+
+  @ApiProperty({ enum: ['ACTIVE', 'DISABLED'] })
+  status!: string;
 
   @ApiProperty()
   retryCount!: number;

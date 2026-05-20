@@ -9,12 +9,15 @@ import {
 } from '@nestjs/common';
 import {
   DeliveryStatus,
+  UserRole,
+  WebhookEndpointStatus,
   type Prisma,
   type WebhookDelivery,
   type WebhookEndpoint,
 } from '@prisma/client';
 import type { Job, Queue } from 'bull';
 
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_WEBHOOK_DELIVERY } from '../queue/queue.constants';
 import type { WebhookDeliveryJobData } from '../queue/queue.types';
@@ -24,10 +27,12 @@ import type {
   UpdateWebhookEndpointDto,
 } from './outbound-webhook.dto';
 import {
+  WEBHOOK_CIRCUIT_BREAKER_THRESHOLD,
   WEBHOOK_DELIVERY_JOB_OPTIONS,
+  WEBHOOK_DELIVERY_MAX_ATTEMPTS,
   WEBHOOK_DELIVERY_TIMEOUT_MS,
 } from './webhook-delivery.options';
-import { WebhookEvent } from './webhook-event.enum';
+import { WebhookEvent, type WebhookEventId } from './webhook-event.enum';
 
 const RESPONSE_BODY_MAX = 8000;
 
@@ -50,12 +55,17 @@ export class OutboundWebhookService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationService: NotificationService,
     @InjectQueue(QUEUE_WEBHOOK_DELIVERY)
     private readonly webhookQueue: Queue<WebhookDeliveryJobData>,
   ) {}
 
   signPayload(secret: string, payload: string): string {
     return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  }
+
+  formatSignatureHeader(secret: string, payload: string): string {
+    return `sha256=${this.signPayload(secret, payload)}`;
   }
 
   async createEndpoint(
@@ -74,8 +84,26 @@ export class OutboundWebhookService {
         secret,
         events: dto.events.map((e) => e.trim()),
         isActive: dto.isActive ?? true,
-        retryCount: dto.retryCount ?? 5,
+        status: WebhookEndpointStatus.ACTIVE,
+        retryCount: dto.retryCount ?? WEBHOOK_DELIVERY_MAX_ATTEMPTS,
         timeoutMs: dto.timeoutMs ?? WEBHOOK_DELIVERY_TIMEOUT_MS,
+      },
+    });
+  }
+
+  async rotateEndpointSecret(
+    orgId: string,
+    id: string,
+  ): Promise<WebhookEndpoint> {
+    await this.requireEndpoint(orgId, id);
+    const secret = `whsec_${crypto.randomBytes(32).toString('hex')}`;
+    return this.prisma.webhookEndpoint.update({
+      where: { id },
+      data: {
+        secret,
+        consecutiveFailures: 0,
+        status: WebhookEndpointStatus.ACTIVE,
+        isActive: true,
       },
     });
   }
@@ -136,6 +164,10 @@ export class OutboundWebhookService {
     }
     if (dto.isActive !== undefined) {
       data.isActive = dto.isActive;
+      if (dto.isActive) {
+        data.status = WebhookEndpointStatus.ACTIVE;
+        data.consecutiveFailures = 0;
+      }
     }
     if (dto.retryCount !== undefined) {
       data.retryCount = dto.retryCount;
@@ -176,7 +208,7 @@ export class OutboundWebhookService {
 
   async dispatch(
     orgId: string,
-    event: WebhookEvent | string,
+    event: WebhookEventId | string,
     payload: Record<string, unknown>,
   ): Promise<void> {
     try {
@@ -202,10 +234,7 @@ export class OutboundWebhookService {
             event,
             payload: envelope,
           },
-          {
-            ...WEBHOOK_DELIVERY_JOB_OPTIONS,
-            attempts: Math.max(1, endpoint.retryCount),
-          },
+          WEBHOOK_DELIVERY_JOB_OPTIONS,
         );
       }
     } catch (error) {
@@ -283,10 +312,7 @@ export class OutboundWebhookService {
         event: existing.event,
         payload,
       },
-      {
-        ...WEBHOOK_DELIVERY_JOB_OPTIONS,
-        attempts: Math.max(1, endpoint.retryCount),
-      },
+      WEBHOOK_DELIVERY_JOB_OPTIONS,
     );
 
     return this.prisma.webhookDelivery.findUniqueOrThrow({
@@ -314,13 +340,16 @@ export class OutboundWebhookService {
     if (!endpoint) {
       throw new NotFoundException('Webhook uç noktası bulunamadı');
     }
-    if (!endpoint.isActive) {
+    if (
+      !endpoint.isActive ||
+      endpoint.status === WebhookEndpointStatus.DISABLED
+    ) {
       if (deliveryId) {
         return this.prisma.webhookDelivery.update({
           where: { id: deliveryId },
           data: {
             status: DeliveryStatus.FAILED,
-            responseBody: 'Endpoint pasif',
+            responseBody: 'Endpoint devre dışı',
             attempt,
           },
         });
@@ -337,7 +366,8 @@ export class OutboundWebhookService {
     }
 
     const bodyStr = JSON.stringify(payload);
-    const signature = this.signPayload(endpoint.secret, bodyStr);
+    const signatureHeader = this.formatSignatureHeader(endpoint.secret, bodyStr);
+    const signatureLegacy = this.signPayload(endpoint.secret, bodyStr);
     const started = Date.now();
     const timeoutMs = endpoint.timeoutMs ?? WEBHOOK_DELIVERY_TIMEOUT_MS;
 
@@ -368,7 +398,8 @@ export class OutboundWebhookService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Senkronize-Signature': signature,
+          'X-Senkronize-Signature-256': signatureHeader,
+          'X-Senkronize-Signature': signatureLegacy,
           'X-Senkronize-Event': event,
           'X-Senkronize-Delivery': pending.id,
           'User-Agent': 'Senkronize-Webhook/1.0',
@@ -381,7 +412,7 @@ export class OutboundWebhookService {
       const duration = Date.now() - started;
       const clipped = text.slice(0, RESPONSE_BODY_MAX);
       const ok = res.ok && res.status >= 200 && res.status < 300;
-      return await this.prisma.webhookDelivery.update({
+      const delivery = await this.prisma.webhookDelivery.update({
         where: { id: pending.id },
         data: {
           statusCode: res.status,
@@ -390,11 +421,13 @@ export class OutboundWebhookService {
           status: ok ? DeliveryStatus.SUCCESS : DeliveryStatus.FAILED,
         },
       });
+      await this.recordDeliveryOutcome(endpoint.id, ok);
+      return delivery;
     } catch (error) {
       const duration = Date.now() - started;
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen ağ hatası';
-      return await this.prisma.webhookDelivery.update({
+      const delivery = await this.prisma.webhookDelivery.update({
         where: { id: pending.id },
         data: {
           status: DeliveryStatus.FAILED,
@@ -402,6 +435,8 @@ export class OutboundWebhookService {
           responseBody: message.slice(0, RESPONSE_BODY_MAX),
         },
       });
+      await this.recordDeliveryOutcome(endpoint.id, false);
+      return delivery;
     }
   }
 
@@ -435,6 +470,81 @@ export class OutboundWebhookService {
     };
   }
 
+  private async recordDeliveryOutcome(
+    endpointId: string,
+    success: boolean,
+  ): Promise<void> {
+    if (success) {
+      await this.prisma.webhookEndpoint.update({
+        where: { id: endpointId },
+        data: { consecutiveFailures: 0 },
+      });
+      return;
+    }
+
+    const updated = await this.prisma.webhookEndpoint.update({
+      where: { id: endpointId },
+      data: { consecutiveFailures: { increment: 1 } },
+    });
+
+    if (updated.consecutiveFailures >= WEBHOOK_CIRCUIT_BREAKER_THRESHOLD) {
+      await this.disableEndpointAndNotify(updated);
+    }
+  }
+
+  private async disableEndpointAndNotify(
+    endpoint: WebhookEndpoint,
+  ): Promise<void> {
+    if (endpoint.status === WebhookEndpointStatus.DISABLED) {
+      return;
+    }
+
+    await this.prisma.webhookEndpoint.update({
+      where: { id: endpoint.id },
+      data: {
+        status: WebhookEndpointStatus.DISABLED,
+        isActive: false,
+      },
+    });
+
+    const owner = await this.prisma.user.findFirst({
+      where: {
+        organizationId: endpoint.organizationId,
+        role: UserRole.OWNER,
+        deletedAt: null,
+      },
+      select: { id: true, email: true },
+    });
+
+    if (!owner?.email) {
+      this.logger.warn('Webhook devre kesici: OWNER e-postası bulunamadı', {
+        organizationId: endpoint.organizationId,
+        endpointId: endpoint.id,
+      });
+      return;
+    }
+
+    try {
+      await this.notificationService.dispatch({
+        channel: 'email',
+        template: 'webhook_endpoint_disabled',
+        organizationId: endpoint.organizationId,
+        userId: owner.id,
+        payload: {
+          endpointName: endpoint.name,
+          endpointUrl: endpoint.url,
+          message: `"${endpoint.name}" webhook uç noktası ardışık ${WEBHOOK_CIRCUIT_BREAKER_THRESHOLD} başarısız teslimat sonrası devre dışı bırakıldı.`,
+        },
+      });
+    } catch (error) {
+      this.logger.warn('Webhook devre kesici e-postası kuyruğa eklenemedi', {
+        organizationId: endpoint.organizationId,
+        endpointId: endpoint.id,
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+    }
+  }
+
   private async getActiveEndpointsForEvent(
     orgId: string,
     event: string,
@@ -443,6 +553,7 @@ export class OutboundWebhookService {
       where: {
         organizationId: orgId,
         isActive: true,
+        status: WebhookEndpointStatus.ACTIVE,
         events: { has: event },
       },
     });

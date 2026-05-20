@@ -31,6 +31,7 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
   '/settings': 'Ayarlar',
   '/settings/profile': 'Profil',
   '/settings/subscription': 'Abonelik',
+  '/settings/notifications': 'Bildirim tercihleri',
 };
 
 /** Dinamik segment desenleri: regex → üst segment etiketi */

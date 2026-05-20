@@ -324,6 +324,18 @@ enum Marketplace {
   CHAIRISH
   MODACRUZ
   PINKTROTTERS
+  G2A
+  KINGUIN
+  ENEBA
+  GAMEFLIP
+  DLGAMER
+  MERCARI
+  TRADESY
+  STOCKX
+  GYMSHARK
+  DECATHLON_TR
+  INTERSPORT_TR
+  SPORTIVE_TR
 }
 
 enum PricingStrategy {
@@ -568,6 +580,20 @@ enum NotificationType {
   SYSTEM
 }
 
+enum AnomalyType {
+  FAILED_LOGIN_BURST
+  MULTI_COUNTRY_LOGIN
+  API_RATE_SPIKE
+  NIGHT_ACTIVITY
+}
+
+enum AnomalySeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
 model UserSession {
   id           String   @id @default(cuid())
   userId       String
@@ -576,6 +602,7 @@ model UserSession {
   userAgent    String?
   deviceInfo   String?
   location     String?
+  isActive     Boolean  @default(true)
   lastActiveAt DateTime @default(now())
   expiresAt    DateTime
   createdAt    DateTime @default(now())
@@ -584,6 +611,35 @@ model UserSession {
 
   @@index([userId])
   @@index([token])
+  @@index([userId, isActive])
+}
+
+model AnomalyLog {
+  id             String          @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           AnomalyType
+  severity       AnomalySeverity
+  details        Json            @default("{}")
+  resolved       Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, resolved, createdAt])
+  @@index([userId])
+}
+
+model PasswordHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 model UserInvite {
@@ -626,6 +682,13 @@ model Organization {
   currencyManualRates       Json?
   /// Organizasyon için TCMB otomatik kurlarını kullan (false = yalnızca manuel)
   currencyTcmbEnabled       Boolean   @default(true)
+  /// Tüm kullanıcılar için 2FA zorunlu
+  require2FA                Boolean   @default(false)
+  /// Kurumsal şifre politikası
+  passwordMinLength         Int       @default(8)
+  passwordRequireSpecial    Boolean   @default(true)
+  passwordRequireNumber     Boolean   @default(true)
+  passwordMaxAgeDays        Int       @default(90)
   createdAt                 DateTime  @default(now())
   deletedAt                 DateTime?
 
@@ -688,6 +751,7 @@ model Organization {
   clientLinkRequests        PartnerLinkRequest[]      @relation("ClientLinkRequests")
   partnerLinkRequests       PartnerLinkRequest[]      @relation("PartnerLinkRequests")
   orgNotes                  OrgNote[]
+  anomalyLogs               AnomalyLog[]
 }
 
 model OrgNote {
@@ -773,19 +837,26 @@ enum DeliveryStatus {
   RETRYING
 }
 
+enum WebhookEndpointStatus {
+  ACTIVE
+  DISABLED
+}
+
 /// Giden (outbound) müşteri webhook uç noktası
 model WebhookEndpoint {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  url            String
-  secret         String
-  events         String[]
-  isActive       Boolean  @default(true)
-  retryCount     Int      @default(3)
-  timeoutMs      Int      @default(5000)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                  String                @id @default(cuid())
+  organizationId      String
+  name                String
+  url                 String
+  secret              String
+  events              String[]
+  status              WebhookEndpointStatus @default(ACTIVE)
+  isActive            Boolean               @default(true)
+  consecutiveFailures Int                   @default(0)
+  retryCount          Int                   @default(5)
+  timeoutMs           Int                   @default(5000)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   deliveries   WebhookDelivery[]
@@ -830,11 +901,13 @@ model User {
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?
 
-  twoFactorEnabled Boolean  @default(false)
-  twoFactorSecret  String? // AES-256-GCM ile şifreli TOTP secret
-  backupCodes      String[] @default([]) // bcrypt ile hashlenmiş yedek kodlar
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String? // AES-256-GCM ile şifreli TOTP secret
+  backupCodes       String[]  @default([]) // bcrypt ile hashlenmiş yedek kodlar
+  passwordChangedAt DateTime?
 
-  refreshTokens RefreshToken[]
+  refreshTokens     RefreshToken[]
+  passwordHistories PasswordHistory[]
   sessions      UserSession[]
   sentInvites   UserInvite[]   @relation("UserInvitesSent")
 

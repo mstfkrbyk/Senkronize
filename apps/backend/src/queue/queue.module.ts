@@ -2,6 +2,10 @@ import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as constants from './queue.constants';
+import {
+  WEBHOOK_DELIVERY_BACKOFF_TYPE,
+  WEBHOOK_DELIVERY_RETRY_DELAYS_MS,
+} from '../webhook/webhook-delivery.options';
 
 function parseRedisUrl(redisUrl: string): {
   host: string;
@@ -44,7 +48,22 @@ function parseRedisUrl(redisUrl: string): {
       { name: constants.QUEUE_PRICING },
       { name: constants.QUEUE_IMAGE },
       { name: constants.QUEUE_IMAGE_SYNC },
-      { name: constants.QUEUE_WEBHOOK_DELIVERY },
+      {
+        name: constants.QUEUE_WEBHOOK_DELIVERY,
+        settings: {
+          backoffStrategies: {
+            [WEBHOOK_DELIVERY_BACKOFF_TYPE]: (attemptsMade: number): number => {
+              const index = Math.max(0, attemptsMade - 1);
+              return (
+                WEBHOOK_DELIVERY_RETRY_DELAYS_MS[index] ??
+                WEBHOOK_DELIVERY_RETRY_DELAYS_MS[
+                  WEBHOOK_DELIVERY_RETRY_DELAYS_MS.length - 1
+                ]
+              );
+            },
+          },
+        },
+      },
       { name: constants.QUEUE_LISTING_SYNC },
     ),
   ],

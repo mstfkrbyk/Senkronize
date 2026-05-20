@@ -20,6 +20,7 @@ function attachInAppNotificationListener(s: Socket): void {
     void queryClient.invalidateQueries({ queryKey: ['notifications-unread-count'] });
     void queryClient.invalidateQueries({ queryKey: ['notifications-preview'] });
     void queryClient.invalidateQueries({ queryKey: ['notifications-page'] });
+    void queryClient.invalidateQueries({ queryKey: ['notifications-center'] });
     toast(notif.title, { description: notif.message });
   };
   s.on('notification:new', handler);

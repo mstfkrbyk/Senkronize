@@ -273,7 +273,19 @@ export type Marketplace =
   | 'ARSY'
   | 'CHAIRISH'
   | 'MODACRUZ'
-  | 'PINKTROTTERS';
+  | 'PINKTROTTERS'
+  | 'G2A'
+  | 'KINGUIN'
+  | 'ENEBA'
+  | 'GAMEFLIP'
+  | 'DLGAMER'
+  | 'MERCARI'
+  | 'TRADESY'
+  | 'STOCKX'
+  | 'GYMSHARK'
+  | 'DECATHLON_TR'
+  | 'INTERSPORT_TR'
+  | 'SPORTIVE_TR';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

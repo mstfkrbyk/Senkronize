@@ -13,11 +13,10 @@ import {
 import { tauriApi, type SyncStatusResponse } from '@/lib/tauri';
 
 const INTERVAL_OPTIONS: { value: SyncIntervalOption; label: string }[] = [
-  { value: 5, label: '5 dakika' },
-  { value: 15, label: '15 dakika' },
-  { value: 30, label: '30 dakika' },
-  { value: 60, label: '1 saat' },
-  { value: 240, label: '4 saat' },
+  { value: 5, label: 'Her 5 dakika' },
+  { value: 15, label: 'Her 15 dakika' },
+  { value: 30, label: 'Her 30 dakika' },
+  { value: 60, label: 'Her 1 saat' },
   { value: null, label: 'Manuel' },
 ];
 
@@ -173,9 +172,10 @@ export function SyncScheduleSettings(): ReactElement {
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {(
           [
-            ['syncStock', 'Stok senkronu', settings.syncStock] as const,
-            ['syncOrder', 'Sipariş senkronu', settings.syncOrder] as const,
-            ['syncProduct', 'Ürün senkronu', settings.syncProduct] as const,
+            ['syncProduct', 'Ürünler', settings.syncProduct] as const,
+            ['syncStock', 'Stok', settings.syncStock] as const,
+            ['syncOrder', 'Siparişler', settings.syncOrder] as const,
+            ['syncPrice', 'Fiyatlar', settings.syncPrice] as const,
           ] as const
         ).map(([key, label, checked]) => (
           <div key={key} className="flexBetween">
@@ -191,6 +191,24 @@ export function SyncScheduleSettings(): ReactElement {
             </button>
           </div>
         ))}
+
+        <div className="flexBetween">
+          <div>
+            <p style={{ margin: 0, fontWeight: 650, fontSize: 14 }}>Başlangıçta otomatik sync</p>
+            <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
+              Uygulama açıldığında zamanlayıcıyı başlatır
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.autoSyncOnStartup}
+            className={`toggle ${settings.autoSyncOnStartup ? 'toggleOn' : 'toggleOff'}`}
+            onClick={() => persist({ ...settings, autoSyncOnStartup: !settings.autoSyncOnStartup })}
+          >
+            <span className={`knob ${settings.autoSyncOnStartup ? 'knobOn' : ''}`} />
+          </button>
+        </div>
 
         <div className="flexBetween">
           <div>
@@ -217,7 +235,12 @@ export function SyncScheduleSettings(): ReactElement {
 
       <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div className="flexBetween">
-          <p style={{ margin: 0, fontWeight: 650, fontSize: 14 }}>Sync tamamlandığında</p>
+          <div>
+            <p style={{ margin: 0, fontWeight: 650, fontSize: 14 }}>Sync tamamlandığında bildirim</p>
+            <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
+              Sistem bildirimi gösterilir
+            </p>
+          </div>
           <button
             type="button"
             role="switch"

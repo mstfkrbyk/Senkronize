@@ -92,4 +92,9 @@ export class UpdateNotificationPreferencesDto {
   @Min(0)
   @Max(23)
   digestHour?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  smsEnabled?: boolean;
 }

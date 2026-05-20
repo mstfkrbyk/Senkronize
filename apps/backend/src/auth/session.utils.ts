@@ -3,6 +3,24 @@ export interface SessionMetaInput {
   userAgent?: string;
 }
 
+export type DeviceType = 'desktop' | 'mobile' | 'tablet' | 'unknown';
+
+export function detectDeviceType(
+  userAgent: string | null | undefined,
+): DeviceType {
+  if (!userAgent?.trim()) {
+    return 'unknown';
+  }
+  const ua = userAgent;
+  if (/iPad|Tablet/i.test(ua)) {
+    return 'tablet';
+  }
+  if (/Mobile|Android|iPhone|iPod/i.test(ua)) {
+    return 'mobile';
+  }
+  return 'desktop';
+}
+
 export function parseDeviceInfo(userAgent: string | null | undefined): string | null {
   if (!userAgent?.trim()) {
     return null;

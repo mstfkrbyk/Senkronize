@@ -363,6 +363,32 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.TRENDYOL_MILLA) {
       return creds.sellerId ?? null;
     }
+    if (platform === Marketplace.G2A) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.KINGUIN ||
+      platform === Marketplace.DLGAMER ||
+      platform === Marketplace.TRADESY ||
+      platform === Marketplace.GYMSHARK ||
+      platform === Marketplace.DECATHLON_TR ||
+      platform === Marketplace.INTERSPORT_TR ||
+      platform === Marketplace.SPORTIVE_TR ||
+      platform === Marketplace.ENEBA
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.GAMEFLIP ||
+      platform === Marketplace.MERCARI
+    ) {
+      return creds.accessToken
+        ? `${creds.accessToken.slice(0, 6)}...`
+        : creds.clientId ?? null;
+    }
+    if (platform === Marketplace.STOCKX) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
     return null;
   }
 

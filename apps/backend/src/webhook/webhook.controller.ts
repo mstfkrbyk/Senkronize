@@ -114,13 +114,27 @@ export class WebhookController {
     await this.outboundWebhookService.deleteEndpoint(org.id, id);
   }
 
-  @Get(':id/logs')
+  @Get(':id/deliveries')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Webhook teslimat geçmişi (sayfalı)' })
   @ApiResponse({ status: 200, description: 'Liste', type: WebhookDeliveryLogsResponseDto })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async listDeliveries(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+  ): Promise<WebhookDeliveryLogsResponseDto> {
+    return this.outboundWebhookService.getDeliveries(org.id, id, page, limit);
+  }
+
+  /** @deprecated `/webhooks/:id/deliveries` kullanın */
+  @Get(':id/logs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Webhook teslimat geçmişi (legacy)' })
   async listDeliveryLogs(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
@@ -144,7 +158,7 @@ export class WebhookController {
     return this.outboundWebhookService.testEndpoint(org.id, id);
   }
 
-  @Post(':id/redeliver/:logId')
+  @Post(':id/redeliver/:deliveryId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Başarısız teslimatı tekrar dene' })
@@ -152,12 +166,24 @@ export class WebhookController {
   @ApiResponse({ status: 400, description: 'Geçersiz istek' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
-  async redeliverLog(
+  async redeliverDelivery(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
-    @Param('logId') logId: string,
+    @Param('deliveryId') deliveryId: string,
   ): Promise<WebhookDelivery> {
-    return this.outboundWebhookService.redeliver(org.id, id, logId);
+    return this.outboundWebhookService.redeliver(org.id, id, deliveryId);
+  }
+
+  @Post(':id/rotate-secret')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Webhook secret yenile' })
+  @ApiResponse({ status: 200, description: 'Yeni secret ile endpoint' })
+  async rotateEndpointSecret(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<WebhookEndpoint> {
+    return this.outboundWebhookService.rotateEndpointSecret(org.id, id);
   }
 
   /** @deprecated `/webhooks` kullanın */

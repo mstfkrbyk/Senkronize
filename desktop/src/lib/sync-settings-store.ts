@@ -1,11 +1,13 @@
-export type SyncIntervalOption = 5 | 15 | 30 | 60 | 240 | null;
+export type SyncIntervalOption = 5 | 15 | 30 | 60 | null;
 
 export interface SyncSettings {
   intervalMinutes: SyncIntervalOption;
   syncStock: boolean;
   syncOrder: boolean;
   syncProduct: boolean;
+  syncPrice: boolean;
   deltaOnly: boolean;
+  autoSyncOnStartup: boolean;
   notifyOnComplete: boolean;
   notifyOnError: boolean;
   dailySummaryHour: number | null;
@@ -18,7 +20,9 @@ const DEFAULTS: SyncSettings = {
   syncStock: true,
   syncOrder: true,
   syncProduct: true,
+  syncPrice: false,
   deltaOnly: false,
+  autoSyncOnStartup: false,
   notifyOnComplete: true,
   notifyOnError: true,
   dailySummaryHour: null,

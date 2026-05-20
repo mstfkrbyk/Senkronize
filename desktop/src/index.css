@@ -601,3 +601,197 @@ body {
   color: #b91c1c;
   font-weight: 600;
 }
+
+.dotWarn {
+  background: #f59e0b;
+}
+
+.connectionIndicatorOk {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.connectionIndicatorWarn {
+  border-color: #fde047;
+  background: #fefce8;
+  color: #a16207;
+}
+
+.connectionIndicatorBad {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.resourceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.resourceCard {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+}
+
+.resourceCardValue {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.resourceCardLabel {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.syncProgress {
+  position: relative;
+  overflow: hidden;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+}
+
+.syncProgressError {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.syncPhaseSteps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.syncPhaseStep {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.syncPhaseStep_done {
+  color: #047857;
+}
+
+.syncPhaseStep_active {
+  color: #0c4a6e;
+}
+
+.syncPhaseStep_error {
+  color: #b91c1c;
+}
+
+.syncPhaseDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.syncPhaseStep_done .syncPhaseDot {
+  background: #10b981;
+}
+
+.syncPhaseStep_active .syncPhaseDot {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.35);
+}
+
+.syncPhaseStep_error .syncPhaseDot {
+  background: #ef4444;
+}
+
+.syncProgressBarTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.syncProgressBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #38bdf8);
+  transition: width 0.35s ease;
+}
+
+.syncProgressBarAnim {
+  background-size: 200% 100%;
+  animation: syncBarShimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes syncBarShimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.syncProgressMeta {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.syncProgressMessage {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.syncProgressMessageError {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.syncConfetti {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.syncConfettiPiece {
+  position: absolute;
+  top: -6px;
+  left: calc(4% + (var(--i) * 3.8%));
+  width: 6px;
+  height: 10px;
+  border-radius: 1px;
+  opacity: 0;
+  animation: confettiFall 1s ease-out forwards;
+  animation-delay: calc(var(--i) * 18ms);
+  background: hsl(calc(var(--i) * 28), 75%, 52%);
+}
+
+@keyframes confettiFall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(72px) rotate(360deg);
+  }
+}
+
+.logBadgeRunning {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #93c5fd;
+}

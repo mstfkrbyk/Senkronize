@@ -21,6 +21,7 @@ const PREF_PATCH_KEYS = [
   'pushSyncError',
   'inAppEnabled',
   'inAppSoundEnabled',
+  'smsEnabled',
 ] as const;
 
 type PrefPatchKey = (typeof PREF_PATCH_KEYS)[number];

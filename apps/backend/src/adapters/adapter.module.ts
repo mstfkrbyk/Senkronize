@@ -70,8 +70,10 @@ import { DobaModule } from './doba/doba.module';
 import { DopingModule } from './doping/doping.module';
 import { DarazModule } from './daraz/daraz.module';
 import { DecathlonModule } from './decathlon/decathlon.module';
+import { DecathlonTrModule } from './decathlon-tr/decathlon-tr.module';
 import { DecluttrModule } from './decluttr/decluttr.module';
 import { DepopModule } from './depop/depop.module';
+import { DlgamerModule } from './dlgamer/dlgamer.module';
 import { DustinModule } from './dustin/dustin.module';
 import { DolapModule } from './dolap/dolap.module';
 import { DrModule } from './dr/dr.module';
@@ -81,6 +83,7 @@ import { EbayModule } from './ebay/ebay.module';
 import { EbayMotorsModule } from './ebay-motors/ebay-motors.module';
 import { ElektraModule } from './elektra/elektra.module';
 import { EmagModule } from './emag/emag.module';
+import { EnebaModule } from './eneba/eneba.module';
 import { EnparaModule } from './enpara/enpara.module';
 import { EtaAdapter } from './eta/eta.adapter';
 import { EtsyModule } from './etsy/etsy.module';
@@ -101,9 +104,12 @@ import { GetirMarketModule } from './getir-market/getir-market.module';
 import { GetirYemekModule } from './getir-yemek/getir-yemek.module';
 import { GetirModule } from './getir/getir.module';
 import { GorillasModule } from './gorillas/gorillas.module';
+import { GymsharkModule } from './gymshark/gymshark.module';
 import { GotoBusinessModule } from './goto-business/goto-business.module';
 import { GmarketModule } from './gmarket/gmarket.module';
 import { GrabMartModule } from './grab-mart/grab-mart.module';
+import { G2aModule } from './g2a/g2a.module';
+import { GameflipModule } from './gameflip/gameflip.module';
 import { GittigidiyorModule } from './gittigidiyor/gittigidiyor.module';
 import { GratisModule } from './gratis/gratis.module';
 import { HellofreshModule } from './hellofresh/hellofresh.module';
@@ -120,6 +126,7 @@ import { IndiamartModule } from './indiamart/indiamart.module';
 import { IdefixModule } from './idefix/idefix.module';
 import { InstacartModule } from './instacart/instacart.module';
 import { InstagramShopModule } from './instagram-shop/instagram-shop.module';
+import { IntersportTrModule } from './intersport-tr/intersport-tr.module';
 import { IkasModule } from './ikas/ikas.module';
 import { IkasMpModule } from './ikas-mp/ikas-mp.module';
 import { IyzicoModule } from './iyzico/iyzico.module';
@@ -134,6 +141,7 @@ import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KaspiModule } from './kaspi/kaspi.module';
 import { KomplettModule } from './komplett/komplett.module';
+import { KinguinModule } from './kinguin/kinguin.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
 import { KmartAuModule } from './kmart-au/kmart-au.module';
 import { KilimallModule } from './kilimall/kilimall.module';
@@ -164,6 +172,7 @@ import { MediamarktModule } from './mediamarkt/mediamarkt.module';
 import { MediamarktTrModule } from './mediamarkt-tr/mediamarkt-tr.module';
 import { MeeshoModule } from './meesho/meesho.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
+import { MercariModule } from './mercari/mercari.module';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
@@ -240,6 +249,8 @@ import { SnapdealModule } from './snapdeal/snapdeal.module';
 import { SnapchatStoreModule } from './snapchat-store/snapchat-store.module';
 import { SouqModule } from './souq/souq.module';
 import { SportiveModule } from './sportive/sportive.module';
+import { SportiveTrModule } from './sportive-tr/sportive-tr.module';
+import { StockxModule } from './stockx/stockx.module';
 import { SwappaModule } from './swappa/swappa.module';
 import { Street11Module } from './street11/street11.module';
 import { TakealotModule } from './takealot/takealot.module';
@@ -248,6 +259,7 @@ import { ThredupModule } from './thredup/thredup.module';
 import { TiktokShopModule } from './tiktok-shop/tiktok-shop.module';
 import { TikladoModule } from './tiklado/tiklado.module';
 import { TrademeModule } from './trademe/trademe.module';
+import { TradesyModule } from './tradesy/tradesy.module';
 import { StripeModule } from './stripe/stripe.module';
 import { SpartooModule } from './spartoo/spartoo.module';
 import { TedarikciModule } from './tedarikci/tedarikci.module';
@@ -373,8 +385,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     DopingModule,
     DarazModule,
     DecathlonModule,
+    DecathlonTrModule,
     DecluttrModule,
     DepopModule,
+    DlgamerModule,
     DhgateModule,
     DobaModule,
     Ec21Module,
@@ -384,6 +398,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EbayMotorsModule,
     ElektraModule,
     EmagModule,
+    EnebaModule,
     EnparaModule,
     EtsyModule,
     EvideaModule,
@@ -402,8 +417,11 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GetirFoodModule,
     GetirMarketModule,
     GetirYemekModule,
+    G2aModule,
+    GameflipModule,
     GittigidiyorModule,
     GorillasModule,
+    GymsharkModule,
     GotoBusinessModule,
     GmarketModule,
     GrabMartModule,
@@ -418,6 +436,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IndiamartModule,
     IdefixModule,
     OberloModule,
+    IntersportTrModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -432,6 +451,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LamodaModule,
     KauflandModule,
     KaspiModule,
+    KinguinModule,
     KitapyurduModule,
     KmartAuModule,
     KoctasModule,
@@ -460,6 +480,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MediamarktTrModule,
     MeeshoModule,
     MercadolibreModule,
+    MercariModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
@@ -523,6 +544,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SnapchatStoreModule,
     SokMarketModule,
     SportiveModule,
+    SportiveTrModule,
+    StockxModule,
     SwappaModule,
     Street11Module,
     SouqModule,
@@ -532,6 +555,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TikladoModule,
     TicimaxMpModule,
     TrademeModule,
+    TradesyModule,
     StripeModule,
     SpartooModule,
     TedarikciModule,
@@ -687,8 +711,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     DopingModule,
     DarazModule,
     DecathlonModule,
+    DecathlonTrModule,
     DecluttrModule,
     DepopModule,
+    DlgamerModule,
     DhgateModule,
     DobaModule,
     Ec21Module,
@@ -698,6 +724,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EbayMotorsModule,
     ElektraModule,
     EmagModule,
+    EnebaModule,
     EnparaModule,
     EtsyModule,
     EvideaModule,
@@ -716,8 +743,11 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     GetirFoodModule,
     GetirMarketModule,
     GetirYemekModule,
+    G2aModule,
+    GameflipModule,
     GittigidiyorModule,
     GorillasModule,
+    GymsharkModule,
     GotoBusinessModule,
     GmarketModule,
     GrabMartModule,
@@ -732,6 +762,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IndiamartModule,
     IdefixModule,
     OberloModule,
+    IntersportTrModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -746,6 +777,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LamodaModule,
     KauflandModule,
     KaspiModule,
+    KinguinModule,
     KitapyurduModule,
     KmartAuModule,
     KoctasModule,
@@ -774,6 +806,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MediamarktTrModule,
     MeeshoModule,
     MercadolibreModule,
+    MercariModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
@@ -837,6 +870,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SnapchatStoreModule,
     SokMarketModule,
     SportiveModule,
+    SportiveTrModule,
+    StockxModule,
     SwappaModule,
     Street11Module,
     SouqModule,
@@ -846,6 +881,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TikladoModule,
     TicimaxMpModule,
     TrademeModule,
+    TradesyModule,
     StripeModule,
     SpartooModule,
     TedarikciModule,

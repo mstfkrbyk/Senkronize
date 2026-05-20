@@ -29,6 +29,8 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/migration': () => import('@/pages/migration/MigrationPage'),
   '/partner': () => import('@/pages/partner/PartnerPage'),
   '/settings': () => import('@/pages/settings/SettingsPage'),
+  '/settings/notifications': () =>
+    import('@/pages/settings/NotificationPreferencesPage'),
   '/settings/webhooks': () => import('@/pages/settings/WebhooksPage'),
   '/suppliers': () => import('@/pages/suppliers/SuppliersPage'),
   '/purchase-orders': () => import('@/pages/suppliers/PurchaseOrdersPage'),

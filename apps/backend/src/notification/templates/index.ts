@@ -67,6 +67,14 @@ export function renderTemplate(
         subject: 'Şifre Sıfırlama',
         html: passwordResetTemplate(data),
       };
+    case 'webhook_endpoint_disabled':
+      return {
+        subject: 'Webhook uç noktası devre dışı',
+        html:
+          typeof data.message === 'string'
+            ? `<p>${data.message}</p><p>Lütfen panelden webhook ayarlarını kontrol edin.</p>`
+            : '<p>Webhook uç noktanız ardışık başarısız teslimatlar nedeniyle devre dışı bırakıldı.</p>',
+      };
     default: {
       const msg = data.message;
       return {

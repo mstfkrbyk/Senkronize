@@ -7,7 +7,7 @@ import { Menu, PanelLeft, Search } from 'lucide-react';
 import { HelpMenu } from '@/components/topbar/HelpMenu';
 import { openCommandPalette } from '@/lib/command-palette';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { NotificationBell } from '@/components/NotificationBell';
+import { NotificationCenter } from '@/components/notifications/NotificationCenter';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -146,7 +146,7 @@ export function TopBar(): ReactElement {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <NotificationBell />
+        <NotificationCenter />
         <HelpMenu />
         <Button
           type="button"

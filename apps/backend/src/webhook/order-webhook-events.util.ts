@@ -1,12 +1,12 @@
 import { OrderStatus } from '@prisma/client';
 
-import { WebhookEvent } from './webhook-event.enum';
+import { WebhookEvent, type WebhookEventId } from './webhook-event.enum';
 
 export function resolveOrderWebhookEvents(options: {
   isCreate: boolean;
   prevStatus?: OrderStatus;
   newStatus: OrderStatus;
-}): WebhookEvent[] {
+}): WebhookEventId[] {
   if (options.isCreate) {
     return [WebhookEvent.ORDER_CREATED];
   }
@@ -15,7 +15,7 @@ export function resolveOrderWebhookEvents(options: {
     return [];
   }
 
-  const events: WebhookEvent[] = [WebhookEvent.ORDER_UPDATED];
+  const events: WebhookEventId[] = [WebhookEvent.ORDER_STATUS_CHANGED];
 
   switch (options.newStatus) {
     case OrderStatus.SHIPPED:
@@ -28,7 +28,6 @@ export function resolveOrderWebhookEvents(options: {
       events.push(WebhookEvent.ORDER_CANCELLED);
       break;
     case OrderStatus.RETURNED:
-      events.push(WebhookEvent.ORDER_RETURNED);
       break;
     default:
       break;

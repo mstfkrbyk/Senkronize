@@ -250,6 +250,11 @@ const ProfilePage = lazy(() =>
 const WebhooksPage = lazy(() =>
   import('@/pages/settings/WebhooksPage').then((m) => ({ default: m.WebhooksPage })),
 );
+const NotificationPreferencesPage = lazy(() =>
+  import('@/pages/settings/NotificationPreferencesPage').then((m) => ({
+    default: m.NotificationPreferencesPage,
+  })),
+);
 const WebhookDetailPage = lazy(() =>
   import('@/pages/settings/WebhookDetailPage').then((m) => ({
     default: m.WebhookDetailPage,
@@ -467,6 +472,10 @@ export default function App(): ReactElement {
                 <Route path="/settings/partners" element={<PartnersDiscoveryPage />} />
                 <Route path="/settings/webhooks/:id" element={<WebhookDetailPage />} />
                 <Route path="/settings/webhooks" element={<WebhooksPage />} />
+                <Route
+                  path="/settings/notifications"
+                  element={<NotificationPreferencesPage />}
+                />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

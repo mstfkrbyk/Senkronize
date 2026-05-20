@@ -24,6 +24,7 @@ import { api, getApiErrorMessage } from '@/lib/api';
 
 import {
   deliveryStatusLabel,
+  endpointStatusLabel,
   formatWebhookDate,
   WEBHOOK_EVENTS,
   type WebhookDeliveryLogsResponse,
@@ -54,7 +55,7 @@ export function WebhookDetailPage(): ReactElement {
     queryKey: ['webhook-logs', id, page],
     enabled: Boolean(id),
     queryFn: async (): Promise<WebhookDeliveryLogsResponse> => {
-      const { data } = await api.get<WebhookDeliveryLogsResponse>(`webhooks/${id}/logs`, {
+      const { data } = await api.get<WebhookDeliveryLogsResponse>(`webhooks/${id}/deliveries`, {
         params: { page, limit: 100 },
       });
       return data;
@@ -179,6 +180,16 @@ export function WebhookDetailPage(): ReactElement {
           <p className="max-w-2xl truncate text-sm text-muted-foreground" title={endpoint.url}>
             {endpoint.url}
           </p>
+          <Badge
+            variant={
+              endpoint.status === 'DISABLED' || !endpoint.isActive
+                ? 'destructive'
+                : 'default'
+            }
+            className="mt-2 w-fit"
+          >
+            {endpointStatusLabel(endpoint.status, endpoint.isActive)}
+          </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button

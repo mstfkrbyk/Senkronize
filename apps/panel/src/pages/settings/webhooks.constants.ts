@@ -1,22 +1,23 @@
 export const WEBHOOK_EVENTS = [
   { id: 'order.created', label: 'Sipariş oluşturuldu', group: 'Sipariş' },
-  { id: 'order.updated', label: 'Sipariş güncellendi', group: 'Sipariş' },
+  { id: 'order.status_changed', label: 'Sipariş durumu değişti', group: 'Sipariş' },
   { id: 'order.shipped', label: 'Sipariş kargolandı', group: 'Sipariş' },
   { id: 'order.delivered', label: 'Sipariş teslim edildi', group: 'Sipariş' },
   { id: 'order.cancelled', label: 'Sipariş iptal edildi', group: 'Sipariş' },
-  { id: 'order.returned', label: 'Sipariş iade edildi', group: 'Sipariş' },
-  { id: 'product.created', label: 'Ürün oluşturuldu', group: 'Ürün/Stok' },
-  { id: 'product.updated', label: 'Ürün güncellendi', group: 'Ürün/Stok' },
-  { id: 'stock.low', label: 'Stok düşük', group: 'Ürün/Stok' },
-  { id: 'stock.out', label: 'Stok tükendi', group: 'Ürün/Stok' },
-  { id: 'stock.updated', label: 'Stok güncellendi', group: 'Ürün/Stok' },
+  { id: 'product.created', label: 'Ürün oluşturuldu', group: 'Ürün' },
+  { id: 'product.updated', label: 'Ürün güncellendi', group: 'Ürün' },
+  { id: 'product.deleted', label: 'Ürün silindi', group: 'Ürün' },
+  { id: 'stock.low', label: 'Stok düşük', group: 'Stok' },
+  { id: 'stock.out', label: 'Stok tükendi', group: 'Stok' },
+  { id: 'stock.updated', label: 'Stok güncellendi', group: 'Stok' },
   { id: 'price.changed', label: 'Fiyat değişti', group: 'Fiyat' },
   { id: 'buybox.won', label: 'BuyBox kazanıldı', group: 'Fiyat' },
   { id: 'buybox.lost', label: 'BuyBox kaybedildi', group: 'Fiyat' },
-  { id: 'sync.completed', label: 'Senkronizasyon tamamlandı', group: 'Sistem' },
-  { id: 'sync.failed', label: 'Senkronizasyon başarısız', group: 'Sistem' },
-  { id: 'subscription.renewed', label: 'Abonelik yenilendi', group: 'Sistem' },
-  { id: 'subscription.cancelled', label: 'Abonelik iptal edildi', group: 'Sistem' },
+  { id: 'sync.completed', label: 'Senkronizasyon tamamlandı', group: 'Senkronizasyon' },
+  { id: 'sync.failed', label: 'Senkronizasyon başarısız', group: 'Senkronizasyon' },
+  { id: 'subscription.upgraded', label: 'Abonelik yükseltildi', group: 'Abonelik' },
+  { id: 'subscription.cancelled', label: 'Abonelik iptal edildi', group: 'Abonelik' },
+  { id: 'subscription.expired', label: 'Abonelik süresi doldu', group: 'Abonelik' },
 ] as const;
 
 export type WebhookEventId = (typeof WEBHOOK_EVENTS)[number]['id'];
@@ -27,6 +28,7 @@ export interface WebhookEndpointRow {
   name: string;
   url: string;
   events: string[];
+  status: 'ACTIVE' | 'DISABLED';
   isActive: boolean;
   retryCount: number;
   timeoutMs: number;
@@ -85,4 +87,14 @@ export function deliveryStatusLabel(status: string | null | undefined): string {
     default:
       return status ?? '—';
   }
+}
+
+export function endpointStatusLabel(
+  status: WebhookEndpointRow['status'],
+  isActive: boolean,
+): string {
+  if (status === 'DISABLED') {
+    return 'Devre dışı';
+  }
+  return isActive ? 'Aktif' : 'Pasif';
 }
