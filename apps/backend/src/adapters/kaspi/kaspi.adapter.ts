@@ -7,27 +7,27 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MeeshoAdapter extends RestStubMarketplaceAdapter {
+export class KaspiAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MEESHO',
-      baseUrl: 'https://api.meesho.com/supplier/v1',
-      loggerContext: MeeshoAdapter.name,
-      rateLimitKey: 'MEESHO',
-      pathProfile: '/merchant/me',
+      platform: 'KASPI',
+      baseUrl: 'https://kaspi.kz/shop/api/v2',
+      loggerContext: KaspiAdapter.name,
+      rateLimitKey: 'KASPI',
+      pathProfile: '/merchant/profile',
       pathOrders: '/orders',
       pathProducts: '/products',
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const apiKey = creds.apiKey?.trim();
-        if (!apiKey) {
-          throw new Error('Meesho: apiKey zorunludur');
+        const accessToken = creds.accessToken?.trim();
+        if (!accessToken) {
+          throw new Error('Kaspi: accessToken zorunludur (OAuth2)');
         }
         return {
           headers: {
             'Content-Type': 'application/json',
-            'X-Api-Key': apiKey,
+            Authorization: `Bearer ${accessToken}`,
           },
         };
       },

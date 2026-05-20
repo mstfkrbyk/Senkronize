@@ -206,6 +206,15 @@ enum Marketplace {
   GETIR_MARKET
   MEDIAMARKT_TR
   TRENDYOL_SECOND_HAND
+  AMAZON_UK
+  AMAZON_DE
+  AMAZON_FR
+  AMAZON_CA
+  AMAZON_JP
+  KASPI
+  UZUM
+  JIOMART
+  NOON_SA
 }
 
 enum PricingStrategy {
@@ -688,6 +697,7 @@ model User {
   stockCountSessionsStarted StockCountSession[]      @relation("StockCountSessionCreatedBy")
   supportTickets            SupportTicket[]
   ticketMessages            TicketMessage[]
+  orderNotes                OrderNote[]
 }
 
 model InAppNotification {
@@ -1246,6 +1256,7 @@ model Order {
   cancellationRequestedAt DateTime?
   cancellationRequestNote String?
   items                   OrderItem[]
+  notes                   OrderNote[]
   returns                 Return[]
 
   @@unique([organizationId, platform, platformOrderId])
@@ -1254,6 +1265,19 @@ model Order {
   @@index([organizationId, platform])
   @@index([organizationId, createdAt])
   @@index([platformOrderId, organizationId])
+}
+
+model OrderNote {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
 }
 
 model OrderItem {

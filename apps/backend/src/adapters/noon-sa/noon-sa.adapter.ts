@@ -7,13 +7,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MeeshoAdapter extends RestStubMarketplaceAdapter {
+export class NoonSaAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MEESHO',
-      baseUrl: 'https://api.meesho.com/supplier/v1',
-      loggerContext: MeeshoAdapter.name,
-      rateLimitKey: 'MEESHO',
+      platform: 'NOON_SA',
+      baseUrl: 'https://api.noon.com/seller/sa/v2',
+      loggerContext: NoonSaAdapter.name,
+      rateLimitKey: 'NOON_SA',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -22,7 +22,7 @@ export class MeeshoAdapter extends RestStubMarketplaceAdapter {
       resolveAuth: async (creds) => {
         const apiKey = creds.apiKey?.trim();
         if (!apiKey) {
-          throw new Error('Meesho: apiKey zorunludur');
+          throw new Error('Noon SA: apiKey zorunludur');
         }
         return {
           headers: {

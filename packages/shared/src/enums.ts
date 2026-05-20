@@ -178,7 +178,16 @@ export type Marketplace =
   | 'MIGROS_HIZLI'
   | 'GETIR_MARKET'
   | 'MEDIAMARKT_TR'
-  | 'TRENDYOL_SECOND_HAND';
+  | 'TRENDYOL_SECOND_HAND'
+  | 'AMAZON_UK'
+  | 'AMAZON_DE'
+  | 'AMAZON_FR'
+  | 'AMAZON_CA'
+  | 'AMAZON_JP'
+  | 'KASPI'
+  | 'UZUM'
+  | 'JIOMART'
+  | 'NOON_SA';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

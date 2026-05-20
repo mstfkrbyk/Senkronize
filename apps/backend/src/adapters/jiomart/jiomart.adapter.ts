@@ -7,13 +7,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MeeshoAdapter extends RestStubMarketplaceAdapter {
+export class JiomartAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MEESHO',
-      baseUrl: 'https://api.meesho.com/supplier/v1',
-      loggerContext: MeeshoAdapter.name,
-      rateLimitKey: 'MEESHO',
+      platform: 'JIOMART',
+      baseUrl: 'https://api.jiomart.com/seller/v1',
+      loggerContext: JiomartAdapter.name,
+      rateLimitKey: 'JIOMART',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -22,7 +22,7 @@ export class MeeshoAdapter extends RestStubMarketplaceAdapter {
       resolveAuth: async (creds) => {
         const apiKey = creds.apiKey?.trim();
         if (!apiKey) {
-          throw new Error('Meesho: apiKey zorunludur');
+          throw new Error('JioMart: apiKey zorunludur');
         }
         return {
           headers: {

@@ -7,13 +7,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MeeshoAdapter extends RestStubMarketplaceAdapter {
+export class UzumAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MEESHO',
-      baseUrl: 'https://api.meesho.com/supplier/v1',
-      loggerContext: MeeshoAdapter.name,
-      rateLimitKey: 'MEESHO',
+      platform: 'UZUM',
+      baseUrl: 'https://api.uzum.uz/api/v1',
+      loggerContext: UzumAdapter.name,
+      rateLimitKey: 'UZUM',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -22,7 +22,7 @@ export class MeeshoAdapter extends RestStubMarketplaceAdapter {
       resolveAuth: async (creds) => {
         const apiKey = creds.apiKey?.trim();
         if (!apiKey) {
-          throw new Error('Meesho: apiKey zorunludur');
+          throw new Error('Uzum: apiKey zorunludur');
         }
         return {
           headers: {

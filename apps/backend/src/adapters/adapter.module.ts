@@ -13,6 +13,7 @@ import { ArcelikModule } from './arcelik/arcelik.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
 import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
 import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
+import { AmazonGlobalModule } from './amazon-global/amazon-global.module';
 import { AllegroModule } from './allegro/allegro.module';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
 import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
@@ -69,10 +70,12 @@ import { IkasModule } from './ikas/ikas.module';
 import { IyzicoModule } from './iyzico/iyzico.module';
 import { IsnetAdapter } from './isnet/isnet.adapter';
 import { JdidModule } from './jdid/jdid.module';
+import { JiomartModule } from './jiomart/jiomart.module';
 import { JoomModule } from './joom/joom.module';
 import { JumiaModule } from './jumia/jumia.module';
 import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
+import { KaspiModule } from './kaspi/kaspi.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
 import { KilimallModule } from './kilimall/kilimall.module';
 import { KoctasModule } from './koctas/koctas.module';
@@ -116,6 +119,7 @@ import { NamshiModule } from './namshi/namshi.module';
 import { NetsisAdapter } from './netsis/netsis.adapter';
 import { NebimAdapter } from './nebim/nebim.adapter';
 import { NoonModule } from './noon/noon.module';
+import { NoonSaModule } from './noon-sa/noon-sa.module';
 import { OnbuyModule } from './onbuy/onbuy.module';
 import { OttoModule } from './otto/otto.module';
 import { OpencartModule } from './opencart/opencart.module';
@@ -173,6 +177,7 @@ import { TrendyolAdapter } from './trendyol/trendyol.adapter';
 import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { TokopediaModule } from './tokopedia/tokopedia.module';
 import { UniposModule } from './unipos/unipos.module';
+import { UzumModule } from './uzum/uzum.module';
 import { VatanModule } from './vatan/vatan.module';
 import { VendureModule } from './vendure/vendure.module';
 import { VeepeeModule } from './veepee/veepee.module';
@@ -206,6 +211,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AllegroModule,
     AmazonAeModule,
     AmazonEuModule,
+    AmazonGlobalModule,
     ArcelikModule,
     BanabiModule,
     BestbuyModule,
@@ -256,10 +262,12 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IyzicoModule,
     InstacartModule,
     JdidModule,
+    JiomartModule,
     JoomModule,
     JumiaModule,
     LamodaModule,
     KauflandModule,
+    KaspiModule,
     KitapyurduModule,
     KoctasModule,
     KilimallModule,
@@ -296,6 +304,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11ProModule,
     NamshiModule,
     NoonModule,
+    NoonSaModule,
     OnbuyModule,
     OpencartModule,
     OverstockModule,
@@ -345,6 +354,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
+    UzumModule,
     VatanModule,
     VendureModule,
     VeepeeModule,
@@ -425,6 +435,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AllegroModule,
     AmazonAeModule,
     AmazonEuModule,
+    AmazonGlobalModule,
     ArcelikModule,
     BanabiModule,
     BestbuyModule,
@@ -475,10 +486,12 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IyzicoModule,
     InstacartModule,
     JdidModule,
+    JiomartModule,
     JoomModule,
     JumiaModule,
     LamodaModule,
     KauflandModule,
+    KaspiModule,
     KitapyurduModule,
     KoctasModule,
     KilimallModule,
@@ -515,6 +528,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11ProModule,
     NamshiModule,
     NoonModule,
+    NoonSaModule,
     OnbuyModule,
     OpencartModule,
     OverstockModule,
@@ -564,6 +578,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
+    UzumModule,
     VatanModule,
     VendureModule,
     VeepeeModule,

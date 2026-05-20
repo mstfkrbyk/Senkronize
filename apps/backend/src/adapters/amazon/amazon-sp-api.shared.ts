@@ -35,9 +35,12 @@ export async function amazonGetLwaToken(
   return data.access_token;
 }
 
-export function amazonCreateSpClient(token: string): AxiosInstance {
+export function amazonCreateSpClient(
+  token: string,
+  baseUrl: string = AMAZON_SP_BASE_URL,
+): AxiosInstance {
   return axios.create({
-    baseURL: AMAZON_SP_BASE_URL,
+    baseURL: baseUrl,
     headers: {
       'x-amz-access-token': token,
       'Content-Type': 'application/json',
