@@ -172,7 +172,13 @@ export type Marketplace =
   | 'WISH'
   | 'FRUUGO'
   | 'ONBUY'
-  | 'TIKLADO';
+  | 'TIKLADO'
+  | 'KOCTAS'
+  | 'WATSONS_TR'
+  | 'MIGROS_HIZLI'
+  | 'GETIR_MARKET'
+  | 'MEDIAMARKT_TR'
+  | 'TRENDYOL_SECOND_HAND';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

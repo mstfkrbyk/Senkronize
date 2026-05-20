@@ -3,9 +3,11 @@ import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
+  BulkResult,
   ListingDetailResponse,
   ListingFilters,
   ListingsResponse,
+  ListingStatus,
   ListingSummary,
 } from '@/types/listing';
 
@@ -61,35 +63,6 @@ export function useListingSummary() {
   });
 }
 
-export function useSyncAllPlatforms() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (
-      payload:
-        | { barcode: string; quantity: number; price?: number }
-        | { listingIds: string[]; price?: number },
-    ): Promise<{ queued: number }> => {
-      const { data } = await api.post<{ queued: number }>(
-        '/products/sync-all-platforms',
-        payload,
-      );
-      return data;
-    },
-    onSuccess: (res) => {
-      toast.success(
-        res.queued > 0
-          ? `${String(res.queued)} bağlantıda kuyruğa alındı`
-          : 'Aktif bağlantı yok',
-      );
-      void queryClient.invalidateQueries({ queryKey: ['listings'] });
-      void queryClient.invalidateQueries({ queryKey: ['stock'] });
-    },
-    onError: (err) => {
-      toast.error(getApiErrorMessage(err));
-    },
-  });
-}
-
 export function useSyncListings() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -102,6 +75,28 @@ export function useSyncListings() {
       setTimeout(() => {
         void queryClient.invalidateQueries({ queryKey: ['listings'] });
       }, 5000);
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useSyncListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (listingId: string): Promise<{ jobIds: string[] }> => {
+      const { data } = await api.post<{ jobIds: string[] }>(
+        `/listings/${listingId}/sync`,
+      );
+      return data;
+    },
+    onSuccess: (_, listingId) => {
+      toast.success('Senkronizasyon kuyruğa alındı');
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+      void queryClient.invalidateQueries({
+        queryKey: ['listings', 'detail', listingId],
+      });
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err));
@@ -165,6 +160,109 @@ export function useUpdateStock() {
   });
 }
 
+export function useToggleListingActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (listingId: string) => {
+      const { data } = await api.patch(`/listings/${listingId}/toggle-active`);
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('Durum güncellendi');
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      ids: string[];
+      status: ListingStatus;
+    }): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>('/listings/bulk/status', payload);
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} listeleme güncellendi`);
+      if (res.failed > 0) {
+        toast.warning(`${String(res.failed)} kayıt güncellenemedi`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingPrice() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      updates: { id: string; price: number }[],
+    ): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>(
+        '/listings/bulk/price',
+        updates,
+      );
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} fiyat güncellendi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingStock() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      updates: { id: string; stock: number }[],
+    ): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>(
+        '/listings/bulk/stock',
+        updates,
+      );
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} stok güncellendi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingPush() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>('/listings/bulk/push', {
+        ids,
+      });
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} listeleme platforma gönderildi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
 export interface BulkListingUpdateItem {
   listingId?: string;
   barcode?: string;
@@ -188,9 +286,6 @@ export function useBulkListingUpdate() {
     onSuccess: (res) => {
       toast.success(`${String(res.updated)} listeleme güncellendi`);
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
-      void queryClient.invalidateQueries({
-        queryKey: ['reports', 'dashboard-summary'],
-      });
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err));
@@ -207,9 +302,26 @@ export function useDeleteListing() {
     onSuccess: () => {
       toast.success('Listeleme arşivlendi');
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
-      void queryClient.invalidateQueries({
-        queryKey: ['reports', 'dashboard-summary'],
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+/** @deprecated useBulkListingPush veya useSyncListing tercih edin */
+export function useSyncAllPlatforms() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { listingIds: string[] }): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>('/listings/bulk/push', {
+        ids: payload.listingIds,
       });
+      return data;
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} listeleme kuyruğa alındı`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
     },
     onError: (err) => {
       toast.error(getApiErrorMessage(err));

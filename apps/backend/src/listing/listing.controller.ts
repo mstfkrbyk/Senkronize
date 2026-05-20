@@ -23,6 +23,10 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtOrApiKeyGuard } from '../api-key/jwt-or-api-key.guard';
 
 import {
+  BulkPriceItemDto,
+  BulkPushDto,
+  BulkStatusDto,
+  BulkStockItemDto,
   BulkUpdateDto,
   ListingQueryDto,
   RetrySyncJobDto,
@@ -35,6 +39,7 @@ import {
   type ListingSummaryDto,
   type SerializedListing,
 } from './listing.service';
+import type { BulkResult } from './listing.types';
 
 @ApiTags('listings')
 @ApiBearerAuth()
@@ -134,6 +139,77 @@ export class ListingController {
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<{ updated: number }> {
     return this.listingService.bulkUpdateStockAndPrice(org.id, dto.items);
+  }
+
+  @Post('bulk/status')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Toplu durum güncelleme' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkUpdateStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkStatusDto,
+  ): Promise<BulkResult> {
+    return this.listingService.bulkUpdateStatus(org.id, dto.ids, dto.status);
+  }
+
+  @Post('bulk/price')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Toplu fiyat güncelleme' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkUpdatePrice(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() updates: BulkPriceItemDto[],
+  ): Promise<BulkResult> {
+    return this.listingService.bulkUpdatePrice(org.id, updates);
+  }
+
+  @Post('bulk/stock')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Toplu stok güncelleme' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkUpdateStock(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() updates: BulkStockItemDto[],
+  ): Promise<BulkResult> {
+    return this.listingService.bulkUpdateStock(org.id, updates);
+  }
+
+  @Post('bulk/push')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Seçili listelemeleri platforma gönder' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkPush(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkPushDto,
+  ): Promise<BulkResult> {
+    return this.listingService.bulkPushToPlatform(org.id, dto.ids);
+  }
+
+  @Patch(':id/toggle-active')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Listelemeyi aktifleştir / devre dışı bırak' })
+  @ApiResponse({ status: 200, description: 'Güncellenmiş listeleme' })
+  async toggleActive(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<SerializedListing> {
+    return this.listingService.toggleListingActive(org.id, id);
+  }
+
+  @Post(':id/sync')
+  @Throttle({ default: { limit: 10 } })
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Tek listeleme senkronizasyonu' })
+  @ApiResponse({ status: 201, description: 'İşler kuyruğa eklendi' })
+  async syncOne(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ jobIds: string[]; message: string }> {
+    const { jobIds } = await this.listingService.syncListing(org.id, id);
+    return {
+      jobIds,
+      message: 'Senkronizasyon işleri kuyruğa eklendi.',
+    };
   }
 
   @Patch(':id/price')

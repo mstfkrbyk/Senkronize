@@ -12,6 +12,15 @@ export type ListingPlatform =
   | 'WOOCOMMERCE'
   | 'SHOPIFY';
 
+export type ListingStatus = 'ACTIVE' | 'INACTIVE' | 'OUT_OF_STOCK' | 'PENDING';
+
+export type ListingSort =
+  | 'price_asc'
+  | 'price_desc'
+  | 'stock_asc'
+  | 'stock_desc'
+  | 'updated_desc';
+
 /** Backend `ListingStockTier` ile uyumlu */
 export type ListingStockTier = 'IN_STOCK' | 'LOW' | 'OUT';
 
@@ -25,6 +34,8 @@ export interface Listing {
   listPrice: string;
   quantity: number;
   approved: boolean;
+  isActive: boolean;
+  status: ListingStatus;
   imageUrls: string[];
   lastSyncAt: string | null;
   createdAt: string;
@@ -46,14 +57,20 @@ export interface ListingFilters {
   platform?: string;
   /** Virgülle birleştirilmiş çoklu platform (API `platforms`). */
   platforms?: string;
+  status?: ListingStatus;
   approved?: boolean;
   stockTier?: ListingStockTier;
   minSalePrice?: number;
   maxSalePrice?: number;
+  priceMin?: number;
+  priceMax?: number;
+  stockMin?: number;
+  stockMax?: number;
   lastSyncAtSince?: string;
   lastSyncAtUntil?: string;
   category?: string;
   search?: string;
+  sort?: ListingSort;
   page?: number;
   limit?: number;
 }
@@ -71,9 +88,23 @@ export interface ListingDetailBuyBox {
   capturedAt: string;
 }
 
+export interface ListingSyncError {
+  id: string;
+  action: string;
+  message: string;
+  createdAt: string;
+}
+
 export interface ListingDetailResponse {
   listing: Listing;
   category: string | null;
   priceHistory: ListingDetailPricePoint[];
   buyBox: ListingDetailBuyBox | null;
+  syncErrors: ListingSyncError[];
+}
+
+export interface BulkResult {
+  success: number;
+  failed: number;
+  errors: { id: string; message: string }[];
 }

@@ -30,8 +30,11 @@ import { WarehouseService } from '../warehouse/warehouse.service';
 import {
   type BulkUpdateItemDto,
   ListingQueryDto,
+  ListingSort,
+  ListingStatus,
   ListingStockTier,
 } from './listing.dto';
+import type { BulkResult, ListingSyncError } from './listing.types';
 
 function auditLogMetadata(
   meta: Prisma.JsonValue,
@@ -54,6 +57,8 @@ function normalizeStringArray(value: unknown): string[] {
 export type SerializedListing = Omit<Listing, 'salePrice' | 'listPrice'> & {
   salePrice: string;
   listPrice: string;
+  isActive: boolean;
+  status: ListingStatus;
 };
 
 export interface ListingSummaryDto {
@@ -81,6 +86,68 @@ export interface ListingDetailResponse {
   category: string | null;
   priceHistory: ListingDetailPricePoint[];
   buyBox: ListingDetailBuyBox | null;
+  syncErrors: ListingSyncError[];
+}
+
+function deriveListingStatus(listing: {
+  approved: boolean;
+  quantity: number;
+  isActive: boolean;
+}): ListingStatus {
+  if (!listing.isActive) {
+    return ListingStatus.INACTIVE;
+  }
+  if (!listing.approved) {
+    return ListingStatus.PENDING;
+  }
+  if (listing.quantity === 0) {
+    return ListingStatus.OUT_OF_STOCK;
+  }
+  return ListingStatus.ACTIVE;
+}
+
+function statusWhere(status: ListingStatus): Prisma.ListingWhereInput {
+  switch (status) {
+    case ListingStatus.INACTIVE:
+      return { isActive: false };
+    case ListingStatus.PENDING:
+      return { isActive: true, approved: false };
+    case ListingStatus.OUT_OF_STOCK:
+      return { isActive: true, approved: true, quantity: 0 };
+    case ListingStatus.ACTIVE:
+      return { isActive: true, approved: true, quantity: { gt: 0 } };
+  }
+}
+
+function statusUpdateData(status: ListingStatus): Prisma.ListingUpdateInput {
+  switch (status) {
+    case ListingStatus.INACTIVE:
+      return { isActive: false };
+    case ListingStatus.PENDING:
+      return { approved: false };
+    case ListingStatus.OUT_OF_STOCK:
+      return { quantity: 0 };
+    case ListingStatus.ACTIVE:
+      return { isActive: true };
+  }
+}
+
+function resolveOrderBy(
+  sort: ListingSort | undefined,
+): Prisma.ListingOrderByWithRelationInput {
+  switch (sort) {
+    case ListingSort.PRICE_ASC:
+      return { salePrice: 'asc' };
+    case ListingSort.PRICE_DESC:
+      return { salePrice: 'desc' };
+    case ListingSort.STOCK_ASC:
+      return { quantity: 'asc' };
+    case ListingSort.STOCK_DESC:
+      return { quantity: 'desc' };
+    case ListingSort.UPDATED_DESC:
+    default:
+      return { updatedAt: 'desc' };
+  }
 }
 
 const listingFindAllSelect = {
@@ -95,6 +162,7 @@ const listingFindAllSelect = {
   listPrice: true,
   quantity: true,
   approved: true,
+  isActive: true,
   imageUrls: true,
   lastSyncAt: true,
   createdAt: true,
@@ -121,10 +189,17 @@ export class ListingService {
   ) {}
 
   private serializeListing(row: Listing | ListingFindAllRow): SerializedListing {
+    const isActive = 'isActive' in row ? row.isActive : true;
     return {
       ...row,
       salePrice: row.salePrice.toString(),
       listPrice: row.listPrice.toString(),
+      isActive,
+      status: deriveListingStatus({
+        approved: row.approved,
+        quantity: row.quantity,
+        isActive,
+      }),
     };
   }
 
@@ -142,8 +217,12 @@ export class ListingService {
       approved: query.approved ?? '',
       stockTier: query.stockTier ?? '',
       search: query.search ?? '',
-      minSalePrice: query.minSalePrice ?? '',
-      maxSalePrice: query.maxSalePrice ?? '',
+      minSalePrice: query.minSalePrice ?? query.priceMin ?? '',
+      maxSalePrice: query.maxSalePrice ?? query.priceMax ?? '',
+      stockMin: query.stockMin ?? '',
+      stockMax: query.stockMax ?? '',
+      status: query.status ?? '',
+      sort: query.sort ?? '',
       lastSyncAtSince: query.lastSyncAtSince ?? '',
       lastSyncAtUntil: query.lastSyncAtUntil ?? '',
       category: query.category ?? '',
@@ -188,19 +267,35 @@ export class ListingService {
             ? { quantity: 0 }
             : {};
 
+    const minPrice = query.minSalePrice ?? query.priceMin;
+    const maxPrice = query.maxSalePrice ?? query.priceMax;
+
     const salePriceWhere: Prisma.ListingWhereInput =
-      query.minSalePrice !== undefined || query.maxSalePrice !== undefined
+      minPrice !== undefined || maxPrice !== undefined
         ? {
             salePrice: {
-              ...(query.minSalePrice !== undefined && {
-                gte: new Prisma.Decimal(query.minSalePrice),
+              ...(minPrice !== undefined && {
+                gte: new Prisma.Decimal(minPrice),
               }),
-              ...(query.maxSalePrice !== undefined && {
-                lte: new Prisma.Decimal(query.maxSalePrice),
+              ...(maxPrice !== undefined && {
+                lte: new Prisma.Decimal(maxPrice),
               }),
             },
           }
         : {};
+
+    const stockWhere: Prisma.ListingWhereInput =
+      query.stockMin !== undefined || query.stockMax !== undefined
+        ? {
+            quantity: {
+              ...(query.stockMin !== undefined && { gte: query.stockMin }),
+              ...(query.stockMax !== undefined && { lte: query.stockMax }),
+            },
+          }
+        : {};
+
+    const statusFilter: Prisma.ListingWhereInput =
+      query.status !== undefined ? statusWhere(query.status) : {};
 
     const lastSyncAtFilter: Prisma.DateTimeFilter = {};
     if (query.lastSyncAtSince !== undefined && query.lastSyncAtSince.trim().length > 0) {
@@ -236,6 +331,8 @@ export class ListingService {
       ...(query.approved !== undefined && { approved: query.approved }),
       ...stockTierWhere,
       ...salePriceWhere,
+      ...stockWhere,
+      ...statusFilter,
       ...lastSyncWhere,
       ...categoryWhere,
       ...(query.search && {
@@ -260,7 +357,7 @@ export class ListingService {
       this.prisma.listing.findMany({
         where,
         select: listingFindAllSelect,
-        orderBy: { updatedAt: 'desc' },
+        orderBy: resolveOrderBy(query.sort),
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -340,12 +437,16 @@ export class ListingService {
     const { product, ...listingRow } = row;
     const listing = this.serializeListing(listingRow);
 
-    const [historyRows, snap] = await Promise.all([
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const [historyRows, snap, syncErrorLogs] = await Promise.all([
       this.prisma.priceHistory.findMany({
         where: {
           organizationId,
           barcode: row.barcode,
           platform: row.platform,
+          appliedAt: { gte: since },
         },
         orderBy: { appliedAt: 'desc' },
         take: 60,
@@ -358,6 +459,21 @@ export class ListingService {
           platform: row.platform,
         },
         orderBy: { capturedAt: 'desc' },
+      }),
+      this.prisma.auditLog.findMany({
+        where: {
+          actorOrgId: organizationId,
+          action: 'queue.job_failed',
+          createdAt: { gte: since },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          action: true,
+          metadata: true,
+          createdAt: true,
+        },
       }),
     ]);
 
@@ -377,11 +493,43 @@ export class ListingService {
       };
     }
 
+    const syncErrors: ListingSyncError[] = syncErrorLogs
+      .filter((log) => {
+        const meta = auditLogMetadata(log.metadata);
+        const platformRaw = meta.platform;
+        if (platformRaw !== row.platform) {
+          return false;
+        }
+        const resourceIds = normalizeStringArray(meta.resourceIds);
+        if (resourceIds.includes(row.barcode)) {
+          return true;
+        }
+        const barcodeMeta = meta.barcode;
+        return typeof barcodeMeta === 'string' && barcodeMeta === row.barcode;
+      })
+      .slice(0, 10)
+      .map((log) => {
+        const meta = auditLogMetadata(log.metadata);
+        const message =
+          typeof meta.errorMessage === 'string'
+            ? meta.errorMessage
+            : typeof meta.message === 'string'
+              ? meta.message
+              : 'Senkronizasyon hatası';
+        return {
+          id: log.id,
+          action: log.action,
+          message,
+          createdAt: log.createdAt.toISOString(),
+        };
+      });
+
     return {
       listing,
       category: product?.category ?? null,
       priceHistory,
       buyBox,
+      syncErrors,
     };
   }
 
@@ -735,6 +883,203 @@ export class ListingService {
       await this.cache.invalidateListingsForOrg(organizationId);
     }
     return { updated };
+  }
+
+  async bulkUpdateStatus(
+    organizationId: string,
+    listingIds: string[],
+    status: ListingStatus,
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+    const data = statusUpdateData(status);
+
+    for (const id of listingIds) {
+      try {
+        const row = await this.prisma.listing.findFirst({
+          where: { id, organizationId, deletedAt: null },
+        });
+        if (!row) {
+          result.failed += 1;
+          result.errors.push({ id, message: 'Listeleme bulunamadı' });
+          continue;
+        }
+        await this.prisma.listing.update({
+          where: { id },
+          data,
+        });
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id, message: 'Güncelleme başarısız' });
+      }
+    }
+
+    if (result.success > 0) {
+      await this.cache.invalidateListingsForOrg(organizationId);
+    }
+    return result;
+  }
+
+  async bulkUpdatePrice(
+    organizationId: string,
+    updates: { id: string; price: number }[],
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+
+    for (const item of updates) {
+      try {
+        const row = await this.prisma.listing.findFirst({
+          where: { id: item.id, organizationId, deletedAt: null },
+        });
+        if (!row) {
+          result.failed += 1;
+          result.errors.push({ id: item.id, message: 'Listeleme bulunamadı' });
+          continue;
+        }
+        const listPrice = Math.max(Number(row.listPrice), item.price);
+        await this.updatePrice(
+          organizationId,
+          item.id,
+          item.price,
+          listPrice,
+        );
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id: item.id, message: 'Fiyat güncellenemedi' });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkUpdateStock(
+    organizationId: string,
+    updates: { id: string; stock: number }[],
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+
+    for (const item of updates) {
+      try {
+        const row = await this.prisma.listing.findFirst({
+          where: { id: item.id, organizationId, deletedAt: null },
+        });
+        if (!row) {
+          result.failed += 1;
+          result.errors.push({ id: item.id, message: 'Listeleme bulunamadı' });
+          continue;
+        }
+        await this.updateStock(organizationId, item.id, item.stock);
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id: item.id, message: 'Stok güncellenemedi' });
+      }
+    }
+
+    return result;
+  }
+
+  async bulkPushToPlatform(
+    organizationId: string,
+    listingIds: string[],
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+
+    for (const id of listingIds) {
+      try {
+        const row = await this.prisma.listing.findFirst({
+          where: { id, organizationId, deletedAt: null },
+        });
+        if (!row) {
+          result.failed += 1;
+          result.errors.push({ id, message: 'Listeleme bulunamadı' });
+          continue;
+        }
+        await this.marketplacePushQueue.add(
+          'push-price',
+          {
+            organizationId,
+            platform: row.platform,
+            type: 'price',
+            resourceIds: [row.barcode],
+            payload: {
+              salePrice: Number(row.salePrice),
+              listPrice: Number(row.listPrice),
+            },
+          },
+          JOB_DEFAULT_OPTIONS,
+        );
+        await this.marketplacePushQueue.add(
+          'push-stock',
+          {
+            organizationId,
+            platform: row.platform,
+            type: 'stock',
+            resourceIds: [row.barcode],
+            payload: { quantity: row.quantity },
+          },
+          JOB_DEFAULT_OPTIONS,
+        );
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id, message: 'Platforma gönderilemedi' });
+      }
+    }
+
+    return result;
+  }
+
+  async toggleListingActive(
+    organizationId: string,
+    listingId: string,
+  ): Promise<SerializedListing> {
+    const row = await this.prisma.listing.findFirst({
+      where: { id: listingId, organizationId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Listeleme bulunamadı');
+    }
+    const updated = await this.prisma.listing.update({
+      where: { id: listingId },
+      data: { isActive: !row.isActive },
+    });
+    await this.cache.invalidateListingsForOrg(organizationId);
+    return this.serializeListing(updated);
+  }
+
+  async syncListing(
+    organizationId: string,
+    listingId: string,
+  ): Promise<{ jobIds: string[] }> {
+    const row = await this.prisma.listing.findFirst({
+      where: { id: listingId, organizationId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('Listeleme bulunamadı');
+    }
+
+    const jobIds: string[] = [];
+    const pullJob = await this.marketplacePullQueue.add(
+      'pull-listings',
+      {
+        organizationId,
+        platform: row.platform,
+        type: 'listings',
+      },
+      JOB_DEFAULT_OPTIONS,
+    );
+    jobIds.push(String(pullJob.id));
+
+    const pushResult = await this.bulkPushToPlatform(organizationId, [
+      listingId,
+    ]);
+    if (pushResult.failed > 0) {
+      throw new BadRequestException('Platforma gönderim kuyruğa alınamadı');
+    }
+
+    return { jobIds };
   }
 
   async retryFromAuditLog(

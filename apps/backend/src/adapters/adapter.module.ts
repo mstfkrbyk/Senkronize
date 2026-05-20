@@ -53,6 +53,7 @@ import { FaprikaModule } from './faprika/faprika.module';
 import { FloModule } from './flo/flo.module';
 import { FuudyModule } from './fuudy/fuudy.module';
 import { GetirFoodModule } from './getir-food/getir-food.module';
+import { GetirMarketModule } from './getir-market/getir-market.module';
 import { GetirYemekModule } from './getir-yemek/getir-yemek.module';
 import { GetirModule } from './getir/getir.module';
 import { GorillasModule } from './gorillas/gorillas.module';
@@ -74,6 +75,7 @@ import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
 import { KilimallModule } from './kilimall/kilimall.module';
+import { KoctasModule } from './koctas/koctas.module';
 import { KolaybiAdapter } from './kolaybi/kolaybi.adapter';
 import { KongaModule } from './konga/konga.module';
 import { KotonModule } from './koton/koton.module';
@@ -93,11 +95,13 @@ import { MedusaModule } from './medusa/medusa.module';
 import { ManomanoModule } from './manomano/manomano.module';
 import { MaviModule } from './mavi/mavi.module';
 import { MediamarktModule } from './mediamarkt/mediamarkt.module';
+import { MediamarktTrModule } from './mediamarkt-tr/mediamarkt-tr.module';
 import { MeeshoModule } from './meesho/meesho.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
+import { MigrosHizliModule } from './migros-hizli/migros-hizli.module';
 import { MigrosSanalModule } from './migros-sanal/migros-sanal.module';
 import { MydealModule } from './mydeal/mydeal.module';
 import { MigroshemenModule } from './migroshemen/migroshemen.module';
@@ -160,6 +164,7 @@ import { TrendyolGoModule } from './trendyol-go/trendyol-go.module';
 import { TrendyolMillaModule } from './trendyol-milla/trendyol-milla.module';
 import { TrendyolIntModule } from './trendyol-int/trendyol-int.module';
 import { TrendyolPremiumModule } from './trendyol-premium/trendyol-premium.module';
+import { TrendyolSecondHandModule } from './trendyol-second-hand/trendyol-second-hand.module';
 import { TrendyolYemekModule } from './trendyol-yemek/trendyol-yemek.module';
 import { TazeDirektModule } from './taze-direkt/taze-direkt.module';
 import { TargetPlusModule } from './target-plus/target-plus.module';
@@ -178,6 +183,7 @@ import { WildberriesModule } from './wildberries/wildberries.module';
 import { WishModule } from './wish/wish.module';
 import { WalmartModule } from './walmart/walmart.module';
 import { WadiModule } from './wadi/wadi.module';
+import { WatsonsTrModule } from './watsons-tr/watsons-tr.module';
 import { WayfairModule } from './wayfair/wayfair.module';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
@@ -238,6 +244,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FuudyModule,
     GetirModule,
     GetirFoodModule,
+    GetirMarketModule,
     GetirYemekModule,
     GittigidiyorModule,
     GorillasModule,
@@ -254,6 +261,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LamodaModule,
     KauflandModule,
     KitapyurduModule,
+    KoctasModule,
     KilimallModule,
     KotonModule,
     KongaModule,
@@ -271,11 +279,13 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ManomanoModule,
     MaviModule,
     MediamarktModule,
+    MediamarktTrModule,
     MeeshoModule,
     MercadolibreModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
+    MigrosHizliModule,
     MiintoModule,
     MigrosSanalModule,
     ModanisaModule,
@@ -331,6 +341,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolGoModule,
     TrendyolIntModule,
     TrendyolMillaModule,
+    TrendyolSecondHandModule,
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
@@ -340,6 +351,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VestelModule,
     VintedModule,
     VivenseModule,
+    WatsonsTrModule,
     WildberriesModule,
     WishModule,
     WalmartModule,
@@ -451,6 +463,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     FuudyModule,
     GetirModule,
     GetirFoodModule,
+    GetirMarketModule,
     GetirYemekModule,
     GittigidiyorModule,
     GorillasModule,
@@ -467,6 +480,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LamodaModule,
     KauflandModule,
     KitapyurduModule,
+    KoctasModule,
     KilimallModule,
     KotonModule,
     KongaModule,
@@ -484,11 +498,13 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ManomanoModule,
     MaviModule,
     MediamarktModule,
+    MediamarktTrModule,
     MeeshoModule,
     MercadolibreModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
+    MigrosHizliModule,
     MiintoModule,
     MigrosSanalModule,
     ModanisaModule,
@@ -544,6 +560,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolGoModule,
     TrendyolIntModule,
     TrendyolMillaModule,
+    TrendyolSecondHandModule,
     TrendyolPremiumModule,
     TrendyolYemekModule,
     UniposModule,
@@ -553,6 +570,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VestelModule,
     VintedModule,
     VivenseModule,
+    WatsonsTrModule,
     WildberriesModule,
     WishModule,
     WalmartModule,

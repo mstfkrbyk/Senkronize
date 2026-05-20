@@ -17,6 +17,10 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+import { ListingSort, ListingStatus } from './listing.types';
+
+export { ListingSort, ListingStatus } from './listing.types';
+
 export enum ListingStockTier {
   IN_STOCK = 'IN_STOCK',
   LOW = 'LOW',
@@ -42,6 +46,38 @@ export class ListingQueryDto {
   @IsOptional()
   @IsEnum(ListingStockTier)
   stockTier?: ListingStockTier;
+
+  @IsOptional()
+  @IsEnum(ListingStatus)
+  status?: ListingStatus;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  priceMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  priceMax?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stockMin?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stockMax?: number;
+
+  @IsOptional()
+  @IsEnum(ListingSort)
+  sort?: ListingSort;
 
   @IsOptional()
   @Type(() => Number)
@@ -157,4 +193,53 @@ export class RetrySyncJobDto {
   @IsString()
   @IsNotEmpty()
   auditLogId!: string;
+}
+
+export class BulkStatusDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
+
+  @IsEnum(ListingStatus)
+  status!: ListingStatus;
+}
+
+export class BulkPriceItemDto {
+  @IsString()
+  @IsNotEmpty()
+  id!: string;
+
+  @IsNumber()
+  @IsPositive()
+  price!: number;
+}
+
+export class BulkPriceDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkPriceItemDto)
+  updates!: BulkPriceItemDto[];
+}
+
+export class BulkStockItemDto {
+  @IsString()
+  @IsNotEmpty()
+  id!: string;
+
+  @IsInt()
+  @Min(0)
+  stock!: number;
+}
+
+export class BulkStockDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BulkStockItemDto)
+  updates!: BulkStockItemDto[];
+}
+
+export class BulkPushDto {
+  @IsArray()
+  @IsString({ each: true })
+  ids!: string[];
 }

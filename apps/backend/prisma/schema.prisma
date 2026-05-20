@@ -200,6 +200,12 @@ enum Marketplace {
   FRUUGO
   ONBUY
   TIKLADO
+  KOCTAS
+  WATSONS_TR
+  MIGROS_HIZLI
+  GETIR_MARKET
+  MEDIAMARKT_TR
+  TRENDYOL_SECOND_HAND
 }
 
 enum PricingStrategy {
@@ -1062,6 +1068,7 @@ model Listing {
   listPrice         Decimal        @db.Decimal(10, 2)
   quantity          Int            @default(0)
   approved          Boolean        @default(false)
+  isActive          Boolean        @default(true)
   imageUrls         String[]
   lastSyncAt        DateTime?
   createdAt         DateTime       @default(now())
