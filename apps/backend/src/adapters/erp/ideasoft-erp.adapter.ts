@@ -7,7 +7,7 @@ export class IdeasoftErpAdapter extends ApiKeyErpAdapterBase {
   readonly config: ApiKeyErpAdapterConfig = {
     erpType: 'IDEASOFT_ERP',
     label: 'IdeaSoft ERP',
-    defaultBaseUrl: 'https://api.ideasoft.com.tr/v1',
+    defaultBaseUrl: 'https://api.ideasoft.com/erp/v1',
     requireApiKey: false,
   };
 }
