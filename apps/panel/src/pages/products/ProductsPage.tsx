@@ -1,10 +1,13 @@
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Download, Package, Search, Upload } from 'lucide-react';
+import { ChevronRight, Download, Package, Upload } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { EmptyState } from '@/components/EmptyState';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -13,7 +16,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -22,13 +24,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { EmptyState } from '@/components/EmptyState';
-import { TableSkeleton } from '@/components/TableSkeleton';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { api, getApiErrorMessage } from '@/lib/api';
 import type { ProductListItem } from '@/types/product';
 
-const PAGE_SIZE = 20;
+import {
+  PRODUCT_FILTER_CONFIG,
+  PRODUCT_FILTER_DEFAULTS,
+  PRODUCT_PAGE_SIZE,
+} from './productFilters.config';
 
 function formatMoney(value: unknown): string {
   if (value === null || value === undefined) {
@@ -43,44 +49,57 @@ function formatMoney(value: unknown): string {
 
 export function ProductsPage(): ReactElement {
   usePageTitle('Ürün Kataloğu');
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-
-  const queryKey = useMemo(
-    () => ['products', { page, search }] as const,
-    [page, search],
+  const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
+    PRODUCT_FILTER_DEFAULTS,
   );
+
+  const debouncedSearch = useDebouncedValue(urlFilters.search, 300);
+
+  const apiFilters = useMemo(() => {
+    const isActive =
+      urlFilters.isActive === 'true'
+        ? true
+        : urlFilters.isActive === 'false'
+          ? false
+          : undefined;
+
+    return {
+      page: urlFilters.page,
+      limit: PRODUCT_PAGE_SIZE,
+      ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
+      ...(urlFilters.category.trim() ? { category: urlFilters.category.trim() } : {}),
+      ...(isActive !== undefined ? { isActive } : {}),
+      ...(urlFilters.minCostPrice !== undefined
+        ? { minCostPrice: urlFilters.minCostPrice }
+        : {}),
+      ...(urlFilters.maxCostPrice !== undefined
+        ? { maxCostPrice: urlFilters.maxCostPrice }
+        : {}),
+    };
+  }, [urlFilters, debouncedSearch]);
+
+  const queryKey = useMemo(() => ['products', apiFilters] as const, [apiFilters]);
 
   const productsQuery = useQuery({
     queryKey,
     queryFn: async () => {
       const { data } = await api.get<{ items: ProductListItem[]; total: number }>(
         '/products',
-        {
-          params: {
-            page,
-            limit: PAGE_SIZE,
-            ...(search.trim() ? { search: search.trim() } : {}),
-          },
-        },
+        { params: apiFilters },
       );
       return data;
     },
   });
 
-  const handleSearchSubmit = useCallback(
-    (e: React.FormEvent): void => {
-      e.preventDefault();
-      setPage(1);
-      void productsQuery.refetch();
+  const handleFilterChange = useCallback(
+    (values: Record<string, unknown>): void => {
+      setUrlFilters({
+        ...(values as typeof PRODUCT_FILTER_DEFAULTS),
+        page: 1,
+      });
     },
-    [productsQuery],
+    [setUrlFilters],
   );
-
-  const items = productsQuery.data?.items ?? [];
-  const total = productsQuery.data?.total ?? 0;
-  const hasNext = page * PAGE_SIZE < total;
-  const hasPrev = page > 1;
 
   const exportCsv = useCallback(async () => {
     const res = await api.get<Blob>('/products/export', {
@@ -94,6 +113,20 @@ export function ProductsPage(): ReactElement {
     a.click();
     URL.revokeObjectURL(url);
   }, []);
+
+  const items = productsQuery.data?.items ?? [];
+  const total = productsQuery.data?.total ?? 0;
+  const page = urlFilters.page;
+  const hasNext = page * PRODUCT_PAGE_SIZE < total;
+  const hasPrev = page > 1;
+
+  const hasActiveFilters = Boolean(
+    debouncedSearch.trim() ||
+      urlFilters.category.trim() ||
+      urlFilters.isActive ||
+      urlFilters.minCostPrice !== undefined ||
+      urlFilters.maxCostPrice !== undefined,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -118,28 +151,12 @@ export function ProductsPage(): ReactElement {
         </div>
       </div>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Arama</CardTitle>
-          <CardDescription>Ürün adı, barkod veya SKU ile filtreleyin</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex gap-2" onSubmit={handleSearchSubmit}>
-            <Input
-              placeholder="Ara…"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-              }}
-              className="max-w-md"
-            />
-            <Button type="submit" variant="secondary">
-              <Search className="mr-2 size-4" />
-              Uygula
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+      <AdvancedFilters
+        filters={PRODUCT_FILTER_CONFIG}
+        values={urlFilters}
+        onChange={handleFilterChange}
+        onReset={resetUrlFilters}
+      />
 
       <Card>
         <CardHeader>
@@ -161,10 +178,10 @@ export function ProductsPage(): ReactElement {
           ) : items.length === 0 ? (
             <EmptyState
               icon={Package}
-              title={search.trim() ? 'Filtrelere uygun ürün yok' : 'Henüz ürün yok'}
+              title={hasActiveFilters ? 'Filtrelere uygun ürün yok' : 'Henüz ürün yok'}
               description={
-                search.trim()
-                  ? 'Arama terimini değiştirerek tekrar deneyin.'
+                hasActiveFilters
+                  ? 'Filtreleri değiştirerek tekrar deneyin.'
                   : 'İlk ürününüzü içe aktararak veya bağlantılarınızı kurarak kataloğunuzu oluşturun.'
               }
               actionSlot={
@@ -219,7 +236,7 @@ export function ProductsPage(): ReactElement {
               </Table>
               <div className="mt-4 flex items-center justify-between gap-2">
                 <p className="text-muted-foreground text-sm">
-                  Sayfa {page} / {Math.max(1, Math.ceil(total / PAGE_SIZE))}
+                  Sayfa {page} / {Math.max(1, Math.ceil(total / PRODUCT_PAGE_SIZE))}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -228,7 +245,7 @@ export function ProductsPage(): ReactElement {
                     size="sm"
                     disabled={!hasPrev}
                     onClick={() => {
-                      setPage((x) => Math.max(1, x - 1));
+                      setUrlFilters({ page: Math.max(1, page - 1) });
                     }}
                   >
                     Önceki
@@ -239,7 +256,7 @@ export function ProductsPage(): ReactElement {
                     size="sm"
                     disabled={!hasNext}
                     onClick={() => {
-                      setPage((x) => x + 1);
+                      setUrlFilters({ page: page + 1 });
                     }}
                   >
                     Sonraki

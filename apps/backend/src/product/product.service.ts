@@ -154,6 +154,18 @@ export class ProductService {
       deletedAt: null,
       ...(query.isActive !== undefined && { isActive: query.isActive }),
       ...(query.category !== undefined && { category: query.category }),
+      ...(query.minCostPrice !== undefined || query.maxCostPrice !== undefined
+        ? {
+            costPrice: {
+              ...(query.minCostPrice !== undefined
+                ? { gte: query.minCostPrice }
+                : {}),
+              ...(query.maxCostPrice !== undefined
+                ? { lte: query.maxCostPrice }
+                : {}),
+            },
+          }
+        : {}),
       ...(query.search && {
         OR: [
           {

@@ -3,7 +3,7 @@ import { Fragment, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
-import { QuickStockSearch } from '@/components/QuickStockSearch';
+import { GlobalSearch } from '@/components/GlobalSearch';
 import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { DemoBanner } from '@/components/DemoBanner';
@@ -78,7 +78,7 @@ export function DashboardLayout(): ReactElement {
         </SidebarInset>
       </SidebarProvider>
       <ShortcutsModal />
-      <QuickStockSearch />
+      <GlobalSearch />
       <OnboardingTour />
       <CurrencyWidget />
     </Fragment>

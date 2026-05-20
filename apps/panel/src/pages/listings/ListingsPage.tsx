@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,6 +13,7 @@ import {
 import Papa from 'papaparse';
 import { toast } from 'sonner';
 
+import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
@@ -43,14 +43,19 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { api, getApiErrorMessage } from '@/lib/api';
 import {
   useListingsPageStore,
 } from '@/store/tablePages.store';
-import type { Listing, ListingFilters as ListingFiltersState, ListingStockTier } from '@/types/listing';
+import type { Listing, ListingFilters as ListingFiltersState } from '@/types/listing';
 
+import {
+  LISTING_FILTER_CONFIG,
+  LISTING_FILTER_DEFAULTS,
+  LISTING_PAGE_SIZE,
+} from './listingFilters.config';
 import { ListingDetailSheet } from './ListingDetailSheet';
-import { ListingFilters } from './ListingFilters';
 import { ListingsTable } from './ListingsTable';
 import { UpdatePriceDialog } from './UpdatePriceDialog';
 import { UpdateStockDialog } from './UpdateStockDialog';
@@ -64,7 +69,30 @@ import {
   useUpdateStock,
 } from './hooks/useListings';
 
-const PAGE_SIZE_DEFAULT = 20;
+const PAGE_SIZE_DEFAULT = LISTING_PAGE_SIZE;
+
+function urlFiltersToListingFilters(
+  url: typeof LISTING_FILTER_DEFAULTS,
+  search: string,
+): ListingFiltersState {
+  const platforms = url.platforms.length > 0 ? url.platforms.join(',') : undefined;
+  const approved =
+    url.approved === 'true' ? true : url.approved === 'false' ? false : undefined;
+
+  return {
+    page: url.page,
+    limit: url.limit,
+    platforms,
+    stockTier: url.stockTier,
+    minSalePrice: url.minSalePrice,
+    maxSalePrice: url.maxSalePrice,
+    lastSyncAtSince: url.lastSyncAtSince.trim() || undefined,
+    lastSyncAtUntil: url.lastSyncAtUntil.trim() || undefined,
+    category: url.category.trim() || undefined,
+    approved,
+    search: search.trim() || undefined,
+  };
+}
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
@@ -103,50 +131,35 @@ function downloadListingsCsv(rows: Listing[]): void {
   URL.revokeObjectURL(url);
 }
 
-function isStockTierParam(v: string | null): v is ListingStockTier {
-  return v === 'IN_STOCK' || v === 'LOW' || v === 'OUT';
-}
-
 export function ListingsPage(): ReactElement {
   usePageTitle('Ürünler');
   const queryClient = useQueryClient();
   const { on } = useSocket();
   const csvInputRef = useRef<HTMLInputElement>(null);
-  const [searchParams] = useSearchParams();
+  const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
+    LISTING_FILTER_DEFAULTS,
+  );
+
+  const debouncedSearch = useDebouncedValue(urlFilters.search, 300);
+  const listingQueryFilters = useMemo(
+    () => urlFiltersToListingFilters(urlFilters, debouncedSearch),
+    [urlFilters, debouncedSearch],
+  );
+
+  const handleFilterChange = useCallback(
+    (values: Record<string, unknown>): void => {
+      setUrlFilters({
+        ...(values as typeof LISTING_FILTER_DEFAULTS),
+        page: 1,
+      });
+    },
+    [setUrlFilters],
+  );
 
   const selectedListingIds = useListingsPageStore((s) => s.selectedListingIds);
   const toggleListingRow = useListingsPageStore((s) => s.toggleListingRow);
   const toggleAllOnPage = useListingsPageStore((s) => s.toggleAllOnPage);
   const clearListingSelection = useListingsPageStore((s) => s.clearListingSelection);
-
-  const [filters, setFilters] = useState<ListingFiltersState>({
-    page: 1,
-    limit: PAGE_SIZE_DEFAULT,
-  });
-  const [searchDraft, setSearchDraft] = useState('');
-  const debouncedSearch = useDebouncedValue(searchDraft, 300);
-  const listingQueryFilters = useMemo(
-    () => ({
-      ...filters,
-      search: debouncedSearch.trim() ? debouncedSearch.trim() : undefined,
-    }),
-    [filters, debouncedSearch],
-  );
-
-  const prevDebouncedSearch = useRef(debouncedSearch);
-  useEffect(() => {
-    if (prevDebouncedSearch.current !== debouncedSearch) {
-      prevDebouncedSearch.current = debouncedSearch;
-      setFilters((f) => ({ ...f, page: 1 }));
-    }
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    const st = searchParams.get('stockTier');
-    if (isStockTierParam(st)) {
-      setFilters((f) => ({ ...f, stockTier: st, page: 1 }));
-    }
-  }, [searchParams]);
 
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -172,16 +185,15 @@ export function ListingsPage(): ReactElement {
     clearListingSelection();
   }, [
     clearListingSelection,
-    filters.page,
-    filters.platform,
-    filters.platforms,
-    filters.approved,
-    filters.stockTier,
-    filters.minSalePrice,
-    filters.maxSalePrice,
-    filters.lastSyncAtSince,
-    filters.lastSyncAtUntil,
-    filters.category,
+    listingQueryFilters.page,
+    listingQueryFilters.platforms,
+    listingQueryFilters.approved,
+    listingQueryFilters.stockTier,
+    listingQueryFilters.minSalePrice,
+    listingQueryFilters.maxSalePrice,
+    listingQueryFilters.lastSyncAtSince,
+    listingQueryFilters.lastSyncAtUntil,
+    listingQueryFilters.category,
     debouncedSearch,
   ]);
 
@@ -195,8 +207,8 @@ export function ListingsPage(): ReactElement {
 
   const data = listingsQuery.data;
   const total = data?.total ?? 0;
-  const limit = filters.limit ?? PAGE_SIZE_DEFAULT;
-  const page = filters.page ?? 1;
+  const limit = listingQueryFilters.limit ?? PAGE_SIZE_DEFAULT;
+  const page = listingQueryFilters.page ?? 1;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const hasMarketplaceConnections =
@@ -214,18 +226,17 @@ export function ListingsPage(): ReactElement {
 
   const hasActiveListingFilters = useMemo(() => {
     return Boolean(
-      filters.platforms?.trim() ||
-        filters.platform ||
-        filters.approved !== undefined ||
-        filters.stockTier ||
-        filters.minSalePrice !== undefined ||
-        filters.maxSalePrice !== undefined ||
-        filters.lastSyncAtSince?.trim() ||
-        filters.lastSyncAtUntil?.trim() ||
-        filters.category?.trim() ||
+      listingQueryFilters.platforms?.trim() ||
+        listingQueryFilters.approved !== undefined ||
+        listingQueryFilters.stockTier ||
+        listingQueryFilters.minSalePrice !== undefined ||
+        listingQueryFilters.maxSalePrice !== undefined ||
+        listingQueryFilters.lastSyncAtSince?.trim() ||
+        listingQueryFilters.lastSyncAtUntil?.trim() ||
+        listingQueryFilters.category?.trim() ||
         debouncedSearch.trim(),
     );
-  }, [filters, debouncedSearch]);
+  }, [listingQueryFilters, debouncedSearch]);
 
   const handleRowClick = (listing: Listing): void => {
     setSelectedListing(listing);
@@ -444,11 +455,11 @@ export function ListingsPage(): ReactElement {
         </div>
       </div>
 
-      <ListingFilters
-        filters={filters}
-        onChange={setFilters}
-        searchInput={searchDraft}
-        onSearchInputChange={setSearchDraft}
+      <AdvancedFilters
+        filters={LISTING_FILTER_CONFIG}
+        values={urlFilters}
+        onChange={handleFilterChange}
+        onReset={resetUrlFilters}
       />
 
       {listingsQuery.isLoading ? (
@@ -532,10 +543,10 @@ export function ListingsPage(): ReactElement {
           total={total}
           limit={limit}
           onPageChange={(p) => {
-            setFilters((f) => ({ ...f, page: p }));
+            setUrlFilters({ page: p });
           }}
           onLimitChange={(nextLimit) => {
-            setFilters((f) => ({ ...f, limit: nextLimit, page: 1 }));
+            setUrlFilters({ limit: nextLimit, page: 1 });
           }}
         />
       ) : null}

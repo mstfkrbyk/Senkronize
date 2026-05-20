@@ -282,6 +282,26 @@ export class ProductQueryDto {
   category?: string;
 
   @ApiPropertyOptional({
+    description: 'Minimum maliyet fiyatı',
+    example: 10,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  minCostPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Maksimum maliyet fiyatı',
+    example: 500,
+    required: false,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @Min(0)
+  maxCostPrice?: number;
+
+  @ApiPropertyOptional({
     description: 'Sayfa numarası',
     example: 1,
     minimum: 1,

@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { GLOBAL_SEARCH_EVENT, openGlobalSearch } from '@/components/GlobalSearch';
 import { useUiStore } from '@/store/ui.store';
-
-const QUICK_SEARCH_EVENT = 'senkronize-open-quick-search';
 
 const SHORTCUTS: Record<string, string> = {
   'g d': '/dashboard',
@@ -28,10 +27,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
-export function openQuickSearchFromShortcut(): void {
-  window.dispatchEvent(new CustomEvent(QUICK_SEARCH_EVENT));
-}
-
 export function useKeyboardShortcuts(): void {
   const navigate = useNavigate();
   const setShortcutsHelpOpen = useUiStore((s) => s.setShortcutsHelpOpen);
@@ -44,6 +39,15 @@ export function useKeyboardShortcuts(): void {
       if (e.repeat) {
         return;
       }
+
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        openGlobalSearch();
+        buffer = '';
+        clearTimeout(timer);
+        return;
+      }
+
       if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
       }
@@ -56,7 +60,7 @@ export function useKeyboardShortcuts(): void {
 
       if (e.key === '/') {
         e.preventDefault();
-        openQuickSearchFromShortcut();
+        openGlobalSearch();
         buffer = '';
         clearTimeout(timer);
         return;
@@ -99,3 +103,5 @@ export function useKeyboardShortcuts(): void {
     };
   }, [navigate, setShortcutsHelpOpen]);
 }
+
+export { GLOBAL_SEARCH_EVENT, openGlobalSearch };

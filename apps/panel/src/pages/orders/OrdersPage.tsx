@@ -1,12 +1,12 @@
 import type { ReactElement } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Download, FileArchive, Loader2, Package, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,18 +32,42 @@ import {
 import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
 import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { useOrdersPageStore } from '@/store/tablePages.store';
 import type { Order, OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
 
+import {
+  ORDER_FILTER_CONFIG,
+  ORDER_FILTER_DEFAULTS,
+  ORDER_PAGE_SIZE,
+} from './orderFilters.config';
 import { OrderDetailSheet } from './OrderDetailSheet';
-import { OrderFilters } from './OrderFilters';
 import { OrdersTable } from './OrdersTable';
 import { useOrders } from './hooks/useOrders';
 
-const PAGE_SIZE_DEFAULT = 20;
+const PAGE_SIZE_DEFAULT = ORDER_PAGE_SIZE;
+
+function urlFiltersToOrderFilters(
+  url: typeof ORDER_FILTER_DEFAULTS,
+): OrderFiltersState {
+  const platforms = url.platforms.length > 0 ? url.platforms.join(',') : undefined;
+  const statuses = url.statuses.length > 0 ? url.statuses.join(',') : undefined;
+  return {
+    page: url.page,
+    limit: url.limit,
+    platforms,
+    statuses,
+    startDate: url.startDate.trim() || undefined,
+    endDate: url.endDate.trim() || undefined,
+    search: url.search.trim() || undefined,
+    cargoProvider: url.cargoProvider.trim() || undefined,
+    minTotal: url.minTotal,
+    maxTotal: url.maxTotal,
+  };
+}
 
 const ERP_LABEL_TR: Record<string, string> = {
   BIZIMHESAP: 'Bizim Hesap',
@@ -122,17 +146,29 @@ export function OrdersPage(): ReactElement {
   const { t } = useTranslation();
   usePageTitle(t('orders.title'));
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
+  const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
+    ORDER_FILTER_DEFAULTS,
+  );
+  const filters = useMemo(
+    () => urlFiltersToOrderFilters(urlFilters),
+    [urlFilters],
+  );
+
+  const handleFilterChange = useCallback(
+    (values: Record<string, unknown>): void => {
+      setUrlFilters({
+        ...(values as typeof ORDER_FILTER_DEFAULTS),
+        page: 1,
+      });
+    },
+    [setUrlFilters],
+  );
 
   const selectedOrderIds = useOrdersPageStore((s) => s.selectedOrderIds);
   const toggleOrderRow = useOrdersPageStore((s) => s.toggleOrderRow);
   const toggleAllOrdersOnPage = useOrdersPageStore((s) => s.toggleAllOrdersOnPage);
   const clearOrderSelection = useOrdersPageStore((s) => s.clearOrderSelection);
 
-  const [filters, setFilters] = useState<OrderFiltersState>({
-    page: 1,
-    limit: PAGE_SIZE_DEFAULT,
-  });
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -145,13 +181,6 @@ export function OrdersPage(): ReactElement {
 
   const [erpOpen, setErpOpen] = useState(false);
   const [erpConnectionId, setErpConnectionId] = useState('');
-
-  useEffect(() => {
-    const st = searchParams.get('statuses');
-    if (st?.trim()) {
-      setFilters((f) => ({ ...f, statuses: st, page: 1 }));
-    }
-  }, [searchParams]);
 
   const { data, isLoading, isError, error, refetch } = useOrders(filters);
   const connectionsQuery = useMarketplaceConnections();
@@ -215,9 +244,7 @@ export function OrdersPage(): ReactElement {
   const hasActiveOrderFilters = useMemo(() => {
     return Boolean(
       filters.platforms?.trim() ||
-        filters.platform ||
         filters.statuses?.trim() ||
-        filters.status ||
         filters.startDate?.trim() ||
         filters.endDate?.trim() ||
         filters.search?.trim() ||
@@ -232,9 +259,7 @@ export function OrdersPage(): ReactElement {
   }, [
     clearOrderSelection,
     filters.page,
-    filters.platform,
     filters.platforms,
-    filters.status,
     filters.statuses,
     filters.startDate,
     filters.endDate,
@@ -291,7 +316,12 @@ export function OrdersPage(): ReactElement {
         <p className="text-muted-foreground">{t('orders.subtitle')}</p>
       </div>
 
-      <OrderFilters filters={filters} onChange={setFilters} />
+      <AdvancedFilters
+        filters={ORDER_FILTER_CONFIG}
+        values={urlFilters}
+        onChange={handleFilterChange}
+        onReset={resetUrlFilters}
+      />
 
       {isLoading ? <OrdersPageSkeleton /> : null}
 
@@ -346,10 +376,10 @@ export function OrdersPage(): ReactElement {
           total={total}
           limit={limit}
           onPageChange={(p) => {
-            setFilters((f) => ({ ...f, page: p }));
+            setUrlFilters({ page: p });
           }}
           onLimitChange={(nextLimit) => {
-            setFilters((f) => ({ ...f, limit: nextLimit, page: 1 }));
+            setUrlFilters({ limit: nextLimit, page: 1 });
           }}
         />
       ) : null}
