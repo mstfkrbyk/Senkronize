@@ -52,7 +52,7 @@ export class SoapClient {
 
   constructor(
     private readonly wsdlUrl: string,
-    private readonly auth: BasicAuth,
+    private readonly auth?: BasicAuth | null,
   ) {}
 
   private wrapEnvelope(action: string, innerBody: string): string {
@@ -70,17 +70,22 @@ export class SoapClient {
 
   async call(action: string, body: string): Promise<Record<string, unknown>> {
     const envelope = this.wrapEnvelope(action, body);
-    const authToken = Buffer.from(
-      `${this.auth.username}:${this.auth.password}`,
-      'utf8',
-    ).toString('base64');
+    const headers: Record<string, string> = {
+      'Content-Type': 'text/xml; charset=utf-8',
+      SOAPAction: `"http://tempuri.org/${action}"`,
+    };
+    if (this.auth?.username && this.auth.password !== undefined) {
+      const authToken = Buffer.from(
+        `${this.auth.username}:${this.auth.password}`,
+        'utf8',
+      ).toString('base64');
+      headers.Authorization = `Basic ${authToken}`;
+    }
 
     try {
       const { data } = await axios.post<string>(this.wsdlUrl, envelope, {
         headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction: `"http://tempuri.org/${action}"`,
-          Authorization: `Basic ${authToken}`,
+          ...headers,
         },
         timeout: 30_000,
         responseType: 'text',

@@ -30,16 +30,16 @@ import { KolaymuhasebeErpAdapter } from './kolaymuhasebe-erp.adapter';
 import { IsbirErpAdapter } from './isbir-erp.adapter';
 import { LightspeedErpAdapter } from './lightspeed-erp.adapter';
 import { LightspeedRestaurantErpAdapter } from './lightspeed-restaurant-erp.adapter';
+import { ErpRestHttpModule } from './erp-rest-http.module';
 import { LogoTigerModule } from './logo/logo.module';
-import { LogoTigerErpAdapter } from './logo/logo.adapter';
 import { MikroErpModule } from './mikro/mikro.module';
 import { MikroErpAdapter } from './mikro/mikro.adapter';
+import { NetsisErpModule } from './netsis/netsis.module';
 import { MikroErpCloudAdapter } from './mikro-erp.adapter';
 import { MoneybirdModule } from './moneybird/moneybird.module';
 import { MedulaErpAdapter } from './medula-erp.adapter';
 import { MrpeasyErpAdapter } from './mrpeasy-erp.adapter';
 import { MuhasebeNetErpAdapter } from './muhasebe-net-erp.adapter';
-import { NetsisErpAdapter } from './netsis/netsis.adapter';
 import { NetsuiteErpAdapter } from './netsuite/netsuite.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
 import { OracleMicrosErpAdapter } from './oracle-micros-erp.adapter';
@@ -69,8 +69,10 @@ import { ZohoBooksErpAdapter } from './zoho-books-erp.adapter';
 import { ZohoInventoryModule } from './zoho-inventory/zoho-inventory.module';
 
 const erpRound5Modules = [
+  ErpRestHttpModule,
   LogoTigerModule,
   MikroErpModule,
+  NetsisErpModule,
   HoldedModule,
   DebitoorModule,
   BillomatModule,
@@ -88,7 +90,6 @@ const erpRound5Modules = [
 const legacyErpAdapters = [
   BizimHesapErpAdapter,
   ParasutErpAdapter,
-  LogoTigerErpAdapter,
   TsoftErpAdapter,
   TicimaxErpAdapter,
   NetsuiteErpAdapter,
@@ -102,7 +103,6 @@ const legacyErpAdapters = [
   LightspeedErpAdapter,
   VendPosErpAdapter,
   ZirveBulutErpAdapter,
-  NetsisErpAdapter,
   MikroErpAdapter,
   MikroErpCloudAdapter,
   IsbirErpAdapter,

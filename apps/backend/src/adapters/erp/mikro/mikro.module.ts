@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 
-import { ErpRestHttpService } from '../erp-rest-http';
+import { ErpRestHttpModule } from '../erp-rest-http.module';
 
 import { MikroErpAdapter } from './mikro.adapter';
 
 @Module({
-  providers: [ErpRestHttpService, MikroErpAdapter],
+  imports: [ErpRestHttpModule],
+  providers: [MikroErpAdapter],
   exports: [MikroErpAdapter],
 })
 export class MikroErpModule {}

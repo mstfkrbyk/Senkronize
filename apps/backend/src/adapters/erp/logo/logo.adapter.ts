@@ -7,6 +7,8 @@ import type {
 } from '@senkronize/shared';
 import type { AxiosInstance } from 'axios';
 
+import type { ErpStockCapableAdapter } from '../../../jobs/erp-sync.helpers';
+import { isRecord } from '../erp-adapter.utils';
 import {
   ErpRestHttpService,
   pickCode,
@@ -14,11 +16,11 @@ import {
   pickName,
   rowsFromPayload,
 } from '../erp-rest-http';
-import { isRecord } from '../erp-adapter.utils';
-import type { ErpStockCapableAdapter } from '../../../jobs/erp-sync.helpers';
-
-import { LOGO_PLATFORM_KEY, LOGO_REST_API_PATH } from './logo.constants';
-import type { LogoCurrentRow, LogoItemRow, LogoSalesInvoiceRow } from './logo.types';
+import {
+  LOGO_ITEMS_PAGE_SIZE,
+  LOGO_PLATFORM_KEY,
+  LOGO_REST_API_PATH,
+} from './logo.constants';
 
 type ErpInvoiceInput = Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'> & {
   customerName?: string;
@@ -45,15 +47,38 @@ function pickInvoiceMeta(data: unknown): { id: string; number: string } {
   if (!isRecord(data)) {
     return { id: 'unknown', number: 'unknown' };
   }
-  const row = data as LogoSalesInvoiceRow & Record<string, unknown>;
-  const ref = pickLogicalRef(row);
+  const ref = pickLogicalRef(data);
   const num =
-    (typeof row.FICHENO === 'string' && row.FICHENO) ||
-    (typeof row.NUMBER === 'string' && row.NUMBER) ||
-    (typeof row.invoiceNumber === 'string' && row.invoiceNumber) ||
+    (typeof data.FICHENO === 'string' && data.FICHENO) ||
+    (typeof data.NUMBER === 'string' && data.NUMBER) ||
+    (typeof data.invoiceNumber === 'string' && data.invoiceNumber) ||
+    (typeof data.Number === 'string' && data.Number) ||
     (ref !== null ? String(ref) : '');
   const id = ref !== null ? String(ref) : num || 'unknown';
   return { id, number: num || id };
+}
+
+function pickStockQuantity(row: Record<string, unknown>): number {
+  const raw =
+    row.ONHAND ??
+    row.onHand ??
+    row.Quantity ??
+    row.quantity ??
+    row.stockQuantity;
+  return Math.max(0, Math.round(Number(raw ?? 0)));
+}
+
+function pickUnitRef(row: Record<string, unknown>): number {
+  const units = row.units ?? row.Units;
+  if (Array.isArray(units) && units.length > 0 && isRecord(units[0])) {
+    const ref = pickLogicalRef(units[0]);
+    if (ref !== null) {
+      return ref;
+    }
+  }
+  const direct = row.unitRef ?? row.UnitRef ?? row.MAINUNIT ?? 1;
+  const num = Number(direct);
+  return Number.isFinite(num) ? num : 1;
 }
 
 @Injectable()
@@ -63,9 +88,8 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
 
   constructor(private readonly http: ErpRestHttpService) {}
 
-  private client(credentials: Record<string, string>): AxiosInstance {
-    const baseURL = this.http.buildBaseUrl(credentials, LOGO_REST_API_PATH);
-    return this.http.createClient(baseURL, this.http.resolveBasicOrBearerAuth(credentials));
+  private async client(credentials: Record<string, string>): Promise<AxiosInstance> {
+    return this.http.createLogoTigerClient(credentials, LOGO_REST_API_PATH);
   }
 
   private async apiGet<T>(
@@ -74,7 +98,7 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
     path: string,
     params?: Record<string, string | number>,
   ): Promise<T> {
-    const client = this.client(credentials);
+    const client = await this.client(credentials);
     return this.http.request<T>(LOGO_PLATFORM_KEY, organizationId, {
       method: 'GET',
       url: path,
@@ -92,7 +116,7 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
     path: string,
     data?: unknown,
   ): Promise<T> {
-    const client = this.client(credentials);
+    const client = await this.client(credentials);
     return this.http.request<T>(LOGO_PLATFORM_KEY, organizationId, {
       method,
       url: path,
@@ -106,14 +130,15 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const data = await this.apiGet<unknown>(credentials, 'connection-test', '/items', {
-        RECORDTYPE: 'Y',
-        limit: 1,
+        $filter: 'IsActive eq true',
+        $top: 1,
+        $skip: 0,
       });
       const rows = rowsFromPayload(data);
       return {
         success: true,
-        companyName: credentials.companyName,
-        version: '1.0.0',
+        companyName: credentials.companyName ?? credentials.firmNo,
+        version: 'tiger-rest-v1',
         productCount: rows.length,
       };
     } catch (error) {
@@ -127,39 +152,45 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
     const orgId = credentials.organizationId ?? 'global';
     const out: ErpProduct[] = [];
-    let offset = 0;
-    const pageSize = 100;
 
     for (let page = 0; page < 100; page += 1) {
       const data = await this.apiGet<unknown>(credentials, orgId, '/items', {
-        RECORDTYPE: 'Y',
-        limit: pageSize,
-        offset,
+        $filter: 'IsActive eq true',
+        $top: LOGO_ITEMS_PAGE_SIZE,
+        $skip: page * LOGO_ITEMS_PAGE_SIZE,
       });
-      const rows = rowsFromPayload(data) as LogoItemRow[];
+      const rows = rowsFromPayload(data);
       if (rows.length === 0) {
         break;
       }
       for (const row of rows) {
-        const rec = row as Record<string, unknown>;
-        const code = pickCode(rec);
+        const code = pickCode(row);
         if (!code) {
           continue;
         }
-        const ref = pickLogicalRef(rec);
+        const ref = pickLogicalRef(row);
         out.push({
           erpProductId: ref !== null ? String(ref) : code,
-          barcode: (typeof row.BARCODE === 'string' ? row.BARCODE : code).trim(),
-          name: pickName(rec, code),
-          stockQuantity: Math.max(0, Math.round(Number(row.ONHAND ?? 0))),
+          barcode: (
+            typeof row.BARCODE === 'string'
+              ? row.BARCODE
+              : typeof row.barcode === 'string'
+                ? row.barcode
+                : code
+          ).trim(),
+          name: pickName(row, code),
+          stockQuantity: pickStockQuantity(row),
           purchasePrice:
-            row.SALESPRICE !== undefined ? Number(row.SALESPRICE) : undefined,
+            row.SALESPRICE !== undefined
+              ? Number(row.SALESPRICE)
+              : row.salesPrice !== undefined
+                ? Number(row.salesPrice)
+                : undefined,
         });
       }
-      if (rows.length < pageSize) {
+      if (rows.length < LOGO_ITEMS_PAGE_SIZE) {
         break;
       }
-      offset += pageSize;
     }
 
     return out;
@@ -172,8 +203,18 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
     _note?: string,
   ): Promise<void> {
     const orgId = credentials.organizationId ?? 'global';
-    await this.apiWrite(credentials, orgId, 'PATCH', `/items/${productId}`, {
-      ONHAND: quantity,
+    const itemData = await this.apiGet<unknown>(
+      credentials,
+      orgId,
+      `/items/${productId}`,
+    );
+    const row = isRecord(itemData) ? itemData : rowsFromPayload(itemData)[0];
+    if (!row) {
+      throw new Error(`Logo Tiger: ürün bulunamadı (${productId})`);
+    }
+    const unitRef = pickUnitRef(row);
+    await this.apiWrite(credentials, orgId, 'PATCH', `/items/${productId}/units/${unitRef}`, {
+      Quantity: quantity,
     });
   }
 
@@ -181,86 +222,21 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
     credentials: Record<string, string>,
     orgId: string,
     code: string,
-  ): Promise<number | null> {
+  ): Promise<{ itemRef: number; unitRef: number } | null> {
     const data = await this.apiGet<unknown>(credentials, orgId, '/items', {
-      CODE: code,
-      RECORDTYPE: 'Y',
+      $filter: `Code eq '${code.replace(/'/g, "''")}'`,
+      $top: 1,
     });
     const rows = rowsFromPayload(data);
     if (rows.length === 0) {
       return null;
     }
-    return pickLogicalRef(rows[0]);
-  }
-
-  private async ensureItem(
-    credentials: Record<string, string>,
-    orgId: string,
-    sku: string,
-    name: string,
-    unitPrice: number,
-  ): Promise<number> {
-    const existing = await this.findItemByCode(credentials, orgId, sku);
-    if (existing !== null) {
-      return existing;
-    }
-    const created = await this.apiWrite<unknown>(credentials, orgId, 'POST', '/items', {
-      CODE: sku,
-      NAME: name.slice(0, 200),
-      RECORDTYPE: 'Y',
-      SALESPRICE: unitPrice,
-    });
-    if (isRecord(created)) {
-      const ref = pickLogicalRef(created);
-      if (ref !== null) {
-        return ref;
-      }
-    }
-    const refetched = await this.findItemByCode(credentials, orgId, sku);
-    if (refetched === null) {
-      throw new Error(`Logo: stok kartı oluşturulamadı (${sku})`);
-    }
-    return refetched;
-  }
-
-  private async findCurrentByCode(
-    credentials: Record<string, string>,
-    orgId: string,
-    code: string,
-  ): Promise<number | null> {
-    const data = await this.apiGet<unknown>(credentials, orgId, '/currents', { CODE: code });
-    const rows = rowsFromPayload(data) as LogoCurrentRow[];
-    if (rows.length === 0) {
+    const row = rows[0];
+    const itemRef = pickLogicalRef(row);
+    if (itemRef === null) {
       return null;
     }
-    return pickLogicalRef(rows[0] as Record<string, unknown>);
-  }
-
-  private async ensureCurrent(
-    credentials: Record<string, string>,
-    orgId: string,
-    code: string,
-    title: string,
-  ): Promise<number> {
-    const existing = await this.findCurrentByCode(credentials, orgId, code);
-    if (existing !== null) {
-      return existing;
-    }
-    const created = await this.apiWrite<unknown>(credentials, orgId, 'POST', '/currents', {
-      CODE: code,
-      TITLE: title.slice(0, 200),
-    });
-    if (isRecord(created)) {
-      const ref = pickLogicalRef(created);
-      if (ref !== null) {
-        return ref;
-      }
-    }
-    const refetched = await this.findCurrentByCode(credentials, orgId, code);
-    if (refetched === null) {
-      throw new Error(`Logo: cari oluşturulamadı (${code})`);
-    }
-    return refetched;
+    return { itemRef, unitRef: pickUnitRef(row) };
   }
 
   async createInvoice(
@@ -270,49 +246,39 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
     const orgId = credentials.organizationId ?? 'global';
     const today = todayIsoDate();
     const customerCode = sanitizeCustomerCode(invoice.orderRef);
-    const customerTitle = invoice.customerName?.trim() || customerCode;
-    const currAccRef = await this.ensureCurrent(
-      credentials,
-      orgId,
-      customerCode,
-      customerTitle,
-    );
 
-    const transactionLines: Array<{
-      STOCKREF: number;
-      QUANTITY: number;
-      PRICE: number;
+    const lines: Array<{
+      ItemCode: string;
+      Quantity: number;
+      Price: number;
+      VatRate: number;
     }> = [];
 
     for (const line of invoice.lines) {
       const sku = (line.sku ?? line.description).trim();
-      const itemRef = await this.ensureItem(
-        credentials,
-        orgId,
-        sku,
-        line.description,
-        line.unitPrice,
-      );
-      transactionLines.push({
-        STOCKREF: itemRef,
-        QUANTITY: line.quantity,
-        PRICE: line.unitPrice,
+      const existing = await this.findItemByCode(credentials, orgId, sku);
+      if (!existing) {
+        await this.apiWrite(credentials, orgId, 'POST', '/items', {
+          Code: sku,
+          Name: line.description.slice(0, 200),
+          IsActive: true,
+        });
+      }
+      lines.push({
+        ItemCode: sku,
+        Quantity: line.quantity,
+        Price: line.unitPrice,
+        VatRate: line.taxRate,
       });
     }
 
-    await this.apiWrite(credentials, orgId, 'POST', '/salesorders', {
-      DATE_: today,
-      CURRACCREF: currAccRef,
-      TRANSACTIONS: { items: transactionLines },
-    });
-
-    const invData = await this.apiWrite<unknown>(credentials, orgId, 'POST', '/salesinvoices', {
-      DATE_: today,
-      CURRACCREF: currAccRef,
-      ARP_CODE: customerCode,
-      TRANSACTIONS: { items: transactionLines },
-      TOTAL: invoice.totalAmount,
-      CURRENCY: invoice.currency,
+    const invData = await this.apiWrite<unknown>(credentials, orgId, 'POST', '/invoices', {
+      Date: today,
+      ArpCode: customerCode,
+      Description: invoice.customerName?.trim() || customerCode,
+      Currency: invoice.currency,
+      Total: invoice.totalAmount,
+      Lines: lines,
     });
 
     const meta = pickInvoiceMeta(invData);
@@ -336,25 +302,32 @@ export class LogoTigerErpAdapter implements IErpAdapter, ErpStockCapableAdapter 
       ? since.toISOString().slice(0, 10)
       : new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
     try {
-      const data = await this.apiGet<unknown>(credentials, orgId, '/stockfiche', {
-        DOCDATE: dateFilter,
+      const data = await this.apiGet<unknown>(credentials, orgId, '/dispatchorders', {
+        $filter: `Date ge ${dateFilter}`,
+        $top: 200,
       });
       const rows = rowsFromPayload(data);
       return rows.map((row, i) => {
         const ref = pickLogicalRef(row);
         const id = ref !== null ? String(ref) : `row-${i}`;
+        const issued =
+          typeof row.Date === 'string'
+            ? row.Date.slice(0, 10)
+            : typeof row.date === 'string'
+              ? row.date.slice(0, 10)
+              : dateFilter;
         return {
           erpInvoiceId: id,
           orderRef: pickCode(row) || id,
           invoiceNumber: pickCode(row) || id,
-          totalAmount: Number(row.TOTAL ?? row.total ?? 0),
-          currency: 'TRY',
-          issuedAt: dateFilter,
+          totalAmount: Number(row.Total ?? row.total ?? row.Amount ?? 0),
+          currency: typeof row.Currency === 'string' ? row.Currency : 'TRY',
+          issuedAt: issued,
           lines: [],
         };
       });
     } catch (error) {
-      this.logger.warn('Logo stok fişi listesi alınamadı', {
+      this.logger.warn('Logo Tiger sipariş listesi alınamadı', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
       return [];

@@ -7,6 +7,24 @@ export function normalizeBaseUrl(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, '');
 }
 
+/** host/port veya baseUrl alanlarından ERP sunucu kök URL üretir */
+export function resolveHostBaseUrl(credentials: Record<string, string>): string {
+  const baseUrlRaw = credentials.baseUrl?.trim();
+  if (baseUrlRaw) {
+    return normalizeBaseUrl(baseUrlRaw);
+  }
+  const host = credentials.serverIp?.trim() ?? credentials.host?.trim();
+  if (!host) {
+    throw new Error('ERP: baseUrl veya host/serverIp zorunludur');
+  }
+  const port = credentials.port?.trim() ?? '80';
+  const proto =
+    credentials.useHttps === 'true' || port === '443' ? 'https' : 'http';
+  const authority =
+    port && port !== '80' && port !== '443' ? `${host}:${port}` : host;
+  return normalizeBaseUrl(`${proto}://${authority}`);
+}
+
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
