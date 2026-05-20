@@ -204,6 +204,13 @@ export class MigrationService {
     };
   }
 
+  async getSession(
+    sessionId: string,
+    organizationId: string,
+  ): Promise<MigrationSession> {
+    return this.sessionStore.get(sessionId, organizationId);
+  }
+
   getErrorsCsv(session: MigrationSession): string {
     const lines = ['row,field,message'];
     for (const err of session.rowErrors) {
@@ -264,48 +271,36 @@ export class MigrationService {
     rows: MigrationRow[],
     organizationId: string,
   ): Promise<MigrationImportResult> {
-    const progress = {
-      processed: 0,
-      total: rows.length,
-      imported: 0,
-      updated: 0,
-      skipped: 0,
-      failed: 0,
-    };
+    let imported = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
 
     for (const row of rows) {
-      progress.processed++;
       try {
-        if (!row.barcode || !row.name) {
-          progress.skipped++;
-          continue;
-        }
-        await this.importExecutor.executeBatch(
+        const outcome = await this.importExecutor.importLegacyProductRow(
           organizationId,
-          'products',
-          'generic_csv',
-          [
-            {
-              barcode: row.barcode,
-              name: row.name,
-              price: String(row.salePrice),
-              stock: String(row.stock ?? 0),
-              category: row.category ?? '',
-              brand: row.brand ?? '',
-              description: row.description ?? '',
-              imageUrl: row.imageUrl ?? '',
-            },
-          ],
-          {},
-          0,
-          progress,
+          row,
         );
-      } catch {
-        progress.failed++;
+        if (outcome === 'created') {
+          imported++;
+        } else if (outcome === 'updated') {
+          updated++;
+        } else {
+          skipped++;
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Bilinmeyen hata';
+        this.logger.warn('Migration satırı işlenemedi', {
+          organizationId,
+          barcode: row.barcode,
+        });
+        errors.push(`${row.barcode}: ${message}`);
       }
     }
 
-    return this.importExecutor.toLegacyProductResult(progress);
+    return { imported, updated, skipped, errors };
   }
 
   async getImportHistory(_organizationId: string): Promise<unknown[]> {

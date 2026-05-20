@@ -35,6 +35,9 @@ import { StockAlertTask } from './stock-alert.task';
 import { SyncSchedulerTask } from './sync-scheduler.task';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
+import { MigrationModule } from '../migration/migration.module';
+
+import { DataImportProcessor } from './data-import.processor';
 
 @Module({
   imports: [
@@ -55,6 +58,7 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     StockModule,
     ReturnModule,
     DashboardModule,
+    MigrationModule,
   ],
   providers: [
     MarketplaceJobFailureHandler,
@@ -72,6 +76,7 @@ import { DashboardModule } from '../dashboard/dashboard.module';
     CompetitorPriceTask,
     SyncSchedulerTask,
     StockAlertTask,
+    DataImportProcessor,
   ],
 })
 export class JobsModule {}

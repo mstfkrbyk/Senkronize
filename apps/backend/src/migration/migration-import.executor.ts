@@ -21,6 +21,7 @@ import type {
   MigrationDataType,
   MigrationFieldIssue,
   MigrationImportResult,
+  MigrationRow,
   MigrationSessionProgress,
   MigrationSourceFormat,
 } from './migration.types';
@@ -66,24 +67,40 @@ export class MigrationImportExecutor {
         const mapped = applyColumnMapping(raw, columnMapping);
         const normalized = transformRow(sourceFormat, dataType, mapped);
 
+        let outcome: 'created' | 'updated' | 'skipped' = 'created';
         switch (dataType) {
           case 'products':
-            await this.importProduct(organizationId, normalized as ProductImportDto);
+            outcome = await this.importProduct(
+              organizationId,
+              normalized as ProductImportDto,
+            );
             break;
           case 'orders':
-            await this.importOrder(organizationId, normalized as OrderImportDto);
+            outcome = await this.importOrder(
+              organizationId,
+              normalized as OrderImportDto,
+            );
             break;
           case 'customers':
-            await this.importCustomer(organizationId, normalized as CustomerImportDto);
+            outcome = await this.importCustomer(
+              organizationId,
+              normalized as CustomerImportDto,
+            );
             break;
           case 'stock_movements':
-            await this.importStockMovement(
+            outcome = await this.importStockMovement(
               organizationId,
               normalized as StockMovementImportDto,
             );
             break;
         }
-        progress.imported++;
+        if (outcome === 'created') {
+          progress.imported++;
+        } else if (outcome === 'updated') {
+          progress.updated++;
+        } else {
+          progress.skipped++;
+        }
       } catch (error) {
         progress.failed++;
         const message =
@@ -99,10 +116,30 @@ export class MigrationImportExecutor {
     return { progress, rowErrors };
   }
 
+  async importLegacyProductRow(
+    organizationId: string,
+    row: MigrationRow,
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    if (!row.barcode || !row.name) {
+      return 'skipped';
+    }
+    return this.importProduct(organizationId, {
+      barcode: row.barcode,
+      name: row.name,
+      price: row.salePrice,
+      listPrice: row.listPrice,
+      stock: row.stock,
+      category: row.category,
+      brand: row.brand,
+      description: row.description,
+      imageUrl: row.imageUrl,
+    });
+  }
+
   private async importProduct(
     organizationId: string,
     dto: ProductImportDto,
-  ): Promise<void> {
+  ): Promise<'created' | 'updated'> {
     const barcode = dto.barcode?.trim() || dto.sku?.trim() || '';
     if (!barcode || !dto.name?.trim()) {
       throw new Error('SKU/barkod veya ürün adı eksik');
@@ -115,7 +152,7 @@ export class MigrationImportExecutor {
     const existing = await this.prisma.product.findFirst({
       where: { organizationId, barcode, deletedAt: null },
     });
-
+    const isUpdate = Boolean(existing);
     const qty = dto.stock ?? 0;
 
     await this.prisma.$transaction(async (tx) => {
@@ -183,12 +220,14 @@ export class MigrationImportExecutor {
         });
       }
     });
+
+    return isUpdate ? 'updated' : 'created';
   }
 
   private async importOrder(
     organizationId: string,
     dto: OrderImportDto,
-  ): Promise<void> {
+  ): Promise<'created' | 'updated'> {
     const platform = this.resolveMarketplace(dto.platform);
     const platformOrderId = dto.platformOrderId.trim();
     if (!platformOrderId) {
@@ -213,7 +252,7 @@ export class MigrationImportExecutor {
           syncedAt: new Date(),
         },
       });
-      return;
+      return 'updated';
     }
 
     await this.prisma.order.create({
@@ -242,12 +281,14 @@ export class MigrationImportExecutor {
         },
       },
     });
+
+    return 'created';
   }
 
   private async importCustomer(
     organizationId: string,
     dto: CustomerImportDto,
-  ): Promise<void> {
+  ): Promise<'created' | 'updated'> {
     if (!dto.name?.trim()) {
       throw new Error('Müşteri adı eksik');
     }
@@ -281,7 +322,7 @@ export class MigrationImportExecutor {
           deletedAt: null,
         },
       });
-      return;
+      return 'updated';
     }
 
     await this.prisma.customer.create({
@@ -292,12 +333,14 @@ export class MigrationImportExecutor {
         phone: dto.phone ?? null,
       },
     });
+
+    return 'created';
   }
 
   private async importStockMovement(
     organizationId: string,
     dto: StockMovementImportDto,
-  ): Promise<void> {
+  ): Promise<'created' | 'updated'> {
     const barcode = dto.barcode.trim();
     if (!barcode) {
       throw new Error('Barkod eksik');
@@ -306,12 +349,15 @@ export class MigrationImportExecutor {
     const mainWh = await this.warehouseService.getOrCreateMainWarehouse(
       organizationId,
     );
+    const platformEnum = dto.platform?.trim()
+      ? this.resolveMarketplace(dto.platform)
+      : null;
     const stockRow = await this.prisma.stockEntry.findFirst({
       where: {
         organizationId,
         barcode,
         warehouseId: mainWh.id,
-        platform: dto.platform ?? null,
+        platform: platformEnum,
       },
     });
 
@@ -331,7 +377,7 @@ export class MigrationImportExecutor {
             organizationId,
             warehouseId: mainWh.id,
             barcode,
-            platform: dto.platform ?? null,
+            platform: platformEnum,
             quantity: after,
           },
         });
@@ -341,7 +387,7 @@ export class MigrationImportExecutor {
         organizationId,
         barcode,
         warehouseId: mainWh.id,
-        platform: dto.platform ?? null,
+        platform: platformEnum,
         movementType: StockMovementType.ADJUSTMENT,
         quantity: delta,
         beforeQuantity: before,
@@ -350,6 +396,8 @@ export class MigrationImportExecutor {
         tx,
       });
     });
+
+    return stockRow ? 'updated' : 'created';
   }
 
   private resolveMarketplace(platform: string): Marketplace {

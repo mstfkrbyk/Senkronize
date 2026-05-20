@@ -38,17 +38,17 @@ export class DataImportProcessor {
         },
       );
 
-      const session = await this.migrationService.getStatus(
+      const finalSession = await this.migrationService.getSession(
         sessionId,
         organizationId,
       );
-      this.emitProgress(organizationId, {
-        id: sessionId,
-        organizationId,
-        progress: session.progress,
-      } as MigrationSession);
+      this.emitProgress(organizationId, finalSession);
 
-      await this.sendCompletionEmail(organizationId, sessionId, session.progress);
+      await this.sendCompletionEmail(
+        organizationId,
+        sessionId,
+        finalSession.progress,
+      );
     } catch (error) {
       this.logger.error('Veri taşıma işi başarısız', {
         sessionId,

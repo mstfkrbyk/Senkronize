@@ -67,6 +67,14 @@ export function renderTemplate(
         subject: 'Şifre Sıfırlama',
         html: passwordResetTemplate(data),
       };
+    case 'migration_complete':
+      return {
+        subject: 'Veri Taşıma Tamamlandı',
+        html:
+          typeof data.message === 'string'
+            ? `<p>${data.message}</p><p>İşlenen: ${String(data.processed ?? '')}, Başarılı: ${String(data.imported ?? '')}, Hata: ${String(data.failed ?? '')}</p>`
+            : '<p>Veri taşıma işleminiz tamamlandı. Panelden sonuçları kontrol edebilirsiniz.</p>',
+      };
     case 'webhook_endpoint_disabled':
       return {
         subject: 'Webhook uç noktası devre dışı',
