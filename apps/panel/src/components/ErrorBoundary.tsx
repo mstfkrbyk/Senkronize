@@ -103,6 +103,26 @@ class LegacyErrorBoundary extends React.Component<
   }
 }
 
+export function AppErrorBoundary({ children }: { children: ReactNode }): ReactElement {
+  return (
+    <Sentry.ErrorBoundary
+      fallback={({ error, resetError }) => (
+        <div className="flex min-h-screen flex-col items-center justify-center p-8">
+          <h2 className="mb-4 text-2xl font-bold">Bir hata oluştu</h2>
+          <p className="mb-6 text-muted-foreground">
+            {(error as Error).message}
+          </p>
+          <Button type="button" onClick={resetError}>
+            Yeniden Dene
+          </Button>
+        </div>
+      )}
+    >
+      {children}
+    </Sentry.ErrorBoundary>
+  );
+}
+
 export function ErrorBoundary({
   children,
   fallback,

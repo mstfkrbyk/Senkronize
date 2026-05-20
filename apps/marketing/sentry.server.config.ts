@@ -1,10 +1,9 @@
 import * as Sentry from '@sentry/nextjs';
 
-const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN?.trim();
-if (dsn) {
-  Sentry.init({
-    dsn,
-    environment: process.env.NODE_ENV ?? 'development',
-    tracesSampleRate: 0.1,
-  });
-}
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  enabled: process.env.NODE_ENV === 'production',
+  environment: process.env.NODE_ENV ?? 'development',
+  tracesSampleRate: 0.05,
+  debug: false,
+});

@@ -1,18 +1,18 @@
+import './instrument';
+
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import * as Sentry from '@sentry/node';
+import * as Sentry from '@sentry/nestjs';
 import compression from 'compression';
 import { randomBytes } from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
-import { initSentry } from './instrument';
 
 async function bootstrap(): Promise<void> {
-  initSentry();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     bodyParser: false,

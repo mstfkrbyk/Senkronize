@@ -4,6 +4,7 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from 'axios';
 
+import { trackApiError } from '@/hooks/useAnalytics';
 import { useAuthStore } from '@/store/auth.store';
 import { useImpersonationStore } from '@/store/impersonation.store';
 
@@ -60,11 +61,13 @@ api.interceptors.response.use(
 
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-    if (
-      error.response?.status !== 401 ||
-      !originalRequest ||
-      originalRequest._retry
-    ) {
+    const status = error.response?.status;
+    if (status && status >= 400 && status !== 401) {
+      const endpoint = originalRequest?.url ?? 'unknown';
+      trackApiError(endpoint, status);
+    }
+
+    if (status !== 401 || !originalRequest || originalRequest._retry) {
       return Promise.reject(error);
     }
 

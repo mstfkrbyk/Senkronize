@@ -8,7 +8,7 @@ import {
   Routes,
 } from 'react-router-dom';
 
-import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AppErrorBoundary, ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useSentryUser } from '@/hooks/useSentryUser';
 import { PageLoader } from '@/components/PageLoader';
@@ -285,8 +285,9 @@ function AnalyticsSync(): null {
 
 export default function App(): ReactElement {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
         <SentryUserSync />
         <AnalyticsSync />
         <Toaster position="top-center" richColors closeButton />
@@ -417,7 +418,8 @@ export default function App(): ReactElement {
             />
           </Routes>
         </Suspense>
-      </BrowserRouter>
-    </QueryClientProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
