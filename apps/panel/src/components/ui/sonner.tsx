@@ -26,6 +26,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={resolved}
       className="toaster group"
+      role="alert"
+      aria-live="assertive"
       icons={{
         success: <CircleCheck className="h-4 w-4" />,
         info: <Info className="h-4 w-4" />,

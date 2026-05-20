@@ -39,6 +39,7 @@ import type {
 import { CompetitorPriceService } from './competitor-price.service';
 import {
   CreatePricingRuleDto,
+  CreatePriceAlertDto,
   ManualPriceUpdateDto,
   PriceHistoryQueryDto,
   PricingPlatformQueryDto,
@@ -49,6 +50,7 @@ import {
 } from './pricing.dto';
 import type { BuyBoxSummaryResponse, PriceHistoryItemResponse } from './pricing.service';
 import { PricingService } from './pricing.service';
+import { PriceHistoryService } from './price-history.service';
 
 @ApiTags('pricing')
 @ApiBearerAuth()
@@ -59,6 +61,7 @@ export class PricingController {
   constructor(
     private readonly pricingService: PricingService,
     private readonly competitorPriceService: CompetitorPriceService,
+    private readonly priceHistoryService: PriceHistoryService,
   ) {}
 
   @Get('scheduled-rules')
@@ -78,6 +81,58 @@ export class PricingController {
     @Param('barcode') barcode: string,
   ) {
     return this.competitorPriceService.getLatestCompetitorPrices(org.id, barcode);
+  }
+
+  @Get('price-history/:listingId')
+  @ApiOperation({ summary: 'Listeleme fiyat geçmişi ve rakip trend grafiği' })
+  @ApiResponse({ status: 200, description: 'Geçmiş ve grafik verisi' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getPriceHistoryByListing(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('listingId') listingId: string,
+    @Query('days', new DefaultValuePipe(30), ParseIntPipe) days: number,
+  ) {
+    const clamped = Math.min(Math.max(days, 1), 365);
+    return this.priceHistoryService.getListingPriceHistory(
+      org.id,
+      listingId,
+      clamped,
+    );
+  }
+
+  @Get('competitor-matrix')
+  @ApiOperation({ summary: 'Ürün bazlı rakip fiyat matrisi' })
+  @ApiResponse({ status: 200, description: 'Matris satırları' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getCompetitorMatrix(@CurrentOrg() org: CurrentOrgPayload) {
+    return this.priceHistoryService.getCompetitorMatrix(org.id);
+  }
+
+  @Get('price-alerts')
+  @ApiOperation({ summary: 'Eşik altına düşen fiyat uyarıları' })
+  @ApiResponse({ status: 200, description: 'Tetiklenen uyarılar' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async getPriceAlerts(@CurrentOrg() org: CurrentOrgPayload) {
+    const [triggered, all] = await Promise.all([
+      this.priceHistoryService.getTriggeredAlerts(org.id),
+      this.priceHistoryService.listPriceAlerts(org.id),
+    ]);
+    return { triggered, all };
+  }
+
+  @Post('price-alerts')
+  @RequiresPermission(Permission.PRICING_EDIT)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Fiyat uyarısı oluştur' })
+  @ApiResponse({ status: 201, description: 'Oluşturuldu' })
+  @ApiResponse({ status: 404, description: 'Listeleme bulunamadı' })
+  @ApiResponse({ status: 402, description: 'Paket yükseltme gerekli' })
+  async createPriceAlert(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: CreatePriceAlertDto,
+  ): Promise<{ id: string }> {
+    return this.priceHistoryService.createPriceAlert(org.id, dto);
   }
 
   @Get('price-gap/:barcode')

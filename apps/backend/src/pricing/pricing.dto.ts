@@ -514,3 +514,31 @@ export class PriceHistoryQueryDto {
   @IsEnum(Marketplace)
   platform?: Marketplace;
 }
+
+export class CreatePriceAlertDto {
+  @ApiProperty({ description: 'Listeleme kimliği' })
+  @IsString()
+  @IsNotEmpty()
+  listingId!: string;
+
+  @ApiProperty({ description: 'Eşik fiyat (TRY)' })
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  thresholdPrice!: number;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  notifyEmail?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  notifyInApp?: boolean;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  notifySms?: boolean;
+}

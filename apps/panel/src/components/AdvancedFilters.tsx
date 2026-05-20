@@ -194,7 +194,14 @@ export function AdvancedFilters({
         <div className="flex flex-wrap items-center gap-2">
           <Popover open={panelOpen} onOpenChange={setPanelOpen}>
             <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                aria-label="Filtreleri aç"
+                aria-expanded={panelOpen}
+              >
                 <Filter className="size-4" aria-hidden />
                 Filtreler
                 {activeCount > 0 ? (
@@ -212,6 +219,7 @@ export function AdvancedFilters({
                     <Label>{config.label}</Label>
                     {config.type === 'text' ? (
                       <Input
+                        aria-label={config.label}
                         placeholder={config.placeholder ?? 'Ara…'}
                         value={String(values[config.key] ?? '')}
                         onChange={(e) => {
@@ -227,7 +235,7 @@ export function AdvancedFilters({
                           setField(config.key, v === 'all' ? undefined : v);
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger aria-label={config.label}>
                           <SelectValue placeholder="Tümü" />
                         </SelectTrigger>
                         <SelectContent>
@@ -253,6 +261,7 @@ export function AdvancedFilters({
                             >
                               <Checkbox
                                 checked={selected}
+                                aria-label={`${config.label}: ${opt.label}`}
                                 onCheckedChange={(v) => {
                                   toggleMulti(config, opt.value, v === true);
                                 }}
@@ -270,6 +279,7 @@ export function AdvancedFilters({
                           inputMode="decimal"
                           min={0}
                           placeholder="Min"
+                          aria-label={`${config.label} minimum`}
                           value={
                             values[config.key] !== undefined
                               ? String(values[config.key])
@@ -289,6 +299,7 @@ export function AdvancedFilters({
                             inputMode="decimal"
                             min={0}
                             placeholder="Max"
+                            aria-label={`${config.label} maksimum`}
                             value={
                               values[config.rangeEndKey] !== undefined
                                 ? String(values[config.rangeEndKey])

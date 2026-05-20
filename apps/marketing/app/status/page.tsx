@@ -26,8 +26,8 @@ export default function StatusPage(): ReactElement {
             Sistem durumu
           </h1>
           <p className="mt-4 text-lg text-muted-foreground">
-            Üretim API sağlık uç noktasından gelen veriler ve planlanan izleme
-            metrikleri için özet ekran.
+            Üretim API sağlık uç noktasından gelen canlı veriler: veritabanı,
+            Redis, kuyruklar ve kritik pazaryeri bağlantıları.
           </p>
         </div>
       </section>

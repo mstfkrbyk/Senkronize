@@ -117,6 +117,16 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   ALIBABA_TR: { label: 'Alibaba TR (1688)', logo: '🌏', color: 'orange' },
   TRENDYOL_MILLA: { label: 'Trendyol Milla', logo: '👗', color: 'rose' },
   SAHIBINDEN_PREMIUM: { label: 'Sahibinden Premium', logo: '⭐', color: 'yellow' },
+  BUKALAPAK: { label: 'Bukalapak', logo: '🇮🇩', color: 'red' },
+  JDID: { label: 'JD.ID', logo: '🛒', color: 'red' },
+  BLIBLI: { label: 'Blibli', logo: '🇮🇩', color: 'blue' },
+  TIKI: { label: 'Tiki', logo: '🇻🇳', color: 'blue' },
+  SENDO: { label: 'Sendo', logo: '🇻🇳', color: 'red' },
+  CATCH_AU: { label: 'Catch.com.au', logo: '🇦🇺', color: 'yellow' },
+  MYDEAL: { label: 'MyDeal', logo: '🇦🇺', color: 'sky' },
+  TRADEME: { label: 'Trade Me', logo: '🇳🇿', color: 'blue' },
+  LAMODA: { label: 'Lamoda', logo: '🇷🇺', color: 'rose' },
+  YANDEX_MARKET: { label: 'Yandex Market', logo: '🇷🇺', color: 'yellow' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

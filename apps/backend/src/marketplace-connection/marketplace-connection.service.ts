@@ -308,6 +308,28 @@ export class MarketplaceConnectionService {
     if (platform === Marketplace.SAHIBINDEN_PREMIUM) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
+    if (
+      platform === Marketplace.BUKALAPAK ||
+      platform === Marketplace.SENDO ||
+      platform === Marketplace.YANDEX_MARKET
+    ) {
+      return creds.clientId ?? null;
+    }
+    if (
+      platform === Marketplace.JDID ||
+      platform === Marketplace.BLIBLI ||
+      platform === Marketplace.CATCH_AU ||
+      platform === Marketplace.MYDEAL ||
+      platform === Marketplace.LAMODA
+    ) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.TIKI) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.TRADEME) {
+      return creds.consumerKey ?? null;
+    }
     if (platform === Marketplace.MIGROS_SANAL) {
       return creds.supplierId ?? null;
     }

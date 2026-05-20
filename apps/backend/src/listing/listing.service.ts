@@ -13,6 +13,7 @@ import type { MarketplaceListing } from '@senkronize/shared';
 
 import { readThroughCache, Cacheable } from '../common/cache/cache.decorator';
 import { CacheService } from '../common/cache/cache.service';
+import { PriceHistoryService } from '../pricing/price-history.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StockMovementService } from '../stock/stock-movement.service';
 import {
@@ -110,6 +111,7 @@ export class ListingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: CacheService,
+    private readonly priceHistoryService: PriceHistoryService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     @InjectQueue(QUEUE_MARKETPLACE_PULL)
@@ -392,8 +394,17 @@ export class ListingService {
     for (let i = 0; i < listings.length; i += chunkSize) {
       const chunk = listings.slice(i, i + chunkSize);
       await Promise.all(
-        chunk.map((l) =>
-          this.prisma.listing.upsert({
+        chunk.map(async (l) => {
+          const existing = await this.prisma.listing.findFirst({
+            where: {
+              organizationId,
+              platform,
+              platformProductId: l.platformProductId,
+              deletedAt: null,
+            },
+          });
+
+          const row = await this.prisma.listing.upsert({
             where: {
               organizationId_platform_platformProductId: {
                 organizationId,
@@ -423,8 +434,21 @@ export class ListingService {
               imageUrls: l.images,
               lastSyncAt: new Date(),
             },
-          }),
-        ),
+          });
+
+          if (existing != null) {
+            await this.priceHistoryService.recordPriceChange({
+              organizationId,
+              listingId: row.id,
+              barcode: l.barcode,
+              platform,
+              oldPrice: existing.salePrice,
+              newPrice: l.salePrice,
+              source: 'sync',
+              reason: 'sync',
+            });
+          }
+        }),
       );
     }
     if (listings.length > 0) {

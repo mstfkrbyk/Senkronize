@@ -78,11 +78,16 @@ function SixDigitInputs(props: {
   };
 
   return (
-    <div className="flex justify-center gap-2">
+    <div
+      className="flex justify-center gap-2"
+      role="group"
+      aria-label="6 haneli doğrulama kodu"
+    >
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <Input
           key={i}
           id={`${idPrefix}-${i}`}
+          aria-label={`Doğrulama kodu rakam ${i + 1}`}
           ref={(el) => {
             refs.current[i] = el;
           }}
@@ -317,6 +322,7 @@ export function LoginPage(): ReactElement {
               <Label htmlFor="backup-code">Yedek kod</Label>
               <Input
                 id="backup-code"
+                aria-label="Yedek kod"
                 placeholder="XXXXXXXX-XXXXXXXX"
                 className="font-mono uppercase"
                 value={backupValue}

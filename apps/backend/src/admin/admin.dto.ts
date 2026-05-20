@@ -47,6 +47,12 @@ export class SuspendOrganizationDto {
   reason!: string;
 }
 
+export class GrowthStatsQueryDto {
+  @IsOptional()
+  @IsIn(['7d', '30d', '90d'])
+  period?: '7d' | '30d' | '90d';
+}
+
 export class ChangeOrganizationPlanDto {
   @IsEnum(PlanTier)
   plan!: PlanTier;

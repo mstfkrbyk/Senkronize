@@ -38,6 +38,9 @@ const AcceptInvitePage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import('@/pages/NotFoundPage').then((m) => ({ default: m.NotFoundPage })),
 );
+const OfflinePage = lazy(() =>
+  import('@/pages/OfflinePage').then((m) => ({ default: m.OfflinePage })),
+);
 const OnboardingPage = lazy(() =>
   import('@/pages/onboarding/OnboardingPage').then((m) => ({
     default: m.OnboardingPage,
@@ -213,6 +216,7 @@ export default function App(): ReactElement {
         <Toaster position="top-center" richColors closeButton />
         <Suspense fallback={<PageLoader />}>
           <Routes>
+            <Route path="/offline" element={<OfflinePage />} />
             <Route
               path="/accept-invite"
               element={

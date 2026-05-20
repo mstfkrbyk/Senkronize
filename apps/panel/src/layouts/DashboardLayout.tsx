@@ -55,9 +55,9 @@ export function DashboardLayout(): ReactElement {
       <Fragment>
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
         >
-          Ana içeriğe geç
+          İçeriğe Atla
         </a>
       <SidebarProvider
         open={!sidebarCollapsed}

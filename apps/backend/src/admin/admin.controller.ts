@@ -33,16 +33,23 @@ import {
   AdminSubscriptionsQueryDto,
   BlockedIpMutationDto,
   ChangeOrganizationPlanDto,
+  GrowthStatsQueryDto,
   SuspendOrganizationDto,
 } from './admin.dto';
 import { SuperAdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { AdminStatsService } from './admin-stats.service';
 import type {
   ActivityItem,
+  CohortData,
+  GrowthMetrics,
+  GrowthPeriod,
   HealthStats,
+  MrrHistoryPoint,
   OrganizationDetail,
   PaginatedOrganizations,
   PlatformStats,
+  PlatformUsageItem,
   RevenueStats,
 } from './admin.types';
 
@@ -63,6 +70,7 @@ export class AdminController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly adminService: AdminService,
+    private readonly adminStatsService: AdminStatsService,
     private readonly usersService: UsersService,
     private readonly ipBlockService: IpBlockService,
   ) {}
@@ -79,6 +87,37 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Gelir' })
   async getRevenueStats(): Promise<RevenueStats> {
     return this.adminService.getRevenueStats();
+  }
+
+  @Get('stats/growth')
+  @ApiOperation({ summary: 'Büyüme metrikleri (MRR, churn, yeni kayıt)' })
+  @ApiResponse({ status: 200, description: 'Büyüme' })
+  async getGrowthStats(
+    @Query() query: GrowthStatsQueryDto,
+  ): Promise<GrowthMetrics> {
+    const period: GrowthPeriod = query.period ?? '30d';
+    return this.adminStatsService.getGrowthMetrics(period);
+  }
+
+  @Get('stats/platform-usage')
+  @ApiOperation({ summary: 'Platform kullanım istatistikleri' })
+  @ApiResponse({ status: 200, description: 'Kullanım' })
+  async getPlatformUsageStats(): Promise<PlatformUsageItem[]> {
+    return this.adminStatsService.getPlatformUsageStats();
+  }
+
+  @Get('stats/mrr-history')
+  @ApiOperation({ summary: 'Son 12 ay MRR ve büyüme serisi' })
+  @ApiResponse({ status: 200, description: 'MRR geçmişi' })
+  async getMrrHistory(): Promise<MrrHistoryPoint[]> {
+    return this.adminStatsService.getMrrHistory();
+  }
+
+  @Get('stats/cohort-retention')
+  @ApiOperation({ summary: 'Cohort retention analizi' })
+  @ApiResponse({ status: 200, description: 'Cohort' })
+  async getCohortRetention(): Promise<CohortData[]> {
+    return this.adminStatsService.getCohortRetention();
   }
 
   @Get('organizations')

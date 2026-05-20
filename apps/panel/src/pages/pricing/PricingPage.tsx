@@ -24,6 +24,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { BuyBoxAnalysisTab } from './BuyBoxAnalysisTab';
 import { BuyBoxDashboard } from './BuyBoxDashboard';
 import { CreateRuleDialog } from './CreateRuleDialog';
+import { PriceAnalysisPage } from './PriceAnalysisPage';
 import { PriceHistoryTable } from './PriceHistoryTable';
 import { PricingRuleCard } from './PricingRuleCard';
 import {
@@ -112,8 +113,9 @@ export function PricingPage(): ReactElement {
       </div>
 
       <Tabs defaultValue="general" className="space-y-8">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="general">Genel</TabsTrigger>
+          <TabsTrigger value="analysis">Fiyat analizi</TabsTrigger>
           <TabsTrigger value="buybox">BuyBox analizi</TabsTrigger>
         </TabsList>
 
@@ -371,6 +373,10 @@ export function PricingPage(): ReactElement {
 
             </>
           ) : null}
+        </TabsContent>
+
+        <TabsContent value="analysis" className="mt-6">
+          <PriceAnalysisPage proAccess={proAccess} />
         </TabsContent>
 
         <TabsContent value="buybox" className="mt-6 space-y-6">

@@ -99,6 +99,44 @@ export interface AdminHealthStats {
   platforms: AdminPlatformHealthRow[];
 }
 
+export interface AdminGrowthMetrics {
+  newOrganizations: number;
+  activeOrganizations: number;
+  churnedOrganizations: number;
+  revenueGrowth: number;
+  churnRate: number;
+  mrrKurus: number;
+  arrKurus: number;
+  mrr: number;
+  arr: number;
+}
+
+export interface AdminPlatformUsageItem {
+  type: 'marketplace' | 'erp' | 'feature';
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface AdminCohortRetentionCell {
+  monthOffset: number;
+  monthKey: string;
+  rate: number;
+}
+
+export interface AdminCohortData {
+  cohortMonth: string;
+  cohortSize: number;
+  retention: AdminCohortRetentionCell[];
+}
+
+export interface AdminMrrHistoryPoint {
+  monthKey: string;
+  mrrKurus: number;
+  newOrganizations: number;
+  activeOrganizations: number;
+}
+
 export interface AdminOrgDetailUser {
   id: string;
   email: string;

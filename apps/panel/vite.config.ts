@@ -32,7 +32,7 @@ export default defineConfig({
     },
   },
   build: {
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -40,20 +40,13 @@ export default defineConfig({
           'vendor-ui': [
             '@radix-ui/react-dialog',
             '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-popover',
           ],
-          'vendor-query': ['@tanstack/react-query', 'zustand'],
           'vendor-charts': ['recharts'],
-          'vendor-date-fns': ['date-fns'],
-          'vendor-day-picker': ['react-day-picker'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-socket': ['socket.io-client'],
-          'vendor-utils': ['axios', 'papaparse', 'zod'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
           'vendor-zxing': ['@zxing/browser', '@zxing/library'],
           'vendor-pdf': ['jspdf', 'html2canvas'],
+          'vendor-i18n': ['i18next', 'react-i18next'],
         },
       },
     },

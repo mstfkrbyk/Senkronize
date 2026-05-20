@@ -13,6 +13,14 @@ initSentry();
 initAnalytics();
 initTheme();
 
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* kayıt başarısız — panel yine de çalışır */
+    });
+  });
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

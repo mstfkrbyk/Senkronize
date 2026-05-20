@@ -1027,6 +1027,110 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   SAHIBINDEN_PREMIUM: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
   ],
+  BUKALAPAK: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+      hint: 'Boşsa client credentials ile token alınır.',
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa Bukalapak varsayılan token uç noktası kullanılır.',
+    },
+  ],
+  JDID: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  BLIBLI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  TIKI: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  SENDO: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+      hint: 'Boşsa client credentials ile token alınır.',
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa Sendo varsayılan token uç noktası kullanılır.',
+    },
+  ],
+  CATCH_AU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MYDEAL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  TRADEME: [
+    { key: 'consumerKey', label: 'Consumer Key', type: 'text', required: true },
+    {
+      key: 'consumerSecret',
+      label: 'Consumer Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'tokenSecret',
+      label: 'Token Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  LAMODA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  YANDEX_MARKET: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'OAuth Token (opsiyonel)',
+      type: 'password',
+      required: false,
+      hint: 'Boşsa Yandex OAuth token uç noktasından alınır.',
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa oauth.yandex.ru/token kullanılır.',
+    },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -1484,6 +1588,16 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'SAHIBINDEN_PREMIUM',
   'SAHIBINDEN_PRO',
   'SHOPIVERSE',
+  'BUKALAPAK',
+  'JDID',
+  'BLIBLI',
+  'TIKI',
+  'SENDO',
+  'CATCH_AU',
+  'MYDEAL',
+  'TRADEME',
+  'LAMODA',
+  'YANDEX_MARKET',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

@@ -18,7 +18,10 @@ import { BestbuyModule } from './bestbuy/bestbuy.module';
 import { BimOnlineModule } from './bim-online/bim-online.module';
 import { BimakilliModule } from './bimakilli/bimakilli.module';
 import { BolcomModule } from './bolcom/bolcom.module';
+import { BlibliModule } from './blibli/blibli.module';
+import { BukalapakModule } from './bukalapak/bukalapak.module';
 import { BoynerModule } from './boyner/boyner.module';
+import { CatchAuModule } from './catch-au/catch-au.module';
 import { CarrefoursaModule } from './carrefoursa/carrefoursa.module';
 import { CarrefourMeModule } from './carrefour-me/carrefour-me.module';
 import { CdiscountModule } from './cdiscount/cdiscount.module';
@@ -58,7 +61,9 @@ import { InstacartModule } from './instacart/instacart.module';
 import { IkasModule } from './ikas/ikas.module';
 import { IyzicoModule } from './iyzico/iyzico.module';
 import { IsnetAdapter } from './isnet/isnet.adapter';
+import { JdidModule } from './jdid/jdid.module';
 import { JumiaModule } from './jumia/jumia.module';
+import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KitapyurduModule } from './kitapyurdu/kitapyurdu.module';
 import { KolaybiAdapter } from './kolaybi/kolaybi.adapter';
@@ -85,6 +90,7 @@ import { MikroAdapter } from './mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
 import { MigrosSanalModule } from './migros-sanal/migros-sanal.module';
+import { MydealModule } from './mydeal/mydeal.module';
 import { MigroshemenModule } from './migroshemen/migroshemen.module';
 import { ModanisaModule } from './modanisa/modanisa.module';
 import { MorhipoModule } from './morhipo/morhipo.module';
@@ -113,6 +119,7 @@ import { RakutenModule } from './rakuten/rakuten.module';
 import { RealdeModule } from './realde/realde.module';
 import { RobomarktModule } from './robomarkt/robomarkt.module';
 import { SahibindenPremiumModule } from './sahibinden-premium/sahibinden-premium.module';
+import { SendoModule } from './sendo/sendo.module';
 import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
 import { SahibindenModule } from './sahibinden/sahibinden.module';
 import { SapB1Adapter } from './sapb1/sapb1.adapter';
@@ -126,6 +133,8 @@ import { SimpraModule } from './simpra/simpra.module';
 import { SokMarketModule } from './sok-market/sok-market.module';
 import { SnapdealModule } from './snapdeal/snapdeal.module';
 import { SportiveModule } from './sportive/sportive.module';
+import { TikiModule } from './tiki/tiki.module';
+import { TrademeModule } from './trademe/trademe.module';
 import { StripeModule } from './stripe/stripe.module';
 import { SpartooModule } from './spartoo/spartoo.module';
 import { TeknosaModule } from './teknosa/teknosa.module';
@@ -153,6 +162,7 @@ import { WayfairModule } from './wayfair/wayfair.module';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
 import { ZalandoModule } from './zalando/zalando.module';
+import { YandexMarketModule } from './yandex-market/yandex-market.module';
 import { ZaraModule } from './zara/zara.module';
 import { ZirveAdapter } from './zirve/zirve.adapter';
 
@@ -174,7 +184,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BimakilliModule,
     BimOnlineModule,
     BolcomModule,
+    BlibliModule,
+    BukalapakModule,
     BoynerModule,
+    CatchAuModule,
     CarrefourMeModule,
     CarrefoursaModule,
     CdiscountModule,
@@ -209,7 +222,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IkasModule,
     IyzicoModule,
     InstacartModule,
+    JdidModule,
     JumiaModule,
+    LamodaModule,
     KauflandModule,
     KitapyurduModule,
     KotonModule,
@@ -236,6 +251,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ModanisaModule,
     MorhipoModule,
     MysoftModule,
+    MydealModule,
     MyntraModule,
     N11ProModule,
     NamshiModule,
@@ -256,6 +272,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenModule,
     SahibindenProModule,
     SahibindenPremiumModule,
+    SendoModule,
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
@@ -265,6 +282,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SnapdealModule,
     SokMarketModule,
     SportiveModule,
+    TikiModule,
+    TrademeModule,
     StripeModule,
     SpartooModule,
     TeknosaModule,
@@ -287,6 +306,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     WalmartModule,
     WayfairModule,
     YemeksepetiModule,
+    YandexMarketModule,
     ZalandoModule,
     ZaraModule,
   ],
@@ -358,7 +378,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BimakilliModule,
     BimOnlineModule,
     BolcomModule,
+    BlibliModule,
+    BukalapakModule,
     BoynerModule,
+    CatchAuModule,
     CarrefourMeModule,
     CarrefoursaModule,
     CdiscountModule,
@@ -393,7 +416,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IkasModule,
     IyzicoModule,
     InstacartModule,
+    JdidModule,
     JumiaModule,
+    LamodaModule,
     KauflandModule,
     KitapyurduModule,
     KotonModule,
@@ -420,6 +445,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ModanisaModule,
     MorhipoModule,
     MysoftModule,
+    MydealModule,
     MyntraModule,
     N11ProModule,
     NamshiModule,
@@ -440,6 +466,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenModule,
     SahibindenProModule,
     SahibindenPremiumModule,
+    SendoModule,
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
@@ -449,6 +476,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SnapdealModule,
     SokMarketModule,
     SportiveModule,
+    TikiModule,
+    TrademeModule,
     StripeModule,
     SpartooModule,
     TeknosaModule,

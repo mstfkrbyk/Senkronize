@@ -7,6 +7,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AdminController } from './admin.controller';
 import { SuperAdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { AdminStatsService } from './admin-stats.service';
 
 import { UsersModule } from '../users/users.module';
 
@@ -29,7 +30,7 @@ import { UsersModule } from '../users/users.module';
     }),
   ],
   controllers: [AdminController],
-  providers: [SuperAdminGuard, AdminService],
+  providers: [SuperAdminGuard, AdminService, AdminStatsService],
   exports: [SuperAdminGuard],
 })
 export class AdminModule {}

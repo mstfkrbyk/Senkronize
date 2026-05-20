@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { BarChart3 } from 'lucide-react';
 
 import { NAV_ITEMS, SUPPLY_NAV_ITEMS } from '@/constants/navigation';
+import { prefetchRoute } from '@/lib/routePreload';
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -58,6 +59,12 @@ export function SidebarNav(): ReactElement {
                     <NavLink
                       to={item.path}
                       data-onboarding={item.path}
+                      onMouseEnter={() => {
+                        prefetchRoute(item.path);
+                      }}
+                      onFocus={() => {
+                        prefetchRoute(item.path);
+                      }}
                       onClick={() => {
                         if (isMobile) {
                           setOpenMobile(false);
@@ -107,6 +114,12 @@ export function SidebarNav(): ReactElement {
                   >
                     <NavLink
                       to={item.path}
+                      onMouseEnter={() => {
+                        prefetchRoute(item.path);
+                      }}
+                      onFocus={() => {
+                        prefetchRoute(item.path);
+                      }}
                       onClick={() => {
                         if (isMobile) {
                           setOpenMobile(false);
@@ -134,6 +147,12 @@ export function SidebarNav(): ReactElement {
                 <SidebarMenuButton asChild tooltip={t('nav.adminPanel')}>
                   <Link
                     to="/admin"
+                    onMouseEnter={() => {
+                      prefetchRoute('/admin');
+                    }}
+                    onFocus={() => {
+                      prefetchRoute('/admin');
+                    }}
                     onClick={() => {
                       if (isMobile) {
                         setOpenMobile(false);

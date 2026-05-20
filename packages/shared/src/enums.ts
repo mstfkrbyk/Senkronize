@@ -142,7 +142,17 @@ export type Marketplace =
   | 'INSTACART'
   | 'ALIBABA_TR'
   | 'TRENDYOL_MILLA'
-  | 'SAHIBINDEN_PREMIUM';
+  | 'SAHIBINDEN_PREMIUM'
+  | 'BUKALAPAK'
+  | 'JDID'
+  | 'BLIBLI'
+  | 'TIKI'
+  | 'SENDO'
+  | 'CATCH_AU'
+  | 'MYDEAL'
+  | 'TRADEME'
+  | 'LAMODA'
+  | 'YANDEX_MARKET';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

@@ -5,6 +5,7 @@ import { CommonModule } from '../common/common.module';
 
 import { BuyBoxService } from './buybox.service';
 import { CompetitorPriceService } from './competitor-price.service';
+import { PriceHistoryService } from './price-history.service';
 import { PricingController } from './pricing.controller';
 import { PricingEngine } from './pricing.engine';
 import { PricingService } from './pricing.service';
@@ -17,7 +18,14 @@ import { PricingService } from './pricing.service';
     PricingEngine,
     BuyBoxService,
     CompetitorPriceService,
+    PriceHistoryService,
   ],
-  exports: [PricingService, PricingEngine, BuyBoxService, CompetitorPriceService],
+  exports: [
+    PricingService,
+    PricingEngine,
+    BuyBoxService,
+    CompetitorPriceService,
+    PriceHistoryService,
+  ],
 })
 export class PricingModule {}

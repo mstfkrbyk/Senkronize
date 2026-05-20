@@ -168,6 +168,16 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.ALIBABA_TR]: 'Alibaba TR (1688)',
   [Marketplace.TRENDYOL_MILLA]: 'Trendyol Milla',
   [Marketplace.SAHIBINDEN_PREMIUM]: 'Sahibinden Premium',
+  [Marketplace.BUKALAPAK]: 'Bukalapak',
+  [Marketplace.JDID]: 'JD.ID',
+  [Marketplace.BLIBLI]: 'Blibli',
+  [Marketplace.TIKI]: 'Tiki',
+  [Marketplace.SENDO]: 'Sendo',
+  [Marketplace.CATCH_AU]: 'Catch.com.au',
+  [Marketplace.MYDEAL]: 'MyDeal',
+  [Marketplace.TRADEME]: 'Trade Me',
+  [Marketplace.LAMODA]: 'Lamoda',
+  [Marketplace.YANDEX_MARKET]: 'Yandex Market',
 };
 
 @Injectable()

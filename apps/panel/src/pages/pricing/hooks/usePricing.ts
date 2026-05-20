@@ -8,7 +8,10 @@ import type {
   BuyBoxSummary,
   BuyBoxWinRateStats,
   CompetitorPriceRow,
+  CompetitorMatrixRow,
   PriceGapAnalysis,
+  PriceAlertsResponse,
+  ListingPriceHistoryResult,
   PriceHistoryEntry,
   PriceSimulationResult,
   PriceTrendPoint,
@@ -290,6 +293,79 @@ export function useManualPricingUpdate() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing'] });
       toast.success('Fiyat güncellendi');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+}
+
+export function useListingPriceHistory(
+  listingId: string | null,
+  days = 30,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ['pricing', 'price-history', listingId, days],
+    queryFn: async (): Promise<ListingPriceHistoryResult> => {
+      const { data } = await api.get<ListingPriceHistoryResult>(
+        `/pricing/price-history/${listingId}`,
+        { params: { days } },
+      );
+      return data;
+    },
+    enabled: enabled && listingId != null && listingId.length > 0,
+    staleTime: 30_000,
+  });
+}
+
+export function useCompetitorMatrix(enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'competitor-matrix'],
+    queryFn: async (): Promise<CompetitorMatrixRow[]> => {
+      const { data } = await api.get<CompetitorMatrixRow[]>(
+        '/pricing/competitor-matrix',
+      );
+      return data;
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function usePriceAlerts(enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'price-alerts'],
+    queryFn: async (): Promise<PriceAlertsResponse> => {
+      const { data } = await api.get<PriceAlertsResponse>(
+        '/pricing/price-alerts',
+      );
+      return data;
+    },
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useCreatePriceAlert() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      listingId: string;
+      thresholdPrice: number;
+      notifyEmail?: boolean;
+      notifyInApp?: boolean;
+      notifySms?: boolean;
+    }): Promise<{ id: string }> => {
+      const { data } = await api.post<{ id: string }>(
+        '/pricing/price-alerts',
+        input,
+      );
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pricing', 'price-alerts'] });
+      toast.success('Fiyat uyarısı eklendi');
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));

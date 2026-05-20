@@ -17,6 +17,7 @@ import type {
 } from '../queue/queue.types';
 
 import { BuyBoxService } from '../pricing/buybox.service';
+import { PriceHistoryService } from '../pricing/price-history.service';
 import { PricingEngine } from '../pricing/pricing.engine';
 
 @Processor(QUEUE_PRICING)
@@ -27,6 +28,7 @@ export class PricingProcessor {
     private readonly prisma: PrismaService,
     private readonly buyboxService: BuyBoxService,
     private readonly engine: PricingEngine,
+    private readonly priceHistoryService: PriceHistoryService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly pushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -125,23 +127,26 @@ export class PricingProcessor {
           JOB_DEFAULT_OPTIONS,
         );
 
-        await this.prisma.$transaction([
-          this.prisma.priceHistory.create({
-            data: {
+        await this.prisma.$transaction(async (tx) => {
+          await this.priceHistoryService.recordPriceChange(
+            {
               organizationId,
+              listingId: listing.id,
               barcode: listing.barcode,
               platform: rule.platform,
-              pricingRuleId: rule.id,
               oldPrice: listing.salePrice,
-              newPrice: new Prisma.Decimal(newPrice),
+              newPrice,
+              source: 'rule',
+              pricingRuleId: rule.id,
               reason: rule.name,
             },
-          }),
-          this.prisma.listing.update({
+            tx,
+          );
+          await tx.listing.update({
             where: { id: listing.id },
             data: { salePrice: new Prisma.Decimal(newPrice) },
-          }),
-        ]);
+          });
+        });
 
         this.logger.log(
           `Fiyat güncellendi: ${listing.barcode} ${listing.salePrice} → ${newPrice}`,

@@ -44,6 +44,7 @@ import type {
   UpdatePricingRuleDto,
 } from './pricing.dto';
 import { PricingEngine } from './pricing.engine';
+import { PriceHistoryService } from './price-history.service';
 
 export interface BuyBoxSummaryResponse {
   totalListings: number;
@@ -80,6 +81,7 @@ export class PricingService {
     private readonly engine: PricingEngine,
     private readonly buybox: BuyBoxService,
     private readonly eventService: EventService,
+    private readonly priceHistoryService: PriceHistoryService,
     @InjectQueue(QUEUE_PRICING)
     private readonly pricingQueue: Queue<PricingRunRulesJobData>,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
@@ -489,15 +491,15 @@ export class PricingService {
       throw new NotFoundException('Listing bulunamadı');
     }
 
-    await this.prisma.priceHistory.create({
-      data: {
-        organizationId,
-        barcode: dto.barcode,
-        platform: dto.platform,
-        oldPrice: listing.salePrice,
-        newPrice: new Prisma.Decimal(dto.salePrice),
-        reason: 'manual',
-      },
+    await this.priceHistoryService.recordPriceChange({
+      organizationId,
+      listingId: listing.id,
+      barcode: dto.barcode,
+      platform: dto.platform,
+      oldPrice: listing.salePrice,
+      newPrice: dto.salePrice,
+      source: 'manual',
+      reason: 'manual',
     });
 
     await this.pushQueue.add(

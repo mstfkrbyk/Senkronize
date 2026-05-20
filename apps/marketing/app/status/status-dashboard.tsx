@@ -2,27 +2,17 @@
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 
-type HealthPayload = {
-  status: 'ok' | 'degraded';
-  timestamp: string;
-  version: string;
-  services: { database: 'up' | 'down' };
-};
+import type { DetailedHealthPayload } from '@/app/api/health/route';
 
 type RowState = 'operational' | 'degraded' | 'outage' | 'unknown';
 
-function rowFromHealth(
-  key: 'api' | 'database',
-  payload: HealthPayload | null,
-  fetchError: boolean,
+function serviceState(
+  status: 'up' | 'down' | 'degraded' | undefined,
 ): RowState {
-  if (fetchError || !payload) {
-    return key === 'api' ? 'outage' : 'unknown';
-  }
-  if (key === 'api') {
-    return payload.status === 'ok' ? 'operational' : 'degraded';
-  }
-  return payload.services.database === 'up' ? 'operational' : 'outage';
+  if (!status) return 'unknown';
+  if (status === 'up') return 'operational';
+  if (status === 'degraded') return 'degraded';
+  return 'outage';
 }
 
 function StatusDot({ state }: { state: RowState }): ReactElement {
@@ -49,26 +39,23 @@ function StatusDot({ state }: { state: RowState }): ReactElement {
   );
 }
 
-/** Yer tutucu: gerçek uptime verisi ayrı izleme sisteminden beslenecek. */
-const UPTIME_PLACEHOLDER = '99,97%';
+function formatUptime(seconds: number): string {
+  if (seconds <= 0) return '—';
+  const days = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3600);
+  if (days > 0) {
+    return `${days} gün ${hours} saat`;
+  }
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours} saat ${mins} dk`;
+}
 
-const BAR_PATTERN: { h: number; tone: 'ok' | 'warn' | 'bad' }[] = Array.from(
-  { length: 90 },
-  (_, i) => {
-    const cycle = Math.sin(i / 4.2) * 0.35 + 0.65;
-    const h = Math.round(28 + cycle * 52);
-    if (i === 41 || i === 72) {
-      return { h: 36, tone: 'warn' as const };
-    }
-    if (i === 58) {
-      return { h: 22, tone: 'bad' as const };
-    }
-    return { h, tone: 'ok' as const };
-  },
-);
+function formatMb(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+}
 
 export function StatusDashboard(): ReactElement {
-  const [data, setData] = useState<HealthPayload | null>(null);
+  const [data, setData] = useState<DetailedHealthPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,7 +70,7 @@ export function StatusDashboard(): ReactElement {
         setData(null);
         return;
       }
-      const json = (await res.json()) as HealthPayload;
+      const json = (await res.json()) as DetailedHealthPayload;
       setData(json);
     } catch {
       setError('Ağ hatası');
@@ -100,8 +87,13 @@ export function StatusDashboard(): ReactElement {
   }, [load]);
 
   const fetchFailed = Boolean(error);
-  const apiState = rowFromHealth('api', data, fetchFailed);
-  const dbState = rowFromHealth('database', data, fetchFailed);
+  const apiState: RowState = fetchFailed
+    ? 'outage'
+    : data?.status === 'ok'
+      ? 'operational'
+      : data
+        ? 'degraded'
+        : 'unknown';
 
   const rows: { name: string; state: RowState; detail: string }[] = [
     {
@@ -111,34 +103,43 @@ export function StatusDashboard(): ReactElement {
         ? 'Kontrol ediliyor…'
         : data
           ? `Sürüm ${data.version} · ${new Date(data.timestamp).toLocaleString('tr-TR')}`
-          : error ?? 'Yanıt yok',
+          : (error ?? 'Yanıt yok'),
     },
     {
       name: 'Veritabanı',
-      state: dbState,
-      detail:
-        data?.services.database === 'up'
-          ? 'PostgreSQL bağlantısı başarılı'
-          : data
-            ? 'Bağlantı sorunu (degraded)'
-            : 'Sağlık uç noktasından okunamadı',
+      state: fetchFailed ? 'unknown' : serviceState(data?.db.status),
+      detail: data?.db.latencyMs
+        ? `PostgreSQL · ${data.db.latencyMs} ms`
+        : data?.db.message ?? (data ? 'PostgreSQL bağlantısı' : 'Okunamadı'),
     },
     {
       name: 'Redis',
-      state: 'unknown',
-      detail: 'Ayrı metrik; yakında eklenecek (tahmini operasyonel)',
+      state: fetchFailed ? 'unknown' : serviceState(data?.redis.status),
+      detail: data?.redis.latencyMs
+        ? `Redis · ${data.redis.latencyMs} ms`
+        : (data?.redis.message ?? (data ? 'Önbellek / kuyruk' : 'Okunamadı')),
     },
+    ...(data?.adapters ?? []).map((a) => ({
+      name: `${a.platform} API`,
+      state: (a.status === 'up' ? 'operational' : 'outage') as RowState,
+      detail: a.latencyMs ? `Ping · ${a.latencyMs} ms` : 'Pazaryeri uç noktası',
+    })),
     {
       name: 'Panel',
-      state: 'operational',
-      detail: 'Yer tutucu — panel izleme entegrasyonu sonrası güncellenecek',
+      state: 'operational' as RowState,
+      detail: 'panel.senkronize.com',
     },
     {
       name: 'Marketing sitesi',
-      state: 'operational',
-      detail: 'Bu sayfa üzerinden erişilebilirlik varsayımı',
+      state: 'operational' as RowState,
+      detail: 'Bu sayfa üzerinden erişilebilir',
     },
   ];
+
+  const degradedQueues =
+    data?.queues.filter((q) => q.status !== 'up').length ?? 0;
+  const totalBacklog =
+    data?.queues.reduce((s, q) => s + q.waiting + q.delayed, 0) ?? 0;
 
   return (
     <div className="space-y-10">
@@ -149,9 +150,9 @@ export function StatusDashboard(): ReactElement {
               Genel durum
             </h2>
             <p className="text-sm text-muted-foreground">
-              API ve veritabanı{' '}
+              Canlı veri{' '}
               <code className="rounded bg-slate-100 px-1 py-0.5 text-xs">
-                GET /api/v1/health
+                GET /api/v1/health/detailed
               </code>{' '}
               üzerinden güncellenir (30 sn yenileme).
             </p>
@@ -164,10 +165,32 @@ export function StatusDashboard(): ReactElement {
             Yenile
           </button>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          Tahmini uptime (son 90 gün, yer tutucu):{' '}
-          <span className="font-semibold text-[#111827]">{UPTIME_PLACEHOLDER}</span>
-        </p>
+        {data ? (
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <div>
+              <dt className="text-muted-foreground">Çalışma süresi</dt>
+              <dd className="font-semibold text-[#111827]">
+                {formatUptime(data.uptime)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Bellek (heap)</dt>
+              <dd className="font-semibold text-[#111827]">
+                {formatMb(data.memory.heapUsed)} /{' '}
+                {formatMb(data.memory.heapTotal)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Kuyruk birikimi</dt>
+              <dd className="font-semibold text-[#111827]">
+                {totalBacklog.toLocaleString('tr-TR')} bekleyen
+                {degradedQueues > 0
+                  ? ` · ${degradedQueues} kuyruk kısıtlı`
+                  : ''}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
@@ -197,37 +220,41 @@ export function StatusDashboard(): ReactElement {
         </table>
       </div>
 
-      <div className="rounded-xl border border-border bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-[#111827]">
-          Son 90 gün (özet çubukları)
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Yeşil: sorunsuz · Sarı: gecikme / kısıtlı · Kırmızı: kesinti. Görsel yer
-          tutucudur; üretimde gerçek incident verisi ile değiştirilecektir.
-        </p>
-        <div
-          className="mt-6 flex h-24 items-end gap-px overflow-x-auto pb-1"
-          role="img"
-          aria-label="Son 90 gün için örnek durum çubukları"
-        >
-          {BAR_PATTERN.map((b, i) => {
-            const bg =
-              b.tone === 'ok'
-                ? 'bg-emerald-500/90'
-                : b.tone === 'warn'
-                  ? 'bg-amber-400'
-                  : 'bg-red-500';
-            return (
-              <div
-                key={i}
-                className={`w-1 shrink-0 rounded-t ${bg}`}
-                style={{ height: `${b.h}%` }}
-                title={`Gün ${i + 1}`}
-              />
-            );
-          })}
+      {data && data.queues.length > 0 ? (
+        <div className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+          <div className="border-b border-border bg-slate-50 px-6 py-3">
+            <h2 className="text-lg font-semibold text-[#111827]">
+              BullMQ kuyrukları
+            </h2>
+          </div>
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-border">
+              <tr>
+                <th className="px-6 py-2 font-medium">Kuyruk</th>
+                <th className="px-6 py-2 font-medium text-right">Bekleyen</th>
+                <th className="px-6 py-2 font-medium text-right">Aktif</th>
+                <th className="px-6 py-2 font-medium text-right">Başarısız</th>
+                <th className="px-6 py-2 font-medium">Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.queues.map((q) => (
+                <tr key={q.name} className="border-b border-border last:border-0">
+                  <td className="px-6 py-3 font-mono text-xs">{q.name}</td>
+                  <td className="px-6 py-3 text-right tabular-nums">
+                    {q.waiting + q.delayed}
+                  </td>
+                  <td className="px-6 py-3 text-right tabular-nums">{q.active}</td>
+                  <td className="px-6 py-3 text-right tabular-nums">{q.failed}</td>
+                  <td className="px-6 py-3">
+                    <StatusDot state={serviceState(q.status)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

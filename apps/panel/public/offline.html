@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#6366f1" />
+    <title>Çevrimdışı — Senkronize</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #f1f5f9;
+        color: #0f172a;
+        padding: 1.5rem;
+      }
+      .card {
+        max-width: 28rem;
+        width: 100%;
+        background: #fff;
+        border-radius: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 1px 3px rgb(15 23 42 / 0.1);
+      }
+      h1 {
+        font-size: 1.25rem;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        color: #64748b;
+        margin: 0 0 1.5rem;
+        line-height: 1.5;
+      }
+      button {
+        background: #6366f1;
+        color: #fff;
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #4f46e5;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>İnternet bağlantınız kesildi</h1>
+      <p>
+        Senkronize şu anda çevrimdışı. Bağlantınız geri geldiğinde sayfayı yenileyin.
+      </p>
+      <button type="button" onclick="window.location.reload()">Yeniden Dene</button>
+    </main>
+  </body>
+</html>

@@ -23,6 +23,7 @@ import { useDashboardWidgets } from '@/hooks/useDashboardWidgets';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
 import { api } from '@/lib/api';
+import { saveOfflineSnapshot } from '@/lib/offline-cache';
 import type { DashboardApiSummary } from '@/types/dashboard-widgets';
 import type { WidgetType } from '@/types/dashboard-widgets';
 
@@ -63,6 +64,18 @@ export function DashboardPage(): ReactElement {
 
   const dash = summaryQuery.data;
   const kpiLoading = summaryQuery.isPending;
+
+  useEffect(() => {
+    if (!dash) {
+      return;
+    }
+    saveOfflineSnapshot({
+      ordersToday: dash.todayOrders,
+      revenueToday: dash.revenueTry,
+      pendingOrders: dash.pendingOrders,
+      lowStockCount: dash.lowStockCount,
+    });
+  }, [dash]);
 
   const ordersTitle =
     kpiPeriod === 'default'

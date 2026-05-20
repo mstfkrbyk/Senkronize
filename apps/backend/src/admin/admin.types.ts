@@ -172,3 +172,44 @@ export interface PlatformHealthRow {
 export interface HealthStats {
   platforms: PlatformHealthRow[];
 }
+
+export type GrowthPeriod = '7d' | '30d' | '90d';
+
+export interface GrowthMetrics {
+  newOrganizations: number;
+  activeOrganizations: number;
+  churnedOrganizations: number;
+  revenueGrowth: number;
+  churnRate: number;
+  mrrKurus: number;
+  arrKurus: number;
+  /** TRY cinsinden (kurus / 100) */
+  mrr: number;
+  arr: number;
+}
+
+export interface PlatformUsageItem {
+  type: 'marketplace' | 'erp' | 'feature';
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface CohortRetentionCell {
+  monthOffset: number;
+  monthKey: string;
+  rate: number;
+}
+
+export interface CohortData {
+  cohortMonth: string;
+  cohortSize: number;
+  retention: CohortRetentionCell[];
+}
+
+export interface MrrHistoryPoint {
+  monthKey: string;
+  mrrKurus: number;
+  newOrganizations: number;
+  activeOrganizations: number;
+}

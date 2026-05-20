@@ -41,12 +41,18 @@ function formatTryFromDecimal(value: string): string {
   }).format(Number(value));
 }
 
-function ListingThumb({ urls }: { urls: string[] }): ReactElement {
+function ListingThumb({
+  urls,
+  title,
+}: {
+  urls: string[];
+  title: string;
+}): ReactElement {
   const url = urls[0];
   return (
     <ProductImage
       src={url}
-      alt=""
+      alt={title}
       size={40}
       className="h-10 w-10 rounded-md"
     />
@@ -146,7 +152,7 @@ export function ListingsTable({
                 />
               </TableCell>
               <TableCell>
-                <ListingThumb urls={listing.imageUrls} />
+                <ListingThumb urls={listing.imageUrls} title={listing.title} />
               </TableCell>
               <TableCell className="max-w-[220px] font-medium">
                 <span className="line-clamp-2">{listing.title}</span>

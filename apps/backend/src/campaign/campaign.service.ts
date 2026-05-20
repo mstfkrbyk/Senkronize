@@ -16,6 +16,7 @@ import type { Queue } from 'bull';
 
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
+import { PriceHistoryService } from '../pricing/price-history.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
@@ -50,6 +51,7 @@ export class CampaignService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventService: EventService,
+    private readonly priceHistoryService: PriceHistoryService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly pushQueue: Queue<MarketplacePushJobData>,
   ) {}
@@ -602,16 +604,19 @@ export class CampaignService {
           };
         }
 
-        await tx.priceHistory.create({
-          data: {
+        await this.priceHistoryService.recordPriceChange(
+          {
             organizationId,
+            listingId: listing.id,
             barcode: listing.barcode,
             platform: listing.platform,
             oldPrice: listing.salePrice,
-            newPrice: new Prisma.Decimal(discounted),
+            newPrice: discounted,
+            source: 'campaign',
             reason: `campaign:${campaign.id}`,
           },
-        });
+          tx,
+        );
 
         await tx.listing.update({
           where: { id: listing.id },
@@ -682,16 +687,19 @@ export class CampaignService {
           continue;
         }
 
-        await tx.priceHistory.create({
-          data: {
+        await this.priceHistoryService.recordPriceChange(
+          {
             organizationId,
+            listingId: listing.id,
             barcode: listing.barcode,
             platform: listing.platform,
             oldPrice: listing.salePrice,
-            newPrice: new Prisma.Decimal(snapshot.salePrice),
+            newPrice: snapshot.salePrice,
+            source: 'campaign',
             reason: `campaign-restore:${campaign.id}`,
           },
-        });
+          tx,
+        );
 
         await tx.listing.update({
           where: { id: listing.id },

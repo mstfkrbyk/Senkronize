@@ -12,6 +12,7 @@ import {
   HeartPulse,
   Minus,
   Sparkles,
+  TrendingDown,
   Users,
 } from 'lucide-react';
 
@@ -36,8 +37,12 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceDisplay } from '@/lib/platform-display';
 import type {
   AdminActivityItem,
+  AdminCohortData,
+  AdminGrowthMetrics,
   AdminHealthStats,
+  AdminMrrHistoryPoint,
   AdminPlatformStats,
+  AdminPlatformUsageItem,
   AdminRevenueStats,
 } from '@/types/admin';
 import type { OrgPlanTier } from '@/types/auth';
@@ -81,6 +86,24 @@ function SignupTrendIcon({
   return <Minus className="size-4 text-slate-400" aria-hidden />;
 }
 
+function GrowthBadge({ value }: { value: number }): ReactElement {
+  if (value > 0) {
+    return (
+      <span className="text-xs font-medium text-emerald-600">
+        +{value.toFixed(1)}%
+      </span>
+    );
+  }
+  if (value < 0) {
+    return (
+      <span className="text-xs font-medium text-rose-600">
+        {value.toFixed(1)}%
+      </span>
+    );
+  }
+  return <span className="text-xs text-muted-foreground">0%</span>;
+}
+
 export function AdminDashboardPage(): ReactElement {
   const results = useQueries({
     queries: [
@@ -98,6 +121,43 @@ export function AdminDashboardPage(): ReactElement {
         queryFn: async (): Promise<AdminRevenueStats> => {
           const { data } = await api.get<AdminRevenueStats>(
             '/admin/stats/revenue',
+          );
+          return data;
+        },
+      },
+      {
+        queryKey: ['admin', 'stats', 'growth', '30d'],
+        queryFn: async (): Promise<AdminGrowthMetrics> => {
+          const { data } = await api.get<AdminGrowthMetrics>(
+            '/admin/stats/growth',
+            { params: { period: '30d' } },
+          );
+          return data;
+        },
+      },
+      {
+        queryKey: ['admin', 'stats', 'mrr-history'],
+        queryFn: async (): Promise<AdminMrrHistoryPoint[]> => {
+          const { data } = await api.get<AdminMrrHistoryPoint[]>(
+            '/admin/stats/mrr-history',
+          );
+          return data;
+        },
+      },
+      {
+        queryKey: ['admin', 'stats', 'platform-usage'],
+        queryFn: async (): Promise<AdminPlatformUsageItem[]> => {
+          const { data } = await api.get<AdminPlatformUsageItem[]>(
+            '/admin/stats/platform-usage',
+          );
+          return data;
+        },
+      },
+      {
+        queryKey: ['admin', 'stats', 'cohort-retention'],
+        queryFn: async (): Promise<AdminCohortData[]> => {
+          const { data } = await api.get<AdminCohortData[]>(
+            '/admin/stats/cohort-retention',
           );
           return data;
         },
@@ -122,7 +182,17 @@ export function AdminDashboardPage(): ReactElement {
     ],
   });
 
-  const [platformQ, revenueQ, activityQ, healthQ] = results;
+  const [
+    platformQ,
+    revenueQ,
+    growthQ,
+    mrrHistoryQ,
+    usageQ,
+    cohortQ,
+    activityQ,
+    healthQ,
+  ] = results;
+
   const isLoading = results.some((r) => r.isLoading);
   const isError = results.some((r) => r.isError);
   const firstError = results.find((r) => r.isError)?.error;
@@ -142,6 +212,18 @@ export function AdminDashboardPage(): ReactElement {
       revenueTry: m.revenueKurus / 100,
     }));
   }, [revenueQ.data]);
+
+  const growthChartData = useMemo(() => {
+    if (!mrrHistoryQ.data) {
+      return [];
+    }
+    return mrrHistoryQ.data.map((m) => ({
+      label: format(parseISO(`${m.monthKey}-01`), 'MMM yy', { locale: tr }),
+      newOrganizations: m.newOrganizations,
+      activeOrganizations: m.activeOrganizations,
+      mrrTry: m.mrrKurus / 100,
+    }));
+  }, [mrrHistoryQ.data]);
 
   const planPieData = useMemo(() => {
     if (!platformQ.data) {
@@ -166,20 +248,37 @@ export function AdminDashboardPage(): ReactElement {
     }));
   }, [platformQ.data]);
 
+  const marketplaceUsage = useMemo(() => {
+    return (usageQ.data ?? []).filter((u) => u.type === 'marketplace');
+  }, [usageQ.data]);
+
+  const erpUsage = useMemo(() => {
+    return (usageQ.data ?? []).filter((u) => u.type === 'erp');
+  }, [usageQ.data]);
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="h-28 rounded-lg" />
         ))}
         <Skeleton className="h-72 rounded-lg sm:col-span-2" />
-        <Skeleton className="h-72 rounded-lg" />
-        <Skeleton className="h-72 rounded-lg sm:col-span-3" />
+        <Skeleton className="h-96 rounded-lg sm:col-span-3" />
       </div>
     );
   }
 
-  if (isError || !platformQ.data || !revenueQ.data || !activityQ.data || !healthQ.data) {
+  if (
+    isError ||
+    !platformQ.data ||
+    !revenueQ.data ||
+    !growthQ.data ||
+    !mrrHistoryQ.data ||
+    !usageQ.data ||
+    !cohortQ.data ||
+    !activityQ.data ||
+    !healthQ.data
+  ) {
     return (
       <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
         {getApiErrorMessage(firstError)}
@@ -199,7 +298,7 @@ export function AdminDashboardPage(): ReactElement {
   }
 
   const p = platformQ.data;
-  const r = revenueQ.data;
+  const g = growthQ.data;
 
   const kpiCards: {
     title: string;
@@ -218,25 +317,41 @@ export function AdminDashboardPage(): ReactElement {
     },
     {
       title: 'Bu ay yeni kayıt (30 gün)',
-      value: p.newRegistrationsLast30Days.toLocaleString('tr-TR'),
-      sub: 'Son 30 gün içinde oluşan hesaplar',
+      value: g.newOrganizations.toLocaleString('tr-TR'),
+      sub: `${g.activeOrganizations.toLocaleString('tr-TR')} org son 7 günde aktif`,
       icon: Users,
       tone: 'text-indigo-600',
       extra: <SignupTrendIcon daily={p.dailyNewRegistrations} />,
     },
     {
-      title: 'Tahmini yıllık gelir (ARR)',
-      value: formatTryFromKurus(r.projectedArrKurus),
-      sub: 'MRR × 12 (liste fiyatı)',
-      icon: CreditCard,
-      tone: 'text-emerald-600',
-    },
-    {
       title: 'Aylık tekrarlayan gelir (MRR)',
-      value: formatTryFromKurus(r.mrrKurus),
+      value: formatTryFromKurus(g.mrrKurus),
       sub: 'Aktif abonelikler',
       icon: Sparkles,
       tone: 'text-violet-600',
+      extra: <GrowthBadge value={g.revenueGrowth} />,
+    },
+    {
+      title: 'Yıllık tekrarlayan gelir (ARR)',
+      value: formatTryFromKurus(g.arrKurus),
+      sub: 'MRR × 12 (liste fiyatı)',
+      icon: CreditCard,
+      tone: 'text-emerald-600',
+      extra: <GrowthBadge value={g.revenueGrowth} />,
+    },
+    {
+      title: 'Büyüme (30 gün)',
+      value: `${g.revenueGrowth >= 0 ? '+' : ''}${g.revenueGrowth.toFixed(1)}%`,
+      sub: 'MRR, önceki döneme göre',
+      icon: Activity,
+      tone: g.revenueGrowth >= 0 ? 'text-emerald-600' : 'text-rose-600',
+    },
+    {
+      title: 'Churn oranı',
+      value: `${g.churnRate.toFixed(1)}%`,
+      sub: `${g.churnedOrganizations.toLocaleString('tr-TR')} iptal (30 gün)`,
+      icon: TrendingDown,
+      tone: 'text-amber-600',
     },
     {
       title: 'Aktif deneme süreci',
@@ -256,7 +371,7 @@ export function AdminDashboardPage(): ReactElement {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
         {kpiCards.map(({ title, value, sub, icon: Icon, tone, extra }) => (
           <Card key={title} className="border-slate-200 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -285,6 +400,10 @@ export function AdminDashboardPage(): ReactElement {
           revenueChartData={revenueChartData}
           planPieData={planPieData}
           signupBarData={signupBarData}
+          growthChartData={growthChartData}
+          marketplaceUsage={marketplaceUsage}
+          erpUsage={erpUsage}
+          cohortData={cohortQ.data}
           ordersThisMonthCount={p.ordersThisMonthCount}
           activeMarketplaceConnections={p.activeMarketplaceConnections}
         />
@@ -339,36 +458,36 @@ export function AdminDashboardPage(): ReactElement {
               </TableHeader>
               <TableBody>
                 {healthQ.data.platforms.map((row) => {
-                    const meta = getMarketplaceDisplay(row.platform);
-                    return (
-                      <TableRow key={row.platform}>
-                        <TableCell className="font-medium">
-                          <span className="mr-1" aria-hidden>
-                            {meta.logo}
-                          </span>
-                          {meta.label}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.activeConnections}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {(row.errorRate24h * 100).toFixed(1)}%
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.averageSyncDurationMs != null
-                            ? row.averageSyncDurationMs.toLocaleString('tr-TR')
-                            : '—'}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {row.lastSyncAt
-                            ? format(new Date(row.lastSyncAt), 'd MMM HH:mm', {
-                                locale: tr,
-                              })
-                            : '—'}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  const meta = getMarketplaceDisplay(row.platform);
+                  return (
+                    <TableRow key={row.platform}>
+                      <TableCell className="font-medium">
+                        <span className="mr-1" aria-hidden>
+                          {meta.logo}
+                        </span>
+                        {meta.label}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.activeConnections}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {(row.errorRate24h * 100).toFixed(1)}%
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {row.averageSyncDurationMs != null
+                          ? row.averageSyncDurationMs.toLocaleString('tr-TR')
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {row.lastSyncAt
+                          ? format(new Date(row.lastSyncAt), 'd MMM HH:mm', {
+                              locale: tr,
+                            })
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {healthQ.data.platforms.length === 0 ? (

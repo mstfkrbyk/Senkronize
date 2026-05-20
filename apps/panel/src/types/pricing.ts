@@ -141,3 +141,79 @@ export interface PriceHistoryEntry {
   reason: string | null;
   appliedAt: string;
 }
+
+export interface ListingPriceHistoryItem {
+  id: string;
+  price: string;
+  previousPrice: string | null;
+  changePct: number | null;
+  source: string;
+  reason: string | null;
+  appliedAt: string;
+}
+
+export interface PriceHistoryChartPoint {
+  date: string;
+  ourPrice: number | null;
+  lowestCompetitor: number | null;
+  avgCompetitor: number | null;
+}
+
+export interface ListingPriceHistoryResult {
+  listingId: string;
+  barcode: string;
+  platform: string;
+  title: string;
+  currentPrice: string;
+  items: ListingPriceHistoryItem[];
+  chart: PriceHistoryChartPoint[];
+}
+
+export interface CompetitorMatrixPlatformCell {
+  platform: string;
+  listingId: string;
+  ourPrice: number;
+  lowestCompetitor: number | null;
+  isCheapest: boolean;
+}
+
+export interface CompetitorMatrixRow {
+  barcode: string;
+  title: string;
+  platforms: CompetitorMatrixPlatformCell[];
+  globalLowest: number | null;
+}
+
+export interface PriceAlertRow {
+  id: string;
+  listingId: string;
+  barcode: string;
+  platform: string;
+  title: string;
+  thresholdPrice: string;
+  currentPrice: string;
+  isTriggered: boolean;
+  notifyEmail: boolean;
+  notifyInApp: boolean;
+  notifySms: boolean;
+  createdAt: string;
+}
+
+export interface TriggeredPriceAlert {
+  alertId: string;
+  listingId: string;
+  barcode: string;
+  platform: string;
+  title: string;
+  currentPrice: string;
+  thresholdPrice: string;
+  gapTry: number;
+  notifyEmail: boolean;
+  notifyInApp: boolean;
+  notifySms: boolean;
+}
+
+export interface PriceAlertsResponse {
+  triggered: TriggeredPriceAlert[];
+  all: PriceAlertRow[];
+}
