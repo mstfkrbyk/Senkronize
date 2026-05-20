@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   AlertTriangle,
-  ArrowLeftRight,
+  Ban,
   Package,
-  TrendingUp,
+  ShoppingCart,
 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -18,32 +19,24 @@ interface Props {
   loading: boolean;
 }
 
-function formatTry(amount: number): string {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
 interface KpiCardProps {
   title: string;
   value: string;
-  sub?: string;
   icon: typeof Package;
   tone: string;
   loading: boolean;
   badge?: ReactElement;
+  valueClass?: string;
 }
 
 function KpiCard({
   title,
   value,
-  sub,
   icon: Icon,
   tone,
   loading,
   badge,
+  valueClass,
 }: KpiCardProps): ReactElement {
   return (
     <Card>
@@ -58,38 +51,38 @@ function KpiCard({
           <Skeleton className="h-8 w-28" />
         ) : (
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-2xl font-bold tabular-nums tracking-tight">
+            <p
+              className={`text-2xl font-bold tabular-nums tracking-tight ${valueClass ?? ''}`}
+            >
               {value}
             </p>
             {badge}
           </div>
         )}
-        {sub && !loading ? (
-          <p className="mt-1 text-xs text-muted-foreground">{sub}</p>
-        ) : null}
       </CardContent>
     </Card>
   );
 }
 
 export function StockKpiRow({ metrics, loading }: Props): ReactElement {
+  const { t } = useTranslation();
+
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KpiCard
-        title="Toplam stok değeri"
-        value={loading ? '—' : metrics.totalValueTry > 0 ? formatTry(metrics.totalValueTry) : '—'}
-        sub="Maliyet fiyatı × stok"
+        title={t('stock.kpi.totalSku')}
+        value={loading ? '—' : metrics.totalSkuCount.toLocaleString('tr-TR')}
         icon={Package}
-        tone="text-sky-600"
+        tone="text-sky-600 dark:text-sky-400"
         loading={loading}
       />
       <KpiCard
-        title="Kritik stok"
-        value={loading ? '—' : String(metrics.criticalCount)}
-        sub="Eşik altı ürün"
+        title={t('stock.kpi.critical')}
+        value={loading ? '—' : metrics.criticalCount.toLocaleString('tr-TR')}
         icon={AlertTriangle}
-        tone="text-red-600"
+        tone="text-red-600 dark:text-red-400"
         loading={loading}
+        valueClass="text-red-600 dark:text-red-400"
         badge={
           !loading && metrics.criticalCount > 0 ? (
             <Badge variant="destructive" className="tabular-nums">
@@ -99,23 +92,25 @@ export function StockKpiRow({ metrics, loading }: Props): ReactElement {
         }
       />
       <KpiCard
-        title="Stok hareket hacmi"
-        value={
-          loading
-            ? '—'
-            : metrics.movementVolume7d.toLocaleString('tr-TR')
-        }
-        sub="Son 7 gün (giriş + çıkış)"
-        icon={ArrowLeftRight}
-        tone="text-amber-600"
+        title={t('stock.kpi.outOfStock')}
+        value={loading ? '—' : metrics.outOfStockCount.toLocaleString('tr-TR')}
+        icon={Ban}
+        tone="text-red-600 dark:text-red-400"
         loading={loading}
+        valueClass="text-red-600 dark:text-red-400"
+        badge={
+          !loading && metrics.outOfStockCount > 0 ? (
+            <Badge variant="destructive" className="tabular-nums">
+              {metrics.outOfStockCount}
+            </Badge>
+          ) : undefined
+        }
       />
       <KpiCard
-        title="Ort. stok dönüş hızı"
-        value={loading ? '—' : `${metrics.avgTurnoverRate.toLocaleString('tr-TR')}×`}
-        sub="Haftalık çıkış / toplam stok"
-        icon={TrendingUp}
-        tone="text-emerald-600"
+        title={t('stock.kpi.reserved')}
+        value={loading ? '—' : metrics.reservedStock.toLocaleString('tr-TR')}
+        icon={ShoppingCart}
+        tone="text-amber-600 dark:text-amber-400"
         loading={loading}
       />
     </div>

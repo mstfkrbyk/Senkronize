@@ -20,6 +20,11 @@ export const MOVEMENT_FILTER_GROUPS: {
   { value: 'TRANSFER', label: 'Transfer', types: ['TRANSFER'] },
   { value: 'ADJUSTMENT', label: 'Düzeltme', types: ['ADJUSTMENT'] },
   { value: 'COUNT', label: 'Sayım', types: ['ADJUSTMENT'] },
+  {
+    value: 'RESERVE',
+    label: 'Rezerv',
+    types: ['RESERVATION', 'RESERVATION_RELEASE'],
+  },
 ];
 
 export function movementSourceLabel(

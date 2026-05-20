@@ -1,50 +1,14 @@
 import { useMemo } from 'react';
 
-import { useQuery } from '@tanstack/react-query';
-
-import { api } from '@/lib/api';
-import type { StockOverviewRow } from '@/types/stock';
-import type { StockoutEstimateDto } from '@/types/stock-forecast';
-
-import { useProductCostMap } from './useProductCostMap';
-import {
-  useDailyMovementFlow,
-  useStockOverview,
-} from './useStockManagement';
+import { useStockOverview } from './useStockManagement';
+import { getStockLevelStatus } from '../stock-status';
+import { useProductMetaMap } from './useProductMetaMap';
 
 export interface StockKpiMetrics {
-  totalValueTry: number;
+  totalSkuCount: number;
   criticalCount: number;
-  movementVolume7d: number;
-  avgTurnoverRate: number;
-}
-
-function computeTotalValue(
-  rows: StockOverviewRow[],
-  costMap: Map<string, number>,
-): number {
-  let total = 0;
-  for (const row of rows) {
-    const cost = costMap.get(row.barcode) ?? 0;
-    total += row.totalQuantity * cost;
-  }
-  return total;
-}
-
-function countCritical(rows: StockoutEstimateDto[]): number {
-  return rows.filter((r) => {
-    if (r.currentStock <= 0) {
-      return true;
-    }
-    if (r.belowReorder) {
-      return true;
-    }
-    return (
-      r.daysUntilStockout !== null &&
-      Number.isFinite(r.daysUntilStockout) &&
-      r.daysUntilStockout < 7
-    );
-  }).length;
+  outOfStockCount: number;
+  reservedStock: number;
 }
 
 export function useStockKpis(): {
@@ -52,54 +16,40 @@ export function useStockKpis(): {
   loading: boolean;
 } {
   const overviewQuery = useStockOverview();
-  const costMapQuery = useProductCostMap();
-  const flowQuery = useDailyMovementFlow(7);
-
-  const forecastQuery = useQuery({
-    queryKey: ['stock-forecast', 'bulk'],
-    queryFn: async (): Promise<StockoutEstimateDto[]> => {
-      const { data } = await api.get<{ data: StockoutEstimateDto[] }>(
-        '/stock/forecast',
-      );
-      return data.data;
-    },
-  });
+  const metaMapQuery = useProductMetaMap();
 
   const metrics = useMemo((): StockKpiMetrics => {
     const overview = overviewQuery.data ?? [];
-    const costMap = costMapQuery.data ?? new Map<string, number>();
-    const flow = flowQuery.data ?? [];
-    const forecast = forecastQuery.data ?? [];
+    const metaMap = metaMapQuery.data ?? new Map();
 
-    let movementVolume7d = 0;
-    let outflow7d = 0;
-    for (const point of flow) {
-      movementVolume7d += point.inflow + point.outflow;
-      outflow7d += point.outflow;
+    let criticalCount = 0;
+    let outOfStockCount = 0;
+    let reservedStock = 0;
+
+    for (const row of overview) {
+      reservedStock += row.totalReserved;
+      const meta = metaMap.get(row.barcode);
+      const status = getStockLevelStatus(
+        row.available,
+        meta?.reorderPoint,
+        row.lowStock,
+      );
+      if (status === 'OUT') {
+        outOfStockCount += 1;
+      } else if (status === 'CRITICAL' || status === 'LOW') {
+        criticalCount += 1;
+      }
     }
 
-    const totalUnits = overview.reduce((s, r) => s + r.totalQuantity, 0);
-    const avgTurnoverRate =
-      totalUnits > 0 ? Math.round((outflow7d / totalUnits) * 100) / 100 : 0;
-
     return {
-      totalValueTry: computeTotalValue(overview, costMap),
-      criticalCount: countCritical(forecast),
-      movementVolume7d,
-      avgTurnoverRate,
+      totalSkuCount: overview.length,
+      criticalCount,
+      outOfStockCount,
+      reservedStock,
     };
-  }, [
-    overviewQuery.data,
-    costMapQuery.data,
-    flowQuery.data,
-    forecastQuery.data,
-  ]);
+  }, [overviewQuery.data, metaMapQuery.data]);
 
-  const loading =
-    overviewQuery.isLoading ||
-    costMapQuery.isLoading ||
-    flowQuery.isLoading ||
-    forecastQuery.isLoading;
+  const loading = overviewQuery.isLoading || metaMapQuery.isLoading;
 
   return { metrics, loading };
 }

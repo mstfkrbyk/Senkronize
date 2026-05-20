@@ -430,8 +430,11 @@ function TransferDetailView({ id }: { id: string }): ReactElement {
   );
 }
 
-function TransferListView(): ReactElement {
-  usePageTitle('Stok transferi');
+interface TransferListProps {
+  embedded?: boolean;
+}
+
+export function StockTransfersTab({ embedded = false }: TransferListProps): ReactElement {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<TransferStatusApi>('DRAFT');
@@ -614,20 +617,34 @@ function TransferListView(): ReactElement {
   }, [tab]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div
+      className={
+        embedded
+          ? 'flex flex-col gap-4'
+          : 'mx-auto flex w-full max-w-6xl flex-col gap-6'
+      }
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Stok transferi
-          </h1>
+        {!embedded ? (
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              Stok transferi
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Depolar arası çoklu ürün transferi ve onay akışı.
+            </p>
+          </div>
+        ) : (
           <p className="text-muted-foreground text-sm">
             Depolar arası çoklu ürün transferi ve onay akışı.
           </p>
-        </div>
+        )}
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" asChild>
-            <Link to="/stock">Stok yönetimine dön</Link>
-          </Button>
+          {!embedded ? (
+            <Button type="button" variant="outline" asChild>
+              <Link to="/stock">Stok yönetimine dön</Link>
+            </Button>
+          ) : null}
           <Button type="button" onClick={() => setModalOpen(true)}>
             <Plus className="mr-1 size-4" />
             Yeni transfer
@@ -990,9 +1007,10 @@ function TransferListView(): ReactElement {
 }
 
 export function StockTransferPage(): ReactElement {
+  usePageTitle('Stok transferi');
   const { id } = useParams<{ id?: string }>();
   if (id) {
     return <TransferDetailView id={id} />;
   }
-  return <TransferListView />;
+  return <StockTransfersTab />;
 }

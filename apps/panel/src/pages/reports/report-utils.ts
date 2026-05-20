@@ -1,8 +1,17 @@
-import { format, startOfYear, subDays } from 'date-fns';
+import {
+  format,
+  startOfMonth,
+  startOfWeek,
+  startOfYear,
+  subDays,
+  subMonths,
+} from 'date-fns';
 
 import { getMarketplaceDisplay } from '@/lib/platform-display';
 
 export type PeriodPreset = '7' | '30' | '90' | 'ytd' | 'custom';
+
+export type SalesPeriodPreset = 'week' | 'month' | '3month' | 'custom';
 
 export const SALES_PLATFORM_OPTIONS = [
   'TRENDYOL',
@@ -28,6 +37,34 @@ export function formatTry(n: number): string {
 
 export function todayIso(): string {
   return format(new Date(), 'yyyy-MM-dd');
+}
+
+export function salesPeriodRangeFromPreset(
+  preset: SalesPeriodPreset,
+): { start: string; end: string } {
+  const end = new Date();
+  if (preset === 'week') {
+    return {
+      start: format(startOfWeek(end, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      end: format(end, 'yyyy-MM-dd'),
+    };
+  }
+  if (preset === 'month') {
+    return {
+      start: format(startOfMonth(end), 'yyyy-MM-dd'),
+      end: format(end, 'yyyy-MM-dd'),
+    };
+  }
+  if (preset === '3month') {
+    return {
+      start: format(subMonths(end, 3), 'yyyy-MM-dd'),
+      end: format(end, 'yyyy-MM-dd'),
+    };
+  }
+  return {
+    start: format(subDays(end, 29), 'yyyy-MM-dd'),
+    end: format(end, 'yyyy-MM-dd'),
+  };
 }
 
 export function periodRangeFromPreset(preset: PeriodPreset): { start: string; end: string } {

@@ -71,8 +71,11 @@ function reasonLabel(row: StockMovementDto): string {
   return movementSourceLabel(row.movementType, row.orderId, row.note);
 }
 
-export function StockMovementPage(): ReactElement {
-  usePageTitle('Stok hareket geçmişi');
+interface MovementsTabProps {
+  embedded?: boolean;
+}
+
+export function StockMovementsTab({ embedded = false }: MovementsTabProps): ReactElement {
   const [params, setParams] = useSearchParams();
 
   const warehousesQuery = useWarehouses();
@@ -202,16 +205,18 @@ export function StockMovementPage(): ReactElement {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Stok hareket geçmişi
-        </h1>
-        <p className="text-muted-foreground">
-          Giriş, çıkış, transfer, sayım, iade ve sipariş kaynaklı hareketleri
-          filtreleyin.
-        </p>
-      </div>
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
+      {!embedded ? (
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">
+            Stok hareket geçmişi
+          </h1>
+          <p className="text-muted-foreground">
+            Giriş, çıkış, transfer, sayım, iade ve sipariş kaynaklı hareketleri
+            filtreleyin.
+          </p>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -434,4 +439,9 @@ export function StockMovementPage(): ReactElement {
       </Card>
     </div>
   );
+}
+
+export function StockMovementPage(): ReactElement {
+  usePageTitle('Stok hareket geçmişi');
+  return <StockMovementsTab />;
 }

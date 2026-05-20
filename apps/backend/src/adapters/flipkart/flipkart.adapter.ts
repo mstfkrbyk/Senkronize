@@ -1,5 +1,3 @@
-import { Buffer } from 'node:buffer';
-
 import { Injectable, Logger } from '@nestjs/common';
 import type { AxiosRequestConfig } from 'axios';
 import type {
@@ -20,18 +18,21 @@ import { parseMoney, throwSyncFailed } from '../stub-helpers';
 import {
   FLIPKART_API_BASE,
   FLIPKART_DEFAULT_CURRENCY,
-  FLIPKART_DEFAULT_LOCATION_ID,
   FLIPKART_ORDER_STATE,
   FLIPKART_PAGE_SIZE,
 } from './flipkart.constants';
+import { fetchFlipkartClientCredentialsToken } from './flipkart.oauth';
 import type {
+  FlipkartDispatchPayload,
   FlipkartListingRow,
-  FlipkartListingsResponse,
+  FlipkartListingsV3Response,
   FlipkartOrderItem,
   FlipkartOrderSummary,
   FlipkartOrdersFilterResponse,
   FlipkartShipmentPayload,
 } from './flipkart.types';
+
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class FlipkartAdapter implements IMarketplaceAdapter {
@@ -42,45 +43,56 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     return PLATFORM_RATE_LIMITS.FLIPKART ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private resolveApiCredentials(credentials: Record<string, string>): {
-    apiKey: string;
-    secretKey: string;
+  private resolveClientCredentials(credentials: Record<string, string>): {
+    clientId: string;
+    clientSecret: string;
   } {
-    const apiKey =
-      credentials.apiKey?.trim() ||
+    const clientId =
       credentials.clientId?.trim() ||
+      credentials.apiKey?.trim() ||
       '';
-    const secretKey =
-      credentials.secretKey?.trim() ||
+    const clientSecret =
       credentials.clientSecret?.trim() ||
+      credentials.secretKey?.trim() ||
       credentials.apiSecret?.trim() ||
       '';
-    if (!apiKey || !secretKey) {
-      throw new Error(
-        'Flipkart: apiKey ve secretKey (Basic Auth) zorunludur',
-      );
+    if (!clientId || !clientSecret) {
+      throw new Error('Flipkart: clientId ve clientSecret zorunludur');
     }
-    return { apiKey, secretKey };
+    return { clientId, clientSecret };
   }
 
-  private auth(credentials: Record<string, string>): Pick<AxiosRequestConfig, 'headers'> {
-    const { apiKey, secretKey } = this.resolveApiCredentials(credentials);
-    const basic = Buffer.from(`${apiKey}:${secretKey}`, 'utf8').toString('base64');
+  private async getAccessToken(credentials: Record<string, string>): Promise<string> {
+    const direct = credentials.accessToken?.trim();
+    const expiresRaw = credentials.tokenExpiresAt?.trim();
+    if (direct && expiresRaw) {
+      const expiresAt = Number.parseInt(expiresRaw, 10);
+      if (Number.isFinite(expiresAt) && Date.now() < expiresAt - TOKEN_REFRESH_BUFFER_MS) {
+        return direct;
+      }
+    } else if (direct && !credentials.clientSecret?.trim() && !credentials.secretKey?.trim()) {
+      return direct;
+    }
+
+    const { clientId, clientSecret } = this.resolveClientCredentials(credentials);
+    const tokens = await fetchFlipkartClientCredentialsToken(clientId, clientSecret);
+    credentials.accessToken = tokens.accessToken;
+    credentials.tokenExpiresAt = String(tokens.tokenExpiresAt);
+    return tokens.accessToken;
+  }
+
+  private auth(token: string): Pick<AxiosRequestConfig, 'headers'> {
     return {
       headers: {
-        Authorization: `Basic ${basic}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     };
   }
 
-  private locationId(credentials: Record<string, string>): string {
-    const loc = credentials.locationId?.trim();
-    return loc && loc.length > 0 ? loc : FLIPKART_DEFAULT_LOCATION_ID;
-  }
-
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
+      const token = await this.getAccessToken(credentials);
       await withRateLimit('FLIPKART', this.rpm(), async () => {
         await axiosWithRetry<FlipkartOrdersFilterResponse>(
           {
@@ -90,9 +102,8 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
             params: {
               orderState: FLIPKART_ORDER_STATE,
               pageSize: 1,
-              pageNumber: 1,
             },
-            ...this.auth(credentials),
+            ...this.auth(token),
           },
           { maxRetries: 1 },
         );
@@ -149,7 +160,9 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
             ? l.fsn
             : typeof l.sku === 'string'
               ? l.sku
-              : '';
+              : typeof l.skuId === 'string'
+                ? l.skuId
+                : '';
         const qty =
           typeof l.quantity === 'number' && Number.isFinite(l.quantity)
             ? Math.max(0, Math.round(l.quantity))
@@ -179,13 +192,14 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     orderId: string,
   ): Promise<FlipkartOrderSummary | null> {
     try {
+      const token = await this.getAccessToken(credentials);
       return await withRateLimit('FLIPKART', this.rpm(), async () => {
         return await axiosWithRetry<FlipkartOrderSummary>(
           {
             method: 'GET',
             url: `${FLIPKART_API_BASE}/orders/${encodeURIComponent(orderId)}`,
             timeout: 20_000,
-            ...this.auth(credentials),
+            ...this.auth(token),
           },
           { maxRetries: 1 },
         );
@@ -204,31 +218,40 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
+      const token = await this.getAccessToken(credentials);
       const all: MarketplaceOrder[] = [];
       let pageNumber = 1;
-      let hasMore = true;
+      let nextAbsoluteUrl: string | undefined;
+      const baseParams: Record<string, string | number> = {
+        orderState: FLIPKART_ORDER_STATE,
+        pageSize: FLIPKART_PAGE_SIZE,
+      };
+      if (since !== undefined) {
+        baseParams.fromDate = since.toISOString();
+        baseParams.toDate = new Date().toISOString();
+      }
 
       await withRateLimit('FLIPKART', this.rpm(), async () => {
-        while (hasMore) {
+        for (;;) {
           const data = await axiosWithRetry<FlipkartOrdersFilterResponse>(
             {
               method: 'GET',
-              url: `${FLIPKART_API_BASE}/orders/filter`,
+              url: nextAbsoluteUrl ?? `${FLIPKART_API_BASE}/orders/filter`,
               timeout: 25_000,
-              params: {
-                orderState: FLIPKART_ORDER_STATE,
-                pageSize: FLIPKART_PAGE_SIZE,
-                pageNumber,
-              },
-              ...this.auth(credentials),
+              ...(nextAbsoluteUrl
+                ? {}
+                : { params: { ...baseParams, pageNumber } }),
+              ...this.auth(token),
             },
             {},
           );
-          const rows = Array.isArray(data.orderList)
-            ? data.orderList
-            : Array.isArray(data.orders)
-              ? data.orders
-              : [];
+          const rows = Array.isArray(data.orderItems)
+            ? data.orderItems
+            : Array.isArray(data.orderList)
+              ? data.orderList
+              : Array.isArray(data.orders)
+                ? data.orders
+                : [];
           for (const row of rows) {
             if (since !== undefined) {
               const createdRaw = row.orderDate;
@@ -244,18 +267,24 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
               all.push(mapped);
             }
           }
-          hasMore =
-            data.hasMore === true ||
-            (rows.length >= FLIPKART_PAGE_SIZE &&
-              typeof data.nextPageNumber === 'number');
-          if (rows.length < FLIPKART_PAGE_SIZE) {
-            hasMore = false;
-          } else {
-            pageNumber =
-              typeof data.nextPageNumber === 'number'
-                ? data.nextPageNumber
-                : pageNumber + 1;
+          const nextPageUrl =
+            typeof data.nextPageUrl === 'string' && data.nextPageUrl.length > 0
+              ? data.nextPageUrl
+              : undefined;
+          if (nextPageUrl) {
+            nextAbsoluteUrl = nextPageUrl;
+            continue;
           }
+          if (
+            data.hasMore === true &&
+            rows.length >= FLIPKART_PAGE_SIZE &&
+            typeof data.nextPageNumber === 'number'
+          ) {
+            nextAbsoluteUrl = undefined;
+            pageNumber = data.nextPageNumber;
+            continue;
+          }
+          break;
         }
       });
       return all;
@@ -264,39 +293,49 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     }
   }
 
+  private listingSku(row: FlipkartListingRow): string {
+    return (
+      (typeof row.skuId === 'string' && row.skuId) ||
+      (typeof row.fsn === 'string' && row.fsn) ||
+      (typeof row.sku === 'string' && row.sku) ||
+      ''
+    );
+  }
+
   private mapListing(row: FlipkartListingRow): MarketplaceListing | null {
-    const fsn =
-      typeof row.fsn === 'string'
-        ? row.fsn
-        : typeof row.sku === 'string'
-          ? row.sku
-          : '';
-    if (fsn.length === 0) {
+    const sku = this.listingSku(row);
+    if (sku.length === 0) {
       return null;
     }
     const qty =
-      typeof row.inventory?.quantity === 'number' &&
-      Number.isFinite(row.inventory.quantity)
-        ? Math.max(0, Math.round(row.inventory.quantity))
-        : 0;
+      typeof row.available === 'number' && Number.isFinite(row.available)
+        ? Math.max(0, Math.round(row.available))
+        : typeof row.inventory?.available === 'number' &&
+            Number.isFinite(row.inventory.available)
+          ? Math.max(0, Math.round(row.inventory.available))
+          : typeof row.inventory?.quantity === 'number' &&
+              Number.isFinite(row.inventory.quantity)
+            ? Math.max(0, Math.round(row.inventory.quantity))
+            : 0;
     const sale = parseMoney(
-      row.price?.selling_price ?? row.price?.sellingPrice,
+      row.sellingPrice ?? row.price?.selling_price ?? row.price?.sellingPrice,
     );
-    const list = parseMoney(row.price?.mrp ?? sale);
+    const list = parseMoney(row.mrp ?? row.price?.mrp ?? sale);
     const title =
       typeof row.productTitle === 'string'
         ? row.productTitle
         : typeof row.title === 'string'
           ? row.title
-          : fsn;
+          : sku;
+    const status = row.status ?? row.listingStatus;
     return {
-      platformProductId: fsn,
-      barcode: fsn,
+      platformProductId: sku,
+      barcode: sku,
       title,
       quantity: qty,
       salePrice: sale,
       listPrice: list,
-      approved: row.listingStatus === 'ACTIVE' || row.listingStatus === undefined,
+      approved: status === 'ACTIVE' || status === undefined,
       images: [],
     };
   }
@@ -306,54 +345,43 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     try {
-      const skuListRaw = credentials.listingSkus?.trim();
-      if (!skuListRaw) {
-        return {
-          items: [],
-          total: 0,
-          page,
-          pageSize: FLIPKART_PAGE_SIZE,
-        };
-      }
-      const skus = skuListRaw
-        .split(/[,;\s]+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      const pageSkus = skus.slice(
-        page * FLIPKART_PAGE_SIZE,
-        (page + 1) * FLIPKART_PAGE_SIZE,
-      );
-      const items: MarketplaceListing[] = [];
-
-      await withRateLimit('FLIPKART', this.rpm(), async () => {
-        for (const fsn of pageSkus) {
-          const data = await axiosWithRetry<FlipkartListingsResponse>(
-            {
-              method: 'GET',
-              url: `${FLIPKART_API_BASE}/listings`,
-              timeout: 20_000,
-              params: { fsn, listingStatus: 'ACTIVE' },
-              ...this.auth(credentials),
+      const token = await this.getAccessToken(credentials);
+      const pageNumber = page + 1;
+      const data = await withRateLimit('FLIPKART', this.rpm(), async () => {
+        return await axiosWithRetry<FlipkartListingsV3Response>(
+          {
+            method: 'GET',
+            url: `${FLIPKART_API_BASE}/listings/v3`,
+            timeout: 25_000,
+            params: {
+              status: 'ACTIVE',
+              page: pageNumber,
+              pageSize: FLIPKART_PAGE_SIZE,
             },
-            { maxRetries: 1 },
-          );
-          const rows = Array.isArray(data.listings)
-            ? data.listings
-            : Array.isArray(data.available)
-              ? data.available
-              : [];
-          for (const row of rows) {
-            const mapped = this.mapListing(row);
-            if (mapped) {
-              items.push(mapped);
-            }
-          }
-        }
+            ...this.auth(token),
+          },
+          {},
+        );
       });
-
+      const rows = Array.isArray(data.listings)
+        ? data.listings
+        : Array.isArray(data.available)
+          ? data.available
+          : [];
+      const items: MarketplaceListing[] = [];
+      for (const row of rows) {
+        const mapped = this.mapListing(row);
+        if (mapped) {
+          items.push(mapped);
+        }
+      }
+      const total =
+        typeof data.totalCount === 'number' && Number.isFinite(data.totalCount)
+          ? data.totalCount
+          : items.length;
       return {
         items,
-        total: skus.length,
+        total,
         page,
         pageSize: FLIPKART_PAGE_SIZE,
       };
@@ -362,32 +390,38 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     }
   }
 
+  private buildListingsV2Patch(
+    updates: Array<{ skuId: string; available?: number; mrp?: number; sellingPrice?: number }>,
+  ): Record<string, { available: number; mrp: number; sellingPrice: number }> {
+    const body: Record<string, { available: number; mrp: number; sellingPrice: number }> = {};
+    for (const u of updates) {
+      body[u.skuId] = {
+        available: Math.max(0, Math.round(u.available ?? 0)),
+        mrp: u.mrp ?? 0,
+        sellingPrice: u.sellingPrice ?? 0,
+      };
+    }
+    return body;
+  }
+
   async updateStock(
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const loc = this.locationId(credentials);
-      const currency =
-        credentials.currency?.trim().toUpperCase() || FLIPKART_DEFAULT_CURRENCY;
+      const token = await this.getAccessToken(credentials);
+      const patchUpdates = updates.map((u) => ({
+        skuId: u.barcode.trim(),
+        available: Math.max(0, Math.round(u.quantity)),
+      }));
       await withRateLimit('FLIPKART', this.rpm(), async () => {
-        const listings = updates.map((u) => ({
-          fsn: u.barcode.trim(),
-          locationId: loc,
-          inventory: { quantity: Math.max(0, Math.round(u.quantity)) },
-          price: {
-            currency,
-            mrp: 0,
-            selling_price: 0,
-          },
-        }));
         await axiosWithRetry<unknown>(
           {
-            method: 'PUT',
-            url: `${FLIPKART_API_BASE}/listings`,
+            method: 'PATCH',
+            url: `${FLIPKART_API_BASE}/listings/v2`,
             timeout: 25_000,
-            data: { listings },
-            ...this.auth(credentials),
+            data: this.buildListingsV2Patch(patchUpdates),
+            ...this.auth(token),
           },
           { maxRetries: 2 },
         );
@@ -402,27 +436,20 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     try {
-      const loc = this.locationId(credentials);
-      const currency =
-        credentials.currency?.trim().toUpperCase() || FLIPKART_DEFAULT_CURRENCY;
+      const token = await this.getAccessToken(credentials);
+      const patchUpdates = updates.map((u) => ({
+        skuId: u.barcode.trim(),
+        mrp: u.listPrice > 0 ? u.listPrice : u.salePrice,
+        sellingPrice: u.salePrice,
+      }));
       await withRateLimit('FLIPKART', this.rpm(), async () => {
-        const listings = updates.map((u) => ({
-          fsn: u.barcode.trim(),
-          locationId: loc,
-          inventory: { quantity: 0 },
-          price: {
-            currency,
-            mrp: u.listPrice > 0 ? u.listPrice : u.salePrice,
-            selling_price: u.salePrice,
-          },
-        }));
         await axiosWithRetry<unknown>(
           {
-            method: 'PUT',
-            url: `${FLIPKART_API_BASE}/listings`,
+            method: 'PATCH',
+            url: `${FLIPKART_API_BASE}/listings/v2`,
             timeout: 25_000,
-            data: { listings },
-            ...this.auth(credentials),
+            data: this.buildListingsV2Patch(patchUpdates),
+            ...this.auth(token),
           },
           { maxRetries: 2 },
         );
@@ -432,29 +459,56 @@ export class FlipkartAdapter implements IMarketplaceAdapter {
     }
   }
 
-  async createShipment(
+  async dispatchOrder(
     credentials: Record<string, string>,
-    payload: FlipkartShipmentPayload,
+    payload: FlipkartDispatchPayload,
   ): Promise<void> {
     try {
+      const token = await this.getAccessToken(credentials);
       await withRateLimit('FLIPKART', this.rpm(), async () => {
         await axiosWithRetry<unknown>(
           {
             method: 'POST',
-            url: `${FLIPKART_API_BASE}/orders/${encodeURIComponent(payload.orderId)}/shipments`,
+            url: `${FLIPKART_API_BASE}/orders/dispatch`,
             timeout: 25_000,
-            data: {
-              subOrderIds: payload.subOrderIds,
-              trackingId: payload.trackingId,
-              serviceName: payload.serviceName?.trim() || 'FEDEX',
-            },
-            ...this.auth(credentials),
+            data: payload,
+            ...this.auth(token),
           },
           { maxRetries: 2 },
         );
       });
     } catch (error) {
-      throwSyncFailed('FLIPKART', 'createShipment', error);
+      throwSyncFailed('FLIPKART', 'dispatchOrder', error);
     }
+  }
+
+  /** @deprecated dispatchOrder kullanın */
+  async createShipment(
+    credentials: Record<string, string>,
+    payload: FlipkartShipmentPayload,
+  ): Promise<void> {
+    const detail = await this.getOrderDetail(credentials, payload.orderId);
+    const lines = detail ? this.collectOrderItems(detail) : [];
+    const shipments = lines
+      .filter((l) => typeof l.orderItemId === 'string' && l.orderItemId.length > 0)
+      .map((l) => ({
+        orderItemId: l.orderItemId as string,
+        fsn:
+          (typeof l.fsn === 'string' && l.fsn) ||
+          (typeof l.sku === 'string' && l.sku) ||
+          (typeof l.skuId === 'string' && l.skuId) ||
+          '',
+        quantity:
+          typeof l.quantity === 'number' && Number.isFinite(l.quantity)
+            ? Math.max(1, Math.round(l.quantity))
+            : 1,
+        trackingId: payload.trackingId,
+        serviceName: payload.serviceName?.trim() || 'FEDEX',
+      }))
+      .filter((s) => s.fsn.length > 0);
+    if (shipments.length === 0) {
+      throw new Error('Flipkart: kargo bildirimi için sipariş kalemi bulunamadı');
+    }
+    await this.dispatchOrder(credentials, { shipments });
   }
 }

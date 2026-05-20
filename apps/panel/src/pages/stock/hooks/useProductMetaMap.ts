@@ -8,6 +8,7 @@ export interface ProductMeta {
   imageUrl: string | null;
   reorderPoint: number | null;
   reorderQty: number | null;
+  category: string | null;
 }
 
 function parseOptionalInt(value: unknown): number | null {
@@ -39,6 +40,7 @@ export function useProductMetaMap() {
           imageUrl: p.imageUrls[0] ?? null,
           reorderPoint: parseOptionalInt(p.reorderPoint),
           reorderQty: parseOptionalInt(p.reorderQty),
+          category: p.category ?? null,
         });
       }
       return map;

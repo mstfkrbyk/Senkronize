@@ -201,3 +201,47 @@ export function summarizeSales(rows: SalesReportData[]): {
   const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
   return { totalOrders, totalRevenue, averageOrderValue };
 }
+
+export function weightedReturnRate(
+  rows: SalesReportData[],
+  returnRateByPlatform: Record<string, number>,
+): number {
+  let totalOrders = 0;
+  let weightedReturns = 0;
+  for (const row of rows) {
+    for (const [platform, cnt] of Object.entries(row.byPlatform)) {
+      if (cnt <= 0) continue;
+      totalOrders += cnt;
+      weightedReturns += cnt * (returnRateByPlatform[platform] ?? 0);
+    }
+  }
+  if (totalOrders <= 0) return 0;
+  return Math.round((weightedReturns / totalOrders) * 10) / 10;
+}
+
+export function buildPlatformSalesTable(
+  rows: SalesReportData[],
+): Array<{ platform: string; orders: number; revenue: number; sharePct: number }> {
+  const totals: Record<string, { orders: number; revenue: number }> = {};
+  for (const row of rows) {
+    const orderSum = sumPlatforms(row.byPlatform) || 1;
+    for (const [platform, cnt] of Object.entries(row.byPlatform)) {
+      if (cnt <= 0) continue;
+      const share = cnt / orderSum;
+      const revenue = Math.round(row.totalRevenue * share);
+      const existing = totals[platform] ?? { orders: 0, revenue: 0 };
+      existing.orders += cnt;
+      existing.revenue += revenue;
+      totals[platform] = existing;
+    }
+  }
+  const totalRevenue = Object.values(totals).reduce((s, t) => s + t.revenue, 0);
+  return Object.entries(totals)
+    .map(([platform, data]) => ({
+      platform,
+      orders: data.orders,
+      revenue: data.revenue,
+      sharePct: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+}

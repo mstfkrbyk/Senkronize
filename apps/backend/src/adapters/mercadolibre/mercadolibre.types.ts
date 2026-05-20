@@ -2,7 +2,7 @@ export interface MercadolibreTokenResponse {
   access_token?: string;
   refresh_token?: string;
   expires_in?: number;
-  user_id?: number;
+  user_id?: number | string;
 }
 
 export interface MercadolibreOrderItem {
@@ -53,4 +53,17 @@ export interface MercadolibreItemsSearchResponse {
 export interface MercadolibreFulfillmentPayload {
   shipmentId: string;
   orderItemIds: string[];
+}
+
+export interface MercadolibreQuestion {
+  id: number | string;
+  text?: string;
+  status?: string;
+  date_created?: string;
+  item_id?: string;
+}
+
+export interface MercadolibreQuestionsSearchResponse {
+  questions?: MercadolibreQuestion[];
+  total?: number;
 }

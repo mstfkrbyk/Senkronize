@@ -1,39 +1,39 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
-import { AnalyticsPage } from './AnalyticsPage';
-import { CustomReportPage } from './CustomReportPage';
-import { ProfitReportPage } from './ProfitReportPage';
-import { ReportSchedulePage } from './ReportSchedulePage';
+import { CustomReportsTab } from './CustomReportsTab';
+import { PlatformAnalyticsTab } from './PlatformAnalyticsTab';
+import { ProfitLossTab } from './ProfitLossTab';
 import { SalesReportTab } from './SalesReportTab';
-import { SavedReportsList } from './SavedReportsList';
-import { TaxReportPage } from './TaxReportPage';
+import { ScheduledReportsTab } from './ScheduledReportsTab';
+import { TaxReportTab } from './TaxReportTab';
 
 export function ReportsPage(): ReactElement {
-  usePageTitle('Raporlar');
+  const { t } = useTranslation();
+  usePageTitle(t('nav.reports'));
   const [tab, setTab] = useState('sales');
-  const [customSubTab, setCustomSubTab] = useState<'builder' | 'saved'>('builder');
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">Raporlar</h1>
-        <p className="text-muted-foreground">
-          Satış, kâr/zarar, vergi, analitik, özel raporlar ve zamanlanmış gönderimler.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">
+          {t('nav.reports')}
+        </h1>
+        <p className="text-muted-foreground">{t('reports.subtitle')}</p>
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="sales">Satış Raporu</TabsTrigger>
-          <TabsTrigger value="profit">Kâr/Zarar</TabsTrigger>
-          <TabsTrigger value="tax">Vergi</TabsTrigger>
-          <TabsTrigger value="analytics">Analitik</TabsTrigger>
-          <TabsTrigger value="custom">Özel Raporlar</TabsTrigger>
-          <TabsTrigger value="schedule">Zamanlama</TabsTrigger>
+          <TabsTrigger value="sales">{t('reports.tabs.sales')}</TabsTrigger>
+          <TabsTrigger value="profit">{t('reports.tabs.profit')}</TabsTrigger>
+          <TabsTrigger value="tax">{t('reports.tabs.tax')}</TabsTrigger>
+          <TabsTrigger value="analytics">{t('reports.tabs.analytics')}</TabsTrigger>
+          <TabsTrigger value="custom">{t('reports.tabs.custom')}</TabsTrigger>
+          <TabsTrigger value="schedule">{t('reports.tabs.schedule')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="sales">
@@ -41,38 +41,23 @@ export function ReportsPage(): ReactElement {
         </TabsContent>
 
         <TabsContent value="profit">
-          <ProfitReportPage />
+          <ProfitLossTab />
         </TabsContent>
 
         <TabsContent value="tax">
-          <TaxReportPage />
+          <TaxReportTab />
         </TabsContent>
 
         <TabsContent value="analytics">
-          <AnalyticsPage />
+          <PlatformAnalyticsTab />
         </TabsContent>
 
-        <TabsContent value="custom" className="space-y-4">
-          <Tabs
-            value={customSubTab}
-            onValueChange={(v) => setCustomSubTab(v as 'builder' | 'saved')}
-            className="space-y-4"
-          >
-            <TabsList className="flex h-auto flex-wrap gap-1">
-              <TabsTrigger value="builder">Rapor oluşturucu</TabsTrigger>
-              <TabsTrigger value="saved">Kayıtlı raporlar</TabsTrigger>
-            </TabsList>
-            <TabsContent value="builder">
-              <CustomReportPage />
-            </TabsContent>
-            <TabsContent value="saved">
-              <SavedReportsList />
-            </TabsContent>
-          </Tabs>
+        <TabsContent value="custom">
+          <CustomReportsTab />
         </TabsContent>
 
         <TabsContent value="schedule">
-          <ReportSchedulePage />
+          <ScheduledReportsTab />
         </TabsContent>
       </Tabs>
     </div>

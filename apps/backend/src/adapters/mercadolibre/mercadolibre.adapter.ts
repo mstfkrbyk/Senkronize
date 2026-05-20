@@ -20,13 +20,19 @@ import {
   MERCADOLIBRE_DEFAULT_CURRENCY,
   MERCADOLIBRE_ORDERS_PAGE_SIZE,
 } from './mercadolibre.constants';
-import { refreshMercadolibreAccessToken } from './mercadolibre.oauth';
+import {
+  buildMercadolibreAuthorizeUrl,
+  refreshMercadolibreAccessToken,
+} from './mercadolibre.oauth';
 import type {
   MercadolibreFulfillmentPayload,
   MercadolibreItemSearchHit,
   MercadolibreItemsSearchResponse,
   MercadolibreOrder,
+  MercadolibreOrderItem,
   MercadolibreOrdersSearchResponse,
+  MercadolibreQuestion,
+  MercadolibreQuestionsSearchResponse,
   MercadolibreShipment,
 } from './mercadolibre.types';
 
@@ -39,6 +45,18 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
 
   private rpm(): number {
     return PLATFORM_RATE_LIMITS.MERCADOLIBRE ?? PLATFORM_RATE_LIMITS.DEFAULT;
+  }
+
+  getAuthorizationUrl(
+    credentials: Record<string, string>,
+    state: string,
+    redirectUri: string,
+  ): string {
+    const clientId = credentials.clientId?.trim() ?? '';
+    if (!clientId) {
+      throw new Error('MercadoLibre: clientId zorunludur');
+    }
+    return buildMercadolibreAuthorizeUrl(clientId, redirectUri, state);
   }
 
   private authHeaders(token: string): Pick<AxiosRequestConfig, 'headers'> {
@@ -100,6 +118,10 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
     credentials.accessToken = tokens.accessToken;
     credentials.refreshToken = tokens.refreshToken;
     credentials.tokenExpiresAt = String(tokens.tokenExpiresAt);
+    if (tokens.userId && !credentials.sellerId?.trim() && !credentials.userId?.trim()) {
+      credentials.sellerId = tokens.userId;
+      credentials.userId = tokens.userId;
+    }
     return tokens.accessToken;
   }
 
@@ -110,7 +132,7 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
       await axiosWithRetry<MercadolibreOrdersSearchResponse>(
         {
           method: 'GET',
-          url: `${MERCADOLIBRE_API_BASE}/orders/search/recent`,
+          url: `${MERCADOLIBRE_API_BASE}/orders/search`,
           timeout: 12_000,
           params: {
             seller: sellerId,
@@ -183,7 +205,7 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
   ): Promise<MercadolibreOrder | null> {
     try {
       const token = await this.getAccessToken(credentials);
-      return await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
+      const order = await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
         return await axiosWithRetry<MercadolibreOrder>(
           {
             method: 'GET',
@@ -194,12 +216,44 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
           { maxRetries: 1 },
         );
       });
+      const items = await this.getOrderItems(credentials, orderId);
+      if (items.length > 0) {
+        order.order_items = items;
+      }
+      return order;
     } catch (error) {
       this.logger.warn('MercadoLibre sipariş detayı alınamadı', {
         orderId,
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
       return null;
+    }
+  }
+
+  async getOrderItems(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<MercadolibreOrderItem[]> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      return await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
+        const data = await axiosWithRetry<{ order_items?: MercadolibreOrderItem[] }>(
+          {
+            method: 'GET',
+            url: `${MERCADOLIBRE_API_BASE}/orders/${encodeURIComponent(orderId)}/order_items`,
+            timeout: 20_000,
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 1 },
+        );
+        return Array.isArray(data.order_items) ? data.order_items : [];
+      });
+    } catch (error) {
+      this.logger.warn('MercadoLibre sipariş kalemleri alınamadı', {
+        orderId,
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return [];
     }
   }
 
@@ -229,6 +283,30 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
     }
   }
 
+  async updateShipmentTracking(
+    credentials: Record<string, string>,
+    shipmentId: string,
+    trackingNumber: string,
+  ): Promise<void> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
+        await axiosWithRetry<unknown>(
+          {
+            method: 'PUT',
+            url: `${MERCADOLIBRE_API_BASE}/shipments/${encodeURIComponent(shipmentId)}/tracking_number`,
+            timeout: 25_000,
+            data: { tracking_number: trackingNumber.trim() },
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 2 },
+        );
+      });
+    } catch (error) {
+      throwSyncFailed('MERCADOLIBRE', 'updateShipmentTracking', error);
+    }
+  }
+
   async getOrders(
     credentials: Record<string, string>,
     since?: Date,
@@ -244,7 +322,7 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
           const data = await axiosWithRetry<MercadolibreOrdersSearchResponse>(
             {
               method: 'GET',
-              url: `${MERCADOLIBRE_API_BASE}/orders/search/recent`,
+              url: `${MERCADOLIBRE_API_BASE}/orders/search`,
               timeout: 25_000,
               params: {
                 seller: sellerId,
@@ -427,6 +505,64 @@ export class MercadolibreAdapter implements IMarketplaceAdapter {
       });
     } catch (error) {
       throwSyncFailed('MERCADOLIBRE', 'updatePrice', error);
+    }
+  }
+
+  async getQuestions(
+    credentials: Record<string, string>,
+    listingId: string,
+  ): Promise<MercadolibreQuestion[]> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      const data = await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
+        return await axiosWithRetry<MercadolibreQuestionsSearchResponse>(
+          {
+            method: 'GET',
+            url: `${MERCADOLIBRE_API_BASE}/questions/search`,
+            timeout: 20_000,
+            params: {
+              item_id: listingId.trim(),
+              status: 'UNANSWERED',
+            },
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 1 },
+        );
+      });
+      return Array.isArray(data.questions) ? data.questions : [];
+    } catch (error) {
+      this.logger.warn('MercadoLibre sorular alınamadı', {
+        listingId,
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return [];
+    }
+  }
+
+  async answerQuestion(
+    credentials: Record<string, string>,
+    questionId: string,
+    text: string,
+  ): Promise<void> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      await withRateLimit('MERCADOLIBRE', this.rpm(), async () => {
+        await axiosWithRetry<unknown>(
+          {
+            method: 'POST',
+            url: `${MERCADOLIBRE_API_BASE}/answers`,
+            timeout: 25_000,
+            data: {
+              question_id: questionId,
+              text: text.trim(),
+            },
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 2 },
+        );
+      });
+    } catch (error) {
+      throwSyncFailed('MERCADOLIBRE', 'answerQuestion', error);
     }
   }
 

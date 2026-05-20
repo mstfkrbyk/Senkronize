@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Camera, Check, Minus, Plus, ScanLine, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -33,10 +34,15 @@ import {
 } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
-import { api } from '@/lib/api';
-import type { StockListResponse } from '@/types/stock';
 
-import { useCreateStockCountSession } from './hooks/useStockCount';
+import {
+  fetchProductByBarcode,
+  useProductByBarcode,
+} from './hooks/useProductByBarcode';
+import {
+  useCreateStockCountSession,
+  useUpsertStockCountItem,
+} from './hooks/useStockCount';
 import { useWarehouses } from './hooks/useStockManagement';
 
 interface ScannedRow {
@@ -47,18 +53,26 @@ interface ScannedRow {
 }
 
 export function StockCountScanPage(): ReactElement {
-  usePageTitle('Barkod ile sayım');
-  const navigate = useNavigate();
+  const { t } = useTranslation();
+  usePageTitle(t('stock.countScan.title'));
 
   const warehousesQ = useWarehouses();
   const createSession = useCreateStockCountSession();
 
   const [warehouseId, setWarehouseId] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [activeBarcode, setActiveBarcode] = useState('');
   const [countedInput, setCountedInput] = useState('1');
   const [rows, setRows] = useState<ScannedRow[]>([]);
-  const [finishing, setFinishing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const upsertItem = useUpsertStockCountItem(sessionId ?? undefined);
+
+  const productQ = useProductByBarcode(
+    activeBarcode || undefined,
+    warehouseId || undefined,
+  );
 
   useEffect(() => {
     if (warehousesQ.data?.length && !warehouseId) {
@@ -68,84 +82,114 @@ export function StockCountScanPage(): ReactElement {
     }
   }, [warehousesQ.data, warehouseId]);
 
-  const lookupProduct = useCallback(
-    async (barcode: string): Promise<{ name: string; systemQty: number }> => {
-      const { data } = await api.get<StockListResponse>('/stock', {
-        params: { search: barcode, limit: 5, page: 1, warehouseId },
-      });
-      const match =
-        data.items.find((i) => i.barcode === barcode) ?? data.items[0];
-      return {
-        name: match?.product?.name ?? barcode,
-        systemQty: match?.quantity ?? 0,
-      };
-    },
-    [warehouseId],
-  );
+  useEffect(() => {
+    if (!warehouseId) {
+      return;
+    }
+    let cancelled = false;
+    void (async (): Promise<void> => {
+      try {
+        const session = await createSession.mutateAsync({
+          warehouseId,
+          countMode: 'FULL',
+        });
+        if (!cancelled) {
+          setSessionId(session.id);
+          setRows([]);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          toast.error(getApiErrorMessage(e));
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- yalnızca depo değişince yeni oturum
+  }, [warehouseId]);
+
+  const onScan = (code: string): void => {
+    setActiveBarcode(code);
+    setCountedInput('1');
+    setScannerOpen(false);
+  };
+
+  useEffect(() => {
+    if (!activeBarcode || !productQ.data) {
+      return;
+    }
+    const qty = productQ.data.systemQty > 0 ? productQ.data.systemQty : 1;
+    setCountedInput(String(qty));
+    toast.success(t('stock.countScan.scanned', { name: productQ.data.name }));
+  }, [activeBarcode, productQ.data, t]);
 
   const addOrUpdateScan = useCallback(
     async (barcode: string, counted: number): Promise<void> => {
       const trimmed = barcode.trim();
-      if (!trimmed) {
+      if (!trimmed || !sessionId) {
+        toast.error(t('stock.countScan.sessionRequired'));
         return;
       }
+
       const existing = rows.find((r) => r.barcode === trimmed);
+      const remote = existing
+        ? null
+        : await fetchProductByBarcode(trimmed, warehouseId);
+      const lookup = {
+        name: existing?.name ?? remote?.name ?? trimmed,
+        systemQty:
+          existing?.systemQty ??
+          remote?.systemQty ??
+          productQ.data?.systemQty ??
+          0,
+      };
+
+      await upsertItem.mutateAsync({
+        barcode: trimmed,
+        countedQuantity: counted,
+      });
+
       if (existing) {
         setRows((prev) =>
           prev.map((r) =>
             r.barcode === trimmed ? { ...r, countedQty: counted } : r,
           ),
         );
-        return;
-      }
-      try {
-        const { name, systemQty } = await lookupProduct(trimmed);
-        setRows((prev) => [
-          { barcode: trimmed, name, systemQty, countedQty: counted },
-          ...prev,
-        ]);
-      } catch {
+      } else {
         setRows((prev) => [
           {
             barcode: trimmed,
-            name: trimmed,
-            systemQty: 0,
+            name: lookup.name,
+            systemQty: lookup.systemQty,
             countedQty: counted,
           },
           ...prev,
         ]);
       }
+      toast.success(t('stock.countScan.saved'));
     },
-    [lookupProduct, rows],
+    [rows, sessionId, upsertItem, productQ.data, t],
   );
-
-  const onScan = async (code: string): Promise<void> => {
-    setActiveBarcode(code);
-    setCountedInput('1');
-    setScannerOpen(false);
-    try {
-      const { name, systemQty } = await lookupProduct(code);
-      setActiveBarcode(code);
-      setCountedInput(String(systemQty > 0 ? systemQty : 1));
-      toast.success(`${name} okundu`);
-    } catch {
-      toast.info('Ürün bulunamadı; miktarı girin.');
-    }
-  };
 
   const confirmCurrent = (): void => {
     const qty = Number.parseInt(countedInput, 10);
     if (!activeBarcode.trim()) {
-      toast.error('Önce barkod okutun.');
+      toast.error(t('stock.countScan.scanFirst'));
       return;
     }
     if (!Number.isFinite(qty) || qty < 0) {
-      toast.error('Geçerli miktar girin.');
+      toast.error(t('stock.countScan.invalidQty'));
       return;
     }
-    void addOrUpdateScan(activeBarcode, qty);
-    setActiveBarcode('');
-    setCountedInput('1');
+    setSaving(true);
+    void addOrUpdateScan(activeBarcode, qty)
+      .then(() => {
+        setActiveBarcode('');
+        setCountedInput('1');
+      })
+      .catch((e) => toast.error(getApiErrorMessage(e)))
+      .finally(() => setSaving(false));
   };
 
   const totalDiff = useMemo(
@@ -153,66 +197,36 @@ export function StockCountScanPage(): ReactElement {
     [rows],
   );
 
-  const finishSession = async (): Promise<void> => {
-    if (!warehouseId) {
-      toast.error('Depo seçin.');
-      return;
-    }
-    if (rows.length === 0) {
-      toast.error('En az bir ürün tarayın.');
-      return;
-    }
-    setFinishing(true);
-    try {
-      const session = await createSession.mutateAsync({
-        warehouseId,
-        countMode: 'FULL',
-      });
-      for (const row of rows) {
-        await api.post(`/stock/count-sessions/${session.id}/items`, {
-          barcode: row.barcode,
-          countedQuantity: row.countedQty,
-        });
-      }
-      toast.success('Sayım oturumu oluşturuldu');
-      navigate(`/stock/count?session=${session.id}`);
-    } catch (e) {
-      toast.error(getApiErrorMessage(e));
-    } finally {
-      setFinishing(false);
-    }
-  };
-
   const activeRow = rows.find((r) => r.barcode === activeBarcode);
+  const displayName =
+    productQ.data?.name ?? activeRow?.name ?? activeBarcode;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <ScanLine className="size-6 text-sky-500" aria-hidden />
-            Barkod ile sayım
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Kamera veya okuyucu ile tarayın; oturum bitince fark raporuna gidin.
-          </p>
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/stock/count">Klasik sayım</Link>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-1 pb-8 sm:gap-6 sm:px-0">
+      <div className="flex flex-col gap-2">
+        <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
+          <ScanLine className="size-6 text-sky-500 dark:text-sky-400" aria-hidden />
+          {t('stock.countScan.title')}
+        </h1>
+        <p className="text-muted-foreground text-sm">
+          {t('stock.countScan.subtitle')}
+        </p>
+        <Button variant="outline" size="sm" className="w-fit" asChild>
+          <Link to="/stock/count">{t('stock.countScan.classic')}</Link>
         </Button>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Oturum</CardTitle>
-          <CardDescription>Depo seçin ve taramaya başlayın</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">{t('stock.countScan.session')}</CardTitle>
+          <CardDescription>{t('stock.countScan.sessionDesc')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2">
-            <Label>Depo</Label>
+            <Label>{t('stock.warehouse')}</Label>
             <Select value={warehouseId} onValueChange={setWarehouseId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Depo seçin" />
+              <SelectTrigger className="h-11">
+                <SelectValue placeholder={t('stock.countScan.selectWarehouse')} />
               </SelectTrigger>
               <SelectContent>
                 {(warehousesQ.data ?? []).map((w) => (
@@ -226,37 +240,41 @@ export function StockCountScanPage(): ReactElement {
 
           <Button
             type="button"
-            className="w-full"
+            className="h-12 w-full text-base"
             size="lg"
             onClick={() => setScannerOpen(true)}
+            disabled={!sessionId}
           >
             <Camera className="mr-2 size-5" aria-hidden />
-            Barkod tara
+            {t('stock.countScan.scan')}
           </Button>
 
           {(activeBarcode || activeRow) && (
-            <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-4 space-y-3">
-              <p className="text-sm font-medium">
-                {activeRow?.name ?? activeBarcode}
-              </p>
-              <p className="text-muted-foreground text-xs font-mono">
+            <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50/50 p-4 dark:border-sky-800 dark:bg-sky-950/30">
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="font-mono text-xs text-muted-foreground">
                 {activeBarcode}
               </p>
               <p className="text-sm">
-                Mevcut stok:{' '}
+                {t('stock.countScan.systemQty')}:{' '}
                 <span className="font-semibold tabular-nums">
-                  {(activeRow?.systemQty ?? 0).toLocaleString('tr-TR')}
+                  {(
+                    productQ.data?.systemQty ??
+                    activeRow?.systemQty ??
+                    0
+                  ).toLocaleString('tr-TR')}
                 </span>
               </p>
               <div className="flex items-center gap-2">
                 <Label htmlFor="scan-qty" className="shrink-0">
-                  Sayılan
+                  {t('stock.countScan.counted')}
                 </Label>
                 <Button
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Azalt"
+                  className="size-11 shrink-0"
+                  aria-label={t('stock.countScan.decrease')}
                   onClick={() =>
                     setCountedInput((v) =>
                       String(Math.max(0, Number.parseInt(v, 10) - 1 || 0)),
@@ -268,7 +286,7 @@ export function StockCountScanPage(): ReactElement {
                 <Input
                   id="scan-qty"
                   inputMode="numeric"
-                  className="text-center"
+                  className="h-11 text-center text-lg"
                   value={countedInput}
                   onChange={(e) => setCountedInput(e.target.value)}
                 />
@@ -276,7 +294,8 @@ export function StockCountScanPage(): ReactElement {
                   type="button"
                   size="icon"
                   variant="outline"
-                  aria-label="Artır"
+                  className="size-11 shrink-0"
+                  aria-label={t('stock.countScan.increase')}
                   onClick={() =>
                     setCountedInput((v) =>
                       String((Number.parseInt(v, 10) || 0) + 1),
@@ -286,8 +305,13 @@ export function StockCountScanPage(): ReactElement {
                   <Plus className="size-4" />
                 </Button>
               </div>
-              <Button type="button" className="w-full" onClick={confirmCurrent}>
-                Listeye ekle
+              <Button
+                type="button"
+                className="h-11 w-full"
+                disabled={saving || upsertItem.isPending}
+                onClick={confirmCurrent}
+              >
+                {t('common.save')}
               </Button>
             </div>
           )}
@@ -295,23 +319,14 @@ export function StockCountScanPage(): ReactElement {
       </Card>
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
           <div>
-            <CardTitle className="text-base">Taranan ürünler</CardTitle>
+            <CardTitle className="text-base">{t('stock.countScan.list')}</CardTitle>
             <CardDescription>
-              {rows.length} kalem · Net fark:{' '}
-              <span
-                className={
-                  totalDiff < 0
-                    ? 'text-destructive font-medium'
-                    : totalDiff > 0
-                      ? 'text-emerald-600 font-medium'
-                      : ''
-                }
-              >
-                {totalDiff > 0 ? '+' : ''}
-                {totalDiff}
-              </span>
+              {t('stock.countScan.listSummary', {
+                count: rows.length,
+                diff: totalDiff > 0 ? `+${totalDiff}` : String(totalDiff),
+              })}
             </CardDescription>
           </div>
           {rows.length > 0 ? (
@@ -320,17 +335,21 @@ export function StockCountScanPage(): ReactElement {
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (
-            <p className="text-muted-foreground text-sm text-center py-6">
-              Henüz taranan ürün yok.
+            <p className="text-muted-foreground py-6 text-center text-sm">
+              {t('stock.countScan.empty')}
             </p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ürün</TableHead>
-                    <TableHead className="text-right">Sistem</TableHead>
-                    <TableHead className="text-right">Sayılan</TableHead>
+                    <TableHead>{t('stock.countScan.product')}</TableHead>
+                    <TableHead className="text-right">
+                      {t('stock.countScan.systemQty')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('stock.countScan.counted')}
+                    </TableHead>
                     <TableHead className="w-[48px]" />
                   </TableRow>
                 </TableHeader>
@@ -338,7 +357,7 @@ export function StockCountScanPage(): ReactElement {
                   {rows.map((row) => (
                     <TableRow key={row.barcode}>
                       <TableCell>
-                        <div className="text-sm font-medium line-clamp-1">
+                        <div className="line-clamp-1 text-sm font-medium">
                           {row.name}
                         </div>
                         <div className="font-mono text-xs text-muted-foreground">
@@ -356,7 +375,8 @@ export function StockCountScanPage(): ReactElement {
                           type="button"
                           size="icon"
                           variant="ghost"
-                          aria-label="Kaldır"
+                          className="size-10"
+                          aria-label={t('common.delete')}
                           onClick={() =>
                             setRows((prev) =>
                               prev.filter((r) => r.barcode !== row.barcode),
@@ -373,23 +393,21 @@ export function StockCountScanPage(): ReactElement {
             </div>
           )}
 
-          <Button
-            type="button"
-            className="mt-4 w-full"
-            size="lg"
-            disabled={finishing || rows.length === 0}
-            onClick={() => void finishSession()}
-          >
-            <Check className="mr-2 size-5" aria-hidden />
-            Oturumu tamamla ve fark raporuna git
-          </Button>
+          {sessionId && rows.length > 0 ? (
+            <Button type="button" className="mt-4 h-11 w-full" size="lg" asChild>
+              <Link to={`/stock/count?session=${sessionId}`}>
+                <Check className="mr-2 size-5" aria-hidden />
+                {t('stock.countScan.finish')}
+              </Link>
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
 
       <BarcodeScanner
         isOpen={scannerOpen}
         onClose={() => setScannerOpen(false)}
-        onScan={(code) => void onScan(code)}
+        onScan={onScan}
       />
     </div>
   );
