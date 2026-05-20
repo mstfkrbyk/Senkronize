@@ -297,9 +297,15 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
                               }
                             />
                             <Tooltip
-                              formatter={(value: number | undefined) =>
-                                value != null ? money(value) : '—'
-                              }
+                              formatter={(value) => {
+                                const n =
+                                  typeof value === 'number'
+                                    ? value
+                                    : typeof value === 'string'
+                                      ? Number.parseFloat(value)
+                                      : NaN;
+                                return Number.isFinite(n) ? money(n) : '—';
+                              }}
                             />
                             <Legend />
                             <Line

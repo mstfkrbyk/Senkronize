@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react"
+import { useEffect, useSyncExternalStore } from "react"
 import {
   CircleCheck,
   Info,
@@ -22,12 +22,28 @@ const Toaster = ({ ...props }: ToasterProps) => {
     () => "light" as const,
   )
 
+  useEffect(() => {
+    const applyAlertRole = (): void => {
+      document.querySelectorAll("[data-sonner-toast]").forEach((node) => {
+        node.setAttribute("role", "alert")
+      })
+    }
+    applyAlertRole()
+    const toaster = document.querySelector("[data-sonner-toaster]")
+    if (!toaster) {
+      return
+    }
+    const observer = new MutationObserver(applyAlertRole)
+    observer.observe(toaster, { childList: true, subtree: true })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
   return (
     <Sonner
       theme={resolved}
       className="toaster group"
-      role="alert"
-      aria-live="assertive"
       icons={{
         success: <CircleCheck className="h-4 w-4" />,
         info: <Info className="h-4 w-4" />,
@@ -36,6 +52,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         loading: <LoaderCircle className="h-4 w-4 animate-spin" />,
       }}
       toastOptions={{
+        unstyled: false,
         classNames: {
           toast:
             "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",

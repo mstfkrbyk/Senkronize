@@ -17,7 +17,9 @@ export interface OfflineQueuedMutation {
   createdAt: string;
 }
 
-export function saveOfflineSnapshot(snapshot: OfflineDashboardSnapshot): void {
+export function saveOfflineSnapshot(
+  snapshot: Omit<OfflineDashboardSnapshot, 'savedAt'>,
+): void {
   try {
     localStorage.setItem(
       SNAPSHOT_KEY,
