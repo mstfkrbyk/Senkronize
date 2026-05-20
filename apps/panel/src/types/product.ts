@@ -16,6 +16,7 @@ export interface ProductListItem {
   category: string | null;
   categoryId?: string | null;
   costPrice: unknown;
+  salePrice?: unknown;
   reorderPoint?: number | null;
   reorderQty?: number | null;
   leadTimeDays?: number | null;
@@ -24,6 +25,12 @@ export interface ProductListItem {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  imageCount?: number;
+  totalStock?: number;
+  _count?: {
+    variants: number;
+    listings: number;
+  };
 }
 
 export interface ProductVariantDto {

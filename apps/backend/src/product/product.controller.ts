@@ -71,7 +71,9 @@ import {
   SyncAllPlatformsDto,
   UpdateProductDto,
   UpdateProductReorderDto,
+  UpdateProductStockDto,
 } from './product.dto';
+import { StockMovementService } from '../stock/stock-movement.service';
 import { ListingSyncService } from '../sync/listing-sync.service';
 import type { SyncResult } from '../sync/listing-sync.types';
 import {
@@ -106,6 +108,7 @@ export class ProductController {
     private readonly imageService: ImageService,
     private readonly barcodeService: BarcodeService,
     private readonly listingSyncService: ListingSyncService,
+    private readonly stockMovementService: StockMovementService,
   ) {}
 
   @Get('reorder-alerts')
@@ -825,6 +828,36 @@ export class ProductController {
     @Body() dto: UpdateProductReorderDto,
   ): Promise<Product> {
     return this.productService.patchReorderSettings(org.id, id, dto);
+  }
+
+  @Patch(':id/stock')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün stok miktarını güncelle (merkezi stok + varyantlar)' })
+  @ApiResponse({ status: 200 })
+  async patchStock(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductStockDto,
+  ): Promise<{ success: true }> {
+    const product = await this.productService.findOne(org.id, id);
+    const reasonLabels: Record<UpdateProductStockDto['reason'], string> = {
+      COUNT: 'Sayım',
+      IN: 'Giriş',
+      OUT: 'Çıkış',
+      ADJUSTMENT: 'Düzeltme',
+    };
+    const note = dto.note ?? reasonLabels[dto.reason];
+    await this.productBulkService.bulkUpdateStock(org.id, {
+      productIds: [id],
+      stock: dto.quantity,
+    });
+    await this.stockMovementService.adjustStock(
+      org.id,
+      product.barcode,
+      dto.quantity,
+      note,
+    );
+    return { success: true };
   }
 
   @Patch(':id')

@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, KeyRound } from 'lucide-react';
+import { Copy, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import {
@@ -16,17 +17,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -35,76 +33,60 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { api, getApiErrorMessage } from '@/lib/api';
 
-const API_KEY_PERMISSIONS = [
-  { value: 'orders:read', label: 'Sipariş okuma' },
-  { value: 'orders:write', label: 'Sipariş yazma' },
-  { value: 'products:read', label: 'Ürün okuma' },
-  { value: 'products:write', label: 'Ürün yazma' },
-  { value: 'stock:read', label: 'Stok okuma' },
-  { value: 'stock:write', label: 'Stok yazma' },
-  { value: 'webhooks:manage', label: 'Webhook yönetimi' },
-] as const;
+import {
+  API_KEY_PERMISSIONS,
+  type ApiKeyRow,
+  type CreatedApiKeyResponse,
+  type CreateApiKeyInput,
+  formatApiKeyDate,
+  readStoredApiKeyPermissions,
+  removeStoredApiKeyPermissions,
+  writeStoredApiKeyPermissions,
+} from '../api-keys.constants';
+import { CreateApiKeyModal } from './CreateApiKeyModal';
+import { EditApiKeyModal } from './EditApiKeyModal';
 
-type ApiKeyPermission = (typeof API_KEY_PERMISSIONS)[number]['value'];
-
-interface ApiKeyRow {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  lastUsedAt: string | null;
-  expiresAt: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface CreatedApiKeyResponse {
-  id: string;
-  name: string;
-  keyPrefix: string;
-  key: string;
-}
-
-interface CreateApiKeyInput {
-  name: string;
-  permissions: ApiKeyPermission[];
-  expiresAt?: string;
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return '—';
-  }
-  try {
-    return new Date(value).toLocaleString('tr-TR');
-  } catch {
-    return '—';
-  }
-}
-
-function statusBadge(row: ApiKeyRow): ReactElement {
+function statusBadge(row: ApiKeyRow, t: (key: string) => string): ReactElement {
   if (!row.isActive) {
-    return <Badge variant="secondary">Devre dışı</Badge>;
+    return <Badge variant="secondary">{t('settings.apiKeys.statusInactive')}</Badge>;
   }
   if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
-    return <Badge variant="destructive">Süresi doldu</Badge>;
+    return <Badge variant="destructive">{t('settings.apiKeys.statusExpired')}</Badge>;
   }
-  return <Badge variant="default">Aktif</Badge>;
+  return <Badge variant="default">{t('settings.apiKeys.statusActive')}</Badge>;
+}
+
+function permissionsLabel(
+  row: ApiKeyRow,
+  t: (key: string) => string,
+): string {
+  const perms = readStoredApiKeyPermissions(row.id) ?? row.permissions ?? [];
+  if (perms.length === 0) {
+    return '—';
+  }
+  const labels = perms.map((p) => {
+    const found = API_KEY_PERMISSIONS.find((item) => item.value === p);
+    return found ? t(found.labelKey) : p;
+  });
+  return labels.join(', ');
 }
 
 export function ApiKeysTab(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
-  const [newKeyName, setNewKeyName] = useState('');
-  const [selectedPermissions, setSelectedPermissions] = useState<Set<ApiKeyPermission>>(
-    () => new Set(['orders:read', 'products:read']),
-  );
-  const [expiresAt, setExpiresAt] = useState('');
+  const [editRow, setEditRow] = useState<ApiKeyRow | null>(null);
   const [createdSecret, setCreatedSecret] = useState<CreatedApiKeyResponse | null>(null);
-  const [disableId, setDisableId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [lastCreatedPermissions, setLastCreatedPermissions] = useState<string[]>([]);
 
   const keysQuery = useQuery({
     queryKey: ['api-keys'],
@@ -113,6 +95,8 @@ export function ApiKeysTab(): ReactElement {
       return data;
     },
   });
+
+  const rows = useMemo(() => keysQuery.data ?? [], [keysQuery.data]);
 
   const createMutation = useMutation({
     mutationFn: async (input: CreateApiKeyInput): Promise<CreatedApiKeyResponse> => {
@@ -123,61 +107,69 @@ export function ApiKeysTab(): ReactElement {
       });
       return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      writeStoredApiKeyPermissions(data.id, variables.permissions);
+      setLastCreatedPermissions(variables.permissions);
       setCreatedSecret(data);
-      setNewKeyName('');
-      setExpiresAt('');
-      setSelectedPermissions(new Set(['orders:read', 'products:read']));
       setCreateOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.success('API anahtarı oluşturuldu');
+      toast.success(t('settings.apiKeys.createSuccess'));
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
     },
   });
 
-  const disableMutation = useMutation({
-    mutationFn: async (id: string): Promise<void> => {
-      await api.delete(`/api-keys/${id}`);
+  const editMutation = useMutation({
+    mutationFn: async (input: {
+      id: string;
+      name: string;
+      permissions: string[];
+      expiresAt?: string;
+    }): Promise<void> => {
+      await api.patch(`/api-keys/${input.id}`, {
+        name: input.name,
+        permissions: input.permissions,
+        ...(input.expiresAt ? { expiresAt: input.expiresAt } : { expiresAt: null }),
+      });
+    },
+    onMutate: (variables) => {
+      writeStoredApiKeyPermissions(variables.id, variables.permissions);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.success('API anahtarı kaldırıldı');
-      setDisableId(null);
+      toast.success(t('settings.apiKeys.editSuccess'));
+      setEditRow(null);
+    },
+    onError: (_err: unknown, variables) => {
+      writeStoredApiKeyPermissions(variables.id, variables.permissions);
+      toast.warning(t('settings.apiKeys.editLocalOnly'));
+      setEditRow(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      await api.delete(`/api-keys/${id}`);
+    },
+    onSuccess: (_data, id) => {
+      removeStoredApiKeyPermissions(id);
+      void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
+      toast.success(t('settings.apiKeys.deleteSuccess'));
+      setDeleteId(null);
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
     },
   });
 
-  const togglePermission = (perm: ApiKeyPermission, checked: boolean): void => {
-    setSelectedPermissions((prev) => {
-      const next = new Set(prev);
-      if (checked) {
-        next.add(perm);
-      } else {
-        next.delete(perm);
-      }
-      return next;
-    });
-  };
-
-  const handleCreateSubmit = (): void => {
-    const trimmed = newKeyName.trim();
-    if (!trimmed) {
-      toast.error('Lütfen bir isim girin.');
-      return;
+  const copyPrefix = async (prefix: string): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(`${prefix}…`);
+      toast.success(t('settings.apiKeys.copyPrefixSuccess'));
+    } catch {
+      toast.error(t('settings.apiKeys.copyFailed'));
     }
-    if (selectedPermissions.size === 0) {
-      toast.error('En az bir izin seçmelisiniz.');
-      return;
-    }
-    createMutation.mutate({
-      name: trimmed,
-      permissions: [...selectedPermissions],
-      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-    });
   };
 
   const copySecret = async (): Promise<void> => {
@@ -186,210 +178,225 @@ export function ApiKeysTab(): ReactElement {
     }
     try {
       await navigator.clipboard.writeText(createdSecret.key);
-      toast.success('Panoya kopyalandı');
+      toast.success(t('settings.apiKeys.copySuccess'));
     } catch {
-      toast.error('Kopyalama başarısız oldu');
+      toast.error(t('settings.apiKeys.copyFailed'));
     }
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">API anahtarları</h2>
-          <p className="text-sm text-muted-foreground">
-            Masaüstü ajanı ve otomasyonlar için güvenli erişim. Anahtarlar yalnızca oluşturulduğunda tam metin
-            olarak gösterilir.
-          </p>
+    <TooltipProvider>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">{t('settings.apiKeys.title')}</h2>
+            <p className="text-sm text-muted-foreground">{t('settings.apiKeys.subtitle')}</p>
+          </div>
+          <Button type="button" onClick={() => setCreateOpen(true)}>
+            <KeyRound className="mr-2 size-4" />
+            {t('settings.apiKeys.createButton')}
+          </Button>
         </div>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
-          <KeyRound className="mr-2 size-4" />
-          Yeni Anahtar Oluştur
-        </Button>
-      </div>
 
-      {keysQuery.isError ? (
-        <p className="text-sm text-destructive">{getApiErrorMessage(keysQuery.error)}</p>
-      ) : null}
+        {keysQuery.isError ? (
+          <p className="text-sm text-destructive">{getApiErrorMessage(keysQuery.error)}</p>
+        ) : null}
 
-      {keysQuery.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>İsim</TableHead>
-                <TableHead>Önek</TableHead>
-                <TableHead>Oluşturulma</TableHead>
-                <TableHead>Son kullanım</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="text-right">İşlemler</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(keysQuery.data ?? []).length === 0 ? (
+        {keysQuery.isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        ) : (
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                    Henüz API anahtarı yok.
-                  </TableCell>
+                  <TableHead>{t('settings.apiKeys.colName')}</TableHead>
+                  <TableHead>{t('settings.apiKeys.colCreated')}</TableHead>
+                  <TableHead>{t('settings.apiKeys.colLastUsed')}</TableHead>
+                  <TableHead>{t('settings.apiKeys.colPermissions')}</TableHead>
+                  <TableHead>{t('settings.apiKeys.colStatus')}</TableHead>
+                  <TableHead className="text-right">{t('settings.apiKeys.colActions')}</TableHead>
                 </TableRow>
-              ) : (
-                (keysQuery.data ?? []).map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="font-medium">{row.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{row.keyPrefix}…</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(row.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {formatDate(row.lastUsedAt)}
-                    </TableCell>
-                    <TableCell>{statusBadge(row)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setDisableId(row.id)}
-                      >
-                        Kaldır
-                      </Button>
+              </TableHeader>
+              <TableBody>
+                {rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+                      {t('settings.apiKeys.empty')}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Yeni API anahtarı</DialogTitle>
-            <DialogDescription>
-              Anahtar için bir isim, izin kapsamı ve isteğe bağlı son kullanım tarihi belirleyin.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="api-key-name">İsim</Label>
-              <Input
-                id="api-key-name"
-                placeholder="Örn. Tauri masaüstü ajanı"
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                maxLength={120}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>İzinler</Label>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {API_KEY_PERMISSIONS.map((perm) => (
-                  <label
-                    key={perm.value}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm"
-                  >
-                    <Checkbox
-                      checked={selectedPermissions.has(perm.value)}
-                      onCheckedChange={(checked) =>
-                        togglePermission(perm.value, checked === true)
-                      }
-                    />
-                    <span>{perm.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="api-key-expires">Son kullanım tarihi (isteğe bağlı)</Label>
-              <Input
-                id="api-key-expires"
-                type="date"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
-            </div>
+                ) : (
+                  rows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <div className="font-medium">{row.name}</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          {row.keyPrefix}…
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatApiKeyDate(row.createdAt)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatApiKeyDate(row.lastUsedAt)}
+                      </TableCell>
+                      <TableCell className="max-w-[180px] truncate text-sm" title={permissionsLabel(row, t)}>
+                        {permissionsLabel(row, t)}
+                      </TableCell>
+                      <TableCell>{statusBadge(row, t)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                onClick={() => void copyPrefix(row.keyPrefix)}
+                              >
+                                <Copy className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('settings.apiKeys.copyPrefix')}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                onClick={() => setEditRow(row)}
+                              >
+                                <Pencil className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('common.edit')}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-destructive hover:text-destructive"
+                                onClick={() => setDeleteId(row.id)}
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t('common.delete')}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-              Vazgeç
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCreateSubmit}
-              disabled={createMutation.isPending}
-            >
-              Oluştur
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      <Dialog
-        open={createdSecret !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCreatedSecret(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Anahtarınız hazır</DialogTitle>
-            <DialogDescription>
-              Bu anahtar bir daha gösterilmeyecek. Güvenli bir yerde saklayın veya hemen kopyalayın.
-            </DialogDescription>
-          </DialogHeader>
-          {createdSecret ? (
-            <div className="space-y-3">
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
-                Bu anahtarı kaybederseniz yeniden oluşturmanız gerekir; mevcut anahtar tekrar görüntülenemez.
-              </div>
-              <div className="rounded-md border bg-muted/40 p-3 font-mono text-xs break-all">
-                {createdSecret.key}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={() => void copySecret()}>
-                  <Copy className="mr-2 size-4" />
-                  Kopyala
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setCreatedSecret(null)}>
-                  Kapat
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+        <CreateApiKeyModal
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          isPending={createMutation.isPending}
+          onSubmit={(input) => createMutation.mutate(input)}
+        />
 
-      <AlertDialog open={disableId !== null} onOpenChange={(o) => !o && setDisableId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>API anahtarını kaldır?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bu işlem geri alınamaz; anahtar kalıcı olarak kullanılamaz hale gelir. Yerel ajanlar bu anahtarla
-              artık bağlanamaz.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (disableId) {
-                  disableMutation.mutate(disableId);
-                }
-              }}
-            >
-              Kaldır
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        <EditApiKeyModal
+          open={editRow !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditRow(null);
+            }
+          }}
+          apiKey={editRow}
+          isPending={editMutation.isPending}
+          onSubmit={(input) => {
+            writeStoredApiKeyPermissions(input.id, input.permissions);
+            editMutation.mutate(input);
+          }}
+        />
+
+        <Dialog
+          open={createdSecret !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setCreatedSecret(null);
+              setLastCreatedPermissions([]);
+            }
+          }}
+        >
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{t('settings.apiKeys.secretTitle')}</DialogTitle>
+              <DialogDescription>{t('settings.apiKeys.secretDescription')}</DialogDescription>
+            </DialogHeader>
+            {createdSecret ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
+                  {t('settings.apiKeys.secretWarning')}
+                </div>
+                <div className="rounded-md border border-border bg-muted/40 p-3 font-mono text-xs break-all">
+                  {createdSecret.key}
+                </div>
+                {lastCreatedPermissions.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t('settings.apiKeys.colPermissions')}:{' '}
+                    {lastCreatedPermissions
+                      .map((p) => {
+                        const found = API_KEY_PERMISSIONS.find((item) => item.value === p);
+                        return found ? t(found.labelKey) : p;
+                      })
+                      .join(', ')}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => void copySecret()}>
+                    <Copy className="mr-2 size-4" />
+                    {t('settings.apiKeys.copyButton')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setCreatedSecret(null);
+                      setLastCreatedPermissions([]);
+                    }}
+                  >
+                    {t('common.close')}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={deleteId !== null} onOpenChange={(o) => !o && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('settings.apiKeys.deleteTitle')}</AlertDialogTitle>
+              <AlertDialogDescription>{t('settings.apiKeys.deleteDescription')}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (deleteId) {
+                    deleteMutation.mutate(deleteId);
+                  }
+                }}
+              >
+                {t('common.delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </TooltipProvider>
   );
 }

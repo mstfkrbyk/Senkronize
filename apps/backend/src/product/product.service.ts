@@ -102,6 +102,7 @@ export type ProductListItem = Prisma.ProductGetPayload<{
 }> & {
   imageCount: number;
   totalStock: number;
+  salePrice: number | null;
 };
 
 export interface ProductDetailListing {
@@ -235,6 +236,51 @@ export class ProductService {
         ? await this.aggregateAvailableStockByBarcode(organizationId, barcodes)
         : new Map<string, number>();
 
+    const productIds = rows.map((r) => r.id);
+    const salePriceByProductId = new Map<string, number>();
+    if (productIds.length > 0) {
+      const variantPrices = await this.prisma.productVariant.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          productId: { in: productIds },
+          price: { not: null },
+        },
+        select: { productId: true, price: true },
+      });
+      for (const v of variantPrices) {
+        const n = Number(v.price);
+        if (!Number.isFinite(n)) {
+          continue;
+        }
+        const cur = salePriceByProductId.get(v.productId);
+        if (cur === undefined || n < cur) {
+          salePriceByProductId.set(v.productId, n);
+        }
+      }
+      const listingPrices = await this.prisma.listing.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          productId: { in: productIds },
+        },
+        select: { productId: true, salePrice: true },
+      });
+      for (const l of listingPrices) {
+        if (!l.productId) {
+          continue;
+        }
+        const n = Number(l.salePrice);
+        if (!Number.isFinite(n)) {
+          continue;
+        }
+        const cur = salePriceByProductId.get(l.productId);
+        if (cur === undefined || n < cur) {
+          salePriceByProductId.set(l.productId, n);
+        }
+      }
+    }
+
     const items: ProductListItem[] = rows.map((row) => {
       const { _count, imageUrls, ...rest } = row;
       return {
@@ -242,6 +288,7 @@ export class ProductService {
         imageUrls,
         imageCount: imageUrls.length,
         totalStock: stockByBarcode.get(row.barcode) ?? 0,
+        salePrice: salePriceByProductId.get(row.id) ?? null,
         _count,
       };
     });

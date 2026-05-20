@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ImageModule } from '../image/image.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { StockModule } from '../stock/stock.module';
 import { SyncModule } from '../sync/sync.module';
 import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 
@@ -15,7 +16,7 @@ import { ProductService } from './product.service';
 import { VariantService } from './variant.service';
 
 @Module({
-  imports: [PrismaModule, ImageModule, OutboundWebhookModule, SyncModule],
+  imports: [PrismaModule, ImageModule, OutboundWebhookModule, SyncModule, StockModule],
   controllers: [ProductController],
   providers: [
     ProductService,

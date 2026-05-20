@@ -2,8 +2,6 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
 import {
   ArrowLeft,
   Copy,
@@ -11,10 +9,12 @@ import {
   Trash2,
   Upload,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 import { ImageManager } from '@/components/products/ImageManager';
+import { ProductStockHistoryTab } from '@/components/products/ProductStockHistoryTab';
 import { ProductGeneralInfoTab } from '@/components/products/ProductGeneralInfoTab';
 import { ProductListingsTab } from '@/components/products/ProductListingsTab';
 import { ProductPerformanceTab } from '@/components/products/ProductPerformanceTab';
@@ -39,20 +39,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { recordRecentView } from '@/lib/recent-views';
-import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import { CreateVariantsWizard } from '@/pages/products/components/CreateVariantsWizard';
 import { VariantBulkActions } from '@/pages/products/components/VariantBulkActions';
 import type {
@@ -60,19 +51,6 @@ import type {
   ProductDetailPayload,
   ProductVariantDto,
 } from '@/types/product';
-
-function marketplaceLabel(code: string): string {
-  const found = MARKETPLACE_OPTIONS.find((o) => o.id === code);
-  return found?.label ?? code;
-}
-
-function formatDate(iso: string): string {
-  try {
-    return format(new Date(iso), 'd MMM yyyy HH:mm', { locale: tr });
-  } catch {
-    return iso;
-  }
-}
 
 function CopyVariantDialog({
   productId,
@@ -284,6 +262,9 @@ function AddVariantDialog({
 }
 
 function ProductDetailInner({ productId }: { productId: string }): ReactElement {
+  const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get('tab') ?? 'general';
   const queryClient = useQueryClient();
   const variantCsvRef = useRef<HTMLInputElement>(null);
   const [selectedVariantIds, setSelectedVariantIds] = useState<string[]>([]);
@@ -299,7 +280,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
   });
 
   const productName = detailQuery.data?.product.name;
-  usePageTitle(productName ?? 'Ürün detayı');
+  usePageTitle(productName ?? t('products.detailTitle'));
   useBreadcrumbTail(productName);
 
   useEffect(() => {
@@ -359,7 +340,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
     return (
       <div className="flex items-center gap-2 text-muted-foreground text-sm">
         <Loader2 className="size-4 animate-spin" />
-        Yükleniyor…
+        {t('common.loading', { defaultValue: 'Yükleniyor…' })}
       </div>
     );
   }
@@ -372,7 +353,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
     );
   }
 
-  const { product, variants, listings, stockMovements } = detailQuery.data;
+  const { product, variants, listings } = detailQuery.data;
 
   return (
     <div className="flex flex-col gap-6">
@@ -381,14 +362,14 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
           <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
             <Link to="/products">
               <ArrowLeft className="mr-2 size-4" />
-              Kataloga dön
+              {t('products.backToCatalog')}
             </Link>
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
             {!product.isActive ? (
               <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
-                Taslak
+                {t('products.draft')}
               </span>
             ) : null}
           </div>
@@ -401,14 +382,14 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
         </div>
       </div>
 
-      <Tabs defaultValue="general">
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="general">Genel bilgiler</TabsTrigger>
-          <TabsTrigger value="variants">Varyantlar</TabsTrigger>
-          <TabsTrigger value="listings">Listingler</TabsTrigger>
-          <TabsTrigger value="images">Görseller</TabsTrigger>
-          <TabsTrigger value="performance">Performans</TabsTrigger>
-          <TabsTrigger value="stock">Stok geçmişi</TabsTrigger>
+          <TabsTrigger value="general">{t('products.tabs.general')}</TabsTrigger>
+          <TabsTrigger value="variants">{t('products.tabs.variants')}</TabsTrigger>
+          <TabsTrigger value="listings">{t('products.tabs.listings')}</TabsTrigger>
+          <TabsTrigger value="images">{t('products.tabs.images')}</TabsTrigger>
+          <TabsTrigger value="performance">{t('products.tabs.performance')}</TabsTrigger>
+          <TabsTrigger value="stock">{t('products.tabs.stockHistory')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
@@ -532,52 +513,7 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
         </TabsContent>
 
         <TabsContent value="stock" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Stok geçmişi</CardTitle>
-              <CardDescription>Stok hareket kayıtları</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {stockMovements.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Stok kaydı yok.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Barkod</TableHead>
-                      <TableHead>Depo</TableHead>
-                      <TableHead>Platform</TableHead>
-                      <TableHead className="text-right">Miktar</TableHead>
-                      <TableHead className="text-right">Rezerve</TableHead>
-                      <TableHead>Güncellendi</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {stockMovements.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
-                        <TableCell className="text-sm">
-                          {row.warehouseName} ({row.warehouseCode})
-                        </TableCell>
-                        <TableCell>
-                          {row.platform ? marketplaceLabel(row.platform) : 'Merkezi'}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.quantity.toLocaleString('tr-TR')}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.reservedQty.toLocaleString('tr-TR')}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {formatDate(row.updatedAt)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <ProductStockHistoryTab barcode={product.barcode} />
         </TabsContent>
       </Tabs>
     </div>

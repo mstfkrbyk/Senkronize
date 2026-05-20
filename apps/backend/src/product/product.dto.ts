@@ -441,6 +441,29 @@ export class ProductQueryDto {
   limit?: number = 20;
 }
 
+export type ProductStockPatchReason = 'COUNT' | 'IN' | 'OUT' | 'ADJUSTMENT';
+
+export class UpdateProductStockDto {
+  @ApiProperty({ description: 'Yeni stok miktarı', example: 42, minimum: 0 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  quantity!: number;
+
+  @ApiProperty({
+    description: 'Stok güncelleme nedeni',
+    enum: ['COUNT', 'IN', 'OUT', 'ADJUSTMENT'],
+    example: 'COUNT',
+  })
+  @IsIn(['COUNT', 'IN', 'OUT', 'ADJUSTMENT'])
+  reason!: ProductStockPatchReason;
+
+  @ApiPropertyOptional({ description: 'Ek not', required: false })
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
 export class SyncAllPlatformsDto {
   @ApiPropertyOptional({
     description: 'Senkronize edilecek listeleme kimlikleri',

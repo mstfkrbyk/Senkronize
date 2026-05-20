@@ -2,13 +2,25 @@ import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Package, Upload } from 'lucide-react';
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+import {
+  ChevronRight,
+  MoreHorizontal,
+  Package,
+  Pencil,
+  Upload,
+  Warehouse,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { EmptyState } from '@/components/EmptyState';
+import { ProductImage } from '@/components/ProductImage';
+import { ProductStockStatusBadge } from '@/components/products/ProductStockStatusBadge';
 import { TableSkeleton } from '@/components/TableSkeleton';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -18,6 +30,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { ResponsiveTable } from '@/components/ui/ResponsiveTable';
 import {
   Table,
@@ -36,10 +55,15 @@ import type { ProductListItem } from '@/types/product';
 import { ProductBulkActions } from './components/ProductBulkActions';
 import { ProductExportMenu } from './components/ProductExportMenu';
 import {
+  QuickStockModal,
+  type QuickStockProduct,
+} from './components/QuickStockModal';
+import {
   PRODUCT_FILTER_CONFIG,
   PRODUCT_FILTER_DEFAULTS,
   PRODUCT_PAGE_SIZE,
 } from './productFilters.config';
+import { stockStatusToApiRange } from './productStockStatus';
 
 function formatMoney(value: unknown): string {
   if (value === null || value === undefined) {
@@ -52,10 +76,26 @@ function formatMoney(value: unknown): string {
   return `${n.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺`;
 }
 
+function formatUpdatedAt(iso: string): string {
+  try {
+    return format(new Date(iso), 'd MMM yyyy HH:mm', { locale: tr });
+  } catch {
+    return iso;
+  }
+}
+
+function listSalePrice(p: ProductListItem): unknown {
+  return p.salePrice ?? p.costPrice;
+}
+
 export function ProductsPage(): ReactElement {
   const { t } = useTranslation();
   usePageTitle(t('products.catalogTitle'));
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [quickStockProduct, setQuickStockProduct] = useState<QuickStockProduct | null>(
+    null,
+  );
+  const [quickStockOpen, setQuickStockOpen] = useState(false);
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
     PRODUCT_FILTER_DEFAULTS,
   );
@@ -70,18 +110,35 @@ export function ProductsPage(): ReactElement {
           ? false
           : undefined;
 
+    const hasVariants =
+      urlFilters.hasVariants === 'true'
+        ? true
+        : urlFilters.hasVariants === 'false'
+          ? false
+          : undefined;
+
+    const stockRange =
+      urlFilters.stockStatus && urlFilters.stockStatus !== 'all'
+        ? stockStatusToApiRange(urlFilters.stockStatus)
+        : {};
+
     return {
       page: urlFilters.page,
       limit: PRODUCT_PAGE_SIZE,
       ...(debouncedSearch.trim() ? { search: debouncedSearch.trim() } : {}),
       ...(urlFilters.category.trim() ? { category: urlFilters.category.trim() } : {}),
+      ...(urlFilters.platform ? { platform: urlFilters.platform } : {}),
       ...(isActive !== undefined ? { isActive } : {}),
+      ...(hasVariants !== undefined ? { hasVariants } : {}),
+      ...(urlFilters.minPrice !== undefined ? { minPrice: urlFilters.minPrice } : {}),
+      ...(urlFilters.maxPrice !== undefined ? { maxPrice: urlFilters.maxPrice } : {}),
       ...(urlFilters.minCostPrice !== undefined
         ? { minCostPrice: urlFilters.minCostPrice }
         : {}),
       ...(urlFilters.maxCostPrice !== undefined
         ? { maxCostPrice: urlFilters.maxCostPrice }
         : {}),
+      ...stockRange,
     };
   }, [urlFilters, debouncedSearch]);
 
@@ -140,6 +197,16 @@ export function ProductsPage(): ReactElement {
     [items],
   );
 
+  const openQuickStock = useCallback((p: ProductListItem) => {
+    setQuickStockProduct({
+      id: p.id,
+      barcode: p.barcode,
+      name: p.name,
+      totalStock: p.totalStock ?? 0,
+    });
+    setQuickStockOpen(true);
+  }, []);
+
   const allOnPageSelected =
     items.length > 0 && items.every((p) => selectedIds.has(p.id));
   const total = productsQuery.data?.total ?? 0;
@@ -150,7 +217,12 @@ export function ProductsPage(): ReactElement {
   const hasActiveFilters = Boolean(
     debouncedSearch.trim() ||
       urlFilters.category.trim() ||
+      urlFilters.platform ||
+      (urlFilters.stockStatus && urlFilters.stockStatus !== 'all') ||
+      urlFilters.hasVariants ||
       urlFilters.isActive ||
+      urlFilters.minPrice !== undefined ||
+      urlFilters.maxPrice !== undefined ||
       urlFilters.minCostPrice !== undefined ||
       urlFilters.maxCostPrice !== undefined,
   );
@@ -199,7 +271,7 @@ export function ProductsPage(): ReactElement {
         </CardHeader>
         <CardContent>
           {productsQuery.isLoading ? (
-            <TableSkeleton rows={8} cols={8} />
+            <TableSkeleton rows={8} cols={9} />
           ) : productsQuery.isError ? (
             <p className="text-destructive text-sm">
               {getApiErrorMessage(productsQuery.error)}
@@ -230,59 +302,125 @@ export function ProductsPage(): ReactElement {
             <>
               <ResponsiveTable>
                 <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[40px]">
-                      <Checkbox
-                        checked={allOnPageSelected}
-                        onCheckedChange={(checked) => {
-                          toggleAllOnPage(checked === true);
-                        }}
-                        aria-label={t('common.selectAllOnPage')}
-                      />
-                    </TableHead>
-                    <TableHead>{t('products.name')}</TableHead>
-                    <TableHead>{t('products.sku')}</TableHead>
-                    <TableHead>{t('products.barcode')}</TableHead>
-                    <TableHead>{t('products.brand')}</TableHead>
-                    <TableHead>{t('products.category')}</TableHead>
-                    <TableHead className="text-right">{t('products.cost')}</TableHead>
-                    <TableHead className="w-[100px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {items.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">
                         <Checkbox
-                          checked={selectedIds.has(p.id)}
+                          checked={allOnPageSelected}
                           onCheckedChange={(checked) => {
-                            toggleRow(p.id, checked === true);
+                            toggleAllOnPage(checked === true);
                           }}
-                          aria-label={`${p.name} seç`}
+                          aria-label={t('common.selectAllOnPage')}
                         />
-                      </TableCell>
-                      <TableCell className="font-medium">{p.name}</TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {p.sku ?? '—'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{p.barcode}</TableCell>
-                      <TableCell>{p.brand ?? '—'}</TableCell>
-                      <TableCell>{p.category ?? '—'}</TableCell>
-                      <TableCell className="text-right text-sm">
-                        {formatMoney(p.costPrice)}
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link to={`/products/${p.id}`}>
-                            <ChevronRight className="mr-1 size-3" />
-                            {t('common.detail')}
-                          </Link>
-                        </Button>
-                      </TableCell>
+                      </TableHead>
+                      <TableHead className="w-[56px]">{t('products.columns.thumbnail')}</TableHead>
+                      <TableHead>{t('products.columns.product')}</TableHead>
+                      <TableHead>{t('products.columns.stock')}</TableHead>
+                      <TableHead className="text-center">
+                        {t('products.columns.platforms')}
+                      </TableHead>
+                      <TableHead className="text-right">{t('products.price')}</TableHead>
+                      <TableHead className="text-center">
+                        {t('products.columns.variants')}
+                      </TableHead>
+                      <TableHead>{t('products.columns.updated')}</TableHead>
+                      <TableHead className="w-[72px] text-right">
+                        {t('products.columns.actions')}
+                      </TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((p) => {
+                      const thumb = p.imageUrls?.[0] ?? null;
+                      const listingCount = p._count?.listings ?? 0;
+                      const variantCount = p._count?.variants ?? 0;
+                      const totalStock = p.totalStock ?? 0;
+
+                      return (
+                        <TableRow key={p.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(p.id)}
+                              onCheckedChange={(checked) => {
+                                toggleRow(p.id, checked === true);
+                              }}
+                              aria-label={t('products.selectRow', { name: p.name })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <ProductImage src={thumb} alt={p.name} size={50} />
+                          </TableCell>
+                          <TableCell>
+                            <div className="min-w-0">
+                              <Link
+                                to={`/products/${p.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {p.name}
+                              </Link>
+                              <p className="text-muted-foreground truncate text-xs">
+                                {p.sku ? `SKU: ${p.sku}` : t('products.noSku')}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <ProductStockStatusBadge quantity={totalStock} />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant="secondary" className="tabular-nums">
+                              {listingCount}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right text-sm tabular-nums">
+                            {formatMoney(listSalePrice(p))}
+                          </TableCell>
+                          <TableCell className="text-center tabular-nums text-sm">
+                            {variantCount}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                            {formatUpdatedAt(p.updatedAt)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={t('products.columns.actions')}
+                                >
+                                  <MoreHorizontal className="size-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/products/${p.id}`}>
+                                    <ChevronRight className="mr-2 size-4" />
+                                    {t('common.detail')}
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild>
+                                  <Link to={`/products/${p.id}?tab=general`}>
+                                    <Pencil className="mr-2 size-4" />
+                                    {t('common.edit')}
+                                  </Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    openQuickStock(p);
+                                  }}
+                                >
+                                  <Warehouse className="mr-2 size-4" />
+                                  {t('products.quickStock.action')}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
                 </Table>
               </ResponsiveTable>
               <div className="mt-4 flex items-center justify-between gap-2">
@@ -321,6 +459,12 @@ export function ProductsPage(): ReactElement {
           )}
         </CardContent>
       </Card>
+
+      <QuickStockModal
+        product={quickStockProduct}
+        open={quickStockOpen}
+        onOpenChange={setQuickStockOpen}
+      />
     </div>
   );
 }
