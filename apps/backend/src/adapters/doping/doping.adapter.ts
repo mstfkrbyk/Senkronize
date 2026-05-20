@@ -7,14 +7,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MaviAdapter extends RestStubMarketplaceAdapter {
+export class DopingAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
-    const baseUrl = 'https://api.mavi.com/seller/v1';
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MAVI',
-      baseUrl,
-      loggerContext: MaviAdapter.name,
-      rateLimitKey: 'MAVI',
+      platform: 'DOPING',
+      baseUrl: 'https://api.dopinghafiza.com/seller/v1',
+      loggerContext: DopingAdapter.name,
+      rateLimitKey: 'DOPING',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -23,12 +22,12 @@ export class MaviAdapter extends RestStubMarketplaceAdapter {
       resolveAuth: async (creds) => {
         const apiKey = creds.apiKey?.trim();
         if (!apiKey) {
-          throw new Error('Mavi: apiKey zorunludur');
+          throw new Error('Doping Hafıza: apiKey zorunludur');
         }
         return {
           headers: {
-            'X-API-Key': apiKey,
             'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
           },
         };
       },

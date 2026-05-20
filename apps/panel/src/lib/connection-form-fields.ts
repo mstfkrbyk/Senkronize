@@ -13,21 +13,54 @@ export interface ConnectionFormFieldDef {
   defaultValue?: string;
 }
 
+export interface ConnectionPlatformMeta {
+  helpText?: string;
+  docsUrl?: string;
+}
+
+export const MARKETPLACE_PLATFORM_META: Record<string, ConnectionPlatformMeta> = {
+  TRENDYOL: {
+    helpText:
+      'Trendyol Satıcı Paneli → Entegrasyonlar → API bilgilerinizi buradan alın.',
+    docsUrl: 'https://developers.trendyol.com',
+  },
+  HEPSIBURADA: {
+    helpText: 'HB Merchant Hub → Ayarlar → API Bilgileri',
+  },
+};
+
+export const ERP_PLATFORM_META: Record<string, ConnectionPlatformMeta> = {
+  BIZIMHESAP: {
+    helpText: 'BizimHesap → Ayarlar → API Entegrasyonu bölümünden API anahtarınızı alın.',
+    docsUrl: 'https://developer.bizimhesap.com',
+  },
+  PARASUT: {
+    helpText:
+      'Paraşüt → Ayarlar → Uygulama Entegrasyonları → OAuth uygulaması oluşturun.',
+    docsUrl: 'https://apidocs.parasut.com',
+  },
+  LOGO: {
+    helpText:
+      'Logo Tiger/Go REST servis URL ve firma bilgilerinizi IT ekibinizden veya Logo destekten alın.',
+  },
+};
+
 export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   string,
   ConnectionFormFieldDef[]
 > = {
   TRENDYOL: [
     {
-      key: 'supplierId',
-      label: 'Tedarikçi ID',
+      key: 'sellerId',
+      label: 'Mağaza ID (Seller ID)',
       type: 'text',
       required: true,
+      placeholder: '12345',
     },
     {
       key: 'apiKey',
       label: 'API Key',
-      type: 'password',
+      type: 'text',
       required: true,
     },
     {
@@ -38,9 +71,9 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
   ],
   HEPSIBURADA: [
+    { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
     { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
     { key: 'password', label: 'Şifre', type: 'password', required: true },
-    { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
   ],
   N11: [
     { key: 'apiKey', label: 'API Key', type: 'text', required: true },
@@ -357,6 +390,78 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   OUNASS: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   SIVVI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   IDEFIX: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PAZAR365: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  DOPING: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  KOTON: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MAVI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  YARGICI: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ADIDAS_TR: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ZARA_TR: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+    },
+  ],
+  TIKTOK_SHOP: [
+    { key: 'appKey', label: 'App Key', type: 'text', required: true },
+    { key: 'appSecret', label: 'App Secret', type: 'password', required: true },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+    },
+  ],
+  PINTEREST: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (opsiyonel)',
+      type: 'password',
+      required: false,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+    },
+  ],
+  INSTAGRAM_SHOP: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (Meta OAuth2)',
+      type: 'password',
+      required: true,
+    },
+  ],
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -1389,7 +1494,13 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
   {
     BIZIMHESAP: [
-      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+      {
+        key: 'apiKey',
+        label: 'API Token',
+        type: 'password',
+        required: true,
+        hint: 'BizimHesap panelinden aldığınız x-api-token değeri.',
+      },
     ],
     PARASUT: [
       { key: 'clientId', label: 'Client ID', type: 'text', required: true },
@@ -1399,7 +1510,13 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'password',
         required: true,
       },
-      { key: 'companyId', label: 'Şirket ID', type: 'text', required: true },
+      {
+        key: 'companyId',
+        label: 'Şirket ID',
+        type: 'text',
+        required: true,
+        hint: 'Paraşüt URL\'deki şirket numaranız (örn. 123456).',
+      },
     ],
     LOGO: [
       {
@@ -1410,9 +1527,15 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         required: true,
         hint: 'Yerel sunucu için http:// veya https:// kullanabilirsiniz.',
       },
-      { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
+      { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
-      { key: 'firmNo', label: 'Firma No', type: 'text', required: true },
+      {
+        key: 'firmNo',
+        label: 'Firma No',
+        type: 'text',
+        required: true,
+        placeholder: '1',
+      },
     ],
     MIKRO: [
       {
@@ -1887,6 +2010,16 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'OUNASS',
   'SIVVI',
   'IDEFIX',
+  'PAZAR365',
+  'DOPING',
+  'KOTON',
+  'MAVI',
+  'YARGICI',
+  'ADIDAS_TR',
+  'ZARA_TR',
+  'TIKTOK_SHOP',
+  'PINTEREST',
+  'INSTAGRAM_SHOP',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [
@@ -1929,3 +2062,25 @@ export function getMarketplaceFormFields(
 export function getErpFormFields(erpType: string): ConnectionFormFieldDef[] {
   return ERP_CONNECTION_FORM_FIELDS[erpType] ?? [];
 }
+
+export function getMarketplacePlatformMeta(
+  platform: string,
+): ConnectionPlatformMeta | undefined {
+  return MARKETPLACE_PLATFORM_META[platform];
+}
+
+export function getErpPlatformMeta(erpType: string): ConnectionPlatformMeta | undefined {
+  return ERP_PLATFORM_META[erpType];
+}
+
+/** ERP kurulum sihirbazında öne çıkan sistemler */
+export const ERP_WIZARD_FEATURED_IDS: string[] = [
+  'BIZIMHESAP',
+  'PARASUT',
+  'LOGO',
+  'NETSIS',
+  'NEBIM',
+  'MIKRO',
+  'LUCA',
+  'ETA',
+];

@@ -7,6 +7,7 @@ import { ErpAdaptersModule } from './erp/erp.module';
 import { A101Module } from './a101/a101.module';
 import { AboutYouModule } from './about-you/about-you.module';
 import { AddaxModule } from './addax/addax.module';
+import { AdidasTrModule } from './adidas-tr/adidas-tr.module';
 import { AsosModule } from './asos/asos.module';
 import { AlibabaModule } from './alibaba/alibaba.module';
 import { AlibabaTrModule } from './alibaba-tr/alibaba-tr.module';
@@ -41,6 +42,7 @@ import { CiceksepetiEvModule } from './ciceksepeti-ev/ciceksepeti-ev.module';
 import { CimriModule } from './cimri/cimri.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { DefactoModule } from './defacto/defacto.module';
+import { DopingModule } from './doping/doping.module';
 import { DarazModule } from './daraz/daraz.module';
 import { DecathlonModule } from './decathlon/decathlon.module';
 import { DolapModule } from './dolap/dolap.module';
@@ -78,6 +80,7 @@ import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
 import { IdefixModule } from './idefix/idefix.module';
 import { InstacartModule } from './instacart/instacart.module';
+import { InstagramShopModule } from './instagram-shop/instagram-shop.module';
 import { IkasModule } from './ikas/ikas.module';
 import { IkasMpModule } from './ikas-mp/ikas-mp.module';
 import { IyzicoModule } from './iyzico/iyzico.module';
@@ -144,10 +147,12 @@ import { OverstockModule } from './overstock/overstock.module';
 import { OzonModule } from './ozon/ozon.module';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
+import { Pazar365Module } from './pazar365/pazar365.module';
 import { PorlandModule } from './porland/porland.module';
 import { PiguModule } from './pigu/pigu.module';
 import { PrestashopModule } from './prestashop/prestashop.module';
 import { PricerunnerModule } from './pricerunner/pricerunner.module';
+import { PinterestModule } from './pinterest/pinterest.module';
 import { SaleorModule } from './saleor/saleor.module';
 import { ProtelModule } from './protel/protel.module';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
@@ -176,6 +181,7 @@ import { SouqModule } from './souq/souq.module';
 import { SportiveModule } from './sportive/sportive.module';
 import { TakealotModule } from './takealot/takealot.module';
 import { TikiModule } from './tiki/tiki.module';
+import { TiktokShopModule } from './tiktok-shop/tiktok-shop.module';
 import { TikladoModule } from './tiklado/tiklado.module';
 import { TrademeModule } from './trademe/trademe.module';
 import { StripeModule } from './stripe/stripe.module';
@@ -212,10 +218,12 @@ import { WadiModule } from './wadi/wadi.module';
 import { WatsonsTrModule } from './watsons-tr/watsons-tr.module';
 import { WayfairModule } from './wayfair/wayfair.module';
 import { WoocommerceAdapter } from './woocommerce/woocommerce.adapter';
+import { YargiciModule } from './yargici/yargici.module';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
 import { ZalandoModule } from './zalando/zalando.module';
 import { YandexMarketModule } from './yandex-market/yandex-market.module';
 import { ZaraModule } from './zara/zara.module';
+import { ZaraTrModule } from './zara-tr/zara-tr.module';
 import { ZirveAdapter } from './zirve/zirve.adapter';
 
 @Global()
@@ -227,6 +235,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     A101Module,
     AboutYouModule,
     AddaxModule,
+    AdidasTrModule,
     AsosModule,
     AlibabaModule,
     AlibabaTrModule,
@@ -256,6 +265,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CiceksepetiEvModule,
     CimriModule,
     DefactoModule,
+    DopingModule,
     DarazModule,
     DecathlonModule,
     DolapModule,
@@ -293,6 +303,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IkasMpModule,
     IyzicoModule,
     InstacartModule,
+    InstagramShopModule,
     JdidModule,
     JiomartModule,
     JoomModule,
@@ -348,10 +359,12 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OpensooqModule,
     OzonModule,
     PazaramaPremiumModule,
+    Pazar365Module,
     PorlandModule,
     PiguModule,
     PrestashopModule,
     PricerunnerModule,
+    PinterestModule,
     SaleorModule,
     ProtelModule,
     Qoo10Module,
@@ -376,6 +389,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SportiveModule,
     SouqModule,
     TikiModule,
+    TiktokShopModule,
     TikladoModule,
     TicimaxMpModule,
     TrademeModule,
@@ -407,10 +421,12 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     WalmartModule,
     WadiModule,
     WayfairModule,
+    YargiciModule,
     YemeksepetiModule,
     YandexMarketModule,
     ZalandoModule,
     ZaraModule,
+    ZaraTrModule,
   ],
   providers: [
     AmazonAdapter,
@@ -472,6 +488,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     A101Module,
     AboutYouModule,
     AddaxModule,
+    AdidasTrModule,
     AsosModule,
     AlibabaModule,
     AlibabaTrModule,
@@ -501,6 +518,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CiceksepetiEvModule,
     CimriModule,
     DefactoModule,
+    DopingModule,
     DarazModule,
     DecathlonModule,
     DolapModule,
@@ -538,6 +556,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IkasMpModule,
     IyzicoModule,
     InstacartModule,
+    InstagramShopModule,
     JdidModule,
     JiomartModule,
     JoomModule,
@@ -593,10 +612,12 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     OpensooqModule,
     OzonModule,
     PazaramaPremiumModule,
+    Pazar365Module,
     PorlandModule,
     PiguModule,
     PrestashopModule,
     PricerunnerModule,
+    PinterestModule,
     SaleorModule,
     ProtelModule,
     Qoo10Module,
@@ -621,6 +642,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SportiveModule,
     SouqModule,
     TikiModule,
+    TiktokShopModule,
     TikladoModule,
     TicimaxMpModule,
     TrademeModule,
@@ -652,9 +674,11 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     WalmartModule,
     WadiModule,
     WayfairModule,
+    YargiciModule,
     YemeksepetiModule,
     ZalandoModule,
     ZaraModule,
+    ZaraTrModule,
   ],
 })
 export class AdapterModule {}

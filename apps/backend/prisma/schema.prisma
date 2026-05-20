@@ -232,6 +232,14 @@ enum Marketplace {
   OUNASS
   SIVVI
   IDEFIX
+  PAZAR365
+  DOPING
+  YARGICI
+  ADIDAS_TR
+  ZARA_TR
+  TIKTOK_SHOP
+  PINTEREST
+  INSTAGRAM_SHOP
 }
 
 enum PricingStrategy {

@@ -21,13 +21,13 @@ export class KotonAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const token = creds.accessToken?.trim();
-        if (!token) {
-          throw new Error('Koton: accessToken (Bearer) zorunludur');
+        const apiKey = creds.apiKey?.trim();
+        if (!apiKey) {
+          throw new Error('Koton: apiKey zorunludur');
         }
         return {
           headers: {
-            Authorization: `Bearer ${token}`,
+            'X-API-Key': apiKey,
             'Content-Type': 'application/json',
           },
         };

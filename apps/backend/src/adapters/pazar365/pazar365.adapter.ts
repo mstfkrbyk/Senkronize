@@ -7,14 +7,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class MaviAdapter extends RestStubMarketplaceAdapter {
+export class Pazar365Adapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
-    const baseUrl = 'https://api.mavi.com/seller/v1';
     const opts: RestStubMarketplaceOptions = {
-      platform: 'MAVI',
-      baseUrl,
-      loggerContext: MaviAdapter.name,
-      rateLimitKey: 'MAVI',
+      platform: 'PAZAR365',
+      baseUrl: 'https://api.pazar365.com/v1',
+      loggerContext: Pazar365Adapter.name,
+      rateLimitKey: 'PAZAR365',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -23,12 +22,12 @@ export class MaviAdapter extends RestStubMarketplaceAdapter {
       resolveAuth: async (creds) => {
         const apiKey = creds.apiKey?.trim();
         if (!apiKey) {
-          throw new Error('Mavi: apiKey zorunludur');
+          throw new Error('Pazar365: apiKey zorunludur');
         }
         return {
           headers: {
-            'X-API-Key': apiKey,
             'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
           },
         };
       },

@@ -163,6 +163,14 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   OUNASS: { label: 'Ounass', logo: '🇦🇪', color: 'stone' },
   SIVVI: { label: 'Sivvi', logo: '🇦🇪', color: 'rose' },
   IDEFIX: { label: 'Idefix', logo: '📚', color: 'orange' },
+  PAZAR365: { label: 'Pazar365', logo: '🛍️', color: 'sky' },
+  DOPING: { label: 'Doping Hafıza', logo: '📖', color: 'blue' },
+  YARGICI: { label: 'Yargıcı', logo: '👔', color: 'slate' },
+  ADIDAS_TR: { label: 'Adidas TR', logo: '👟', color: 'zinc' },
+  ZARA_TR: { label: 'Zara TR', logo: '👗', color: 'stone' },
+  TIKTOK_SHOP: { label: 'TikTok Shop', logo: '🎵', color: 'rose' },
+  PINTEREST: { label: 'Pinterest Shopping', logo: '📌', color: 'red' },
+  INSTAGRAM_SHOP: { label: 'Instagram Shopping', logo: '📸', color: 'fuchsia' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

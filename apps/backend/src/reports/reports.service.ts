@@ -185,6 +185,14 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.OUNASS]: 'Ounass',
   [Marketplace.SIVVI]: 'Sivvi',
   [Marketplace.IDEFIX]: 'Idefix',
+  [Marketplace.PAZAR365]: 'Pazar365',
+  [Marketplace.DOPING]: 'Doping Hafıza',
+  [Marketplace.YARGICI]: 'Yargıcı',
+  [Marketplace.ADIDAS_TR]: 'Adidas TR',
+  [Marketplace.ZARA_TR]: 'Zara TR',
+  [Marketplace.TIKTOK_SHOP]: 'TikTok Shop',
+  [Marketplace.PINTEREST]: 'Pinterest Shopping',
+  [Marketplace.INSTAGRAM_SHOP]: 'Instagram Shopping',
 };
 
 @Injectable()

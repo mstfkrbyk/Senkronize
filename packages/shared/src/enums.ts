@@ -204,7 +204,15 @@ export type Marketplace =
   | 'PRICERUNNER'
   | 'OUNASS'
   | 'SIVVI'
-  | 'IDEFIX';
+  | 'IDEFIX'
+  | 'PAZAR365'
+  | 'DOPING'
+  | 'YARGICI'
+  | 'ADIDAS_TR'
+  | 'ZARA_TR'
+  | 'TIKTOK_SHOP'
+  | 'PINTEREST'
+  | 'INSTAGRAM_SHOP';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
