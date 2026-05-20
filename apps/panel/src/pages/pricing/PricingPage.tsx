@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -17,7 +18,8 @@ function hasProAccess(plan: string | undefined): boolean {
 }
 
 export function PricingPage(): ReactElement {
-  usePageTitle('Fiyatlandırma');
+  const { t } = useTranslation();
+  usePageTitle(t('pricing.pageTitle'));
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const proAccess = hasProAccess(plan);
   const runMutation = useRunPricing();
@@ -27,11 +29,9 @@ export function PricingPage(): ReactElement {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Fiyatlandırma ve BuyBox
+            {t('pricing.title')}
           </h1>
-          <p className="text-muted-foreground">
-            BuyBox durumu, fiyat kuralları, rakip analizi ve fiyat geçmişini tek ekrandan yönetin.
-          </p>
+          <p className="text-muted-foreground">{t('pricing.subtitle')}</p>
         </div>
         <Button
           type="button"
@@ -44,16 +44,16 @@ export function PricingPage(): ReactElement {
           {runMutation.isPending ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : null}
-          Motoru çalıştır
+          {t('pricing.runEngine')}
         </Button>
       </div>
 
       <Tabs defaultValue="buybox" className="space-y-6">
         <TabsList className="grid w-full max-w-3xl grid-cols-2 sm:grid-cols-4">
-          <TabsTrigger value="buybox">BuyBox durumu</TabsTrigger>
-          <TabsTrigger value="rules">Fiyat kuralları</TabsTrigger>
-          <TabsTrigger value="competitors">Rakip analizi</TabsTrigger>
-          <TabsTrigger value="history">Fiyat geçmişi</TabsTrigger>
+          <TabsTrigger value="buybox">{t('pricing.tabs.buybox')}</TabsTrigger>
+          <TabsTrigger value="rules">{t('pricing.tabs.rules')}</TabsTrigger>
+          <TabsTrigger value="competitors">{t('pricing.tabs.competitors')}</TabsTrigger>
+          <TabsTrigger value="history">{t('pricing.tabs.history')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="buybox" className="mt-6">

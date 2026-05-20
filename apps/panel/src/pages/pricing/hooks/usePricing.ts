@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import i18n from '@/i18n';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
   BuyBoxListingAnalysis,
@@ -79,7 +80,7 @@ export function useCreateRule() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing', 'rules'] });
       void qc.invalidateQueries({ queryKey: ['pricing', 'buybox'] });
-      toast.success('Kural oluşturuldu');
+      toast.success(i18n.t('pricing.toast.ruleCreated'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -94,7 +95,7 @@ export function useRunPricing() {
       return data;
     },
     onSuccess: () => {
-      toast.success('Fiyatlandırma motoru çalıştırıldı');
+      toast.success(i18n.t('pricing.toast.engineRun'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -111,7 +112,7 @@ export function useDeletePricingRule() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing', 'rules'] });
       void qc.invalidateQueries({ queryKey: ['pricing', 'buybox'] });
-      toast.success('Kural silindi');
+      toast.success(i18n.t('pricing.toast.ruleDeleted'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -150,7 +151,7 @@ export function useUpdatePricingRule() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing', 'rules'] });
       void qc.invalidateQueries({ queryKey: ['pricing', 'buybox'] });
-      toast.success('Kural güncellendi');
+      toast.success(i18n.t('pricing.toast.ruleUpdated'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -243,7 +244,7 @@ export function useScheduleRule() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing'] });
-      toast.success('Zamanlama kaydedildi');
+      toast.success(i18n.t('pricing.toast.scheduleSaved'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -313,7 +314,7 @@ export function useManualPricingUpdate() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing'] });
-      toast.success('Fiyat güncellendi');
+      toast.success(i18n.t('pricing.toast.priceUpdated'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -386,7 +387,7 @@ export function useCreatePriceAlert() {
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['pricing', 'price-alerts'] });
-      toast.success('Fiyat uyarısı eklendi');
+      toast.success(i18n.t('pricing.toast.alertAdded'));
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));

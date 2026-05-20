@@ -1,11 +1,12 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -35,25 +36,32 @@ import {
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
 import type { ListingPriceHistoryItem, PriceHistoryEntry } from '@/types/pricing';
 
 import { useListingPriceHistory, usePriceHistory } from './hooks/usePricing';
+import { PRICING_CHART_COLORS, PRICING_CHART_GRID_CLASS } from './pricing-chart';
+import { pricingDateLocale } from './pricing-i18n';
 import { REASON_LABELS, formatTry, pctChange } from './pricing-utils';
 
 type ChangeDirection = 'all' | 'up' | 'down';
 
-function mapReason(source: string, reason: string | null): string {
+function mapReason(
+  source: string,
+  reason: string | null,
+  t: (key: string) => string,
+): string {
   const key = (reason ?? source).toLowerCase();
   if (key.includes('buybox') || key.includes('buy_box')) {
-    return 'BuyBox';
+    return t('pricing.history.reasonBuybox');
   }
   if (key.includes('rule') || key.includes('kural')) {
-    return 'Kural';
+    return t('pricing.history.reasonRule');
   }
   if (key.includes('manual') || key.includes('manuel')) {
-    return 'Manuel';
+    return t('pricing.history.reasonManual');
   }
   return REASON_LABELS[source] ?? reason ?? source;
 }
@@ -64,6 +72,8 @@ interface Props {
 }
 
 export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
+  const { t } = useTranslation();
+  const dateLocale = pricingDateLocale();
   const [listingId, setListingId] = useState<string | null>(null);
   const [platformFilter, setPlatformFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
@@ -94,9 +104,9 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
     () =>
       (listingHistoryQuery.data?.chart ?? []).map((p) => ({
         ...p,
-        label: format(new Date(p.date), 'd MMM', { locale: tr }),
+        label: format(new Date(p.date), 'd MMM', { locale: dateLocale }),
       })),
-    [listingHistoryQuery.data?.chart],
+    [listingHistoryQuery.data?.chart, dateLocale],
   );
 
   const tableRows = useMemo((): Array<{
@@ -116,7 +126,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
         newPrice: row.price,
         changePct: row.changePct ?? 0,
         platform: listingHistoryQuery.data.platform,
-        reason: mapReason(row.source, row.reason),
+        reason: mapReason(row.source, row.reason, t),
       }));
     }
     return (globalHistoryQuery.data?.items ?? []).map((row: PriceHistoryEntry) => ({
@@ -126,9 +136,9 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
       newPrice: row.newPrice,
       changePct: pctChange(row.oldPrice, row.newPrice),
       platform: row.platform,
-      reason: mapReason(row.reason ?? '', row.reason),
+      reason: mapReason(row.reason ?? '', row.reason, t),
     }));
-  }, [listingId, listingHistoryQuery.data, globalHistoryQuery.data?.items]);
+  }, [listingId, listingHistoryQuery.data, globalHistoryQuery.data?.items, t]);
 
   const filteredRows = useMemo(() => {
     const from = new Date(dateFrom);
@@ -161,10 +171,10 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
   if (!proAccess) {
     return (
       <UpgradePrompt
-        feature="Fiyat geçmişi"
+        feature={t('pricing.upgrade.historyFeature')}
         requiredPlan="PRO"
         currentPlan={plan}
-        description="Ürün bazlı fiyat geçmişi ve grafikler PRO pakette açıktır."
+        description={t('pricing.upgrade.historyDesc')}
       />
     );
   }
@@ -178,7 +188,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr]">
         <div className="space-y-2">
-          <Label>Ürün ara</Label>
+          <Label>{t('pricing.history.searchProduct')}</Label>
           {listingsQuery.isLoading ? (
             <Skeleton className="h-10 w-full" />
           ) : (
@@ -186,25 +196,23 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
               options={comboboxOptions}
               value={listingId}
               onChange={(v) => setListingId(v)}
-              placeholder="Listeleme seçin…"
-              searchPlaceholder="Barkod veya ürün adı…"
-              emptyLabel="Listeleme bulunamadı"
+              placeholder={t('pricing.history.searchPlaceholder')}
+              searchPlaceholder={t('pricing.competitors.searchPlaceholder')}
+              emptyLabel={t('pricing.history.notFound')}
             />
           )}
-          <p className="text-xs text-muted-foreground">
-            Ürün seçilmezse organizasyon genelindeki son değişiklikler listelenir.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('pricing.history.searchHint')}</p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <Label>Platform</Label>
+            <Label>{t('pricing.common.platform')}</Label>
             <Select value={platformFilter} onValueChange={setPlatformFilter}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tümü</SelectItem>
+                <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
                 {platforms.map((p) => (
                   <SelectItem key={p} value={p}>
                     {p}
@@ -214,7 +222,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="date-from">Başlangıç</Label>
+            <Label htmlFor="date-from">{t('pricing.history.startDate')}</Label>
             <Input
               id="date-from"
               type="date"
@@ -223,7 +231,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="date-to">Bitiş</Label>
+            <Label htmlFor="date-to">{t('pricing.history.endDate')}</Label>
             <Input
               id="date-to"
               type="date"
@@ -232,18 +240,15 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
             />
           </div>
           <div className="space-y-2">
-            <Label>Değişim yönü</Label>
-            <Select
-              value={changeDir}
-              onValueChange={(v) => setChangeDir(v as ChangeDirection)}
-            >
+            <Label>{t('pricing.history.changeDirection')}</Label>
+            <Select value={changeDir} onValueChange={(v) => setChangeDir(v as ChangeDirection)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Tümü</SelectItem>
-                <SelectItem value="up">Artış</SelectItem>
-                <SelectItem value="down">Azalış</SelectItem>
+                <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
+                <SelectItem value="up">{t('pricing.history.increase')}</SelectItem>
+                <SelectItem value="down">{t('pricing.history.decrease')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -255,39 +260,67 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
           <span className="font-medium">{listingHistoryQuery.data.title}</span>
           <span className="text-muted-foreground">
             {' '}
-            · Güncel: {formatTry(listingHistoryQuery.data.currentPrice)}
+            · {t('pricing.history.currentPrice', {
+              price: formatTry(listingHistoryQuery.data.currentPrice),
+            })}
           </span>
         </div>
       ) : null}
 
       {listingId && chartData.length > 0 ? (
         <div className="rounded-md border p-4">
-          <p className="mb-3 text-sm font-medium">Fiyat zaman serisi (son 30 gün)</p>
+          <p className="mb-3 text-sm font-medium">{t('pricing.history.chartTitle')}</p>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip formatter={(v) => formatTry(typeof v === 'number' ? v : null)} />
-                <Area
+              <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className={PRICING_CHART_GRID_CLASS} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="currentColor" />
+                <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} stroke="currentColor" />
+                <Tooltip
+                  formatter={(v) => formatTry(typeof v === 'number' ? v : null)}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 'var(--radius)',
+                    color: 'hsl(var(--popover-foreground))',
+                  }}
+                />
+                <Legend />
+                <Line
                   type="monotone"
                   dataKey="ourPrice"
-                  name="Bizim fiyat"
-                  stroke="#0ea5e9"
-                  fill="url(#priceFill)"
+                  name={t('pricing.history.ourPrice')}
+                  stroke={PRICING_CHART_COLORS.our}
+                  strokeWidth={2}
+                  dot={false}
                   connectNulls
                 />
-              </AreaChart>
+                <Line
+                  type="monotone"
+                  dataKey="lowestCompetitor"
+                  name={t('pricing.history.lowestCompetitor')}
+                  stroke={PRICING_CHART_COLORS.competitor1}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="avgCompetitor"
+                  name={t('pricing.history.avgCompetitor')}
+                  stroke={PRICING_CHART_COLORS.competitor2}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              </LineChart>
             </ResponsiveContainer>
           </div>
         </div>
+      ) : null}
+
+      {listingId && !listingHistoryQuery.isLoading && chartData.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('pricing.common.noChartData')}</p>
       ) : null}
 
       {isLoading ? (
@@ -305,28 +338,28 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
 
       {!isLoading && filteredRows.length === 0 ? (
         <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Seçilen filtrelere uygun fiyat geçmişi yok.
+          {t('pricing.history.empty')}
         </p>
       ) : null}
 
       {!isLoading && filteredRows.length > 0 ? (
-        <div className="rounded-md border overflow-x-auto">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tarih</TableHead>
-                <TableHead>Eski fiyat</TableHead>
-                <TableHead>Yeni fiyat</TableHead>
-                <TableHead>Değişim %</TableHead>
-                <TableHead>Platform</TableHead>
-                <TableHead>Neden</TableHead>
+                <TableHead>{t('pricing.history.date')}</TableHead>
+                <TableHead>{t('pricing.history.oldPrice')}</TableHead>
+                <TableHead>{t('pricing.history.newPrice')}</TableHead>
+                <TableHead>{t('pricing.history.changePct')}</TableHead>
+                <TableHead>{t('pricing.common.platform')}</TableHead>
+                <TableHead>{t('pricing.history.reason')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredRows.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {format(new Date(row.appliedAt), 'd MMM yyyy HH:mm', { locale: tr })}
+                    {format(new Date(row.appliedAt), 'd MMM yyyy HH:mm', { locale: dateLocale })}
                   </TableCell>
                   <TableCell className="tabular-nums">{formatTry(row.oldPrice)}</TableCell>
                   <TableCell className="tabular-nums">{formatTry(row.newPrice)}</TableCell>
@@ -336,11 +369,11 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
                     ) : (
                       <Badge
                         variant="outline"
-                        className={
+                        className={cn(
                           row.changePct < 0
-                            ? 'border-green-500 text-green-700'
-                            : 'border-red-500 text-red-700'
-                        }
+                            ? 'border-green-500 text-green-700 dark:border-green-600 dark:text-green-400'
+                            : 'border-red-500 text-red-700 dark:border-red-600 dark:text-red-400',
+                        )}
                       >
                         {row.changePct > 0 ? '+' : ''}
                         {row.changePct.toFixed(1)}%

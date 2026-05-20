@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
 import { Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   CartesianGrid,
   Legend,
@@ -44,19 +44,24 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
 import type { CompetitorPriceRow } from '@/types/pricing';
 
 import {
+  useCompetitorMatrix,
   useCompetitorPrices,
   useCreatePriceAlert,
   useListingPriceHistory,
   usePriceGap,
   usePriceTrend,
 } from './hooks/usePricing';
+import { PRICING_CHART_COLORS, PRICING_CHART_GRID_CLASS } from './pricing-chart';
+import { pricingDateLocale } from './pricing-i18n';
 import { formatTry } from './pricing-utils';
 
 interface Props {
@@ -65,7 +70,10 @@ interface Props {
 }
 
 export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement {
+  const { t, i18n } = useTranslation();
+  const dateLocale = pricingDateLocale();
   const listingsQuery = useListings({ page: 1, limit: 200 }, proAccess);
+  const matrixQuery = useCompetitorMatrix(proAccess);
   const [listingId, setListingId] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
@@ -79,10 +87,10 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
   );
 
   const barcode = selectedListing?.barcode ?? null;
-  const compQuery = useCompetitorPrices(barcode, proAccess);
-  const gapQuery = usePriceGap(barcode, proAccess);
-  const trendQuery = usePriceTrend(barcode, platform, proAccess);
-  const historyQuery = useListingPriceHistory(listingId, 30, proAccess);
+  const compQuery = useCompetitorPrices(barcode, proAccess && listingId != null);
+  const gapQuery = usePriceGap(barcode, proAccess && listingId != null);
+  const trendQuery = usePriceTrend(barcode, platform, proAccess && listingId != null);
+  const historyQuery = useListingPriceHistory(listingId, 30, proAccess && listingId != null);
   const createAlert = useCreatePriceAlert();
 
   useEffect(() => {
@@ -126,7 +134,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
     const history = historyQuery.data?.chart ?? [];
     if (history.length > 0) {
       return history.map((p) => ({
-        label: format(new Date(p.date), 'd MMM', { locale: tr }),
+        label: format(new Date(p.date), 'd MMM', { locale: dateLocale }),
         ourPrice: p.ourPrice,
         rakip1: p.lowestCompetitor,
         rakip2: p.avgCompetitor,
@@ -138,7 +146,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
       rakip1: d.buyBoxPrice,
       rakip2: d.avgCompetitorPrice,
     }));
-  }, [historyQuery.data?.chart, trendQuery.data]);
+  }, [historyQuery.data?.chart, trendQuery.data, dateLocale]);
 
   const byPlatform = useMemo(() => {
     const map = new Map<string, CompetitorPriceRow[]>();
@@ -149,6 +157,16 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
     }
     return map;
   }, [compQuery.data]);
+
+  const matrixPlatforms = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of matrixQuery.data ?? []) {
+      for (const cell of row.platforms) {
+        set.add(cell.platform);
+      }
+    }
+    return Array.from(set).sort();
+  }, [matrixQuery.data]);
 
   const handleCreateAlert = (): void => {
     const threshold = Number(alertThreshold.replace(',', '.'));
@@ -174,10 +192,10 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
   if (!proAccess) {
     return (
       <UpgradePrompt
-        feature="Rakip analizi"
+        feature={t('pricing.upgrade.competitorsFeature')}
         requiredPlan="PRO"
         currentPlan={plan}
-        description="Rakip fiyat tablosu, trend grafiği ve uyarılar PRO pakette açıktır."
+        description={t('pricing.upgrade.competitorsDesc')}
       />
     );
   }
@@ -185,7 +203,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
   return (
     <div className="space-y-6">
       <div className="max-w-xl space-y-2">
-        <Label>Ürün seçin</Label>
+        <Label>{t('pricing.competitors.selectProduct')}</Label>
         {listingsQuery.isLoading ? (
           <Skeleton className="h-10 w-full" />
         ) : (
@@ -193,16 +211,99 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
             options={comboboxOptions}
             value={listingId}
             onChange={setListingId}
-            placeholder="Listeleme seçin…"
-            searchPlaceholder="Barkod veya ürün adı…"
+            placeholder={t('pricing.competitors.selectPlaceholder')}
+            searchPlaceholder={t('pricing.competitors.searchPlaceholder')}
           />
         )}
       </div>
 
       {listingId == null ? (
-        <p className="text-sm text-muted-foreground">
-          Rakip fiyatları ve trend için bir ürün seçin.
-        </p>
+        <>
+          <p className="text-sm text-muted-foreground">{t('pricing.competitors.selectHint')}</p>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">{t('pricing.competitors.matrixTitle')}</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {t('pricing.competitors.matrixDesc')}
+              </p>
+            </CardHeader>
+            <CardContent>
+              {matrixQuery.isLoading ? (
+                <TableSkeleton rows={6} cols={matrixPlatforms.length + 2} />
+              ) : null}
+              {matrixQuery.isError ? (
+                <p className="text-sm text-destructive">
+                  {getApiErrorMessage(matrixQuery.error)}
+                </p>
+              ) : null}
+              {!matrixQuery.isLoading && (matrixQuery.data?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t('pricing.competitors.noCompetitors')}
+                </p>
+              ) : null}
+              {!matrixQuery.isLoading && (matrixQuery.data?.length ?? 0) > 0 ? (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{t('pricing.buybox.product')}</TableHead>
+                        {matrixPlatforms.map((p) => (
+                          <TableHead key={p} className="text-right">
+                            {p}
+                          </TableHead>
+                        ))}
+                        <TableHead className="text-right">
+                          {t('pricing.competitors.cheapest')}
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(matrixQuery.data ?? []).map((row) => (
+                        <TableRow key={row.barcode}>
+                          <TableCell className="max-w-[220px]">
+                            <span className="line-clamp-2 text-sm font-medium">{row.title}</span>
+                            <span className="font-mono text-xs text-muted-foreground">
+                              {row.barcode}
+                            </span>
+                          </TableCell>
+                          {matrixPlatforms.map((plat) => {
+                            const cell = row.platforms.find((c) => c.platform === plat);
+                            return (
+                              <TableCell key={plat} className="text-right text-sm tabular-nums">
+                                {cell ? (
+                                  <div className="space-y-0.5">
+                                    <div>{formatTry(cell.ourPrice)}</div>
+                                    <div
+                                      className={cn(
+                                        'text-xs',
+                                        cell.isCheapest
+                                          ? 'text-green-700 dark:text-green-400'
+                                          : 'text-muted-foreground',
+                                      )}
+                                    >
+                                      {cell.lowestCompetitor != null
+                                        ? formatTry(cell.lowestCompetitor)
+                                        : '—'}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  '—'
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-right font-medium tabular-nums">
+                            {row.globalLowest != null ? formatTry(row.globalLowest) : '—'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
+        </>
       ) : (
         <>
           <div className="flex flex-wrap gap-2">
@@ -213,7 +314,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
               onClick={() => setAlertOpen(true)}
             >
               <Bell className="h-4 w-4" aria-hidden />
-              Fiyat uyarısı ekle
+              {t('pricing.competitors.addAlert')}
             </Button>
           </div>
 
@@ -233,20 +334,33 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">En ucuz</span>
+                        <span className="text-muted-foreground">
+                          {t('pricing.competitors.cheapest')}
+                        </span>
                         <span className="font-semibold tabular-nums">{cheapest}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Bizim fiyat</span>
+                        <span className="text-muted-foreground">
+                          {t('pricing.competitors.ourPrice')}
+                        </span>
                         <span className="tabular-nums">{formatTry(row.ourSalePrice)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Rakip sayısı</span>
+                        <span className="text-muted-foreground">
+                          {t('pricing.competitors.competitorCount')}
+                        </span>
                         <span>{row.competitorCount}</span>
                       </div>
                       {row.gapPct != null ? (
-                        <Badge variant={row.gapPct > 0 ? 'outline' : 'default'}>
-                          Fark %{row.gapPct.toFixed(1)}
+                        <Badge
+                          variant={row.gapPct > 0 ? 'outline' : 'default'}
+                          className={
+                            row.gapPct > 0
+                              ? 'border-amber-500 text-amber-700 dark:border-amber-600 dark:text-amber-400'
+                              : undefined
+                          }
+                        >
+                          {t('pricing.competitors.gapPct', { pct: row.gapPct.toFixed(1) })}
                         </Badge>
                       ) : null}
                     </CardContent>
@@ -257,13 +371,10 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
           ) : null}
 
           <div className="max-w-xs space-y-2">
-            <Label>Trend platformu</Label>
-            <Select
-              value={platform ?? undefined}
-              onValueChange={(v) => setPlatform(v)}
-            >
+            <Label>{t('pricing.competitors.trendPlatform')}</Label>
+            <Select value={platform ?? undefined} onValueChange={(v) => setPlatform(v)}>
               <SelectTrigger>
-                <SelectValue placeholder="Platform" />
+                <SelectValue placeholder={t('pricing.common.platform')} />
               </SelectTrigger>
               <SelectContent>
                 {(gapQuery.data?.platforms ?? []).map((p) => (
@@ -277,10 +388,8 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Fiyat trendi</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Son 30 gün (ürün geçmişi) veya API&apos;deki son 7 gün anlık görüntüleri
-              </p>
+              <CardTitle className="text-base">{t('pricing.competitors.trendTitle')}</CardTitle>
+              <p className="text-sm text-muted-foreground">{t('pricing.competitors.trendDesc')}</p>
             </CardHeader>
             <CardContent>
               {historyQuery.isLoading || trendQuery.isLoading ? (
@@ -290,16 +399,24 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                      <Tooltip formatter={(v) => formatTry(typeof v === 'number' ? v : null)} />
+                      <CartesianGrid strokeDasharray="3 3" className={PRICING_CHART_GRID_CLASS} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="currentColor" />
+                      <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} stroke="currentColor" />
+                      <Tooltip
+                        formatter={(v) => formatTry(typeof v === 'number' ? v : null)}
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--popover))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: 'var(--radius)',
+                          color: 'hsl(var(--popover-foreground))',
+                        }}
+                      />
                       <Legend />
                       <Line
                         type="monotone"
                         dataKey="ourPrice"
-                        name="Bizim"
-                        stroke="#0ea5e9"
+                        name={t('pricing.competitors.us')}
+                        stroke={PRICING_CHART_COLORS.our}
                         strokeWidth={2}
                         dot={false}
                         connectNulls
@@ -307,8 +424,8 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                       <Line
                         type="monotone"
                         dataKey="rakip1"
-                        name={topCompetitors[0]?.competitorName ?? 'Rakip 1'}
-                        stroke="#f97316"
+                        name={topCompetitors[0]?.competitorName ?? t('pricing.competitors.competitor1')}
+                        stroke={PRICING_CHART_COLORS.competitor1}
                         strokeWidth={2}
                         dot={false}
                         connectNulls
@@ -316,8 +433,8 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                       <Line
                         type="monotone"
                         dataKey="rakip2"
-                        name={topCompetitors[1]?.competitorName ?? 'Rakip 2'}
-                        stroke="#64748b"
+                        name={topCompetitors[1]?.competitorName ?? t('pricing.competitors.competitor2')}
+                        stroke={PRICING_CHART_COLORS.competitor2}
                         strokeWidth={2}
                         dot={false}
                         connectNulls
@@ -326,14 +443,14 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                   </ResponsiveContainer>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">Trend verisi yok.</p>
+                <p className="text-sm text-muted-foreground">{t('pricing.common.noChartData')}</p>
               )}
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Rakip fiyat tablosu</CardTitle>
+              <CardTitle className="text-base">{t('pricing.competitors.tableTitle')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               {compQuery.isLoading ? <Skeleton className="h-40 w-full" /> : null}
@@ -342,7 +459,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
               ) : null}
               {(compQuery.data?.length ?? 0) === 0 && !compQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">
-                  Henüz rakip fiyat kaydı yok.
+                  {t('pricing.competitors.noCompetitors')}
                 </p>
               ) : null}
               {Array.from(byPlatform.entries()).map(([plat, rows]) => (
@@ -351,10 +468,10 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Satıcı</TableHead>
-                        <TableHead className="text-right">Fiyat</TableHead>
-                        <TableHead>BuyBox</TableHead>
-                        <TableHead>Tarih</TableHead>
+                        <TableHead>{t('pricing.competitors.seller')}</TableHead>
+                        <TableHead className="text-right">{t('pricing.competitors.price')}</TableHead>
+                        <TableHead>{t('pricing.competitors.buybox')}</TableHead>
+                        <TableHead>{t('pricing.competitors.date')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -363,7 +480,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                           <TableCell>
                             {r.competitorName ?? r.competitorId}
                             {r.isBuyBox ? (
-                              <Badge className="ml-2 bg-sky-500 text-white hover:bg-sky-500/90">
+                              <Badge className="ml-2 bg-sky-500 text-white hover:bg-sky-500/90 dark:bg-sky-600">
                                 BuyBox
                               </Badge>
                             ) : null}
@@ -371,9 +488,11 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                           <TableCell className="text-right tabular-nums">
                             {formatTry(Number(r.price))}
                           </TableCell>
-                          <TableCell>{r.isBuyBox ? 'Evet' : 'Hayır'}</TableCell>
+                          <TableCell>
+                            {r.isBuyBox ? t('pricing.common.yes') : t('pricing.common.no')}
+                          </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
-                            {new Date(r.capturedAt).toLocaleString('tr-TR')}
+                            {new Date(r.capturedAt).toLocaleString(i18n.language)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -389,46 +508,34 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
       <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Fiyat uyarısı</DialogTitle>
+            <DialogTitle>{t('pricing.competitors.alertTitle')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="alert-threshold">Eşik fiyat (₺)</Label>
+              <Label htmlFor="alert-threshold">{t('pricing.competitors.threshold')}</Label>
               <Input
                 id="alert-threshold"
                 inputMode="decimal"
-                placeholder="Örn. 299,90"
+                placeholder="299,90"
                 value={alertThreshold}
                 onChange={(e) => setAlertThreshold(e.target.value)}
               />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
-              <Label htmlFor="alert-email">E-posta</Label>
-              <Switch
-                id="alert-email"
-                checked={alertEmail}
-                onCheckedChange={setAlertEmail}
-              />
+              <Label htmlFor="alert-email">{t('pricing.competitors.email')}</Label>
+              <Switch id="alert-email" checked={alertEmail} onCheckedChange={setAlertEmail} />
             </div>
             <div className="flex items-center justify-between rounded-lg border p-3">
-              <Label htmlFor="alert-inapp">Panel bildirimi</Label>
-              <Switch
-                id="alert-inapp"
-                checked={alertInApp}
-                onCheckedChange={setAlertInApp}
-              />
+              <Label htmlFor="alert-inapp">{t('pricing.competitors.inApp')}</Label>
+              <Switch id="alert-inapp" checked={alertInApp} onCheckedChange={setAlertInApp} />
             </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setAlertOpen(false)}>
-              İptal
+              {t('pricing.common.cancel')}
             </Button>
-            <Button
-              type="button"
-              disabled={createAlert.isPending}
-              onClick={handleCreateAlert}
-            >
-              Kaydet
+            <Button type="button" disabled={createAlert.isPending} onClick={handleCreateAlert}>
+              {t('pricing.common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

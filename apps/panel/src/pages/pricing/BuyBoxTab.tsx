@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/table';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
+import { cn } from '@/lib/utils';
 import { useBulkListingPrice } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
 import type { BuyBoxReportTopLoser } from '@/types/pricing';
@@ -40,33 +42,24 @@ import { formatTry } from './pricing-utils';
 
 type BuyBoxStatusFilter = 'all' | 'winning' | 'losing' | 'competitive';
 
-function buyBoxBadge(row: BuyBoxReportTopLoser): {
-  label: string;
-  variant: 'default' | 'secondary' | 'outline';
-  className?: string;
-} {
+type StatusKey = 'winning' | 'losing' | 'competitive';
+
+function buyBoxBadge(row: BuyBoxReportTopLoser): StatusKey {
   if (row.isWinner) {
-    return { label: 'Kazanıyor', variant: 'default', className: 'bg-green-600 hover:bg-green-600/90' };
+    return 'winning';
   }
   const gapPct =
     row.buyBoxReferencePrice > 0
       ? (row.priceGap / row.buyBoxReferencePrice) * 100
       : 100;
   if (gapPct <= 3) {
-    return { label: 'Rekabetçi', variant: 'secondary' };
+    return 'competitive';
   }
-  return { label: 'Kaybediyor', variant: 'outline', className: 'border-amber-500 text-amber-700' };
+  return 'losing';
 }
 
-function recommendation(row: BuyBoxReportTopLoser): string {
-  if (row.isWinner) {
-    return 'BuyBox sende — fiyatı koruyun';
-  }
-  const target = row.buyBoxReferencePrice;
-  if (row.priceGap > 0) {
-    return `${formatTry(target)} seviyesine indirin`;
-  }
-  return 'Rakip fiyatını izleyin';
+function optimalPrice(row: BuyBoxReportTopLoser): number {
+  return row.isWinner ? row.currentPrice : row.buyBoxReferencePrice;
 }
 
 interface Props {
@@ -75,6 +68,7 @@ interface Props {
 }
 
 export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
+  const { t } = useTranslation();
   const reportQuery = useBuyBoxReport(proAccess);
   const summaryQuery = useBuyBoxSummary(proAccess);
   const winRateQuery = useBuyBoxWinRate(7, proAccess);
@@ -86,6 +80,18 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
   const [gapMax, setGapMax] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const statusLabels: Record<StatusKey, string> = {
+    winning: t('pricing.buybox.statusWinning'),
+    losing: t('pricing.buybox.statusLosing'),
+    competitive: t('pricing.buybox.statusCompetitive'),
+  };
+
+  const statusBadgeClass: Record<StatusKey, string> = {
+    winning: 'bg-green-600 text-white hover:bg-green-600/90 dark:bg-green-700',
+    competitive: '',
+    losing: 'border-amber-500 text-amber-700 dark:border-amber-600 dark:text-amber-400',
+  };
+
   const rows = useMemo(() => reportQuery.data?.topLosers ?? [], [reportQuery.data?.topLosers]);
 
   const filteredRows = useMemo(() => {
@@ -96,14 +102,14 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
       if (platformFilter !== 'all' && row.platform !== platformFilter) {
         return false;
       }
-      const badge = buyBoxBadge(row);
-      if (statusFilter === 'winning' && badge.label !== 'Kazanıyor') {
+      const status = buyBoxBadge(row);
+      if (statusFilter === 'winning' && status !== 'winning') {
         return false;
       }
-      if (statusFilter === 'losing' && badge.label !== 'Kaybediyor') {
+      if (statusFilter === 'losing' && status !== 'losing') {
         return false;
       }
-      if (statusFilter === 'competitive' && badge.label !== 'Rekabetçi') {
+      if (statusFilter === 'competitive' && status !== 'competitive') {
         return false;
       }
       const gap = Math.abs(row.priceGap);
@@ -130,6 +136,16 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
     return Array.from(set).sort();
   }, [rows]);
 
+  const recommendation = (row: BuyBoxReportTopLoser): string => {
+    if (row.isWinner) {
+      return t('pricing.buybox.keepPrice');
+    }
+    if (row.priceGap > 0) {
+      return t('pricing.buybox.lowerTo', { price: formatTry(row.buyBoxReferencePrice) });
+    }
+    return t('pricing.buybox.watchCompetitor');
+  };
+
   const toggleRow = (id: string, checked: boolean): void => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -153,13 +169,13 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
   const applyAutoPrice = (): void => {
     const selected = filteredRows.filter((r) => selectedIds.has(r.listingId));
     if (selected.length === 0) {
-      toast.error('En az bir ürün seçin');
+      toast.error(t('pricing.buybox.selectOne'));
       return;
     }
     bulkPriceMutation.mutate(
       selected.map((r) => ({
         id: r.listingId,
-        price: r.buyBoxReferencePrice,
+        price: optimalPrice(r),
       })),
       {
         onSuccess: () => {
@@ -173,10 +189,10 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
   if (!proAccess) {
     return (
       <UpgradePrompt
-        feature="BuyBox durumu"
+        feature={t('pricing.upgrade.buyboxFeature')}
         requiredPlan="PRO"
         currentPlan={plan}
-        description="BuyBox KPI, ürün tablosu ve otomatik fiyat uygulama PRO ve Kurumsal paketlerde açıktır."
+        description={t('pricing.upgrade.buyboxDesc')}
       />
     );
   }
@@ -205,26 +221,29 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  BuyBox kazanma oranı
+                  {t('pricing.buybox.winRate')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-semibold text-sky-600 tabular-nums">
+                <p className="text-3xl font-semibold text-sky-600 tabular-nums dark:text-sky-400">
                   %{(reportQuery.data.winRate * 100).toFixed(1)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {reportQuery.data.buyBoxCount} / {reportQuery.data.totalListings} listeleme
+                  {t('pricing.buybox.listingsCount', {
+                    won: reportQuery.data.buyBoxCount,
+                    total: reportQuery.data.totalListings,
+                  })}
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Kazanılan ürün
+                  {t('pricing.buybox.winningProducts')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-semibold tabular-nums text-green-700">
+                <p className="text-3xl font-semibold tabular-nums text-green-700 dark:text-green-400">
                   {summaryQuery.data?.winningBuyBox ?? reportQuery.data.buyBoxCount}
                 </p>
               </CardContent>
@@ -232,19 +251,19 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Kaybedilen ürün
+                  {t('pricing.buybox.losingProducts')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-semibold tabular-nums text-amber-700">
-                  {rows.length}
+                <p className="text-3xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                  {rows.filter((r) => !r.isWinner).length}
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Ort. fiyat sapması
+                  {t('pricing.buybox.avgDeviation')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -253,7 +272,9 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                 </p>
                 {winRateQuery.data ? (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Kazanırken: {formatTry(winRateQuery.data.avgPriceWhenWinning)}
+                    {t('pricing.buybox.whenWinning', {
+                      price: formatTry(winRateQuery.data.avgPriceWhenWinning),
+                    })}
                   </p>
                 ) : null}
               </CardContent>
@@ -263,13 +284,13 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
           <div className="flex flex-col gap-4 rounded-lg border bg-muted/20 p-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <Label>Platform</Label>
+                <Label>{t('pricing.common.platform')}</Label>
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Tümü" />
+                    <SelectValue placeholder={t('pricing.common.all')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tümü</SelectItem>
+                    <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
                     {platforms.map((p) => (
                       <SelectItem key={p} value={p}>
                         {p}
@@ -279,7 +300,7 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Durum</Label>
+                <Label>{t('pricing.buybox.status')}</Label>
                 <Select
                   value={statusFilter}
                   onValueChange={(v) => setStatusFilter(v as BuyBoxStatusFilter)}
@@ -288,15 +309,17 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Tümü</SelectItem>
-                    <SelectItem value="winning">Kazanıyor</SelectItem>
-                    <SelectItem value="losing">Kaybediyor</SelectItem>
-                    <SelectItem value="competitive">Rekabetçi</SelectItem>
+                    <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
+                    <SelectItem value="winning">{t('pricing.buybox.statusWinning')}</SelectItem>
+                    <SelectItem value="losing">{t('pricing.buybox.statusLosing')}</SelectItem>
+                    <SelectItem value="competitive">
+                      {t('pricing.buybox.statusCompetitive')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gap-min">Sapma min (₺)</Label>
+                <Label htmlFor="gap-min">{t('pricing.buybox.gapMin')}</Label>
                 <Input
                   id="gap-min"
                   inputMode="decimal"
@@ -306,7 +329,7 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="gap-max">Sapma max (₺)</Label>
+                <Label htmlFor="gap-max">{t('pricing.buybox.gapMax')}</Label>
                 <Input
                   id="gap-max"
                   inputMode="decimal"
@@ -325,12 +348,12 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
               {bulkPriceMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : null}
-              Otomatik fiyat uygula
+              {t('pricing.buybox.autoApply')}
               {selectedIds.size > 0 ? ` (${String(selectedIds.size)})` : ''}
             </Button>
           </div>
 
-          <div className="rounded-md border overflow-x-auto">
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -341,35 +364,36 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                         filteredRows.every((r) => selectedIds.has(r.listingId))
                       }
                       onCheckedChange={(c) => toggleAll(c === true)}
-                      aria-label="Tümünü seç"
+                      aria-label={t('pricing.common.all')}
                     />
                   </TableHead>
-                  <TableHead>Ürün</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead className="text-right">Bizim fiyat</TableHead>
-                  <TableHead className="text-right">En düşük rakip</TableHead>
-                  <TableHead>BuyBox durumu</TableHead>
-                  <TableHead>Öneri</TableHead>
-                  <TableHead className="text-right">Aksiyonlar</TableHead>
+                  <TableHead>{t('pricing.buybox.product')}</TableHead>
+                  <TableHead>{t('pricing.common.platform')}</TableHead>
+                  <TableHead className="text-right">{t('pricing.buybox.ourPrice')}</TableHead>
+                  <TableHead className="text-right">{t('pricing.buybox.lowestCompetitor')}</TableHead>
+                  <TableHead className="text-right">{t('pricing.buybox.optimalPrice')}</TableHead>
+                  <TableHead>{t('pricing.buybox.buyboxStatus')}</TableHead>
+                  <TableHead>{t('pricing.buybox.recommendation')}</TableHead>
+                  <TableHead className="text-right">{t('pricing.buybox.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground">
-                      Filtrelere uygun kayıt yok.
+                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                      {t('pricing.buybox.noRows')}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredRows.map((row) => {
-                    const badge = buyBoxBadge(row);
+                    const status = buyBoxBadge(row);
                     return (
                       <TableRow key={row.listingId}>
                         <TableCell>
                           <Checkbox
                             checked={selectedIds.has(row.listingId)}
                             onCheckedChange={(c) => toggleRow(row.listingId, c === true)}
-                            aria-label={`${row.title} seç`}
+                            aria-label={row.title}
                           />
                         </TableCell>
                         <TableCell className="max-w-[200px]">
@@ -385,9 +409,15 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                         <TableCell className="text-right tabular-nums">
                           {formatTry(row.lowestCompetitorPrice)}
                         </TableCell>
+                        <TableCell className="text-right tabular-nums font-medium text-sky-700 dark:text-sky-400">
+                          {formatTry(optimalPrice(row))}
+                        </TableCell>
                         <TableCell>
-                          <Badge variant={badge.variant} className={badge.className}>
-                            {badge.label}
+                          <Badge
+                            variant={status === 'winning' ? 'default' : status === 'losing' ? 'outline' : 'secondary'}
+                            className={cn(statusBadgeClass[status])}
+                          >
+                            {statusLabels[status]}
                           </Badge>
                         </TableCell>
                         <TableCell className="max-w-[180px] text-sm text-muted-foreground">
@@ -401,11 +431,11 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                             disabled={bulkPriceMutation.isPending}
                             onClick={() => {
                               bulkPriceMutation.mutate([
-                                { id: row.listingId, price: row.buyBoxReferencePrice },
+                                { id: row.listingId, price: optimalPrice(row) },
                               ]);
                             }}
                           >
-                            Uygula
+                            {t('pricing.common.apply')}
                           </Button>
                         </TableCell>
                       </TableRow>

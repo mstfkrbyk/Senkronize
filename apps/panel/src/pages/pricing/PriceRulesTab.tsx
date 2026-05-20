@@ -14,8 +14,19 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Pencil, Plus } from 'lucide-react';
+import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,6 +47,7 @@ import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
 import { PriceRuleDialog } from './PriceRuleDialog';
 import {
+  useDeletePricingRule,
   usePricingRules,
   useUpdatePricingRule,
   useUpdatePricingRuleActive,
@@ -56,12 +68,24 @@ function SortableRuleRow({
   rule,
   onEdit,
   onToggle,
+  onDelete,
   togglePending,
+  deletePending,
+  activeLabel,
+  passiveLabel,
+  editLabel,
+  deleteLabel,
 }: {
   rule: PricingRule;
   onEdit: (rule: PricingRule) => void;
   onToggle: (id: string, active: boolean) => void;
+  onDelete: (rule: PricingRule) => void;
   togglePending: boolean;
+  deletePending: boolean;
+  activeLabel: string;
+  passiveLabel: string;
+  editLabel: string;
+  deleteLabel: string;
 }): ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: rule.id });
@@ -84,7 +108,7 @@ function SortableRuleRow({
         <button
           type="button"
           className="flex h-8 w-8 cursor-grab items-center justify-center rounded-md border bg-background active:cursor-grabbing"
-          aria-label="Öncelik sırasını değiştir"
+          aria-label="Reorder"
           {...attributes}
           {...listeners}
         >
@@ -98,7 +122,7 @@ function SortableRuleRow({
       <TableCell>{platformLabel}</TableCell>
       <TableCell>
         <Badge variant={rule.isActive ? 'default' : 'secondary'}>
-          {rule.isActive ? 'Aktif' : 'Pasif'}
+          {rule.isActive ? activeLabel : passiveLabel}
         </Badge>
       </TableCell>
       <TableCell className="tabular-nums text-muted-foreground">
@@ -110,11 +134,22 @@ function SortableRuleRow({
             checked={rule.isActive}
             disabled={togglePending}
             onCheckedChange={(c) => onToggle(rule.id, c)}
-            aria-label={`${rule.name} aktif/pasif`}
+            aria-label={`${rule.name} active`}
           />
           <Button type="button" size="icon" variant="ghost" onClick={() => onEdit(rule)}>
             <Pencil className="h-4 w-4" aria-hidden />
-            <span className="sr-only">Düzenle</span>
+            <span className="sr-only">{editLabel}</span>
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="text-destructive hover:text-destructive"
+            disabled={deletePending}
+            onClick={() => onDelete(rule)}
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+            <span className="sr-only">{deleteLabel}</span>
           </Button>
         </div>
       </TableCell>
@@ -128,13 +163,16 @@ interface Props {
 }
 
 export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
+  const { t } = useTranslation();
   const rulesQuery = usePricingRules(proAccess);
   const patchActive = useUpdatePricingRuleActive();
   const updateRule = useUpdatePricingRule();
+  const deleteRule = useDeletePricingRule();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<PricingRule | null>(null);
 
   const rules = rulesQuery.data ?? [];
 
@@ -199,13 +237,22 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
     setDialogOpen(true);
   };
 
+  const confirmDelete = (): void => {
+    if (deleteTarget == null) {
+      return;
+    }
+    deleteRule.mutate(deleteTarget.id, {
+      onSuccess: () => setDeleteTarget(null),
+    });
+  };
+
   if (!proAccess) {
     return (
       <UpgradePrompt
-        feature="Fiyat kuralları"
+        feature={t('pricing.upgrade.rulesFeature')}
         requiredPlan="PRO"
         currentPlan={plan}
-        description="Otomatik fiyat kuralları PRO ve Kurumsal paketlerde kullanılabilir."
+        description={t('pricing.upgrade.rulesDesc')}
       />
     );
   }
@@ -213,12 +260,10 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">
-          Kurallar yukarıdan aşağıya öncelik sırasıyla uygulanır. Sürükleyerek sırayı değiştirin.
-        </p>
-        <Button type="button" className="gap-2 shrink-0" onClick={openCreate}>
+        <p className="text-sm text-muted-foreground">{t('pricing.rules.priorityHint')}</p>
+        <Button type="button" className="shrink-0 gap-2" onClick={openCreate}>
           <Plus className="h-4 w-4" aria-hidden />
-          Kural oluştur
+          {t('pricing.rules.createRule')}
         </Button>
       </div>
 
@@ -233,23 +278,23 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
 
       {!rulesQuery.isLoading && !rulesQuery.isError && rules.length === 0 ? (
         <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-          Henüz fiyat kuralı yok. İlk kuralınızı oluşturun.
+          {t('pricing.rules.empty')}
         </p>
       ) : null}
 
       {!rulesQuery.isLoading && sortedRules.length > 0 ? (
-        <div className="rounded-md border overflow-x-auto">
+        <div className="overflow-x-auto rounded-md border">
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Kural adı</TableHead>
-                  <TableHead>Tip</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Durum</TableHead>
-                  <TableHead>Öncelik</TableHead>
-                  <TableHead className="text-right">İşlemler</TableHead>
+                  <TableHead>{t('pricing.rules.ruleName')}</TableHead>
+                  <TableHead>{t('pricing.rules.type')}</TableHead>
+                  <TableHead>{t('pricing.common.platform')}</TableHead>
+                  <TableHead>{t('pricing.buybox.status')}</TableHead>
+                  <TableHead>{t('pricing.rules.priority')}</TableHead>
+                  <TableHead className="text-right">{t('pricing.rules.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -263,7 +308,13 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
                       rule={rule}
                       onEdit={openEdit}
                       onToggle={(id, active) => patchActive.mutate({ id, isActive: active })}
+                      onDelete={setDeleteTarget}
                       togglePending={patchActive.isPending}
+                      deletePending={deleteRule.isPending}
+                      activeLabel={t('pricing.common.active')}
+                      passiveLabel={t('pricing.common.passive')}
+                      editLabel={t('pricing.common.edit')}
+                      deleteLabel={t('pricing.common.delete')}
                     />
                   ))}
                 </SortableContext>
@@ -276,7 +327,7 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
       {updateRule.isPending ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Skeleton className="h-4 w-4 rounded-full" />
-          Öncelik kaydediliyor…
+          {t('pricing.rules.savingPriority')}
         </div>
       ) : null}
 
@@ -285,6 +336,34 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
         onOpenChange={setDialogOpen}
         rule={editingRule}
       />
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('pricing.rules.deleteTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('pricing.rules.deleteDesc', { name: deleteTarget?.name ?? '' })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('pricing.common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteRule.isPending}
+              onClick={confirmDelete}
+            >
+              {t('pricing.common.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

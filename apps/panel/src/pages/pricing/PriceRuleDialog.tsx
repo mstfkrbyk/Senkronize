@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -236,6 +237,7 @@ interface Props {
 }
 
 export function PriceRuleDialog({ open, onOpenChange, rule }: Props): ReactElement {
+  const { t } = useTranslation();
   const createMutation = useCreateRule();
   const updateMutation = useUpdatePricingRule();
   const isEdit = rule != null;
@@ -291,7 +293,9 @@ export function PriceRuleDialog({ open, onOpenChange, rule }: Props): ReactEleme
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Kuralı düzenle' : 'Yeni fiyat kuralı'}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? t('pricing.rules.dialogEdit') : t('pricing.rules.dialogCreate')}
+          </DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -596,13 +600,13 @@ export function PriceRuleDialog({ open, onOpenChange, rule }: Props): ReactEleme
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                İptal
+                {t('pricing.common.cancel')}
               </Button>
               <Button
                 type="submit"
                 disabled={createMutation.isPending || updateMutation.isPending}
               >
-                {isEdit ? 'Kaydet' : 'Oluştur'}
+                {isEdit ? t('pricing.common.save') : t('pricing.common.create')}
               </Button>
             </DialogFooter>
           </form>
