@@ -544,6 +544,35 @@ export class EmailService {
     );
   }
 
+  async sendTicketAssignmentNotification(
+    email: string,
+    data: {
+      assigneeName: string;
+      ticketNumber: string;
+      subject: string;
+      adminUrl: string;
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await this.send(
+      email,
+      `Size atanan destek talebi: ${data.ticketNumber}`,
+      `
+      <div style="font-family:sans-serif;max-width:640px;margin:0 auto">
+        <h2>Merhaba ${esc(data.assigneeName)},</h2>
+        <p>Size yeni bir destek talebi atandı.</p>
+        <p><strong>Talep no:</strong> ${esc(data.ticketNumber)}</p>
+        <p><strong>Konu:</strong> ${esc(data.subject)}</p>
+        <a href="${esc(data.adminUrl)}"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Talebi aç
+        </a>
+      </div>
+    `,
+    );
+  }
+
   async sendTicketStatusUpdate(
     email: string,
     ticketNumber: string,

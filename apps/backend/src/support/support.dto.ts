@@ -1,5 +1,10 @@
-import { TicketPriority, TicketStatus } from '@prisma/client';
 import {
+  TicketCategory,
+  TicketPriority,
+  TicketStatus,
+} from '@prisma/client';
+import {
+  IsDateString,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -18,9 +23,8 @@ export class CreateSupportTicketDto {
   content!: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(50)
-  category?: string;
+  @IsEnum(TicketCategory)
+  category?: TicketCategory;
 
   @IsEnum(TicketPriority)
   priority!: TicketPriority;
@@ -34,6 +38,14 @@ export class SupportTicketQueryDto {
   @IsOptional()
   @IsEnum(TicketPriority)
   priority?: TicketPriority;
+
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
 }
 
 export class AddTicketMessageDto {
@@ -46,6 +58,10 @@ export class AdminTicketQueryDto extends SupportTicketQueryDto {
   @IsOptional()
   @IsString()
   organizationId?: string;
+
+  @IsOptional()
+  @IsString()
+  assignedTo?: string;
 }
 
 export class UpdateTicketStatusDto {
@@ -53,10 +69,30 @@ export class UpdateTicketStatusDto {
   status!: TicketStatus;
 }
 
+export class UpdateAdminTicketDto {
+  @IsOptional()
+  @IsEnum(TicketStatus)
+  status?: TicketStatus;
+
+  @IsOptional()
+  @IsEnum(TicketPriority)
+  priority?: TicketPriority;
+
+  @IsOptional()
+  @IsString()
+  assignedTo?: string | null;
+}
+
 export class AssignTicketDto {
   @IsString()
   @IsNotEmpty()
   adminId!: string;
+}
+
+export class InternalNoteDto {
+  @IsString()
+  @IsNotEmpty()
+  content!: string;
 }
 
 export class AdminAddTicketMessageDto extends AddTicketMessageDto {

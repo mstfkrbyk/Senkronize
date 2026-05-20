@@ -19,4 +19,26 @@ export class SupportReminderTask {
       this.logger.error(`Bekleyen ticket hatırlatması başarısız: ${message}`);
     }
   }
+
+  /** 48 saat yanıtsız talepleri URGENT önceliğe yükselt */
+  @Cron('0 */6 * * *')
+  async escalateUnansweredTickets(): Promise<void> {
+    try {
+      await this.supportService.escalateUnansweredTickets();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Ticket öncelik yükseltme başarısız: ${message}`);
+    }
+  }
+
+  /** 7 gün hareketsiz talepleri otomatik kapat */
+  @Cron('0 3 * * *')
+  async autoCloseInactiveTickets(): Promise<void> {
+    try {
+      await this.supportService.autoCloseInactiveTickets();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Ticket otomatik kapatma başarısız: ${message}`);
+    }
+  }
 }

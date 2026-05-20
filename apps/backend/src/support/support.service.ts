@@ -7,9 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   Prisma,
+  TicketPriority,
   TicketStatus,
   UserRole,
-  type TicketPriority,
+  type TicketCategory,
+  type TicketPriority as TicketPriorityType,
 } from '@prisma/client';
 
 import { EmailService } from '../notifications/email/email.service';
@@ -17,6 +19,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import type {
   AdminSupportTicketListItemDto,
+  SupportSlaReportDto,
+  SupportStatsDto,
   SupportTicketDetailDto,
   SupportTicketListItemDto,
   TicketMessageDto,
@@ -25,9 +29,14 @@ import type {
   AdminTicketQueryDto,
   CreateSupportTicketDto,
   SupportTicketQueryDto,
+  UpdateAdminTicketDto,
 } from './support.dto';
 
 const MS_PER_HOUR = 3_600_000;
+const FIRST_RESPONSE_SLA_HOURS = 24;
+const URGENT_FIRST_RESPONSE_SLA_HOURS = 4;
+const RESOLUTION_SLA_HOURS = 72;
+const URGENT_RESOLUTION_SLA_HOURS = 48;
 
 const TICKET_INCLUDE_MESSAGES = {
   messages: {
@@ -55,6 +64,23 @@ export class SupportService {
 
   private opsAlertEmail(): string | undefined {
     return this.config.get<string>('OPS_ALERT_EMAIL')?.trim() || undefined;
+  }
+
+  private buildDateFilter(
+    dateFrom?: string,
+    dateTo?: string,
+  ): Prisma.DateTimeFilter | undefined {
+    if (!dateFrom && !dateTo) {
+      return undefined;
+    }
+    const filter: Prisma.DateTimeFilter = {};
+    if (dateFrom) {
+      filter.gte = new Date(dateFrom);
+    }
+    if (dateTo) {
+      filter.lte = new Date(dateTo);
+    }
+    return filter;
   }
 
   private async generateTicketNumber(): Promise<string> {
@@ -93,8 +119,8 @@ export class SupportService {
       ticketNumber: string;
       subject: string;
       status: TicketStatus;
-      priority: TicketPriority;
-      category: string | null;
+      priority: TicketPriorityType;
+      category: TicketCategory | null;
       createdAt: Date;
       updatedAt: Date;
       messages: { content: string; createdAt: Date; isInternal: boolean }[];
@@ -126,6 +152,18 @@ export class SupportService {
     return { slaHours, slaDays };
   }
 
+  private firstResponseSlaHours(priority: TicketPriorityType): number {
+    return priority === TicketPriority.URGENT
+      ? URGENT_FIRST_RESPONSE_SLA_HOURS
+      : FIRST_RESPONSE_SLA_HOURS;
+  }
+
+  private resolutionSlaHours(priority: TicketPriorityType): number {
+    return priority === TicketPriority.URGENT
+      ? URGENT_RESOLUTION_SLA_HOURS
+      : RESOLUTION_SLA_HOURS;
+  }
+
   async createTicket(
     organizationId: string,
     userId: string,
@@ -148,7 +186,7 @@ export class SupportService {
           subject: dto.subject.trim(),
           status: TicketStatus.OPEN,
           priority: dto.priority,
-          category: dto.category?.trim() || null,
+          category: dto.category ?? null,
           messages: {
             create: {
               userId,
@@ -183,7 +221,7 @@ export class SupportService {
         userName: user.name,
         userEmail: user.email,
         priority: ticket.priority,
-        adminUrl: `${this.panelBaseUrl()}/admin/tickets`,
+        adminUrl: `${this.panelBaseUrl()}/admin/support/tickets`,
       });
     }
 
@@ -195,11 +233,13 @@ export class SupportService {
     userId: string,
     filters: SupportTicketQueryDto,
   ): Promise<{ data: SupportTicketListItemDto[] }> {
+    const createdAt = this.buildDateFilter(filters.dateFrom, filters.dateTo);
     const where: Prisma.SupportTicketWhereInput = {
       organizationId,
       userId,
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.priority ? { priority: filters.priority } : {}),
+      ...(createdAt ? { createdAt } : {}),
     };
 
     const tickets = await this.prisma.supportTicket.findMany({
@@ -288,6 +328,7 @@ export class SupportService {
       lastMessage: messages[messages.length - 1]?.content ?? null,
       lastMessageAt: messages[messages.length - 1]?.createdAt ?? null,
       assignedTo: ticket.assignedTo,
+      firstResponseAt: ticket.firstResponseAt?.toISOString() ?? null,
       resolvedAt: ticket.resolvedAt?.toISOString() ?? null,
       closedAt: ticket.closedAt?.toISOString() ?? null,
       messages,
@@ -321,6 +362,31 @@ export class SupportService {
     }
 
     const isInternal = options?.isInternal === true;
+    const isAdminReply =
+      author.role === UserRole.SUPER_ADMIN && !isInternal;
+    const now = new Date();
+
+    const ticketUpdate: Prisma.SupportTicketUpdateInput = {
+      updatedAt: now,
+    };
+
+    if (isAdminReply) {
+      if (!ticket.firstResponseAt) {
+        ticketUpdate.firstResponseAt = now;
+      }
+      if (
+        ticket.status === TicketStatus.OPEN ||
+        ticket.status === TicketStatus.IN_PROGRESS
+      ) {
+        ticketUpdate.status = TicketStatus.WAITING_CUSTOMER;
+      }
+    } else if (
+      !isInternal &&
+      author.role !== UserRole.SUPER_ADMIN &&
+      ticket.status === TicketStatus.WAITING_CUSTOMER
+    ) {
+      ticketUpdate.status = TicketStatus.OPEN;
+    }
 
     await this.prisma.$transaction([
       this.prisma.ticketMessage.create({
@@ -333,18 +399,11 @@ export class SupportService {
       }),
       this.prisma.supportTicket.update({
         where: { id: ticketId },
-        data: {
-          updatedAt: new Date(),
-          ...(author.role !== UserRole.SUPER_ADMIN &&
-          !isInternal &&
-          ticket.status === TicketStatus.WAITING_CUSTOMER
-            ? { status: TicketStatus.OPEN }
-            : {}),
-        },
+        data: ticketUpdate,
       }),
     ]);
 
-    if (!isInternal && author.role === UserRole.SUPER_ADMIN) {
+    if (!isInternal && isAdminReply) {
       const ticketOwner = await this.prisma.user.findFirst({
         where: { id: ticket.userId, deletedAt: null },
         select: { email: true },
@@ -367,7 +426,7 @@ export class SupportService {
           subject: ticket.subject,
           organizationName: org?.name ?? ticket.organizationId,
           userName: author.name,
-          adminUrl: `${this.panelBaseUrl()}/admin/tickets`,
+          adminUrl: `${this.panelBaseUrl()}/admin/support/tickets`,
         });
       }
     }
@@ -397,6 +456,14 @@ export class SupportService {
       content,
       { isInternal, skipOrgUserCheck: true },
     );
+  }
+
+  async addInternalNote(
+    ticketId: string,
+    adminUserId: string,
+    content: string,
+  ): Promise<SupportTicketDetailDto> {
+    return this.addAdminMessage(ticketId, adminUserId, content, true);
   }
 
   async closeTicket(
@@ -467,17 +534,10 @@ export class SupportService {
     return this.getTicketForAdmin(ticketId);
   }
 
-  async assignTicket(
+  async updateTicketAdmin(
     ticketId: string,
-    adminId: string,
+    dto: UpdateAdminTicketDto,
   ): Promise<SupportTicketDetailDto> {
-    const admin = await this.prisma.user.findFirst({
-      where: { id: adminId, role: UserRole.SUPER_ADMIN, deletedAt: null },
-    });
-    if (!admin) {
-      throw new BadRequestException('Geçersiz admin kullanıcısı');
-    }
-
     const ticket = await this.prisma.supportTicket.findUnique({
       where: { id: ticketId },
     });
@@ -485,29 +545,120 @@ export class SupportService {
       throw new NotFoundException('Destek talebi bulunamadı');
     }
 
+    if (
+      dto.status === undefined &&
+      dto.priority === undefined &&
+      dto.assignedTo === undefined
+    ) {
+      throw new BadRequestException('Güncellenecek en az bir alan gerekli');
+    }
+
+    const now = new Date();
+    const data: Prisma.SupportTicketUpdateInput = {};
+
+    if (dto.status !== undefined) {
+      data.status = dto.status;
+      if (
+        dto.status === TicketStatus.RESOLVED ||
+        dto.status === TicketStatus.CLOSED
+      ) {
+        data.resolvedAt = ticket.resolvedAt ?? now;
+      }
+      if (dto.status === TicketStatus.CLOSED) {
+        data.closedAt = ticket.closedAt ?? now;
+      }
+    }
+
+    if (dto.priority !== undefined) {
+      data.priority = dto.priority;
+    }
+
+    if (dto.assignedTo !== undefined) {
+      if (dto.assignedTo === null) {
+        data.assignedTo = null;
+      } else {
+        const admin = await this.prisma.user.findFirst({
+          where: {
+            id: dto.assignedTo,
+            role: UserRole.SUPER_ADMIN,
+            deletedAt: null,
+          },
+        });
+        if (!admin) {
+          throw new BadRequestException('Geçersiz admin kullanıcısı');
+        }
+        data.assignedTo = dto.assignedTo;
+        if (
+          ticket.status === TicketStatus.OPEN &&
+          dto.status === undefined
+        ) {
+          data.status = TicketStatus.IN_PROGRESS;
+        }
+      }
+    }
+
     await this.prisma.supportTicket.update({
       where: { id: ticketId },
-      data: {
-        assignedTo: adminId,
-        status:
-          ticket.status === TicketStatus.OPEN
-            ? TicketStatus.IN_PROGRESS
-            : ticket.status,
-      },
+      data,
     });
 
+    if (dto.status !== undefined && dto.status !== ticket.status) {
+      const owner = await this.prisma.user.findFirst({
+        where: { id: ticket.userId, deletedAt: null },
+        select: { email: true },
+      });
+      if (owner?.email) {
+        await this.emailService.sendTicketStatusUpdate(
+          owner.email,
+          ticket.ticketNumber,
+          dto.status,
+        );
+      }
+    }
+
+    if (
+      dto.assignedTo &&
+      dto.assignedTo !== ticket.assignedTo
+    ) {
+      const assignee = await this.prisma.user.findFirst({
+        where: { id: dto.assignedTo, deletedAt: null },
+        select: { email: true, name: true },
+      });
+      if (assignee?.email) {
+        await this.emailService.sendTicketAssignmentNotification(
+          assignee.email,
+          {
+            assigneeName: assignee.name,
+            ticketNumber: ticket.ticketNumber,
+            subject: ticket.subject,
+            adminUrl: `${this.panelBaseUrl()}/admin/support/tickets/${ticketId}`,
+          },
+        );
+      }
+    }
+
     return this.getTicketForAdmin(ticketId);
+  }
+
+  async assignTicket(
+    ticketId: string,
+    adminId: string,
+  ): Promise<SupportTicketDetailDto> {
+    return this.updateTicketAdmin(ticketId, { assignedTo: adminId });
   }
 
   async getAdminTickets(
     filters: AdminTicketQueryDto,
   ): Promise<{ data: AdminSupportTicketListItemDto[] }> {
+    const createdAt = this.buildDateFilter(filters.dateFrom, filters.dateTo);
     const where: Prisma.SupportTicketWhereInput = {
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.priority ? { priority: filters.priority } : {}),
       ...(filters.organizationId
         ? { organizationId: filters.organizationId }
         : {}),
+      ...(filters.assignedTo ? { assignedTo: filters.assignedTo } : {}),
+      ...(createdAt ? { createdAt } : {}),
     };
 
     const tickets = await this.prisma.supportTicket.findMany({
@@ -545,11 +696,222 @@ export class SupportService {
           userName: t.user.name,
           userEmail: t.user.email,
           assignedTo: t.assignedTo,
+          firstResponseAt: t.firstResponseAt?.toISOString() ?? null,
           slaHours,
           slaDays,
         };
       }),
     };
+  }
+
+  async getSupportStats(): Promise<{ data: SupportStatsDto }> {
+    const statusCounts = await this.prisma.supportTicket.groupBy({
+      by: ['status'],
+      _count: { _all: true },
+    });
+
+    const countByStatus = (status: TicketStatus): number =>
+      statusCounts.find((s) => s.status === status)?._count._all ?? 0;
+
+    const ticketsWithResponse = await this.prisma.supportTicket.findMany({
+      where: { firstResponseAt: { not: null } },
+      select: { createdAt: true, firstResponseAt: true },
+    });
+
+    const avgFirstResponseHours =
+      ticketsWithResponse.length > 0
+        ? ticketsWithResponse.reduce((sum, t) => {
+            const hours =
+              (t.firstResponseAt!.getTime() - t.createdAt.getTime()) /
+              MS_PER_HOUR;
+            return sum + hours;
+          }, 0) / ticketsWithResponse.length
+        : null;
+
+    const resolvedTickets = await this.prisma.supportTicket.findMany({
+      where: { resolvedAt: { not: null } },
+      select: { createdAt: true, resolvedAt: true },
+    });
+
+    const avgResolutionHours =
+      resolvedTickets.length > 0
+        ? resolvedTickets.reduce((sum, t) => {
+            const hours =
+              (t.resolvedAt!.getTime() - t.createdAt.getTime()) / MS_PER_HOUR;
+            return sum + hours;
+          }, 0) / resolvedTickets.length
+        : null;
+
+    const open = countByStatus(TicketStatus.OPEN);
+    const inProgress = countByStatus(TicketStatus.IN_PROGRESS);
+    const waitingCustomer = countByStatus(TicketStatus.WAITING_CUSTOMER);
+
+    return {
+      data: {
+        open,
+        inProgress,
+        waitingCustomer,
+        resolved: countByStatus(TicketStatus.RESOLVED),
+        closed: countByStatus(TicketStatus.CLOSED),
+        totalOpen: open + inProgress + waitingCustomer,
+        avgFirstResponseHours:
+          avgFirstResponseHours !== null
+            ? Math.round(avgFirstResponseHours * 10) / 10
+            : null,
+        avgResolutionHours:
+          avgResolutionHours !== null
+            ? Math.round(avgResolutionHours * 10) / 10
+            : null,
+      },
+    };
+  }
+
+  async getSlaReport(): Promise<{ data: SupportSlaReportDto }> {
+    const tickets = await this.prisma.supportTicket.findMany({
+      select: {
+        priority: true,
+        createdAt: true,
+        firstResponseAt: true,
+        resolvedAt: true,
+      },
+    });
+
+    let firstResponseCompliant = 0;
+    let firstResponseTotal = 0;
+    let firstResponseHoursSum = 0;
+
+    let resolutionCompliant = 0;
+    let resolutionTotal = 0;
+    let resolutionHoursSum = 0;
+
+    for (const ticket of tickets) {
+      if (ticket.firstResponseAt) {
+        firstResponseTotal += 1;
+        const hours =
+          (ticket.firstResponseAt.getTime() - ticket.createdAt.getTime()) /
+          MS_PER_HOUR;
+        firstResponseHoursSum += hours;
+        if (hours <= this.firstResponseSlaHours(ticket.priority)) {
+          firstResponseCompliant += 1;
+        }
+      }
+
+      if (ticket.resolvedAt) {
+        resolutionTotal += 1;
+        const hours =
+          (ticket.resolvedAt.getTime() - ticket.createdAt.getTime()) /
+          MS_PER_HOUR;
+        resolutionHoursSum += hours;
+        if (hours <= this.resolutionSlaHours(ticket.priority)) {
+          resolutionCompliant += 1;
+        }
+      }
+    }
+
+    return {
+      data: {
+        totalTickets: tickets.length,
+        resolvedTickets: resolutionTotal,
+        avgFirstResponseHours:
+          firstResponseTotal > 0
+            ? Math.round((firstResponseHoursSum / firstResponseTotal) * 10) / 10
+            : null,
+        avgResolutionHours:
+          resolutionTotal > 0
+            ? Math.round((resolutionHoursSum / resolutionTotal) * 10) / 10
+            : null,
+        firstResponseComplianceRate:
+          firstResponseTotal > 0
+            ? Math.round((firstResponseCompliant / firstResponseTotal) * 1000) /
+              10
+            : 0,
+        resolutionComplianceRate:
+          resolutionTotal > 0
+            ? Math.round((resolutionCompliant / resolutionTotal) * 1000) / 10
+            : 0,
+        slaTargets: {
+          firstResponseHours: FIRST_RESPONSE_SLA_HOURS,
+          urgentFirstResponseHours: URGENT_FIRST_RESPONSE_SLA_HOURS,
+          resolutionHours: RESOLUTION_SLA_HOURS,
+          urgentResolutionHours: URGENT_RESOLUTION_SLA_HOURS,
+        },
+      },
+    };
+  }
+
+  async escalateUnansweredTickets(): Promise<void> {
+    const threshold = new Date(Date.now() - 48 * MS_PER_HOUR);
+    const result = await this.prisma.supportTicket.updateMany({
+      where: {
+        status: {
+          in: [
+            TicketStatus.OPEN,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.WAITING_CUSTOMER,
+          ],
+        },
+        firstResponseAt: null,
+        createdAt: { lt: threshold },
+        priority: { not: TicketPriority.URGENT },
+      },
+      data: { priority: TicketPriority.URGENT },
+    });
+
+    if (result.count > 0) {
+      this.logger.log(
+        `${String(result.count)} talep 48 saat yanıtsız kaldığı için URGENT yapıldı`,
+      );
+    }
+  }
+
+  async autoCloseInactiveTickets(): Promise<void> {
+    const threshold = new Date(Date.now() - 7 * 24 * MS_PER_HOUR);
+    const inactive = await this.prisma.supportTicket.findMany({
+      where: {
+        status: {
+          in: [
+            TicketStatus.OPEN,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.WAITING_CUSTOMER,
+            TicketStatus.RESOLVED,
+          ],
+        },
+        updatedAt: { lt: threshold },
+      },
+      select: { id: true, userId: true, ticketNumber: true, status: true },
+    });
+
+    if (inactive.length === 0) {
+      return;
+    }
+
+    const now = new Date();
+    await this.prisma.supportTicket.updateMany({
+      where: { id: { in: inactive.map((t) => t.id) } },
+      data: {
+        status: TicketStatus.CLOSED,
+        closedAt: now,
+        resolvedAt: now,
+      },
+    });
+
+    for (const ticket of inactive) {
+      const owner = await this.prisma.user.findFirst({
+        where: { id: ticket.userId, deletedAt: null },
+        select: { email: true },
+      });
+      if (owner?.email) {
+        await this.emailService.sendTicketStatusUpdate(
+          owner.email,
+          ticket.ticketNumber,
+          TicketStatus.CLOSED,
+        );
+      }
+    }
+
+    this.logger.log(
+      `${String(inactive.length)} talep 7 gün hareketsiz kaldığı için otomatik kapatıldı`,
+    );
   }
 
   async sendStaleTicketReminders(): Promise<void> {
@@ -600,7 +962,7 @@ export class SupportService {
             (24 * MS_PER_HOUR),
         ),
       })),
-      adminUrl: `${this.panelBaseUrl()}/admin/tickets`,
+      adminUrl: `${this.panelBaseUrl()}/admin/support/tickets`,
     });
 
     this.logger.log(`Bekleyen ${String(stale.length)} destek talebi hatırlatması gönderildi`);

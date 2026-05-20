@@ -28,6 +28,7 @@ import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { ErpModule } from './erp/erp.module';
 import { HealthModule } from './health/health.module';
+import { HelpModule } from './help/help.module';
 import { ImageModule } from './image/image.module';
 import { InvoiceModule } from './invoice/invoice.module';
 import { ImpersonationModule } from './impersonation/impersonation.module';
@@ -117,6 +118,7 @@ import { WebhookModule } from './webhook/webhook.module';
     WarehouseModule,
     UsersModule,
     HealthModule,
+    HelpModule,
     SyncStatusModule,
     SyncModule,
     NotificationModule,

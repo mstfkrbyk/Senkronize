@@ -393,6 +393,14 @@ enum Marketplace {
   VENTE_EXCLUSIVE
   GRAILED
   TISE
+  SHOPEE_BR
+  CASAS_BAHIA
+  SUBMARINO
+  RIPLEY
+  COSTCO_CA
+  HUDSONS_BAY
+  LIVERPOOL_MX
+  COPPEL
 }
 
 enum PricingStrategy {
@@ -2234,20 +2242,28 @@ enum TicketPriority {
   URGENT
 }
 
+enum TicketCategory {
+  TECHNICAL
+  BILLING
+  INTEGRATION
+  GENERAL
+}
+
 model SupportTicket {
-  id             String         @id @default(cuid())
-  organizationId String
-  userId         String
-  ticketNumber   String         @unique
-  subject        String
-  status         TicketStatus
-  priority       TicketPriority
-  category       String?
-  assignedTo     String?
-  resolvedAt     DateTime?
-  closedAt       DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id              String          @id @default(cuid())
+  organizationId  String
+  userId          String
+  ticketNumber    String          @unique
+  subject         String
+  status          TicketStatus
+  priority        TicketPriority
+  category        TicketCategory?
+  assignedTo      String?
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user         User            @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -2269,6 +2285,22 @@ model TicketMessage {
   user   User          @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([ticketId])
+}
+
+model HelpArticle {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String   @db.Text
+  category    String
+  tags        String[]
+  views       Int      @default(0)
+  helpful     Int      @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category, isPublished])
 }
 
 enum CampaignType {
