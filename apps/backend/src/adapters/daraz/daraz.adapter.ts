@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { AxiosError } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -14,14 +15,25 @@ import {
   PLATFORM_RATE_LIMITS,
   withRateLimit,
 } from '../../common/utils/http-retry';
-import { lazadaSign } from '../lazada/lazada.oauth';
+import {
+  MarketplaceTokenCache,
+  marketplaceTokenCacheKey,
+} from '../common/marketplace-token-cache';
 import {
   isRecord,
   normalizeProductRows,
   parseMoney,
   throwSyncFailed,
 } from '../stub-helpers';
-import { DARAZ_API_BASE } from './daraz.constants';
+import { DARAZ_ORDER_BATCH_SIZE } from './daraz.constants';
+import {
+  buildDarazAuthorizeUrl,
+  darazBusinessApiBase,
+  darazSign,
+  refreshDarazAccessToken,
+} from './daraz.oauth';
+
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 function unwrapDarazData(data: unknown): unknown {
   if (!isRecord(data)) {
@@ -35,25 +47,60 @@ function unwrapDarazData(data: unknown): unknown {
   return data.data ?? data;
 }
 
+function isDarazUnauthorized(err: unknown): boolean {
+  const ax = err as AxiosError<{ code?: string | number; message?: string }>;
+  if (ax.response?.status === 401) {
+    return true;
+  }
+  const code = ax.response?.data?.code;
+  if (code === 'IllegalAccessToken' || code === 401 || code === '401') {
+    return true;
+  }
+  const msg = ax.response?.data?.message ?? (err instanceof Error ? err.message : '');
+  return typeof msg === 'string' && /access.?token|unauthorized|illegal/i.test(msg);
+}
+
 @Injectable()
 export class DarazAdapter implements IMarketplaceAdapter {
   readonly platform = 'DARAZ';
   private readonly logger = new Logger(DarazAdapter.name);
 
-  constructor(private readonly encryptionService: EncryptionService) {
+  constructor(
+    private readonly encryptionService: EncryptionService,
+    private readonly tokenCache: MarketplaceTokenCache,
+  ) {
     void this.encryptionService;
+  }
+
+  getAuthorizationUrl(
+    credentials: Record<string, string>,
+    state: string,
+    redirectUri: string,
+  ): string {
+    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim() ?? '';
+    if (!appKey) {
+      throw new Error('Daraz: appKey zorunludur');
+    }
+    return buildDarazAuthorizeUrl(appKey, redirectUri, state);
   }
 
   private rpm(): number {
     return PLATFORM_RATE_LIMITS.DARAZ ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private resolveBase(credentials: Record<string, string>): string {
-    const custom = credentials.apiBaseUrl?.trim() ?? credentials.baseUrl?.trim();
-    if (custom && custom.length > 0) {
-      return custom.replace(/\/+$/, '');
+  private requireAppKeySecret(credentials: Record<string, string>): {
+    appKey: string;
+    appSecret: string;
+  } {
+    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim();
+    const appSecret =
+      credentials.appSecret?.trim() ??
+      credentials.apiSecret?.trim() ??
+      credentials.secretKey?.trim();
+    if (!appKey || !appSecret) {
+      throw new Error('Daraz: appKey ve appSecret zorunludur');
     }
-    return DARAZ_API_BASE;
+    return { appKey, appSecret };
   }
 
   private requireCreds(credentials: Record<string, string>): {
@@ -61,16 +108,71 @@ export class DarazAdapter implements IMarketplaceAdapter {
     appSecret: string;
     accessToken: string;
   } {
-    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim();
-    const appSecret =
-      credentials.appSecret?.trim() ??
-      credentials.apiSecret?.trim() ??
-      credentials.secretKey?.trim();
+    const { appKey, appSecret } = this.requireAppKeySecret(credentials);
     const accessToken = credentials.accessToken?.trim();
-    if (!appKey || !appSecret || !accessToken) {
-      throw new Error('Daraz: appKey, appSecret ve accessToken zorunludur');
+    if (!accessToken) {
+      throw new Error('Daraz: accessToken zorunludur');
     }
     return { appKey, appSecret, accessToken };
+  }
+
+  private tokenCacheKey(credentials: Record<string, string>): string {
+    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim() ?? '';
+    const refresh = credentials.refreshToken?.trim() ?? '';
+    const access = credentials.accessToken?.trim() ?? '';
+    return marketplaceTokenCacheKey(
+      this.platform,
+      `${appKey}:${refresh || access}`,
+    );
+  }
+
+  private async ensureAccessToken(
+    credentials: Record<string, string>,
+    forceRefresh = false,
+  ): Promise<string> {
+    const { appKey, appSecret } = this.requireAppKeySecret(credentials);
+    const cacheKey = this.tokenCacheKey(credentials);
+
+    if (!forceRefresh) {
+      const cached = await this.tokenCache.get(cacheKey);
+      if (cached) {
+        credentials.accessToken = cached;
+        return cached;
+      }
+      const direct = credentials.accessToken?.trim();
+      const expiresRaw = credentials.tokenExpiresAt?.trim();
+      if (direct && expiresRaw) {
+        const expiresAt = Number.parseInt(expiresRaw, 10);
+        if (
+          Number.isFinite(expiresAt) &&
+          Date.now() < expiresAt - TOKEN_REFRESH_BUFFER_MS
+        ) {
+          return direct;
+        }
+      } else if (direct && !credentials.refreshToken?.trim()) {
+        return direct;
+      }
+    }
+
+    const refreshToken = credentials.refreshToken?.trim();
+    if (!refreshToken) {
+      const fallback = credentials.accessToken?.trim();
+      if (fallback) {
+        return fallback;
+      }
+      throw new Error('Daraz: refreshToken veya geçerli accessToken zorunludur');
+    }
+
+    const tokens = await refreshDarazAccessToken(appKey, appSecret, refreshToken);
+    credentials.accessToken = tokens.accessToken;
+    credentials.refreshToken = tokens.refreshToken;
+    credentials.tokenExpiresAt = String(tokens.tokenExpiresAt);
+    const ttlSec = Math.max(
+      60,
+      Math.floor((tokens.tokenExpiresAt - Date.now()) / 1000) - 300,
+    );
+    await this.tokenCache.set(cacheKey, tokens.accessToken, ttlSec);
+    return tokens.accessToken;
   }
 
   private async invoke<T>(
@@ -78,9 +180,11 @@ export class DarazAdapter implements IMarketplaceAdapter {
     apiName: string,
     params: Record<string, string> = {},
     method: 'GET' | 'POST' = 'GET',
+    retried = false,
   ): Promise<T> {
+    await this.ensureAccessToken(credentials);
     const { appKey, appSecret, accessToken } = this.requireCreds(credentials);
-    const base = this.resolveBase(credentials);
+    const base = darazBusinessApiBase(credentials);
     const timestamp = String(Date.now());
     const signParams: Record<string, string> = {
       app_key: appKey,
@@ -89,17 +193,26 @@ export class DarazAdapter implements IMarketplaceAdapter {
       timestamp,
       ...params,
     };
-    const sign = lazadaSign(apiName, signParams, appSecret);
-    const data = await axiosWithRetry<unknown>(
-      {
-        method,
-        url: `${base}${apiName}`,
-        timeout: 25_000,
-        params: { ...signParams, sign },
-      },
-      {},
-    );
-    return unwrapDarazData(data) as T;
+    const sign = darazSign(apiName, signParams, appSecret);
+    try {
+      const data = await axiosWithRetry<unknown>(
+        {
+          method,
+          url: `${base}${apiName}`,
+          timeout: 25_000,
+          params: { ...signParams, sign },
+        },
+        {},
+      );
+      return unwrapDarazData(data) as T;
+    } catch (err) {
+      if (!retried && isDarazUnauthorized(err) && credentials.refreshToken?.trim()) {
+        await this.tokenCache.invalidate(this.tokenCacheKey(credentials));
+        await this.ensureAccessToken(credentials, true);
+        return this.invoke<T>(credentials, apiName, params, method, true);
+      }
+      throw err;
+    }
   }
 
   private mapOrder(row: unknown, lines: unknown[] = []): MarketplaceOrder | null {
@@ -178,6 +291,27 @@ export class DarazAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private extractOrderRows(page: unknown): unknown[] {
+    if (Array.isArray(page)) {
+      return page;
+    }
+    if (isRecord(page) && Array.isArray(page.orders)) {
+      return page.orders;
+    }
+    return [];
+  }
+
+  private extractOrderId(row: unknown): string | null {
+    if (!isRecord(row)) {
+      return null;
+    }
+    const idRaw = row.order_id ?? row.order_number ?? row.id;
+    if (idRaw === undefined || idRaw === null) {
+      return null;
+    }
+    return String(idRaw);
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       await withRateLimit('DARAZ', this.rpm(), async () => {
@@ -197,60 +331,82 @@ export class DarazAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const orders: MarketplaceOrder[] = [];
-      const statuses = ['pending', 'shipped'] as const;
-      const createdBefore = new Date().toISOString();
-      for (const status of statuses) {
+      const orderIdSet = new Set<string>();
+      const timeFilters: Array<Record<string, string>> = since
+        ? [
+            { create_after: since.toISOString() },
+            { update_after: since.toISOString() },
+          ]
+        : [{}];
+
+      for (const timeFilter of timeFilters) {
         let offset = 0;
         const limit = 100;
         for (;;) {
           const params: Record<string, string> = {
-            status,
             limit: String(limit),
             offset: String(offset),
-            created_before: createdBefore,
+            ...timeFilter,
           };
-          if (since) {
-            params.created_after = since.toISOString();
-          }
           const page = await withRateLimit('DARAZ', this.rpm(), async () =>
             this.invoke<unknown>(credentials, '/orders/get', params),
           );
-          const rows = Array.isArray(page)
-            ? page
-            : isRecord(page) && Array.isArray(page.orders)
-              ? page.orders
-              : [];
-          if (rows.length === 0) {
-            break;
-          }
+          const rows = this.extractOrderRows(page);
           for (const row of rows) {
-            if (!isRecord(row)) {
-              continue;
-            }
-            const orderId = row.order_id ?? row.order_number ?? row.id;
-            if (orderId === undefined || orderId === null) {
-              continue;
-            }
-            const itemsData = await withRateLimit('DARAZ', this.rpm(), async () =>
-              this.invoke<unknown>(credentials, '/orders/items/get', {
-                order_id: String(orderId),
-              }),
-            );
-            const lines = Array.isArray(itemsData)
-              ? itemsData
-              : isRecord(itemsData) && Array.isArray(itemsData.order_items)
-                ? itemsData.order_items
-                : [];
-            const mapped = this.mapOrder(row, lines);
-            if (mapped) {
-              orders.push(mapped);
+            const id = this.extractOrderId(row);
+            if (id) {
+              orderIdSet.add(id);
             }
           }
           if (rows.length < limit) {
             break;
           }
           offset += limit;
+        }
+      }
+
+      const orderIds = [...orderIdSet];
+      if (orderIds.length === 0) {
+        return [];
+      }
+
+      const orders: MarketplaceOrder[] = [];
+      for (let i = 0; i < orderIds.length; i += DARAZ_ORDER_BATCH_SIZE) {
+        const chunk = orderIds.slice(i, i + DARAZ_ORDER_BATCH_SIZE);
+        const detailPage = await withRateLimit('DARAZ', this.rpm(), async () =>
+          this.invoke<unknown>(credentials, '/orders/get', {
+            order_ids: JSON.stringify(chunk),
+          }),
+        );
+        const detailRows = this.extractOrderRows(detailPage);
+        const rowById = new Map<string, Record<string, unknown>>();
+        for (const row of detailRows) {
+          const id = this.extractOrderId(row);
+          if (id && isRecord(row)) {
+            rowById.set(id, row);
+          }
+        }
+
+        for (const orderId of chunk) {
+          const row =
+            rowById.get(orderId) ??
+            (isRecord(detailPage) && isRecord(detailPage[orderId])
+              ? (detailPage[orderId] as Record<string, unknown>)
+              : { order_id: orderId });
+          const itemsData = await withRateLimit('DARAZ', this.rpm(), async () =>
+            this.invoke<unknown>(credentials, '/orders/items/get', {
+              order_id: orderId,
+            }),
+          );
+          const lines = Array.isArray(itemsData)
+            ? itemsData
+            : isRecord(itemsData) && Array.isArray(itemsData.order_items)
+              ? itemsData.order_items
+              : [];
+          const mapped = this.mapOrder(row, lines);
+          if (mapped) {
+            orders.push(mapped);
+          }
         }
       }
       return orders;
@@ -320,6 +476,24 @@ export class DarazAdapter implements IMarketplaceAdapter {
     }
   }
 
+  private async updatePriceQuantity(
+    credentials: Record<string, string>,
+    skus: Array<Record<string, string | number>>,
+  ): Promise<void> {
+    await withRateLimit('DARAZ', this.rpm(), async () => {
+      await this.invoke<unknown>(
+        credentials,
+        '/product/price_quantity/update',
+        {
+          payload: JSON.stringify({
+            product: { skus },
+          }),
+        },
+        'POST',
+      );
+    });
+  }
+
   async updateStock(
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
@@ -329,14 +503,7 @@ export class DarazAdapter implements IMarketplaceAdapter {
         SellerSku: u.barcode,
         quantity: u.quantity,
       }));
-      await withRateLimit('DARAZ', this.rpm(), async () => {
-        await this.invoke<unknown>(
-          credentials,
-          '/products/update',
-          { payload: JSON.stringify({ skus }) },
-          'POST',
-        );
-      });
+      await this.updatePriceQuantity(credentials, skus);
     } catch (error) {
       throwSyncFailed(this.platform, 'updateStock', error);
     }
@@ -351,20 +518,13 @@ export class DarazAdapter implements IMarketplaceAdapter {
         SellerSku: u.barcode,
         price: u.salePrice,
       }));
-      await withRateLimit('DARAZ', this.rpm(), async () => {
-        await this.invoke<unknown>(
-          credentials,
-          '/products/update',
-          { payload: JSON.stringify({ skus }) },
-          'POST',
-        );
-      });
+      await this.updatePriceQuantity(credentials, skus);
     } catch (error) {
       throwSyncFailed(this.platform, 'updatePrice', error);
     }
   }
 
-  /** Kargo bildirimi — POST /order/fulfill */
+  /** Kargo bildirimi — pack + takip numarası */
   async fulfillOrder(
     credentials: Record<string, string>,
     orderItemIds: string[],
@@ -375,11 +535,20 @@ export class DarazAdapter implements IMarketplaceAdapter {
       await withRateLimit('DARAZ', this.rpm(), async () => {
         await this.invoke<unknown>(
           credentials,
-          '/order/fulfill',
+          '/order/fulfillment/pack',
           {
             order_item_ids: JSON.stringify(orderItemIds),
             shipment_provider: shipmentProvider,
+          },
+          'POST',
+        );
+        await this.invoke<unknown>(
+          credentials,
+          '/order/logistics/tracking/update',
+          {
+            order_item_ids: JSON.stringify(orderItemIds),
             tracking_number: trackingNumber,
+            shipment_provider: shipmentProvider,
           },
           'POST',
         );
