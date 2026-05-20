@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { format, startOfMonth, subMonths } from 'date-fns';
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { Download, Loader2, Printer, Share2, TrendingDown, TrendingUp } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {

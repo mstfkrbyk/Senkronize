@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 
 import { ConnectionHealthModule } from '../connection-health/connection-health.module';
+import { MarketplaceOAuthModule } from '../common/oauth/marketplace-oauth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 import { ConnectionsController } from './connections.controller';
@@ -14,6 +15,7 @@ import { OAuthCallbackService } from './oauth-callback.service';
   imports: [
     PrismaModule,
     ConnectionHealthModule,
+    MarketplaceOAuthModule,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
