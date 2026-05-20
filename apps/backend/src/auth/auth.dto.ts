@@ -248,6 +248,16 @@ export class RefreshTokenDto {
   refreshToken: string;
 }
 
+export class ForgotPasswordDto {
+  @ApiProperty({
+    description: 'Şifre sıfırlama bağlantısı gönderilecek e-posta',
+    example: 'kullanici@firma.com',
+    required: true,
+  })
+  @IsEmail()
+  email: string;
+}
+
 export class ChangePasswordDto {
   @ApiProperty({
     description: 'Mevcut parola',

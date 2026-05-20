@@ -42,6 +42,74 @@ export interface SavedReportSchedule {
   frequency?: 'daily' | 'weekly';
 }
 
+export type ReportMetricId =
+  | 'revenue'
+  | 'orders'
+  | 'avg_order_value'
+  | 'units_sold'
+  | 'return_rate'
+  | 'cancellation_rate'
+  | 'buybox_win_rate'
+  | 'listing_count'
+  | 'stock_value'
+  | 'turnover_rate'
+  | 'profit_margin'
+  | 'gross_profit';
+
+export type ReportDimensionId =
+  | 'date'
+  | 'platform'
+  | 'category'
+  | 'product'
+  | 'warehouse';
+
+export const REPORT_METRIC_IDS: ReportMetricId[] = [
+  'revenue',
+  'orders',
+  'avg_order_value',
+  'units_sold',
+  'return_rate',
+  'cancellation_rate',
+  'buybox_win_rate',
+  'listing_count',
+  'stock_value',
+  'turnover_rate',
+  'profit_margin',
+  'gross_profit',
+];
+
+export const REPORT_DIMENSION_IDS: ReportDimensionId[] = [
+  'date',
+  'platform',
+  'category',
+  'product',
+  'warehouse',
+];
+
+export interface MetricsReportConfig {
+  metrics: ReportMetricId[];
+  dimensions: ReportDimensionId[];
+  period: string;
+  platforms?: string[];
+  limit?: number;
+}
+
+export interface MetricsReportResult {
+  period: { from: string; to: string; label: string };
+  metrics: ReportMetricId[];
+  dimensions: ReportDimensionId[];
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
+
+export interface ScheduledCustomReportItem {
+  id: string;
+  name: string;
+  schedule: SavedReportSchedule;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
 export interface SavedReportListItem {
   id: string;
   organizationId: string;

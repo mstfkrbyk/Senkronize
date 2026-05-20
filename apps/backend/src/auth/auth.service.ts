@@ -28,6 +28,7 @@ import { IpGeolocationService } from '../security/ip-geolocation.service';
 import { SecurityNotificationService } from '../security/security-notification.service';
 import {
   ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   RecommendPlanDto,
   RegisterDto,
@@ -554,6 +555,29 @@ export class AuthService {
 
   async logout(userId: string, refreshToken: string): Promise<void> {
     await this.sessionService.logout(userId, refreshToken);
+  }
+
+  async requestPasswordReset(dto: ForgotPasswordDto): Promise<{ ok: true }> {
+    const normalized = dto.email.toLowerCase();
+    const user = await this.prisma.user.findFirst({
+      where: { email: normalized, deletedAt: null },
+      select: { id: true, email: true },
+    });
+
+    if (user) {
+      const token = randomBytes(32).toString('hex');
+      await this.cache.set(
+        CacheService.key('password_reset', token),
+        { userId: user.id },
+        3600,
+      );
+      const panelUrl =
+        this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com';
+      const resetUrl = `${panelUrl}/auth/reset-password?token=${encodeURIComponent(token)}`;
+      await this.emailService.sendPasswordReset(user.email, resetUrl);
+    }
+
+    return { ok: true };
   }
 
   async changePassword(

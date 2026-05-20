@@ -16,7 +16,15 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import type { ReportFilterOperator } from './custom-report.types';
+import type {
+  ReportDimensionId,
+  ReportFilterOperator,
+  ReportMetricId,
+} from './custom-report.types';
+import {
+  REPORT_DIMENSION_IDS,
+  REPORT_METRIC_IDS,
+} from './custom-report.types';
 
 export class ReportFilterDto {
   @IsString()
@@ -121,6 +129,53 @@ export class SaveReportBodyDto {
 export class ExportFormatQueryDto {
   @IsIn(['csv', 'json'])
   format!: 'csv' | 'json';
+}
+
+export class MetricsReportBodyDto {
+  @IsArray()
+  @IsIn(REPORT_METRIC_IDS, { each: true })
+  metrics!: ReportMetricId[];
+
+  @IsArray()
+  @IsIn(REPORT_DIMENSION_IDS, { each: true })
+  dimensions!: ReportDimensionId[];
+
+  @IsString()
+  @MaxLength(32)
+  period!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  platforms?: string[];
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
+}
+
+export class ScheduleCustomReportBodyDto {
+  @IsString()
+  @MaxLength(200)
+  name!: string;
+
+  @ValidateNested()
+  @Type(() => MetricsReportBodyDto)
+  report!: MetricsReportBodyDto;
+
+  @IsArray()
+  @IsEmail({}, { each: true })
+  emails!: string[];
+
+  @IsOptional()
+  @IsIn(['daily', 'weekly', 'monthly'])
+  frequency?: 'daily' | 'weekly' | 'monthly';
+
+  @IsOptional()
+  @IsIn(['csv', 'json'])
+  format?: 'csv' | 'json';
 }
 
 export class UpdateScheduleBodyDto {

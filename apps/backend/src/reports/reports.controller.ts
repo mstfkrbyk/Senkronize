@@ -25,23 +25,36 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
   ExportFormatQueryDto,
+  MetricsReportBodyDto,
   RunReportBodyDto,
   SaveReportBodyDto,
+  ScheduleCustomReportBodyDto,
   UpdateScheduleBodyDto,
 } from './custom-report.dto';
 import { CustomReportService } from './custom-report.service';
-import type { ReportConfig, ReportResult, SavedReportListItem } from './custom-report.types';
+import type {
+  MetricsReportResult,
+  ReportConfig,
+  ReportResult,
+  ScheduledCustomReportItem,
+  SavedReportListItem,
+} from './custom-report.types';
+import { ProfitReportService } from './profit-report.service';
+import type { ProfitBreakdownReportDto } from './profit-report.types';
 import {
   CreateReportScheduleDto,
   DashboardSummaryQueryDto,
   DateRangeReportQueryDto,
+  ELedgerQueryDto,
   OrderTrendQueryDto,
   PdfReportQueryDto,
   PlatformReportQueryDto,
   ProductsReportQueryDto,
+  ProfitBreakdownQueryDto,
   ProfitReportQueryDto,
   SalesReportQueryDto,
   StockMovementQueryDto,
+  TaxPeriodQueryDto,
   VatReportExportQueryDto,
   VatReportQueryDto,
 } from './reports.dto';
@@ -61,7 +74,12 @@ import type {
   TopProductRow,
 } from './reports.types';
 import { TaxReportService } from './tax-report.service';
-import type { VatReport } from './tax-report.types';
+import type {
+  BaBsReport,
+  ELedgerReport,
+  VatDeclarationReport,
+  VatReport,
+} from './tax-report.types';
 
 @ApiTags('reports')
 @ApiBearerAuth()
@@ -71,6 +89,7 @@ export class ReportsController {
     private readonly reportsService: ReportsService,
     private readonly customReportService: CustomReportService,
     private readonly taxReportService: TaxReportService,
+    private readonly profitReportService: ProfitReportService,
     private readonly reportPdfService: ReportPdfService,
     private readonly reportScheduleService: ReportScheduleService,
   ) {}
@@ -134,16 +153,139 @@ export class ReportsController {
     return this.reportScheduleService.listSchedules(org.id);
   }
 
+  @Get('scheduled')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Zamanlanmış özel (metrik) raporları listele' })
+  @ApiResponse({ status: 200, description: 'Zamanlanmış rapor listesi' })
+  async listScheduledCustomReports(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<ScheduledCustomReportItem[]> {
+    return this.customReportService.listScheduledCustomReports(org.id);
+  }
+
   @Post('schedule')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Standart rapor zamanlaması kaydet' })
+  @ApiOperation({
+    summary:
+      'Rapor zamanlaması (standart PDF veya özel metrik raporu — gövdeye göre)',
+  })
   @ApiResponse({ status: 201, description: 'Zamanlama kaydedildi' })
   async createReportSchedule(
     @CurrentOrg() org: CurrentOrgPayload,
     @CurrentUser() user: AuthenticatedUser,
-    @Body() body: CreateReportScheduleDto,
-  ): Promise<ReportScheduleItem> {
-    return this.reportScheduleService.saveSchedule(org.id, user.id, body);
+    @Body() body: CreateReportScheduleDto | ScheduleCustomReportBodyDto,
+  ): Promise<ReportScheduleItem | ScheduledCustomReportItem> {
+    if ('reportKind' in body && body.reportKind) {
+      return this.reportScheduleService.saveSchedule(org.id, user.id, body);
+    }
+    return this.customReportService.scheduleCustomReport(
+      org.id,
+      user.id,
+      body as ScheduleCustomReportBodyDto,
+    );
+  }
+
+  @Delete('scheduled/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Zamanlanmış özel rapor zamanlamasını kaldır' })
+  @ApiResponse({ status: 200, description: 'Zamanlama kaldırıldı' })
+  async deleteScheduledCustomReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.customReportService.deleteScheduledCustomReport(org.id, id);
+    return { ok: true };
+  }
+
+  @Post('custom')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Metrik tabanlı özel raporu anlık çalıştır' })
+  @ApiResponse({ status: 200, description: 'Metrik rapor sonucu' })
+  async runMetricsCustomReport(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() body: MetricsReportBodyDto,
+  ): Promise<MetricsReportResult> {
+    return this.customReportService.runMetricsReport(org.id, body);
+  }
+
+  @Get('tax/vat-declaration')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aylık KDV beyanname özeti' })
+  @ApiResponse({ status: 200, description: 'KDV beyanname raporu' })
+  async getVatDeclaration(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: TaxPeriodQueryDto,
+  ): Promise<VatDeclarationReport> {
+    return this.taxReportService.generateVatDeclaration(org.id, query.period);
+  }
+
+  @Get('tax/e-ledger')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'E-Defter yevmiye hazırlık (stub)' })
+  @ApiResponse({ status: 200, description: 'E-Defter taslağı' })
+  async getELedger(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ELedgerQueryDto,
+  ): Promise<ELedgerReport> {
+    return this.taxReportService.generateELedger(
+      org.id,
+      query.period,
+      query.format ?? 'json',
+    );
+  }
+
+  @Get('tax/ba-bs')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ba/Bs formu hazırlık verisi' })
+  @ApiResponse({ status: 200, description: 'Ba/Bs raporu' })
+  async getBaBs(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: TaxPeriodQueryDto,
+  ): Promise<BaBsReport> {
+    return this.taxReportService.generateBaBs(org.id, query.period);
+  }
+
+  @Get('profit/by-platform')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Platform bazlı net gelir ve kâr kırılımı' })
+  @ApiResponse({ status: 200, description: 'Platform kâr raporu' })
+  async getProfitByPlatform(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ProfitBreakdownQueryDto,
+  ): Promise<ProfitBreakdownReportDto> {
+    return this.profitReportService.getByPlatform(
+      org.id,
+      query.period ?? '30d',
+    );
+  }
+
+  @Get('profit/by-product')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün bazlı brüt kâr' })
+  @ApiResponse({ status: 200, description: 'Ürün kâr raporu' })
+  async getProfitByProduct(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ProfitBreakdownQueryDto,
+  ): Promise<ProfitBreakdownReportDto> {
+    return this.profitReportService.getByProduct(
+      org.id,
+      query.period ?? '30d',
+      query.limit ?? 50,
+    );
+  }
+
+  @Get('profit/by-category')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kategori bazlı kârlılık' })
+  @ApiResponse({ status: 200, description: 'Kategori kâr raporu' })
+  async getProfitByCategory(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ProfitBreakdownQueryDto,
+  ): Promise<ProfitBreakdownReportDto> {
+    return this.profitReportService.getByCategory(
+      org.id,
+      query.period ?? '30d',
+    );
   }
 
   @Get('dashboard-summary')

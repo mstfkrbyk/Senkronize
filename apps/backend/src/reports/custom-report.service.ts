@@ -11,15 +11,26 @@ import { createHash } from 'crypto';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { ProfitReportService } from './profit-report.service';
+import { parseRelativeOrMonthPeriod } from './period-parse.util';
 import type {
+  MetricsReportConfig,
+  MetricsReportResult,
   ReportConfig,
   ReportDateRange,
+  ReportDimensionId,
   ReportFilter,
+  ReportMetricId,
   ReportResult,
+  ScheduledCustomReportItem,
   SavedReportListItem,
   SavedReportSchedule,
 } from './custom-report.types';
-import type { SaveReportBodyDto } from './custom-report.dto';
+import type {
+  MetricsReportBodyDto,
+  SaveReportBodyDto,
+  ScheduleCustomReportBodyDto,
+} from './custom-report.dto';
 import { MARKETPLACE_LABEL_TR, ReportsService } from './reports.service';
 
 const ORDER_SELECT_FIELDS = new Set([
@@ -325,7 +336,395 @@ export class CustomReportService {
     private readonly prisma: PrismaService,
     private readonly reportsService: ReportsService,
     private readonly notificationService: NotificationService,
+    private readonly profitReportService: ProfitReportService,
   ) {}
+
+  async runMetricsReport(
+    organizationId: string,
+    body: MetricsReportBodyDto,
+  ): Promise<MetricsReportResult> {
+    const config: MetricsReportConfig = {
+      metrics: body.metrics,
+      dimensions: body.dimensions,
+      period: body.period,
+      platforms: body.platforms,
+      limit: body.limit,
+    };
+    return this.runMetricsReportFromConfig(organizationId, config);
+  }
+
+  async scheduleCustomReport(
+    organizationId: string,
+    userId: string,
+    dto: ScheduleCustomReportBodyDto,
+  ): Promise<ScheduledCustomReportItem> {
+    const frequency = dto.frequency ?? 'weekly';
+    const cron =
+      frequency === 'monthly'
+        ? '0 0 1 * *'
+        : frequency === 'weekly'
+          ? '0 0 * * 1'
+          : '0 0 * * *';
+    const schedule = buildScheduleJson({
+      cron,
+      emails: dto.emails,
+      format: dto.format ?? 'csv',
+      frequency: frequency === 'monthly' ? 'weekly' : frequency,
+    });
+    const config: ReportConfig = {
+      reportType: ReportType.CUSTOM,
+      columns: dto.report.metrics,
+      filters: [],
+      groupBy: dto.report.dimensions[0],
+      platforms: dto.report.platforms,
+      limit: dto.report.limit,
+    };
+    const row = await this.prisma.savedReport.create({
+      data: {
+        organizationId,
+        createdBy: userId,
+        name: dto.name.trim(),
+        reportType: ReportType.CUSTOM,
+        config: {
+          ...config,
+          metricsMode: true,
+          metrics: dto.report.metrics,
+          dimensions: dto.report.dimensions,
+          period: dto.report.period,
+        } as unknown as Prisma.InputJsonValue,
+        schedule: schedule as Prisma.InputJsonValue,
+      },
+    });
+    const parsed = parseScheduleJson(row.schedule);
+    return {
+      id: row.id,
+      name: row.name,
+      schedule: parsed!,
+      lastRunAt: row.lastRunAt?.toISOString() ?? null,
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+
+  async listScheduledCustomReports(
+    organizationId: string,
+  ): Promise<ScheduledCustomReportItem[]> {
+    const rows = await this.prisma.savedReport.findMany({
+      where: {
+        organizationId,
+        schedule: { not: Prisma.DbNull },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return rows
+      .map((row) => {
+        const schedule = parseScheduleJson(row.schedule);
+        if (!schedule || schedule.emails.length === 0) {
+          return null;
+        }
+        return {
+          id: row.id,
+          name: row.name,
+          schedule,
+          lastRunAt: row.lastRunAt?.toISOString() ?? null,
+          createdAt: row.createdAt.toISOString(),
+        };
+      })
+      .filter((r): r is ScheduledCustomReportItem => r !== null);
+  }
+
+  async deleteScheduledCustomReport(
+    organizationId: string,
+    id: string,
+  ): Promise<void> {
+    const res = await this.prisma.savedReport.updateMany({
+      where: { id, organizationId },
+      data: { schedule: Prisma.DbNull },
+    });
+    if (res.count === 0) {
+      throw new NotFoundException('Zamanlanmış rapor bulunamadı');
+    }
+  }
+
+  private async runMetricsReportFromConfig(
+    organizationId: string,
+    config: MetricsReportConfig,
+  ): Promise<MetricsReportResult> {
+    const range = parseRelativeOrMonthPeriod(config.period);
+    const primaryDim = config.dimensions[0] ?? 'platform';
+    const limit = Math.min(500, config.limit ?? 100);
+
+    const platformFilter =
+      config.platforms && config.platforms.length > 0
+        ? { in: config.platforms.map((p) => parseMarketplace(p)) }
+        : undefined;
+
+    const orderWhere: Prisma.OrderWhereInput = {
+      organizationId,
+      deletedAt: null,
+      platformCreatedAt: { gte: range.from, lte: range.to },
+      ...(platformFilter ? { platform: platformFilter } : {}),
+    };
+
+    const goodOrderWhere: Prisma.OrderWhereInput = {
+      ...orderWhere,
+      status: { notIn: [OrderStatus.CANCELLED, OrderStatus.RETURNED] },
+    };
+
+    const bucketKey = (raw: string): string => raw;
+
+    type Bucket = Record<string, number | string>;
+    const buckets = new Map<string, Bucket>();
+
+    const ensure = (key: string): Bucket => {
+      if (!buckets.has(key)) {
+        buckets.set(key, { [primaryDim]: key });
+      }
+      return buckets.get(key)!;
+    };
+
+    if (
+      primaryDim === 'date' ||
+      primaryDim === 'platform' ||
+      primaryDim === 'product'
+    ) {
+      const orders = await this.prisma.order.findMany({
+        where: orderWhere,
+        select: {
+          platformCreatedAt: true,
+          platform: true,
+          status: true,
+          totalAmount: true,
+          items: { select: { barcode: true, quantity: true, unitPrice: true } },
+        },
+      });
+
+      const totalOrders = orders.length;
+      const cancelled = orders.filter(
+        (o) =>
+          o.status === OrderStatus.CANCELLED ||
+          o.status === OrderStatus.RETURNED,
+      ).length;
+
+      for (const order of orders) {
+        let key: string;
+        if (primaryDim === 'date') {
+          const d = order.platformCreatedAt;
+          key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        } else if (primaryDim === 'platform') {
+          key = order.platform;
+        } else {
+          for (const item of order.items) {
+            const b = ensure(bucketKey(item.barcode));
+            const isGood =
+              order.status !== OrderStatus.CANCELLED &&
+              order.status !== OrderStatus.RETURNED;
+            if (isGood) {
+              b.orders = Number(b.orders ?? 0) + 1;
+              b.units_sold = Number(b.units_sold ?? 0) + item.quantity;
+              b.revenue =
+                Number(b.revenue ?? 0) +
+                Number(item.unitPrice) * item.quantity;
+            }
+          }
+          continue;
+        }
+        const b = ensure(bucketKey(key));
+        b.orders = Number(b.orders ?? 0) + 1;
+        if (
+          order.status !== OrderStatus.CANCELLED &&
+          order.status !== OrderStatus.RETURNED
+        ) {
+          b.revenue = Number(b.revenue ?? 0) + Number(order.totalAmount);
+        }
+        if (order.status === OrderStatus.CANCELLED) {
+          b.cancellation_rate = Number(b.cancellation_rate ?? 0) + 1;
+        }
+      }
+
+      if (config.metrics.includes('return_rate')) {
+        const returns = await this.prisma.return.count({
+          where: {
+            organizationId,
+            deletedAt: null,
+            requestedAt: { gte: range.from, lte: range.to },
+          },
+        });
+        const globalRate =
+          totalOrders > 0 ? (returns / totalOrders) * 100 : 0;
+        for (const b of buckets.values()) {
+          b.return_rate = Math.round(globalRate * 10) / 10;
+        }
+      }
+
+      if (config.metrics.includes('cancellation_rate')) {
+        const rate =
+          totalOrders > 0 ? (cancelled / totalOrders) * 100 : 0;
+        for (const b of buckets.values()) {
+          const localCancelled = Number(b.cancellation_rate ?? 0);
+          const localOrders = Number(b.orders ?? 0);
+          b.cancellation_rate =
+            localOrders > 0
+              ? Math.round((localCancelled / localOrders) * 1000) / 10
+              : Math.round(rate * 10) / 10;
+        }
+      }
+    }
+
+    if (primaryDim === 'category') {
+      const items = await this.prisma.orderItem.findMany({
+        where: { organizationId, order: goodOrderWhere },
+        select: {
+          barcode: true,
+          quantity: true,
+          unitPrice: true,
+        },
+      });
+      const barcodes = [...new Set(items.map((i) => i.barcode))];
+      const products = await this.prisma.product.findMany({
+        where: { organizationId, deletedAt: null, barcode: { in: barcodes } },
+        select: {
+          barcode: true,
+          category: true,
+          productCategory: { select: { name: true } },
+        },
+      });
+      const catMap = new Map(
+        products.map(
+          (p) =>
+            [
+              p.barcode,
+              p.productCategory?.name ?? p.category ?? 'Kategorisiz',
+            ] as const,
+        ),
+      );
+      for (const item of items) {
+        const cat = catMap.get(item.barcode) ?? 'Kategorisiz';
+        const b = ensure(bucketKey(cat));
+        b.revenue =
+          Number(b.revenue ?? 0) + Number(item.unitPrice) * item.quantity;
+        b.units_sold = Number(b.units_sold ?? 0) + item.quantity;
+        b.orders = Number(b.orders ?? 0) + 1;
+      }
+    }
+
+    if (primaryDim === 'warehouse') {
+      const stock = await this.prisma.stockEntry.findMany({
+        where: { organizationId },
+        select: {
+          warehouseId: true,
+          quantity: true,
+          barcode: true,
+        },
+      });
+      for (const s of stock) {
+        const wh = s.warehouseId ?? 'varsayilan';
+        const b = ensure(bucketKey(wh));
+        b.stock_value = Number(b.stock_value ?? 0) + s.quantity;
+        b.listing_count = Number(b.listing_count ?? 0) + 1;
+      }
+    }
+
+    if (config.metrics.includes('buybox_win_rate')) {
+      const wins = await this.prisma.buyBoxSnapshot.groupBy({
+        by: ['platform'],
+        where: {
+          organizationId,
+          capturedAt: { gte: range.from, lte: range.to },
+          isWinner: true,
+        },
+        _count: { _all: true },
+      });
+      const checks = await this.prisma.buyBoxSnapshot.groupBy({
+        by: ['platform'],
+        where: {
+          organizationId,
+          capturedAt: { gte: range.from, lte: range.to },
+        },
+        _count: { _all: true },
+      });
+      const checkMap = new Map(
+        checks.map((c) => [c.platform, c._count._all] as const),
+      );
+      for (const w of wins) {
+        const key =
+          primaryDim === 'platform' ? w.platform : String(w.platform);
+        const b = ensure(bucketKey(key));
+        const total = checkMap.get(w.platform) ?? 0;
+        b.buybox_win_rate =
+          total > 0
+            ? Math.round((w._count._all / total) * 1000) / 10
+            : 0;
+      }
+    }
+
+    if (
+      config.metrics.includes('gross_profit') ||
+      config.metrics.includes('profit_margin')
+    ) {
+      const byProduct = await this.profitReportService.getByProduct(
+        organizationId,
+        config.period,
+        limit,
+      );
+      for (const row of byProduct.rows) {
+        if ('barcode' in row && primaryDim === 'product') {
+          const b = ensure(bucketKey(row.barcode));
+          b.gross_profit = row.grossProfit;
+          b.profit_margin = row.profitMargin;
+        }
+      }
+    }
+
+    if (config.metrics.includes('listing_count')) {
+      const listingCounts = await this.prisma.listing.groupBy({
+        by: ['platform'],
+        where: { organizationId, deletedAt: null },
+        _count: { _all: true },
+      });
+      for (const lc of listingCounts) {
+        const key = primaryDim === 'platform' ? lc.platform : lc.platform;
+        const b = ensure(bucketKey(key));
+        b.listing_count = lc._count._all;
+      }
+    }
+
+    for (const b of buckets.values()) {
+      const orders = Number(b.orders ?? 0);
+      const revenue = Number(b.revenue ?? 0);
+      if (config.metrics.includes('avg_order_value') && orders > 0) {
+        b.avg_order_value = Math.round((revenue / orders) * 100) / 100;
+      }
+      if (config.metrics.includes('turnover_rate') && revenue > 0) {
+        const stockVal = Number(b.stock_value ?? 0);
+        b.turnover_rate =
+          stockVal > 0 ? Math.round((revenue / stockVal) * 100) / 100 : 0;
+      }
+    }
+
+    const dimCol = primaryDim;
+    const columns = [dimCol, ...config.metrics];
+    const rows = [...buckets.values()]
+      .slice(0, limit)
+      .map((b) => {
+        const row: Record<string, unknown> = { [dimCol]: b[primaryDim] };
+        for (const m of config.metrics) {
+          row[m] = b[m] ?? 0;
+        }
+        return row;
+      });
+
+    return {
+      period: {
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        label: range.label,
+      },
+      metrics: config.metrics,
+      dimensions: config.dimensions,
+      columns,
+      rows,
+    };
+  }
 
   async runReport(
     organizationId: string,

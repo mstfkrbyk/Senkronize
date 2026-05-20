@@ -8,6 +8,7 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
   Max,
   Min,
 } from 'class-validator';
@@ -128,6 +129,32 @@ export class PdfReportQueryDto {
   @IsOptional()
   @IsIn(['7d', '30d', '90d'])
   period?: '7d' | '30d' | '90d';
+}
+
+export class PeriodQueryDto {
+  @IsOptional()
+  @IsString()
+  period?: string;
+}
+
+export class ProfitBreakdownQueryDto extends PeriodQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
+}
+
+export class TaxPeriodQueryDto {
+  @IsString()
+  period!: string;
+}
+
+export class ELedgerQueryDto extends TaxPeriodQueryDto {
+  @IsOptional()
+  @IsIn(['xml', 'json'])
+  format?: 'xml' | 'json';
 }
 
 export class CreateReportScheduleDto {

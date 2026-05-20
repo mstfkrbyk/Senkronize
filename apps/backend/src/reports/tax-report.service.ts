@@ -4,7 +4,13 @@ import { OrderStatus, type Marketplace } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import vatRatesConfig from '../config/vat-rates.json';
+import { parseMonthPeriod, parseQuarterPeriod } from './period-parse.util';
 import type {
+  BaBsReport,
+  ELedgerReport,
+  VatDeclarationReport,
+  VatInvoiceDetail,
+  VatInvoiceLineDetail,
   VatPlatformBreakdown,
   VatRateBreakdown,
   VatReport,
@@ -321,6 +327,307 @@ export class TaxReportService {
     }
 
     return `\ufeff${lines.join('\n')}`;
+  }
+
+  async generateVatDeclaration(
+    organizationId: string,
+    periodKey: string,
+  ): Promise<VatDeclarationReport> {
+    const { year, month } = parseMonthPeriod(periodKey);
+    const base = await this.generateVatReport(organizationId, year, month);
+    const { start, end } = monthBounds(year, month);
+    const statuses = resolveStatuses();
+
+    const [orders, invoices] = await Promise.all([
+      this.prisma.order.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          status: { in: statuses },
+          platformCreatedAt: { gte: start, lte: end },
+        },
+        include: { items: true },
+        orderBy: { platformCreatedAt: 'asc' },
+      }),
+      this.prisma.invoice.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          createdAt: { gte: start, lte: end },
+        },
+        select: {
+          orderId: true,
+          invoiceNumber: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    const invoiceByOrderId = new Map(
+      invoices
+        .filter((inv) => inv.orderId != null)
+        .map((inv) => [inv.orderId!, inv] as const),
+    );
+
+    const invoiceDetails: VatInvoiceDetail[] = [];
+
+    for (const order of orders) {
+      const inv = invoiceByOrderId.get(order.id);
+      const orderGross = toNumber(order.totalAmount);
+      const lines: VatInvoiceLineDetail[] = [];
+      let vatSum = 0;
+      let netSum = 0;
+
+      if (order.items.length === 0) {
+        const rate = VAT_CFG.defaultVatRatePercent;
+        const { net, vat } = splitVatFromGross(
+          orderGross,
+          rate,
+          VAT_CFG.includedInPrices,
+        );
+        vatSum = vat;
+        netSum = net;
+        lines.push({
+          sku: '',
+          quantity: 1,
+          grossAmount: roundMoney(orderGross),
+          vatRatePercent: rate,
+          vatAmount: roundMoney(vat),
+          netAmount: roundMoney(net),
+        });
+      } else {
+        for (const item of order.items) {
+          const lineGross = toNumber(item.unitPrice) * item.quantity;
+          const rate = rateForSku(item.sku);
+          const { net, vat } = splitVatFromGross(
+            lineGross,
+            rate,
+            VAT_CFG.includedInPrices,
+          );
+          vatSum += vat;
+          netSum += net;
+          lines.push({
+            sku: item.sku,
+            quantity: item.quantity,
+            grossAmount: roundMoney(lineGross),
+            vatRatePercent: rate,
+            vatAmount: roundMoney(vat),
+            netAmount: roundMoney(net),
+          });
+        }
+      }
+
+      invoiceDetails.push({
+        orderId: order.id,
+        platformOrderId: order.platformOrderId,
+        platform: order.platform,
+        invoiceNumber: inv?.invoiceNumber ?? null,
+        invoiceDate: inv?.createdAt.toISOString() ?? null,
+        grossAmount: roundMoney(orderGross),
+        vatAmount: roundMoney(vatSum),
+        netAmount: roundMoney(netSum),
+        lines,
+      });
+    }
+
+    return {
+      ...base,
+      periodKey,
+      invoiceDetails,
+    };
+  }
+
+  async generateELedger(
+    organizationId: string,
+    periodKey: string,
+    format: 'xml' | 'json',
+  ): Promise<ELedgerReport> {
+    const { year, month, start, end } = parseMonthPeriod(periodKey);
+    const declaration = await this.generateVatDeclaration(
+      organizationId,
+      periodKey,
+    );
+
+    const entries: ELedgerReport['entries'] = [];
+
+    for (const inv of declaration.invoiceDetails) {
+      entries.push({
+        entryType: 'SALE',
+        entryDate: inv.invoiceDate ?? start.toISOString(),
+        documentNo: inv.invoiceNumber ?? inv.platformOrderId,
+        description: `Satış — ${inv.platform}`,
+        debitAccount: '120',
+        creditAccount: '600',
+        amount: inv.grossAmount,
+        vatAmount: inv.vatAmount,
+      });
+      if (inv.vatAmount > 0) {
+        entries.push({
+          entryType: 'VAT',
+          entryDate: inv.invoiceDate ?? start.toISOString(),
+          documentNo: inv.invoiceNumber ?? inv.platformOrderId,
+          description: `Hesaplanan KDV — % satır bazlı`,
+          debitAccount: '120',
+          creditAccount: '391',
+          amount: inv.vatAmount,
+          vatAmount: inv.vatAmount,
+        });
+      }
+    }
+
+    const returns = await this.prisma.return.findMany({
+      where: {
+        organizationId,
+        deletedAt: null,
+        requestedAt: { gte: start, lte: end },
+      },
+      select: {
+        id: true,
+        requestedAt: true,
+        refundAmount: true,
+      },
+    });
+
+    for (const ret of returns) {
+      const amt = ret.refundAmount != null ? Number(ret.refundAmount) : 0;
+      if (amt <= 0) {
+        continue;
+      }
+      entries.push({
+        entryType: 'RETURN',
+        entryDate: ret.requestedAt.toISOString(),
+        documentNo: ret.id,
+        description: 'İade',
+        debitAccount: '610',
+        creditAccount: '120',
+        amount: roundMoney(amt),
+        vatAmount: 0,
+      });
+    }
+
+    const stubNote =
+      'GİB e-Defter XML şeması henüz uygulanmadı; kayıtlar yevmiye taslağıdır.';
+
+    const report: ELedgerReport = {
+      periodKey,
+      format,
+      gibCompliant: false,
+      stubNote,
+      entries,
+    };
+
+    if (format === 'xml') {
+      const lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<eLedgerStub xmlns="urn:senkronize:edefter:stub">',
+        `  <period year="${year}" month="${month}" />`,
+        `  <note>${stubNote}</note>`,
+        '  <entries>',
+        ...entries.map(
+          (e) =>
+            `    <entry type="${e.entryType}" date="${e.entryDate}" amount="${e.amount}" vat="${e.vatAmount}" />`,
+        ),
+        '  </entries>',
+        '</eLedgerStub>',
+      ];
+      report.payload = lines.join('\n');
+    }
+
+    return report;
+  }
+
+  async generateBaBs(
+    organizationId: string,
+    periodKey: string,
+  ): Promise<BaBsReport> {
+    const { start, end } = parseQuarterPeriod(periodKey);
+    const thresholdTry = 5_000;
+
+    const [invoices, purchaseOrders] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          createdAt: { gte: start, lte: end },
+        },
+        select: {
+          customerTaxId: true,
+          customerName: true,
+          totalAmount: true,
+        },
+      }),
+      this.prisma.purchaseOrder.findMany({
+        where: {
+          organizationId,
+          createdAt: { gte: start, lte: end },
+        },
+        include: {
+          supplier: {
+            select: { name: true, taxNumber: true },
+          },
+        },
+      }),
+    ]);
+
+    const salesMap = new Map<
+      string,
+      { taxId: string | null; name: string; count: number; total: number }
+    >();
+    for (const inv of invoices) {
+      const key = inv.customerTaxId?.trim() || inv.customerName.trim();
+      const prev = salesMap.get(key) ?? {
+        taxId: inv.customerTaxId,
+        name: inv.customerName,
+        count: 0,
+        total: 0,
+      };
+      prev.count += 1;
+      prev.total += Number(inv.totalAmount);
+      salesMap.set(key, prev);
+    }
+
+    const purchasesMap = new Map<
+      string,
+      { taxId: string | null; name: string; count: number; total: number }
+    >();
+    for (const po of purchaseOrders) {
+      const key =
+        po.supplier.taxNumber?.trim() || po.supplier.name.trim();
+      const prev = purchasesMap.get(key) ?? {
+        taxId: po.supplier.taxNumber,
+        name: po.supplier.name,
+        count: 0,
+        total: 0,
+      };
+      prev.count += 1;
+      prev.total += Number(po.totalAmount);
+      purchasesMap.set(key, prev);
+    }
+
+    const toRows = (
+      map: Map<
+        string,
+        { taxId: string | null; name: string; count: number; total: number }
+      >,
+    ): BaBsReport['salesToCustomers'] =>
+      [...map.values()]
+        .filter((v) => v.total >= thresholdTry)
+        .map((v) => ({
+          taxId: v.taxId,
+          name: v.name,
+          documentCount: v.count,
+          totalAmount: roundMoney(v.total),
+        }))
+        .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    return {
+      periodKey,
+      thresholdTry,
+      salesToCustomers: toRows(salesMap),
+      purchasesFromSuppliers: toRows(purchasesMap),
+      reportingNote:
+        'Ba/Bs listesi 5.000 TL eşiğinin üzerindeki işlemleri içerir; resmi form üretimi ayrı fazda tamamlanacaktır.',
+    };
   }
 }
 

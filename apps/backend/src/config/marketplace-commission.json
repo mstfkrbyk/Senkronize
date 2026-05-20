@@ -1,0 +1,12 @@
+{
+  "defaultCommissionPercent": 15,
+  "byPlatformPercent": {
+    "TRENDYOL": 18,
+    "HEPSIBURADA": 15,
+    "N11": 12,
+    "AMAZON_TR": 15,
+    "CICEKSEPETI": 14,
+    "PAZARAMA": 12
+  },
+  "note": "Tahmini pazaryeri komisyon oranları; net gelir hesabında kullanılır."
+}

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Marketplace, PlanTier, SubStatus } from '@prisma/client';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { PostHogService } from '../analytics/posthog.service';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SubscriptionService } from '../subscription/subscription.service';
@@ -75,6 +76,7 @@ describe('MarketplaceConnectionService', () => {
           useValue: { get: jest.fn() },
         },
         { provide: SubscriptionService, useValue: subscriptionService },
+        { provide: PostHogService, useValue: { capture: jest.fn(), groupCapture: jest.fn() } },
       ],
     }).compile();
 

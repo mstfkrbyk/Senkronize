@@ -45,6 +45,15 @@ function platformLabel(platform: string): string {
   return MARKETPLACE_LABEL_TR[key] ?? platform;
 }
 
+/** Recharts sunucu tarafı render stub — gerçek grafik üretimi sonraki fazda */
+const CHART_STUB_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+const SENKRONIZE_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-label="Senkronize">
+  <rect width="48" height="48" rx="12" fill="#0f172a"/>
+  <path d="M14 24c0-5.5 4.5-10 10-10h10v6H24a4 4 0 100 8h10v6H24c-5.5 0-10-4.5-10-10z" fill="#38bdf8"/>
+</svg>`;
+
 export function parseReportPeriod(period: ReportPeriod): ReportDateRange {
   const to = new Date();
   to.setHours(23, 59, 59, 999);
@@ -92,6 +101,7 @@ export class ReportPdfService {
       topProducts,
       stockSummary,
       extraSections: [],
+      filterSummary: `Dönem: ${range.label}`,
     });
     return await this.renderHtmlToPdf(html);
   }
@@ -140,6 +150,7 @@ export class ReportPdfService {
       kpiValues: {
         returnRate: String(stockSummary.outOfStockCount),
       },
+      filterSummary: 'Güncel stok anlık görünümü',
     });
     return await this.renderHtmlToPdf(html);
   }
@@ -204,6 +215,7 @@ export class ReportPdfService {
         String(row.quantity),
         formatTry(row.revenue),
       ]),
+      filterSummary: `Dönem: ${range.label}`,
     });
     return await this.renderHtmlToPdf(html);
   }
@@ -277,6 +289,7 @@ export class ReportPdfService {
     kpiValues?: { returnRate?: string };
     topProductColumns?: [string, string, string];
     topProductRows?: [string, string, string][];
+    filterSummary?: string;
   }): string {
     const now = formatDateTr(new Date());
     const rangeText = params.range
@@ -340,34 +353,70 @@ export class ReportPdfService {
       )
       .join('');
 
+    const filterSummary =
+      params.filterSummary ?? `Dönem: ${params.periodLabel}`;
+    const chartBlock = `
+    <div class="chart-block">
+      <img src="data:image/png;base64,${CHART_STUB_BASE64}" alt="Grafik özeti (stub)" width="520" height="120" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" />
+      <div class="chart-caption">Grafik görünümü — Recharts sunucu render (yakında)</div>
+    </div>`;
+
     return `<!DOCTYPE html>
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
   <title>${escapeHtml(params.title)}</title>
   <style>
-    @page { margin: 12mm; }
-    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #0f172a; font-size: 13px; }
-    .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; page-break-after: always; }
-    .logo-box { width: 72px; height: 72px; border-radius: 12px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 11px; margin-bottom: 24px; }
+    @page {
+      margin: 14mm 12mm 18mm 12mm;
+      @bottom-center {
+        content: counter(page) " / " counter(pages);
+        font-size: 9px;
+        color: #94a3b8;
+      }
+    }
+    body { font-family: Arial, Helvetica, sans-serif; margin: 0; padding: 0; color: #0f172a; font-size: 13px; background: #f8fafc; }
+    .page-body { background: #fff; padding: 8px 0 24px; }
+    .cover { min-height: 90vh; display: flex; flex-direction: column; justify-content: center; page-break-after: always; background: #fff; padding: 24px; }
+    .logo-wrap { margin-bottom: 24px; }
     .cover-title { font-size: 28px; font-weight: 700; color: #0f172a; margin: 0 0 8px; }
     .cover-meta { color: #64748b; line-height: 1.7; font-size: 14px; }
-    .brand { color: #38bdf8; font-weight: 700; font-size: 18px; margin-bottom: 32px; }
+    .brand { color: #0f172a; font-weight: 700; font-size: 20px; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .brand-accent { color: #38bdf8; }
     h2 { font-size: 16px; margin: 28px 0 12px; color: #0f172a; border-bottom: 2px solid #38bdf8; padding-bottom: 6px; }
     .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
-    .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 3px solid #38bdf8; border-radius: 8px; padding: 14px; }
     .kpi-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
     .kpi-value { font-size: 20px; font-weight: 700; margin-top: 6px; color: #0f172a; }
     table { width: 100%; border-collapse: collapse; margin: 8px 0 20px; }
-    th { background: #f1f5f9; padding: 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 12px; }
+    th { background: #0f172a; color: #f8fafc; padding: 10px; text-align: left; font-size: 12px; }
     td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-    .footer { margin-top: 32px; font-size: 10px; color: #94a3b8; }
+    .chart-block { margin: 20px 0; text-align: center; }
+    .chart-caption { font-size: 10px; color: #94a3b8; margin-top: 6px; }
+    .page-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      font-size: 9px;
+      color: #64748b;
+      border-top: 1px solid #e2e8f0;
+      padding: 8px 12mm;
+      display: flex;
+      justify-content: space-between;
+      background: #fff;
+    }
+    .footer-note { margin-top: 24px; font-size: 10px; color: #94a3b8; }
   </style>
 </head>
 <body>
+  <div class="page-footer">
+    <span>Senkronize — ${escapeHtml(params.title)}</span>
+    <span>${escapeHtml(filterSummary)} · ${escapeHtml(now)}</span>
+  </div>
   <section class="cover">
-    <div class="brand">Senkronize</div>
-    <div class="logo-box">LOGO</div>
+    <div class="brand">Senkronize <span class="brand-accent">·</span> Raporlar</div>
+    <div class="logo-wrap">${SENKRONIZE_LOGO_SVG}</div>
     <h1 class="cover-title">${escapeHtml(params.title)}</h1>
     <div class="cover-meta">
       <div><strong>Organizasyon:</strong> ${escapeHtml(params.orgName)}</div>
@@ -377,8 +426,9 @@ export class ReportPdfService {
     </div>
   </section>
 
-  <section>
+  <section class="page-body">
     <h2>Özet</h2>
+    ${chartBlock}
     <div class="kpi-grid">
       <div class="kpi">
         <div class="kpi-label">${escapeHtml(kpiLabels.revenue)}</div>
@@ -438,8 +488,9 @@ export class ReportPdfService {
       </tbody>
     </table>
 
-    <div class="footer">
+    <div class="footer-note">
       Bu belge Senkronize panelinden üretilmiştir. Resmi mali belge yerine geçmez.
+      Filtre: ${escapeHtml(filterSummary)} · Oluşturulma: ${escapeHtml(now)}
     </div>
   </section>
 </body>
@@ -454,7 +505,14 @@ export class ReportPdfService {
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '12mm', bottom: '12mm', left: '12mm', right: '12mm' },
+        displayHeaderFooter: true,
+        headerTemplate: '<div></div>',
+        footerTemplate: `
+          <div style="width:100%;font-size:9px;color:#94a3b8;padding:0 12mm;display:flex;justify-content:space-between;">
+            <span>Senkronize</span>
+            <span><span class="pageNumber"></span> / <span class="totalPages"></span></span>
+          </div>`,
+        margin: { top: '12mm', bottom: '16mm', left: '12mm', right: '12mm' },
       });
       return Buffer.from(pdf);
     } finally {

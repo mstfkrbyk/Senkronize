@@ -5,6 +5,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
 
 import { CustomReportService } from './custom-report.service';
+import { ProfitReportService } from './profit-report.service';
 import { ReportPdfService } from './report-pdf.service';
 import { ReportScheduleService } from './report-schedule.service';
 import { ReportsController } from './reports.controller';
@@ -18,6 +19,7 @@ import { WeeklyReportTask } from './weekly-report.task';
   controllers: [ReportsController],
   providers: [
     ReportsService,
+    ProfitReportService,
     CustomReportService,
     ScheduledReportTask,
     TaxReportService,

@@ -23,6 +23,7 @@ import { PasswordPolicyService } from './password-policy.service';
 import {
   AcceptInviteDto,
   ChangePasswordDto,
+  ForgotPasswordDto,
   LoginDto,
   RecommendPlanDto,
   RefreshTokenDto,
@@ -248,6 +249,16 @@ export class AuthController {
       dto.token,
     );
     return { backupCodes };
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Şifre sıfırlama bağlantısı gönder' })
+  @ApiResponse({ status: 200, description: 'Talep alındı' })
+  async forgotPassword(
+    @Body() dto: ForgotPasswordDto,
+  ): Promise<{ ok: true }> {
+    return this.authService.requestPasswordReset(dto);
   }
 
   @Post('refresh')

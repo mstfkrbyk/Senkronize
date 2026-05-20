@@ -28,3 +28,69 @@ export interface VatReport {
   reportingNote: string;
   defaultVatRatePercent: number;
 }
+
+export interface VatInvoiceLineDetail {
+  sku: string;
+  quantity: number;
+  grossAmount: number;
+  vatRatePercent: number;
+  vatAmount: number;
+  netAmount: number;
+}
+
+export interface VatInvoiceDetail {
+  orderId: string;
+  platformOrderId: string;
+  platform: string;
+  invoiceNumber: string | null;
+  invoiceDate: string | null;
+  grossAmount: number;
+  vatAmount: number;
+  netAmount: number;
+  lines: VatInvoiceLineDetail[];
+}
+
+/** Aylık KDV beyanname özeti */
+export interface VatDeclarationReport extends VatReport {
+  periodKey: string;
+  invoiceDetails: VatInvoiceDetail[];
+}
+
+export interface ELedgerEntry {
+  entryType: 'SALE' | 'RETURN' | 'VAT';
+  entryDate: string;
+  documentNo: string;
+  description: string;
+  debitAccount: string;
+  creditAccount: string;
+  amount: number;
+  vatAmount: number;
+}
+
+/** GİB e-Defter hazırlık (stub) */
+export interface ELedgerReport {
+  periodKey: string;
+  format: 'xml' | 'json';
+  gibCompliant: false;
+  stubNote: string;
+  entries: ELedgerEntry[];
+  payload?: string;
+}
+
+export interface BaBsPartyRow {
+  taxId: string | null;
+  name: string;
+  documentCount: number;
+  totalAmount: number;
+}
+
+/** Ba/Bs formu hazırlık verisi */
+export interface BaBsReport {
+  periodKey: string;
+  thresholdTry: number;
+  /** Müşteri satışları (Ba) */
+  salesToCustomers: BaBsPartyRow[];
+  /** Tedarikçi alışları (Bs) */
+  purchasesFromSuppliers: BaBsPartyRow[];
+  reportingNote: string;
+}

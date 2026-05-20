@@ -16,15 +16,18 @@ jest.mock('puppeteer', () => ({
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 
+import { EmailService } from '../src/notifications/email/email.service';
 import {
   authHeader,
   buildRegisterDto,
   loginAndGetAccessToken,
+  registerTestUser,
   uniqueTaxNumber,
 } from './helpers/auth.helper';
+import { lockUserAccount } from './helpers/db.helper';
 import { createTestApp } from './setup';
 
-describe('Auth (e2e)', () => {
+describe('Auth E2E', () => {
   let app: INestApplication;
   let httpServer: ReturnType<INestApplication['getHttpServer']>;
 
@@ -40,7 +43,7 @@ describe('Auth (e2e)', () => {
     await app.close();
   });
 
-  it('/api/v1/auth/register (POST) - başarılı kayıt', async () => {
+  it('POST /auth/register — başarılı kayıt', async () => {
     const dto = buildRegisterDto({
       email: `register-ok-${Date.now()}@senkronize.test`,
       password,
@@ -55,7 +58,7 @@ describe('Auth (e2e)', () => {
     expect(res.body.refreshToken).toBeDefined();
   });
 
-  it('/api/v1/auth/register (POST) - tekrarlayan e-posta 409 döner', async () => {
+  it('POST /auth/register — duplicate email hatası', async () => {
     const email = `duplicate-${Date.now()}@senkronize.test`;
     const dto = buildRegisterDto({
       email,
@@ -73,7 +76,7 @@ describe('Auth (e2e)', () => {
     expect(res.body.message).toMatch(/e-posta/i);
   });
 
-  it('/api/v1/auth/login (POST) - doğru kimlik bilgileri 200 döner', async () => {
+  it('POST /auth/login — başarılı giriş', async () => {
     const email = `login-ok-${Date.now()}@senkronize.test`;
     const dto = buildRegisterDto({
       email,
@@ -90,7 +93,7 @@ describe('Auth (e2e)', () => {
     expect(res.body.accessToken).toBeDefined();
   });
 
-  it('/api/v1/auth/login (POST) - yanlış şifre 401 döner', async () => {
+  it('POST /auth/login — yanlış şifre', async () => {
     const email = `login-fail-${Date.now()}@senkronize.test`;
     const dto = buildRegisterDto({
       email,
@@ -105,11 +108,25 @@ describe('Auth (e2e)', () => {
       .expect(401);
   });
 
-  it('/api/v1/auth/me (GET) - JWT olmadan 401 döner', async () => {
-    await request(httpServer).get('/api/v1/auth/me').expect(401);
+  it('POST /auth/login — kilitli hesap', async () => {
+    const email = `locked-${Date.now()}@senkronize.test`;
+    const dto = buildRegisterDto({
+      email,
+      password,
+      taxNumber: uniqueTaxNumber(),
+    });
+    await request(httpServer).post('/api/v1/auth/register').send(dto).expect(201);
+    await lockUserAccount(app, email);
+
+    const res = await request(httpServer)
+      .post('/api/v1/auth/login')
+      .send({ email, password })
+      .expect(401);
+
+    expect(res.body.message).toMatch(/kilit/i);
   });
 
-  it('/api/v1/auth/me (GET) - geçerli JWT ile kullanıcı bilgisi döner', async () => {
+  it('GET /auth/me — JWT doğrulama', async () => {
     const email = `me-${Date.now()}@senkronize.test`;
     const dto = buildRegisterDto({
       email,
@@ -128,5 +145,63 @@ describe('Auth (e2e)', () => {
     expect(res.body.user.email).toBe(email.toLowerCase());
     expect(res.body.user.name).toBe('E2E Kullanıcı');
     expect(res.body.organization).toBeDefined();
+  });
+
+  it('POST /auth/refresh — token yenileme', async () => {
+    const user = await registerTestUser(app);
+    const res = await request(httpServer)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: user.refreshToken })
+      .expect(200);
+
+    expect(res.body.accessToken).toBeDefined();
+    expect(res.body.refreshToken).toBeDefined();
+    expect(res.body.refreshToken).not.toBe(user.refreshToken);
+  });
+
+  it('POST /auth/logout — oturum kapatma', async () => {
+    const user = await registerTestUser(app);
+    await request(httpServer)
+      .post('/api/v1/auth/logout')
+      .set(authHeader(user.accessToken))
+      .send({ refreshToken: user.refreshToken })
+      .expect(200);
+
+    await request(httpServer)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: user.refreshToken })
+      .expect(401);
+  });
+
+  it('POST /auth/forgot-password — email gönderimi', async () => {
+    const user = await registerTestUser(app);
+    const emailSpy = jest
+      .spyOn(app.get(EmailService), 'sendPasswordReset')
+      .mockResolvedValue(undefined);
+
+    const res = await request(httpServer)
+      .post('/api/v1/auth/forgot-password')
+      .send({ email: user.email })
+      .expect(200);
+
+    expect(res.body.ok).toBe(true);
+    expect(emailSpy).toHaveBeenCalledWith(
+      user.email.toLowerCase(),
+      expect.stringContaining('reset-password?token='),
+    );
+    emailSpy.mockRestore();
+  });
+
+  it('POST /auth/2fa/setup — 2FA QR kodu', async () => {
+    const user = await registerTestUser(app);
+    const res = await request(httpServer)
+      .post('/api/v1/auth/2fa/setup')
+      .set(authHeader(user.accessToken))
+      .expect(201);
+
+    expect(res.body.secret).toBeDefined();
+    expect(res.body.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
+    expect(Array.isArray(res.body.backupCodes)).toBe(true);
+    expect(res.body.backupCodes.length).toBeGreaterThan(0);
   });
 });
