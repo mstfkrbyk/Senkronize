@@ -248,6 +248,26 @@ const StockManagementPage = lazy(() =>
     default: m.StockManagementPage,
   })),
 );
+const WarehousesPage = lazy(() =>
+  import('@/pages/stock/WarehousesPage').then((m) => ({
+    default: m.WarehousesPage,
+  })),
+);
+const StockMovementsPage = lazy(() =>
+  import('@/pages/stock/StockMovementsPage').then((m) => ({
+    default: m.StockMovementsPage,
+  })),
+);
+const StockDistributionPage = lazy(() =>
+  import('@/pages/stock/StockDistributionPage').then((m) => ({
+    default: m.StockDistributionPage,
+  })),
+);
+const StockCountScanPage = lazy(() =>
+  import('@/pages/stock/StockCountScanPage').then((m) => ({
+    default: m.StockCountScanPage,
+  })),
+);
 const StockForecastPage = lazy(() =>
   import('@/pages/stock/StockForecastPage').then((m) => ({
     default: m.StockForecastPage,
@@ -385,7 +405,11 @@ export default function App(): ReactElement {
                 <Route path="/products/:id" element={<ProductDetailPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
+                <Route path="/stock/count/scan" element={<StockCountScanPage />} />
                 <Route path="/stock/count" element={<StockCountPage />} />
+                <Route path="/stock/warehouses" element={<WarehousesPage />} />
+                <Route path="/stock/movements" element={<StockMovementsPage />} />
+                <Route path="/stock/distribution" element={<StockDistributionPage />} />
                 <Route path="/stock/transfers/:id" element={<StockTransferPage />} />
                 <Route path="/stock/transfers" element={<StockTransferPage />} />
                 <Route path="/stock/forecast" element={<StockForecastPage />} />

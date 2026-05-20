@@ -34,6 +34,7 @@ import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
 import { api } from '@/lib/api';
 import { COMMAND_PALETTE_EVENT } from '@/lib/command-palette';
+import { openQuickStockAdjust } from '@/lib/quick-stock-adjust';
 import { fuzzyScore } from '@/lib/fuzzy-match';
 import { modKeyLabel } from '@/lib/platform';
 import { getRecentViews, recordRecentView } from '@/lib/recent-views';
@@ -213,6 +214,14 @@ function useStaticCommands(
         category: 'action' as const,
         keywords: ['bağlantı', 'ekle', 'entegrasyon'],
         action: wrap(() => navigate('/connections')),
+      },
+      {
+        id: 'action-quick-stock-adjust',
+        title: 'Hızlı stok düzelt',
+        icon: Warehouse,
+        category: 'action' as const,
+        keywords: ['stok', 'düzelt', 'adjust', 'sayım', 'barkod'],
+        action: wrap(() => openQuickStockAdjust()),
       },
       {
         id: 'action-sync',

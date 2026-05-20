@@ -24,7 +24,7 @@ import { TwoFactorService } from './two-factor.service';
   imports: [
     PrismaModule,
     CommonModule,
-    SecurityModule,
+    forwardRef(() => SecurityModule),
     NotificationModule,
     PartnerModule,
     forwardRef(() => UsersModule),

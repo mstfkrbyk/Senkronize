@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Download, Loader2, ShoppingCart } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Bar,
   BarChart,
@@ -37,7 +37,12 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { useStockOverview } from '@/pages/stock/hooks/useStockManagement';
+import { openQuickStockAdjust } from '@/lib/quick-stock-adjust';
+import {
+  useStockOverview,
+  useWarehouses,
+} from '@/pages/stock/hooks/useStockManagement';
+import type { StockOverviewRow } from '@/types/stock';
 import type {
   DailyMovementFlowPoint,
   StockoutEstimateDto,
@@ -160,7 +165,24 @@ function StockMovementFlowChart(): ReactElement {
 }
 
 function StockOverviewTable(): ReactElement {
+  const [params] = useSearchParams();
+  const warehouseId = params.get('warehouse') ?? undefined;
   const overviewQuery = useStockOverview();
+  const warehousesQuery = useWarehouses();
+
+  const warehouseName = warehousesQuery.data?.find(
+    (w) => w.id === warehouseId,
+  )?.name;
+
+  const rows = useMemo((): StockOverviewRow[] => {
+    const all = overviewQuery.data ?? [];
+    if (!warehouseId) {
+      return all;
+    }
+    return all.filter((row) =>
+      row.byWarehouse.some((w) => w.warehouseId === warehouseId),
+    );
+  }, [overviewQuery.data, warehouseId]);
 
   if (overviewQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">Yükleniyor…</p>;
@@ -172,34 +194,49 @@ function StockOverviewTable(): ReactElement {
       </p>
     );
   }
-  if ((overviewQuery.data?.length ?? 0) === 0) {
+  if (rows.length === 0) {
     return <p className="text-muted-foreground text-sm">Kayıt yok.</p>;
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="space-y-2">
+      {warehouseId && warehouseName ? (
+        <Badge variant="outline" className="bg-sky-50">
+          Depo filtresi: {warehouseName}
+        </Badge>
+      ) : null}
+      <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Ürün</TableHead>
             <TableHead>Barkod</TableHead>
-            <TableHead className="text-right">Kullanılabilir</TableHead>
+            <TableHead className="text-right">
+              {warehouseId ? 'Depo stok' : 'Kullanılabilir'}
+            </TableHead>
             <TableHead className="text-right">Rezerve</TableHead>
             <TableHead>Durum</TableHead>
+            <TableHead className="w-[100px]" />
           </TableRow>
         </TableHeader>
         <TableBody>
-          {overviewQuery.data?.map((row) => (
+          {rows.map((row) => {
+            const wh = warehouseId
+              ? row.byWarehouse.find((w) => w.warehouseId === warehouseId)
+              : undefined;
+            const qty = wh?.quantity ?? row.available;
+            const reserved = wh?.reservedQty ?? row.totalReserved;
+            return (
             <TableRow key={row.barcode}>
               <TableCell className="max-w-[200px] font-medium line-clamp-2">
                 {row.productName ?? '—'}
               </TableCell>
               <TableCell className="font-mono text-xs">{row.barcode}</TableCell>
               <TableCell className="text-right tabular-nums">
-                {row.available.toLocaleString('tr-TR')}
+                {qty.toLocaleString('tr-TR')}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {row.totalReserved.toLocaleString('tr-TR')}
+                {reserved.toLocaleString('tr-TR')}
               </TableCell>
               <TableCell>
                 {row.lowStock ? (
@@ -212,10 +249,28 @@ function StockOverviewTable(): ReactElement {
                   </Badge>
                 )}
               </TableCell>
+              <TableCell>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    openQuickStockAdjust({
+                      barcode: row.barcode,
+                      productName: row.productName ?? row.barcode,
+                      currentQty: qty,
+                    })
+                  }
+                >
+                  Düzelt
+                </Button>
+              </TableCell>
             </TableRow>
-          ))}
+            );
+          })}
         </TableBody>
       </Table>
+      </div>
     </div>
   );
 }

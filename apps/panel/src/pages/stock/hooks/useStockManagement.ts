@@ -12,10 +12,24 @@ export interface StockHistoryFilters {
   from?: string;
   to?: string;
   movementType?: string;
+  movementTypes?: string;
   barcode?: string;
   platform?: string;
+  warehouseId?: string;
   page?: number;
   limit?: number;
+}
+
+export function useDailyMovementFlow(days = 7) {
+  return useQuery({
+    queryKey: ['stock', 'movements', 'daily', days],
+    queryFn: async (): Promise<{ date: string; inflow: number; outflow: number }[]> => {
+      const { data } = await api.get<{
+        data: { date: string; inflow: number; outflow: number }[];
+      }>('/stock/movements/daily', { params: { days } });
+      return data.data;
+    },
+  });
 }
 
 export interface MovementSummaryResponse {

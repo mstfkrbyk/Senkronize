@@ -4,6 +4,7 @@ import { Outlet } from 'react-router-dom';
 
 import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
 import { CommandPalette } from '@/components/CommandPalette';
+import { QuickStockAdjust } from '@/components/QuickStockAdjust';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
@@ -132,6 +133,7 @@ export function DashboardLayout(): ReactElement {
           </SidebarProvider>
           <KeyboardShortcutsModal />
           <CommandPalette />
+          <QuickStockAdjust />
           <OnboardingTour />
           <CurrencyWidget />
         </Fragment>

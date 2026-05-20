@@ -257,10 +257,13 @@ export function StockManagementPage(): ReactElement {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
-            <Link to="/stock/count">Stok sayımı</Link>
+            <Link to="/stock/warehouses">Depolar</Link>
           </Button>
-          <Button variant="outline" onClick={() => setWhOpen(true)}>
-            Depo ekle
+          <Button variant="outline" asChild>
+            <Link to="/stock/movements">Hareketler</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link to="/stock/count/scan">Barkod sayım</Link>
           </Button>
           <Button variant="outline" onClick={() => setTrOpen(true)}>
             Stok transfer et

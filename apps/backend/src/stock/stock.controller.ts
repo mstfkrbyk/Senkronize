@@ -23,7 +23,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { StockMovement } from '@prisma/client';
+import type { StockMovement, StockMovementType } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';

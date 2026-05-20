@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
 
 import { SuperAdminGuard } from '../../admin/admin.guard';
 import { AuthModule } from '../../auth/auth.module';
@@ -8,7 +8,7 @@ import { EmailTemplateService } from './email-template.service';
 
 @Global()
 @Module({
-  imports: [AuthModule],
+  imports: [forwardRef(() => AuthModule)],
   controllers: [EmailPreviewController],
   providers: [EmailTemplateService, EmailService, SuperAdminGuard],
   exports: [EmailService, EmailTemplateService],

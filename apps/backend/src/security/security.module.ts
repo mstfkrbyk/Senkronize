@@ -1,4 +1,4 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
 
 import { CommonModule } from '../common/common.module';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
@@ -14,7 +14,12 @@ import { SecurityRequestInterceptor } from './security-request.interceptor';
 
 @Global()
 @Module({
-  imports: [PrismaModule, CommonModule, EmailModule, InAppNotificationModule],
+  imports: [
+    PrismaModule,
+    CommonModule,
+    forwardRef(() => EmailModule),
+    InAppNotificationModule,
+  ],
   providers: [
     IpBlockService,
     IpGeolocationService,

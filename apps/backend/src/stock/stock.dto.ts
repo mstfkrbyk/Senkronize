@@ -77,6 +77,11 @@ export class StockHistoryQueryDto {
   @IsEnum(StockMovementType)
   movementType?: StockMovementType;
 
+  /** Virgülle ayrılmış birden fazla hareket tipi (ör. PURCHASE,RETURN) */
+  @IsOptional()
+  @IsString()
+  movementTypes?: string;
+
   @IsOptional()
   @IsString()
   barcode?: string;
@@ -84,6 +89,10 @@ export class StockHistoryQueryDto {
   @IsOptional()
   @IsString()
   platform?: string;
+
+  @IsOptional()
+  @IsString()
+  warehouseId?: string;
 
   @IsOptional()
   @Type(() => Number)
