@@ -334,5 +334,13 @@ export const LEGACY_PLATFORM_RPM: Record<string, number> = {
   DEPOP: 35,
   GRAILED: 35,
   TISE: 35,
+  SHOPEE_BR: 50,
+  CASAS_BAHIA: 40,
+  SUBMARINO: 40,
+  RIPLEY: 40,
+  COSTCO_CA: 40,
+  HUDSONS_BAY: 40,
+  LIVERPOOL_MX: 40,
+  COPPEL: 40,
   DEFAULT: 30,
 };

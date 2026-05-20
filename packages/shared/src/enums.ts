@@ -342,7 +342,15 @@ export type Marketplace =
   | 'SHOWROOMPRIVE'
   | 'VENTE_EXCLUSIVE'
   | 'GRAILED'
-  | 'TISE';
+  | 'TISE'
+  | 'SHOPEE_BR'
+  | 'CASAS_BAHIA'
+  | 'SUBMARINO'
+  | 'RIPLEY'
+  | 'COSTCO_CA'
+  | 'HUDSONS_BAY'
+  | 'LIVERPOOL_MX'
+  | 'COPPEL';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

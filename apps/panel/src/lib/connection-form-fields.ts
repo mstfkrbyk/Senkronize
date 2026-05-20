@@ -1806,6 +1806,29 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   ],
   GRAILED: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   TISE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SHOPEE_BR: [
+    { key: 'partnerId', label: 'Partner ID', type: 'text', required: true },
+    {
+      key: 'partnerKey',
+      label: 'Partner Key (gizli)',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token',
+      type: 'password',
+      required: false,
+    },
+    { key: 'shopId', label: 'Shop ID', type: 'text', required: false },
+  ],
+  CASAS_BAHIA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SUBMARINO: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  RIPLEY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  COSTCO_CA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  HUDSONS_BAY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  LIVERPOOL_MX: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  COPPEL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -2410,6 +2433,14 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'VENTE_EXCLUSIVE',
   'GRAILED',
   'TISE',
+  'SHOPEE_BR',
+  'CASAS_BAHIA',
+  'SUBMARINO',
+  'RIPLEY',
+  'COSTCO_CA',
+  'HUDSONS_BAY',
+  'LIVERPOOL_MX',
+  'COPPEL',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

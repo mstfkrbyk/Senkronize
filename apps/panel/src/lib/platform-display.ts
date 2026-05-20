@@ -244,6 +244,14 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   VENTE_EXCLUSIVE: { label: 'Vente-Exclusive', logo: '🇧🇪', color: 'sky' },
   GRAILED: { label: 'Grailed', logo: '👔', color: 'stone' },
   TISE: { label: 'Tise', logo: '🇳🇴', color: 'cyan' },
+  SHOPEE_BR: { label: 'Shopee BR', logo: '🇧🇷', color: 'orange' },
+  CASAS_BAHIA: { label: 'Casas Bahia', logo: '🇧🇷', color: 'blue' },
+  SUBMARINO: { label: 'Submarino', logo: '🇧🇷', color: 'sky' },
+  RIPLEY: { label: 'Ripley', logo: '🇨🇱', color: 'red' },
+  COSTCO_CA: { label: 'Costco CA', logo: '🇨🇦', color: 'blue' },
+  HUDSONS_BAY: { label: "Hudson's Bay", logo: '🇨🇦', color: 'slate' },
+  LIVERPOOL_MX: { label: 'Liverpool MX', logo: '🇲🇽', color: 'red' },
+  COPPEL: { label: 'Coppel', logo: '🇲🇽', color: 'yellow' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

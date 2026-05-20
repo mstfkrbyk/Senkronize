@@ -74,6 +74,7 @@ import { CarrefoursaModule } from './carrefoursa/carrefoursa.module';
 import { CarrefourMeModule } from './carrefour-me/carrefour-me.module';
 import { CarrefourFrModule } from './carrefour-fr/carrefour-fr.module';
 import { CasinoFrModule } from './casino-fr/casino-fr.module';
+import { CasasBahiaModule } from './casas-bahia/casas-bahia.module';
 import { CdonModule } from './cdon/cdon.module';
 import { CdiscountModule } from './cdiscount/cdiscount.module';
 import { CiceksepetiEvModule } from './ciceksepeti-ev/ciceksepeti-ev.module';
@@ -81,6 +82,8 @@ import { CeneoModule } from './ceneo/ceneo.module';
 import { ChairishModule } from './chairish/chairish.module';
 import { CimriModule } from './cimri/cimri.module';
 import { CoupangModule } from './coupang/coupang.module';
+import { CoppelModule } from './coppel/coppel.module';
+import { CostcoCaModule } from './costco-ca/costco-ca.module';
 import { CultBeautyModule } from './cult-beauty/cult-beauty.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { DefactoModule } from './defacto/defacto.module';
@@ -143,6 +146,7 @@ import { HepsiburadaPremiumModule } from './hepsiburada-premium/hepsiburada-prem
 import { HepsiexpressModule } from './hepsiexpress/hepsiexpress.module';
 import { HizliresmiModule } from './hizliresmi/hizliresmi.module';
 import { HarveyNormanModule } from './harvey-norman/harvey-norman.module';
+import { HudsonsBayModule } from './hudsons-bay/hudsons-bay.module';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
 import { IndiamartModule } from './indiamart/indiamart.module';
@@ -184,6 +188,7 @@ import { LidyanaModule } from './lidyana/lidyana.module';
 import { LidlModule } from './lidl/lidl.module';
 import { LinensNThingsModule } from './linens-n-things/linens-n-things.module';
 import { LinioModule } from './linio/linio.module';
+import { LiverpoolMxModule } from './liverpool-mx/liverpool-mx.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
 import { LucaAdapter } from './luca/luca.adapter';
@@ -253,6 +258,7 @@ import { Qoo10Module } from './qoo10/qoo10.module';
 import { RakutenModule } from './rakuten/rakuten.module';
 import { RealdeModule } from './realde/realde.module';
 import { ReverbModule } from './reverb/reverb.module';
+import { RipleyModule } from './ripley/ripley.module';
 import { RobomarktModule } from './robomarkt/robomarkt.module';
 import { RossmannTrModule } from './rossmann-tr/rossmann-tr.module';
 import { SahibindenPremiumModule } from './sahibinden-premium/sahibinden-premium.module';
@@ -283,6 +289,7 @@ import { SnapchatStoreModule } from './snapchat-store/snapchat-store.module';
 import { SouqModule } from './souq/souq.module';
 import { SportiveModule } from './sportive/sportive.module';
 import { SportiveTrModule } from './sportive-tr/sportive-tr.module';
+import { SubmarinoModule } from './submarino/submarino.module';
 import { StockxModule } from './stockx/stockx.module';
 import { SwappaModule } from './swappa/swappa.module';
 import { Street11Module } from './street11/street11.module';
@@ -346,6 +353,7 @@ import { KoganModule } from './kogan/kogan.module';
 import { LazadaMyModule } from './lazada-my/lazada-my.module';
 import { MercariJpModule } from './mercari-jp/mercari-jp.module';
 import { PgmallModule } from './pgmall/pgmall.module';
+import { ShopeeBrModule } from './shopee-br/shopee-br.module';
 import { ShopeeSgModule } from './shopee-sg/shopee-sg.module';
 import { ShopeeThModule } from './shopee-th/shopee-th.module';
 import { ThemarketNzModule } from './themarket-nz/themarket-nz.module';
@@ -461,11 +469,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CarrefourMeModule,
     CarrefourFrModule,
     CasinoFrModule,
+    CasasBahiaModule,
     CarrefoursaModule,
     CdiscountModule,
     CiceksepetiEvModule,
     CimriModule,
     CoupangModule,
+    CoppelModule,
+    CostcoCaModule,
     CultBeautyModule,
     DefactoModule,
     DeliverooModule,
@@ -518,6 +529,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HellofreshModule,
     HizliresmiModule,
     HarveyNormanModule,
+    HudsonsBayModule,
     IherbModule,
     IdealoModule,
     IndiamartModule,
@@ -554,6 +566,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LidyanaModule,
     LidlModule,
     LinioModule,
+    LiverpoolMxModule,
     LogoCommerceModule,
     LogoCloudModule,
     MadeinchinaModule,
@@ -610,6 +623,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RakutenModule,
     RealdeModule,
     ReverbModule,
+    RipleyModule,
     RobomarktModule,
     RossmannTrModule,
     SahibindenModule,
@@ -635,6 +649,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SokMarketModule,
     SportiveModule,
     SportiveTrModule,
+    SubmarinoModule,
     StockxModule,
     SwappaModule,
     Street11Module,
@@ -695,6 +710,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LazadaMyModule,
     MercariJpModule,
     PgmallModule,
+    ShopeeBrModule,
     ShopeeSgModule,
     ShopeeThModule,
     ThemarketNzModule,
@@ -827,11 +843,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     CarrefourMeModule,
     CarrefourFrModule,
     CasinoFrModule,
+    CasasBahiaModule,
     CarrefoursaModule,
     CdiscountModule,
     CiceksepetiEvModule,
     CimriModule,
     CoupangModule,
+    CoppelModule,
+    CostcoCaModule,
     CultBeautyModule,
     DefactoModule,
     DeliverooModule,
@@ -884,6 +903,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HellofreshModule,
     HizliresmiModule,
     HarveyNormanModule,
+    HudsonsBayModule,
     IherbModule,
     IdealoModule,
     IndiamartModule,
@@ -920,6 +940,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LidyanaModule,
     LidlModule,
     LinioModule,
+    LiverpoolMxModule,
     LogoCommerceModule,
     LogoCloudModule,
     MadeinchinaModule,
@@ -976,6 +997,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     RakutenModule,
     RealdeModule,
     ReverbModule,
+    RipleyModule,
     RobomarktModule,
     RossmannTrModule,
     SahibindenModule,
@@ -1001,6 +1023,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SokMarketModule,
     SportiveModule,
     SportiveTrModule,
+    SubmarinoModule,
     StockxModule,
     SwappaModule,
     Street11Module,
@@ -1077,6 +1100,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LazadaMyModule,
     MercariJpModule,
     PgmallModule,
+    ShopeeBrModule,
     ShopeeSgModule,
     ShopeeThModule,
     ThemarketNzModule,

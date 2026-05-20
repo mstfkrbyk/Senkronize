@@ -57,6 +57,7 @@ import { CentralOnlineAdapter } from './central-online/central-online.adapter';
 import { CarrefoursaAdapter } from './carrefoursa/carrefoursa.adapter';
 import { CarrefourMeAdapter } from './carrefour-me/carrefour-me.adapter';
 import { CarrefourFrAdapter } from './carrefour-fr/carrefour-fr.adapter';
+import { CasasBahiaAdapter } from './casas-bahia/casas-bahia.adapter';
 import { CasinoFrAdapter } from './casino-fr/casino-fr.adapter';
 import { CdonAdapter } from './cdon/cdon.adapter';
 import { CdiscountAdapter } from './cdiscount/cdiscount.adapter';
@@ -66,6 +67,8 @@ import { CeneoAdapter } from './ceneo/ceneo.adapter';
 import { ChairishAdapter } from './chairish/chairish.adapter';
 import { CimriAdapter } from './cimri/cimri.adapter';
 import { CoupangAdapter } from './coupang/coupang.adapter';
+import { CoppelAdapter } from './coppel/coppel.adapter';
+import { CostcoCaAdapter } from './costco-ca/costco-ca.adapter';
 import { CultBeautyAdapter } from './cult-beauty/cult-beauty.adapter';
 import { DefactoAdapter } from './defacto/defacto.adapter';
 import { DeliverooAdapter } from './deliveroo/deliveroo.adapter';
@@ -127,6 +130,7 @@ import { HepsiexpressAdapter } from './hepsiexpress/hepsiexpress.adapter';
 import { HizliresmiAdapter } from './hizliresmi/hizliresmi.adapter';
 import { HouzzAdapter } from './houzz/houzz.adapter';
 import { HarveyNormanAdapter } from './harvey-norman/harvey-norman.adapter';
+import { HudsonsBayAdapter } from './hudsons-bay/hudsons-bay.adapter';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoAdapter } from './idealo/idealo.adapter';
 import { IndiamartAdapter } from './indiamart/indiamart.adapter';
@@ -164,6 +168,7 @@ import { LidyanaAdapter } from './lidyana/lidyana.adapter';
 import { LidlAdapter } from './lidl/lidl.adapter';
 import { LinensNThingsAdapter } from './linens-n-things/linens-n-things.adapter';
 import { LinioAdapter } from './linio/linio.adapter';
+import { LiverpoolMxAdapter } from './liverpool-mx/liverpool-mx.adapter';
 import { LogoCommerceAdapter } from './logo-commerce/logo-commerce.adapter';
 import { LogoCloudAdapter } from './logo-cloud/logo-cloud.adapter';
 import { LazadaAdapter } from './lazada/lazada.adapter';
@@ -238,6 +243,7 @@ import { Qoo10Adapter } from './qoo10/qoo10.adapter';
 import { RakutenAdapter } from './rakuten/rakuten.adapter';
 import { RealdeAdapter } from './realde/realde.adapter';
 import { ReverbAdapter } from './reverb/reverb.adapter';
+import { RipleyAdapter } from './ripley/ripley.adapter';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { RobomarktAdapter } from './robomarkt/robomarkt.adapter';
 import { RossmannTrAdapter } from './rossmann-tr/rossmann-tr.adapter';
@@ -267,6 +273,7 @@ import { ShopbackAdapter } from './shopback/shopback.adapter';
 import { SouqAdapter } from './souq/souq.adapter';
 import { SportiveAdapter } from './sportive/sportive.adapter';
 import { SportiveTrAdapter } from './sportive-tr/sportive-tr.adapter';
+import { SubmarinoAdapter } from './submarino/submarino.adapter';
 import { StockxAdapter } from './stockx/stockx.adapter';
 import { SwappaAdapter } from './swappa/swappa.adapter';
 import { Street11Adapter } from './street11/street11.adapter';
@@ -350,6 +357,7 @@ import { KoganAdapter } from './kogan/kogan.adapter';
 import { LazadaMyAdapter } from './lazada-my/lazada-my.adapter';
 import { MercariJpAdapter } from './mercari-jp/mercari-jp.adapter';
 import { PgmallAdapter } from './pgmall/pgmall.adapter';
+import { ShopeeBrAdapter } from './shopee-br/shopee-br.adapter';
 import { ShopeeSgAdapter } from './shopee-sg/shopee-sg.adapter';
 import { ShopeeThAdapter } from './shopee-th/shopee-th.adapter';
 import { ThemarketNzAdapter } from './themarket-nz/themarket-nz.adapter';
@@ -516,6 +524,8 @@ export class AdapterRegistry {
     private readonly chairish: ChairishAdapter,
     private readonly cimri: CimriAdapter,
     private readonly coupang: CoupangAdapter,
+    private readonly coppel: CoppelAdapter,
+    private readonly costcoCa: CostcoCaAdapter,
     private readonly evidea: EvideaAdapter,
     private readonly fuudy: FuudyAdapter,
     private readonly gorillas: GorillasAdapter,
@@ -554,6 +564,7 @@ export class AdapterRegistry {
     private readonly souq: SouqAdapter,
     private readonly sportive: SportiveAdapter,
     private readonly sportiveTr: SportiveTrAdapter,
+    private readonly submarino: SubmarinoAdapter,
     private readonly stockx: StockxAdapter,
     private readonly swappa: SwappaAdapter,
     private readonly street11: Street11Adapter,
@@ -619,6 +630,7 @@ export class AdapterRegistry {
     private readonly pazar365: Pazar365Adapter,
     private readonly realde: RealdeAdapter,
     private readonly reverb: ReverbAdapter,
+    private readonly ripley: RipleyAdapter,
     private readonly trendyolPremium: TrendyolPremiumAdapter,
     private readonly zalando: ZalandoAdapter,
     private readonly zara: ZaraAdapter,
@@ -626,6 +638,7 @@ export class AdapterRegistry {
     private readonly namshi: NamshiAdapter,
     private readonly carrefourMe: CarrefourMeAdapter,
     private readonly carrefourFr: CarrefourFrAdapter,
+    private readonly casasBahia: CasasBahiaAdapter,
     private readonly casinoFr: CasinoFrAdapter,
     private readonly buldumbuldum: BuldumbuldumAdapter,
     private readonly carrefoursa: CarrefoursaAdapter,
@@ -697,9 +710,11 @@ export class AdapterRegistry {
     private readonly hizliresmi: HizliresmiAdapter,
     private readonly houzz: HouzzAdapter,
     private readonly harveyNorman: HarveyNormanAdapter,
+    private readonly hudsonsBay: HudsonsBayAdapter,
     private readonly ikasMp: IkasMpAdapter,
     private readonly linensNThings: LinensNThingsAdapter,
     private readonly linio: LinioAdapter,
+    private readonly liverpoolMx: LiverpoolMxAdapter,
     private readonly madameCoco: MadameCocoAdapter,
     private readonly magalu: MagaluAdapter,
     private readonly mallCz: MallCzAdapter,
@@ -727,6 +742,7 @@ export class AdapterRegistry {
     private readonly lazadaMy: LazadaMyAdapter,
     private readonly mercariJp: MercariJpAdapter,
     private readonly pgmall: PgmallAdapter,
+    private readonly shopeeBr: ShopeeBrAdapter,
     private readonly shopeeSg: ShopeeSgAdapter,
     private readonly shopeeTh: ShopeeThAdapter,
     private readonly themarketNz: ThemarketNzAdapter,
@@ -864,6 +880,7 @@ export class AdapterRegistry {
       ['SHOPBACK', shopback],
       ['SPORTIVE', sportive],
       ['SPORTIVE_TR', sportiveTr],
+      ['SUBMARINO', submarino],
       ['STOCKX', stockx],
       ['SWAPPA', swappa],
       ['TRENDYOL_GO', trendyolGo],
@@ -945,6 +962,7 @@ export class AdapterRegistry {
       ['INDIAMART', indiamart],
       ['REALDE', realde],
       ['REVERB', reverb],
+      ['RIPLEY', ripley],
       ['ZARA', zara],
       ['ZARA_TR', zaraTr],
       ['DECATHLON', decathlon],
@@ -967,6 +985,7 @@ export class AdapterRegistry {
       ['NAMSHI', namshi],
       ['CARREFOUR_ME', carrefourMe],
       ['CARREFOUR_FR', carrefourFr],
+      ['CASAS_BAHIA', casasBahia],
       ['CASINO_FR', casinoFr],
       ['BULDUMBULDUM', buldumbuldum],
       ['CARREFOURSA', carrefoursa],
@@ -1037,6 +1056,8 @@ export class AdapterRegistry {
       ['OPENSOOQ', opensooq],
       ['CIMRI', cimri],
       ['COUPANG', coupang],
+      ['COPPEL', coppel],
+      ['COSTCO_CA', costcoCa],
       ['CULT_BEAUTY', cultBeauty],
       ['CENTRAL_ONLINE', centralOnline],
       ['FALABELLA', falabella],
@@ -1046,9 +1067,11 @@ export class AdapterRegistry {
       ['HIZLIRESMI', hizliresmi],
       ['HOUZZ', houzz],
       ['HARVEY_NORMAN', harveyNorman],
+      ['HUDSONS_BAY', hudsonsBay],
       ['IKAS_MP', ikasMp],
       ['LINENS_N_THINGS', linensNThings],
       ['LINIO', linio],
+      ['LIVERPOOL_MX', liverpoolMx],
       ['MADAME_COCO', madameCoco],
       ['MAGALU', magalu],
       ['MALL_CZ', mallCz],
@@ -1075,6 +1098,7 @@ export class AdapterRegistry {
       ['LAZADA_MY', lazadaMy],
       ['MERCARI_JP', mercariJp],
       ['PGMALL', pgmall],
+      ['SHOPEE_BR', shopeeBr],
       ['SHOPEE_SG', shopeeSg],
       ['SHOPEE_TH', shopeeTh],
       ['THEMARKET_NZ', themarketNz],
