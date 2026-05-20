@@ -1,5 +1,8 @@
 import { InjectQueue, Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
+
+import { PlatformHealthService } from '../adapters/common/platform-health.service';
+import { RedisRateLimiter } from '../adapters/common/redis-rate-limiter';
 import { ConfigService } from '@nestjs/config';
 import { Marketplace, NotificationType } from '@prisma/client';
 import * as Sentry from '@sentry/node';
@@ -44,7 +47,17 @@ export class MarketplacePullProcessor {
     private readonly returnService: ReturnService,
     @InjectQueue(QUEUE_IMAGE)
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
+    private readonly redisRateLimiter: RedisRateLimiter,
+    private readonly platformHealth: PlatformHealthService,
   ) {}
+
+  private async guardPlatformApi(
+    platform: string,
+    organizationId: string,
+  ): Promise<void> {
+    await this.platformHealth.checkCircuitBreaker(platform, organizationId);
+    await this.redisRateLimiter.acquireWithRetry(platform, organizationId);
+  }
 
   @Process('pull-orders')
   async handlePullOrders(job: Job<MarketplacePullJobData>): Promise<void> {
@@ -71,6 +84,8 @@ export class MarketplacePullProcessor {
     });
     let connectionId: string | null = null;
     try {
+      await this.guardPlatformApi(platform, organizationId);
+
       const connectionRow = await this.prisma.marketplaceConnection.findFirst({
         where: {
           organizationId,
@@ -167,9 +182,11 @@ export class MarketplacePullProcessor {
         ordersProcessed: orders.length,
         timestamp: new Date().toISOString(),
       });
+      await this.platformHealth.recordSuccess(platform, organizationId);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';
+      await this.platformHealth.recordError(platform, organizationId);
       this.logger.error('Pazaryeri sipariş çekme hatası', {
         organizationId,
         platform,
@@ -218,6 +235,8 @@ export class MarketplacePullProcessor {
     });
     let connectionId: string | null = null;
     try {
+      await this.guardPlatformApi(platform, organizationId);
+
       const connectionRow = await this.prisma.marketplaceConnection.findFirst({
         where: {
           organizationId,
@@ -364,9 +383,11 @@ export class MarketplacePullProcessor {
         listingsProcessed: all.length,
         timestamp: new Date().toISOString(),
       });
+      await this.platformHealth.recordSuccess(platform, organizationId);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';
+      await this.platformHealth.recordError(platform, organizationId);
       this.logger.error('Pazaryeri listeleme çekme hatası', {
         organizationId,
         platform,
@@ -415,6 +436,8 @@ export class MarketplacePullProcessor {
         });
         let connectionRowId: string | null = null;
         try {
+          await this.guardPlatformApi(platform, organizationId);
+
           const connectionRow = await this.prisma.marketplaceConnection.findFirst({
             where: connectionId
               ? {
@@ -488,9 +511,11 @@ export class MarketplacePullProcessor {
             returnsProcessed: returns.length,
             timestamp: new Date().toISOString(),
           });
+          await this.platformHealth.recordSuccess(platform, organizationId);
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Bilinmeyen hata';
+          await this.platformHealth.recordError(platform, organizationId);
           this.logger.error('Pazaryeri iade çekme hatası', {
             organizationId,
             platform,

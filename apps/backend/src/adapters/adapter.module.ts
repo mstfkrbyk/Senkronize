@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 
+import { AdaptersCommonModule } from './common/adapters-common.module';
 import { AdapterRegistry } from './adapter.registry';
 import { EcommerceAdaptersModule } from './ecommerce/ecommerce.module';
 import { ErpAdaptersModule } from './erp/erp.module';
@@ -218,6 +219,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
 @Global()
 @Module({
   imports: [
+    AdaptersCommonModule,
     ErpAdaptersModule,
     EcommerceAdaptersModule,
     A101Module,

@@ -31,7 +31,13 @@ function parseRedisUrl(redisUrl: string): {
       inject: [ConfigService],
     }),
     BullModule.registerQueue(
-      { name: constants.QUEUE_MARKETPLACE_PULL },
+      {
+        name: constants.QUEUE_MARKETPLACE_PULL,
+        limiter: {
+          max: 10,
+          duration: 60_000,
+        },
+      },
       { name: constants.QUEUE_MARKETPLACE_PUSH },
       { name: constants.QUEUE_ERP_SYNC },
       { name: constants.QUEUE_NOTIFICATION },

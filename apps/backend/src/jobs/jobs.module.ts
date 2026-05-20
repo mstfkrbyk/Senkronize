@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AdaptersCommonModule } from '../adapters/common/adapters-common.module';
 import { ErpConnectionModule } from '../erp-connection/erp-connection.module';
 import { CustomerModule } from '../customer/customer.module';
 import { ImageModule } from '../image/image.module';
@@ -33,6 +34,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
 
 @Module({
   imports: [
+    AdaptersCommonModule,
     PrismaModule,
     SyncModule,
     SyncStatusModule,
