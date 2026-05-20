@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Check, FileDown, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import {
@@ -59,6 +60,8 @@ import type {
   SubscriptionStatus,
   UsageOverview,
 } from '@/types/subscription';
+
+import { SubscriptionProductLines } from './SubscriptionProductLines';
 
 const PLAN_RANK: Record<PlanTier, number> = {
   BASLANGIC: 0,
@@ -305,8 +308,10 @@ function UsageMetricRow({
 }
 
 export function SubscriptionTab(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const planComparisonRef = useRef<HTMLDivElement>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<PlanTier | null>(null);
@@ -463,14 +468,22 @@ export function SubscriptionTab(): ReactElement {
   const usage: UsageOverview | undefined = usageQuery.data;
   const upgradeTargetName = upgradeTarget ? planDisplayName(upgradeTarget) : '';
 
+  function scrollToPlanComparison(): void {
+    planComparisonRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   return (
     <div className="space-y-8">
       <div>
-        <h3 className="text-lg font-medium text-primary">Abonelik</h3>
+        <h3 className="text-lg font-medium text-primary">
+          {t('settings.subscriptionTab.title')}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Paketinizi karşılaştırın, kullanımınızı izleyin ve faturalarınızı görüntüleyin.
+          {t('settings.subscriptionTab.subtitle')}
         </p>
       </div>
+
+      <SubscriptionProductLines onUpgradePlan={scrollToPlanComparison} />
 
       {subQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
 
@@ -609,7 +622,11 @@ export function SubscriptionTab(): ReactElement {
         </CardContent>
       </Card>
 
-      <div className="space-y-4">
+      <div
+        id="subscription-plan-comparison"
+        ref={planComparisonRef}
+        className="space-y-4 scroll-mt-6"
+      >
         <h4 className="text-base font-medium text-primary">Plan karşılaştırma</h4>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan) => {

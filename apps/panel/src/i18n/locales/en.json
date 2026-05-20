@@ -342,6 +342,46 @@
     "profile": "Profile",
     "security": "Security & privacy",
     "subscription": "Subscription",
+    "subscriptionTab": {
+      "title": "Subscription",
+      "subtitle": "Review your product lines, compare plans, track usage, and view invoices.",
+      "productLines": {
+        "title": "Product lines",
+        "subtitle": "Integration and native accounting scope on your account. Upgrade your plan to add missing lines.",
+        "activeBadge": "Current package",
+        "recommendedBadge": "Recommended",
+        "included": "Active on your account",
+        "upgradeCta": "Add to package",
+        "upgradeToast": "To expand product lines, upgrade your plan below or contact support.",
+        "integration": {
+          "title": "Integration",
+          "description": "Marketplace, e-commerce, and order–stock sync.",
+          "features": {
+            "marketplaces": "Marketplace connections",
+            "orders": "Order flow",
+            "stock": "Stock sync"
+          }
+        },
+        "accounting": {
+          "title": "Native accounting",
+          "description": "Local invoicing, accounts receivable, and VAT.",
+          "features": {
+            "invoices": "Invoice creation",
+            "customers": "Customer ledger",
+            "vat": "VAT tracking"
+          }
+        },
+        "bundle": {
+          "title": "Bundle",
+          "description": "Integration and native accounting in one panel.",
+          "features": {
+            "accounting": "Invoices and ledger",
+            "integration": "Marketplaces and orders",
+            "unified": "Single panel and reporting"
+          }
+        }
+      }
+    },
     "notifications": "Notifications",
     "apiKeys": "API keys",
     "webhooks": "Webhooks",

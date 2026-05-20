@@ -344,6 +344,46 @@
     "profile": "Profil",
     "security": "Güvenlik & KVKK",
     "subscription": "Abonelik",
+    "subscriptionTab": {
+      "title": "Abonelik",
+      "subtitle": "Ürün hatlarınızı, paketinizi karşılaştırın, kullanımınızı izleyin ve faturalarınızı görüntüleyin.",
+      "productLines": {
+        "title": "Ürün hatları",
+        "subtitle": "Hesabınızda etkin olan entegrasyon ve ön muhasebe kapsamı. Eksik hatlar için paket yükseltmesi yapabilirsiniz.",
+        "activeBadge": "Mevcut paket",
+        "recommendedBadge": "Önerilen",
+        "included": "Hesabınızda etkin",
+        "upgradeCta": "Pakete ekle",
+        "upgradeToast": "Ürün hattı genişletme için aşağıdaki plan karşılaştırmasından paketinizi yükseltebilir veya destek ile iletişime geçebilirsiniz.",
+        "integration": {
+          "title": "Entegrasyon",
+          "description": "Pazaryeri, e-ticaret ve sipariş–stok senkronizasyonu.",
+          "features": {
+            "marketplaces": "Pazaryeri bağlantıları",
+            "orders": "Sipariş akışı",
+            "stock": "Stok senkronu"
+          }
+        },
+        "accounting": {
+          "title": "Ön Muhasebe",
+          "description": "Yerel fatura, cari hesap ve KDV yönetimi.",
+          "features": {
+            "invoices": "Fatura oluşturma",
+            "customers": "Cari hesap",
+            "vat": "KDV takibi"
+          }
+        },
+        "bundle": {
+          "title": "Paket",
+          "description": "Entegrasyon ve ön muhasebe tek panelde.",
+          "features": {
+            "accounting": "Fatura ve cari",
+            "integration": "Pazaryeri ve sipariş",
+            "unified": "Tek panel ve raporlama"
+          }
+        }
+      }
+    },
     "notifications": "Bildirimler",
     "apiKeys": "API anahtarları",
     "webhooks": "Webhook'lar",
