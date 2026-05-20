@@ -1241,6 +1241,9 @@ model IyzicoSubscription {
   organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customerRefCode       String?
   subscriptionRefCode   String?      @unique
+  cardUserKeyEnc        String?
+  cardTokenEnc          String?
+  cardLastFour          String?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 }

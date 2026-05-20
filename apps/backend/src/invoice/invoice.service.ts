@@ -129,6 +129,72 @@ export class InvoiceService {
     return `${year}/${String(count + 1).padStart(6, '0')}`;
   }
 
+  async generateSnkInvoiceNumber(): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `SNK-${year}-`;
+    const count = await this.prisma.invoice.count({
+      where: {
+        invoiceNumber: { startsWith: prefix },
+        deletedAt: null,
+      },
+    });
+    return `${prefix}${String(count + 1).padStart(5, '0')}`;
+  }
+
+  async createFromSubscriptionPayment(
+    organizationId: string,
+    params: {
+      planName: string;
+      amountTry: number;
+      periodStart: Date;
+      periodEnd: Date;
+      customerName: string;
+      customerEmail?: string;
+      customerAddress?: string;
+      customerTaxId?: string;
+      paymentId?: string;
+    },
+  ): Promise<SerializedInvoice> {
+    const amountExclVat = roundMoney(params.amountTry / 1.2);
+    const taxAmount = roundMoney(params.amountTry - amountExclVat);
+    const invoiceNumber = await this.generateSnkInvoiceNumber();
+    const year = new Date().getFullYear();
+
+    const row = await this.prisma.invoice.create({
+      data: {
+        organizationId,
+        invoiceNumber,
+        invoiceYear: year,
+        customerName: params.customerName,
+        customerEmail: params.customerEmail ?? null,
+        customerAddress: params.customerAddress ?? null,
+        customerTaxId: params.customerTaxId ?? null,
+        items: [
+          {
+            name: params.planName,
+            quantity: 1,
+            unitPrice: amountExclVat,
+            taxRate: DEFAULT_TAX_RATE,
+            taxAmount,
+            total: params.amountTry,
+          },
+        ] as unknown as Prisma.InputJsonValue,
+        subtotal: new Prisma.Decimal(amountExclVat),
+        taxAmount: new Prisma.Decimal(taxAmount),
+        taxRate: DEFAULT_TAX_RATE,
+        totalAmount: new Prisma.Decimal(params.amountTry),
+        currency: 'TRY',
+        status: InvoiceStatus.PAID,
+        notes: params.paymentId
+          ? `Abonelik ödemesi — Iyzico: ${params.paymentId}`
+          : 'Abonelik ödemesi',
+        dueDate: params.periodEnd,
+      },
+    });
+
+    return this.serializeInvoice(row);
+  }
+
   async create(
     organizationId: string,
     dto: CreateInvoiceDto,

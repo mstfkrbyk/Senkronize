@@ -5,6 +5,7 @@ import { SubStatus, UserRole } from '@prisma/client';
 
 import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 const MS_PER_DAY = 86_400_000;
 
@@ -16,6 +17,7 @@ export class SubscriptionRenewalTask {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly config: ConfigService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   private panelBaseUrl(): string {
@@ -84,6 +86,39 @@ export class SubscriptionRenewalTask {
         });
       } catch (error: unknown) {
         this.logger.error('Abonelik yenileme hatırlatma e-postası başarısız', {
+          organizationId: sub.organizationId,
+          error,
+        });
+      }
+    }
+  }
+
+  /** nextBillingAt geçmiş aktif abonelikleri kayıtlı kart ile yenile */
+  @Cron('0 7 * * *')
+  async processIyzicoRenewals(): Promise<void> {
+    const now = new Date();
+    const subs = await this.prisma.subscription.findMany({
+      where: {
+        status: SubStatus.ACTIVE,
+        nextBillingAt: { lte: now },
+      },
+    });
+
+    for (const sub of subs) {
+      const iyzicoSub = await this.prisma.iyzicoSubscription.findUnique({
+        where: { organizationId: sub.organizationId },
+      });
+      if (!iyzicoSub?.cardTokenEnc || !iyzicoSub.cardUserKeyEnc) {
+        continue;
+      }
+
+      try {
+        await this.subscriptionService.renewIyzicoSubscription(sub.organizationId);
+        this.logger.log('Iyzico abonelik yenilendi', {
+          organizationId: sub.organizationId,
+        });
+      } catch (error: unknown) {
+        this.logger.error('Iyzico abonelik yenileme başarısız', {
           organizationId: sub.organizationId,
           error,
         });

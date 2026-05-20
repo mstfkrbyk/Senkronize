@@ -28,7 +28,23 @@ declare module 'iyzipay' {
     subscriptionCheckoutForm: IyzipayResource;
     subscription: IyzipayResource;
     subscriptionExistingCustomer: IyzipayResource;
+    checkoutFormInitialize: IyzipayResource;
+    checkoutForm: IyzipayResource;
+    payment: IyzipayResource;
+    card: IyzipayResource;
     static LOCALE: { TR: string; EN: string };
+    static CURRENCY: { TRY: string; EUR: string; USD: string };
+    static PAYMENT_GROUP: {
+      PRODUCT: string;
+      LISTING: string;
+      SUBSCRIPTION: string;
+    };
+    static BASKET_ITEM_TYPE: { PHYSICAL: string; VIRTUAL: string };
+    static PAYMENT_CHANNEL: {
+      MOBILE: string;
+      WEB: string;
+      MOBILE_WEB: string;
+    };
     static SUBSCRIPTION_PRICING_PLAN_INTERVAL: {
       DAILY: string;
       WEEKLY: string;

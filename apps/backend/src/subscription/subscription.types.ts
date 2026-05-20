@@ -43,7 +43,9 @@ export interface PlanUpgradeRequestResult {
 }
 
 export interface CheckoutUrlResult {
-  checkoutUrl: string;
+  checkoutUrl?: string;
+  checkoutFormContent?: string;
   conversationId: string;
   token?: string;
+  tokenExpireTime?: number;
 }

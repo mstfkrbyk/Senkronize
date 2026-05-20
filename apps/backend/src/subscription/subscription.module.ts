@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { AuthModule } from '../auth/auth.module';
 import { EventModule } from '../event/event.module';
+import { InvoiceModule } from '../invoice/invoice.module';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PartnerModule } from '../partner/partner.module';
 import { PaymentModule } from '../payment/payment.module';
@@ -20,6 +21,7 @@ import { TrialService } from './trial.service';
       maxRedirects: 0,
     }),
     forwardRef(() => PaymentModule),
+    InvoiceModule,
     AuthModule,
     EventModule,
     InAppNotificationModule,

@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Check, FileDown, Loader2 } from 'lucide-react';
@@ -305,6 +306,7 @@ function UsageMetricRow({
 
 export function SubscriptionTab(): ReactElement {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<PlanTier | null>(null);
@@ -337,15 +339,27 @@ export function SubscriptionTab(): ReactElement {
     mutationFn: async (input: {
       plan: PlanTier;
       billingPeriod: BillingPeriod;
-    }): Promise<{ checkoutUrl: string }> => {
-      const { data } = await api.post<{ checkoutUrl: string }>(
-        '/subscriptions/start',
-        input,
-      );
+    }): Promise<{ checkoutUrl?: string; checkoutFormContent?: string }> => {
+      const { data } = await api.post<{
+        checkoutUrl?: string;
+        checkoutFormContent?: string;
+      }>('/subscriptions/start', input);
       return data;
     },
-    onSuccess: (data) => {
-      window.location.href = data.checkoutUrl;
+    onSuccess: (data, variables) => {
+      const params = new URLSearchParams({
+        plan: variables.plan,
+        billingPeriod: variables.billingPeriod,
+      });
+      if (data.checkoutFormContent) {
+        navigate(`/payment?${params.toString()}`);
+        return;
+      }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      toast.error('Ödeme sayfası oluşturulamadı.');
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));

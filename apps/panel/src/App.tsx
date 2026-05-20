@@ -249,6 +249,11 @@ const ReportsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
+const PaymentPage = lazy(() =>
+  import('@/pages/payment/PaymentPage').then((m) => ({
+    default: m.PaymentPage,
+  })),
+);
 const PaymentCallbackPage = lazy(() =>
   import('@/pages/payment/PaymentCallbackPage').then((m) => ({
     default: m.PaymentCallbackPage,
@@ -415,6 +420,7 @@ export default function App(): ReactElement {
               }
             >
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/payment" element={<PaymentPage />} />
               <Route path="/payment/callback" element={<PaymentCallbackPage />} />
               <Route path="/payment/success" element={<PaymentSuccessPage />} />
               <Route path="/payment/failure" element={<PaymentFailurePage />} />

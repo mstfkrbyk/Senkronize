@@ -17,6 +17,7 @@ import { IyzicoService } from '../payment/iyzico.service';
 import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
+import { InvoiceService } from '../invoice/invoice.service';
 import { PaytrService } from './paytr.service';
 import { PLAN_LIMITS } from './plan-limits';
 import { SubscriptionService } from './subscription.service';
@@ -88,6 +89,7 @@ describe('SubscriptionService', () => {
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: PostHogService, useValue: { capture: jest.fn() } },
         { provide: OutboundWebhookService, useValue: {} },
+        { provide: InvoiceService, useValue: {} },
       ],
     }).compile();
 

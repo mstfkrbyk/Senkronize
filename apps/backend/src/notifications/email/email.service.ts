@@ -283,6 +283,57 @@ export class EmailService {
     await this.sendInvoice(to, data);
   }
 
+  async sendSubscriptionConfirmWithPdf(
+    to: string,
+    data: InvoiceEmailData,
+    pdfBuffer: Buffer,
+  ): Promise<void> {
+    const html = this.templateService.renderInvoice(data);
+    const fileName = `Fatura-${data.invoiceNumber.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`;
+    await this.sendWithAttachments(
+      to,
+      `Ödeme Onaylandı - ${data.planName} Planı`,
+      html,
+      [{ filename: fileName, content: pdfBuffer }],
+    );
+  }
+
+  private async sendWithAttachments(
+    to: string,
+    subject: string,
+    html: string,
+    attachments: { filename: string; content: Buffer }[],
+  ): Promise<void> {
+    if (!this.apiKey || this.apiKey === 'placeholder') {
+      this.logger.warn(`[EMAIL MOCK] To: ${to} | Subject: ${subject}`);
+      return;
+    }
+    try {
+      await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from: this.from,
+          to,
+          subject,
+          html,
+          attachments: attachments.map((a) => ({
+            filename: a.filename,
+            content: a.content.toString('base64'),
+          })),
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Email send failed: ${message}`);
+    }
+  }
+
   async sendOutOfStockWeeklyReport(
     to: string,
     name: string,

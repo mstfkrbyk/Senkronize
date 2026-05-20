@@ -14,6 +14,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SkipThrottle } from '@nestjs/throttler';
 import type { Subscription } from '@prisma/client';
+import type { PlanTier } from '@prisma/client';
 import type { Request } from 'express';
 
 import { SuperAdminGuard } from '../admin/admin.guard';
@@ -138,7 +139,7 @@ export class SubscriptionController {
   async iyzicoCallback(
     @CurrentOrg() org: CurrentOrgPayload,
     @Body() dto: IyzicoCallbackDto,
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; plan?: PlanTier }> {
     return this.subscriptionService.completeIyzicoCheckout(org.id, dto.token);
   }
 

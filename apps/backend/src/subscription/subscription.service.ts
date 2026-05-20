@@ -35,6 +35,7 @@ import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
+import { InvoiceService } from '../invoice/invoice.service';
 import type {
   CheckoutUrlResult,
   PlanUpgradeRequestResult,
@@ -87,6 +88,7 @@ export class SubscriptionService {
     private readonly config: ConfigService,
     private readonly posthog: PostHogService,
     private readonly outboundWebhookService: OutboundWebhookService,
+    private readonly invoiceService: InvoiceService,
   ) {}
 
   /** Panel taban URL (e-posta bağlantıları) */
@@ -666,15 +668,12 @@ export class SubscriptionService {
       throw new NotFoundException('Organizasyon bulunamadı.');
     }
 
-    const pricingPlanRef = await this.ensureIyzicoPricingPlanRef(
-      plan,
-      billingPeriod,
-    );
-    const conversationId = randomUUID();
+    const conversationId = `${organizationId}-${Date.now()}`;
     const amount = this.amountForPlan(plan, billingPeriod);
     const callbackUrl =
       this.config.get<string>('IYZICO_CALLBACK_URL') ??
       `${this.panelBaseUrl()}/payment/callback`;
+    const priceTry = amount / 100;
 
     await this.prisma.payment.create({
       data: {
@@ -688,14 +687,21 @@ export class SubscriptionService {
       },
     });
 
-    const checkout = await this.iyzicoService.createCheckoutForm({
-      conversationId,
+    const checkout = await this.iyzicoService.createSubscriptionCheckout({
+      userId: actor.id,
+      orgId: organizationId,
+      plan,
+      billingPeriod,
+      email: actor.email,
+      name: actor.name ?? actor.email,
+      priceTry,
       callbackUrl,
-      pricingPlanReferenceCode: pricingPlanRef,
-      customer: this.iyzicoService.buildCustomerPayload(actor, org),
+      conversationId,
+      orgCity: org.city,
+      orgAddress: org.address,
     });
 
-    if (!checkout.paymentPageUrl && !checkout.token) {
+    if (!checkout.checkoutFormContent || !checkout.token) {
       await this.prisma.payment.updateMany({
         where: {
           iyzicoConversationId: conversationId,
@@ -711,30 +717,29 @@ export class SubscriptionService {
       );
     }
 
-    if (checkout.token) {
-      await this.prisma.payment.updateMany({
-        where: { iyzicoConversationId: conversationId },
-        data: { iyzicoCheckoutToken: checkout.token },
-      });
-    }
+    await this.prisma.payment.updateMany({
+      where: { iyzicoConversationId: conversationId },
+      data: { iyzicoCheckoutToken: checkout.token },
+    });
 
     const checkoutUrl =
-      checkout.paymentPageUrl ??
       `${this.config.get<string>('IYZICO_CHECKOUT_BASE', 'https://sandbox-cpp.iyzipay.com')}?token=${checkout.token}`;
 
     return {
       checkoutUrl,
-      conversationId,
+      checkoutFormContent: checkout.checkoutFormContent,
+      conversationId: checkout.conversationId,
       token: checkout.token,
+      tokenExpireTime: checkout.tokenExpireTime,
     };
   }
 
   async completeIyzicoCheckout(
     organizationId: string,
     token: string,
-  ): Promise<{ success: boolean; message: string }> {
-    const result = await this.iyzicoService.retrieveCheckoutForm(token);
-    if (result.status !== 'success' || !result.subscriptionReferenceCode) {
+  ): Promise<{ success: boolean; message: string; plan?: PlanTier }> {
+    const result = await this.iyzicoService.handleCallback(token);
+    if (!result.success) {
       return {
         success: false,
         message:
@@ -746,34 +751,31 @@ export class SubscriptionService {
     const payment = await this.prisma.payment.findFirst({
       where: {
         organizationId,
-        iyzicoCheckoutToken: token,
+        OR: [
+          { iyzicoCheckoutToken: token },
+          { iyzicoConversationId: result.conversationId },
+        ],
         status: PaymentStatus.PENDING,
       },
       orderBy: { createdAt: 'desc' },
     });
 
     if (!payment) {
-      const byConversation = await this.prisma.payment.findFirst({
-        where: { organizationId, status: PaymentStatus.PENDING },
-        orderBy: { createdAt: 'desc' },
-      });
-      if (!byConversation) {
-        return { success: false, message: 'Bekleyen ödeme kaydı bulunamadı.' };
-      }
-      await this.activateSubscriptionFromIyzicoPayment(
-        byConversation.id,
-        result.subscriptionReferenceCode,
-        result.customerReferenceCode,
-      );
-      return { success: true, message: 'Aboneliğiniz aktifleştirildi.' };
+      return { success: false, message: 'Bekleyen ödeme kaydı bulunamadı.' };
     }
 
-    await this.activateSubscriptionFromIyzicoPayment(
-      payment.id,
-      result.subscriptionReferenceCode,
-      result.customerReferenceCode,
-    );
-    return { success: true, message: 'Aboneliğiniz aktifleştirildi.' };
+    await this.activateSubscriptionFromIyzicoPayment(payment.id, {
+      orderReferenceCode: result.orderId,
+      cardUserKey: result.cardUserKey,
+      cardToken: result.cardToken,
+      cardLastFour: result.cardLastFour,
+    });
+
+    return {
+      success: true,
+      message: 'Aboneliğiniz aktifleştirildi.',
+      plan: result.plan,
+    };
   }
 
   async upgradeSubscription(
@@ -977,12 +979,11 @@ export class SubscriptionService {
         : null;
 
       if (payment && subscriptionRef) {
-        await this.activateSubscriptionFromIyzicoPayment(
-          payment.id,
-          subscriptionRef,
-          payload.customerReferenceCode,
-          orderRef,
-        );
+        await this.activateSubscriptionFromIyzicoPayment(payment.id, {
+          subscriptionRefCode: subscriptionRef,
+          customerRefCode: payload.customerReferenceCode,
+          orderReferenceCode: orderRef,
+        });
       } else if (subscriptionRef) {
         const iyzicoSub = await this.prisma.iyzicoSubscription.findFirst({
           where: { subscriptionRefCode: subscriptionRef },
@@ -996,12 +997,11 @@ export class SubscriptionService {
             orderBy: { createdAt: 'desc' },
           });
           if (pending) {
-            await this.activateSubscriptionFromIyzicoPayment(
-              pending.id,
-              subscriptionRef,
-              payload.customerReferenceCode,
-              orderRef,
-            );
+            await this.activateSubscriptionFromIyzicoPayment(pending.id, {
+              subscriptionRefCode: subscriptionRef,
+              customerRefCode: payload.customerReferenceCode,
+              orderReferenceCode: orderRef,
+            });
           }
         }
       }
@@ -1054,9 +1054,14 @@ export class SubscriptionService {
 
   private async activateSubscriptionFromIyzicoPayment(
     paymentId: string,
-    subscriptionRefCode: string,
-    customerRefCode?: string,
-    orderReferenceCode?: string,
+    options: {
+      subscriptionRefCode?: string;
+      customerRefCode?: string;
+      orderReferenceCode?: string;
+      cardUserKey?: string;
+      cardToken?: string;
+      cardLastFour?: string;
+    } = {},
   ): Promise<void> {
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
@@ -1074,6 +1079,15 @@ export class SubscriptionService {
     const nextBilling = new Date(periodEnd);
     const limits = dbLimitsForPlan(payment.plan);
 
+    const cardUserKeyEnc =
+      options.cardUserKey != null
+        ? this.encryptionService.encrypt(options.cardUserKey)
+        : undefined;
+    const cardTokenEnc =
+      options.cardToken != null
+        ? this.encryptionService.encrypt(options.cardToken)
+        : undefined;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
         where: { id: payment.id },
@@ -1081,8 +1095,8 @@ export class SubscriptionService {
           status: PaymentStatus.SUCCESS,
           periodStart,
           periodEnd,
-          ...(orderReferenceCode
-            ? { iyzicoOrderReference: orderReferenceCode }
+          ...(options.orderReferenceCode
+            ? { iyzicoOrderReference: options.orderReferenceCode }
             : {}),
         },
       });
@@ -1112,12 +1126,20 @@ export class SubscriptionService {
         where: { organizationId: payment.organizationId },
         create: {
           organizationId: payment.organizationId,
-          subscriptionRefCode,
-          customerRefCode: customerRefCode ?? null,
+          subscriptionRefCode: options.subscriptionRefCode ?? null,
+          customerRefCode: options.customerRefCode ?? null,
+          ...(cardUserKeyEnc ? { cardUserKeyEnc } : {}),
+          ...(cardTokenEnc ? { cardTokenEnc } : {}),
+          ...(options.cardLastFour ? { cardLastFour: options.cardLastFour } : {}),
         },
         update: {
-          subscriptionRefCode,
-          ...(customerRefCode ? { customerRefCode } : {}),
+          ...(options.subscriptionRefCode
+            ? { subscriptionRefCode: options.subscriptionRefCode }
+            : {}),
+          ...(options.customerRefCode ? { customerRefCode: options.customerRefCode } : {}),
+          ...(cardUserKeyEnc ? { cardUserKeyEnc } : {}),
+          ...(cardTokenEnc ? { cardTokenEnc } : {}),
+          ...(options.cardLastFour ? { cardLastFour: options.cardLastFour } : {}),
         },
       });
     });
@@ -1146,7 +1168,180 @@ export class SubscriptionService {
       });
     }
 
+    await this.sendSubscriptionPaymentEmails(
+      payment.organizationId,
+      payment.plan,
+      paymentAmountTry,
+      periodStart,
+      periodEnd,
+      nextBilling,
+      options.orderReferenceCode,
+    );
+
     await this.invalidateSubscriptionCache(payment.organizationId);
+  }
+
+  private async sendSubscriptionPaymentEmails(
+    organizationId: string,
+    plan: PlanTier,
+    totalTry: number,
+    periodStart: Date,
+    periodEnd: Date,
+    nextBilling: Date,
+    paymentId?: string,
+  ): Promise<void> {
+    const owner = await this.prisma.user.findFirst({
+      where: { organizationId, role: UserRole.OWNER, deletedAt: null },
+    });
+    if (!owner?.email) {
+      return;
+    }
+
+    const organization = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+
+    try {
+      const invoice = await this.invoiceService.createFromSubscriptionPayment(
+        organizationId,
+        {
+          planName: PLAN_LABEL_TR[plan],
+          amountTry: totalTry,
+          periodStart,
+          periodEnd,
+          customerName: owner.name ?? organization?.name ?? 'Müşteri',
+          customerEmail: owner.email,
+          customerAddress: [organization?.address, organization?.city]
+            .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
+            .join(', '),
+          customerTaxId: organization?.taxNumber ?? undefined,
+          paymentId,
+        },
+      );
+
+      const { buffer: pdfBuffer } =
+        await this.invoiceService.generateInvoicePdfBuffer(
+          organizationId,
+          invoice.id,
+        );
+
+      const amountExclVat = totalTry / 1.2;
+      const vatAmount = totalTry - amountExclVat;
+      const addressParts = [organization?.address, organization?.city].filter(
+        (v): v is string => typeof v === 'string' && v.trim().length > 0,
+      );
+      const invoiceData: InvoiceEmailData = {
+        recipientName: owner.name ?? 'Merhaba',
+        invoiceNumber: invoice.invoiceNumber,
+        invoiceDate: periodStart.toLocaleDateString('tr-TR'),
+        companyName: organization?.name ?? '—',
+        companyTaxId: organization?.taxNumber ?? '',
+        companyAddress: addressParts.join('\n'),
+        planName: PLAN_LABEL_TR[plan],
+        billingPeriodLabel: `${periodStart.toLocaleDateString('tr-TR')} — ${periodEnd.toLocaleDateString('tr-TR')}`,
+        amountExclVatTry: formatTryAmount(amountExclVat),
+        vatRatePercent: '%20',
+        vatAmountTry: formatTryAmount(vatAmount),
+        totalInclVatTry: formatTryAmount(totalTry),
+        invoiceDownloadUrl: `${this.panelBaseUrl()}/settings/subscription`,
+        nextPaymentDate: nextBilling.toLocaleDateString('tr-TR'),
+      };
+
+      void this.emailService
+        .sendSubscriptionConfirmWithPdf(owner.email, invoiceData, pdfBuffer)
+        .catch((error: unknown) => {
+          this.logger.error('Abonelik fatura e-postası gönderilemedi', {
+            organizationId,
+            error,
+          });
+        });
+
+      void this.emailService
+        .sendWelcome(owner.email, owner.name ?? 'Merhaba')
+        .catch((error: unknown) => {
+          this.logger.error('Hoş geldin e-postası gönderilemedi', {
+            organizationId,
+            error,
+          });
+        });
+
+      void this.emailService
+        .sendSubscriptionActivatedWithFeatures(
+          owner.email,
+          PLAN_LABEL_TR[plan],
+          planLimitFeatureLines(plan),
+        )
+        .catch((error: unknown) => {
+          this.logger.error('Abonelik aktivasyon e-postası gönderilemedi', {
+            organizationId,
+            error,
+          });
+        });
+    } catch (err) {
+      this.logger.error('Abonelik faturası oluşturulamadı', {
+        organizationId,
+        error: err,
+      });
+    }
+  }
+
+  async renewIyzicoSubscription(organizationId: string): Promise<void> {
+    await this.iyzicoService.renewSubscription(organizationId);
+
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      return;
+    }
+
+    const periodStart = new Date();
+    const billingPeriod = sub.billingPeriod ?? BillingPeriod.YEARLY;
+    const periodEnd = this.periodEndFromBilling(billingPeriod, periodStart);
+    const nextBilling = new Date(periodEnd);
+    const amount = this.amountForPlan(sub.plan, billingPeriod);
+
+    const payment = await this.prisma.payment.create({
+      data: {
+        organizationId,
+        amount,
+        currency: 'TRY',
+        status: PaymentStatus.SUCCESS,
+        plan: sub.plan,
+        billingPeriod,
+        periodStart,
+        periodEnd,
+        iyzicoConversationId: `${organizationId}-renew-${Date.now()}`,
+      },
+    });
+
+    await this.prisma.subscription.update({
+      where: { organizationId },
+      data: {
+        status: SubStatus.ACTIVE,
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        nextBillingAt: nextBilling,
+      },
+    });
+
+    await this.sendSubscriptionPaymentEmails(
+      organizationId,
+      sub.plan,
+      amount / 100,
+      periodStart,
+      periodEnd,
+      nextBilling,
+    );
+
+    await this.partnerService.recordCommission(
+      organizationId,
+      amount / 100,
+      `Abonelik yenileme (${sub.plan})`,
+      payment.id,
+    );
+
+    await this.invalidateSubscriptionCache(organizationId);
   }
 
   async requestPlanUpgrade(
