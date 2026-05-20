@@ -473,7 +473,14 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
-  LIDYANA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  LIDYANA: [
+    {
+      key: 'accessToken',
+      label: 'Bearer Token',
+      type: 'password',
+      required: true,
+    },
+  ],
   ADDAX: [
     {
       key: 'accessToken',
@@ -482,7 +489,22 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
-  VIVENSE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  VIVENSE: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'accessToken',
+      label: 'Access Token (Bearer)',
+      type: 'password',
+      required: true,
+      hint: 'OAuth2 yetkilendirme akışıyla alınan token.',
+    },
+  ],
   CICEKSEPETI_EV: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -491,14 +513,11 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       label: 'Ev & yaşam kategori / kanal ID',
       type: 'text',
       required: false,
-      hint: 'Çiçeksepeti API ile aynı uçlar; sipariş ve ürün listelerinde filtre için.',
+      hint: 'X-Category-Id header değeri; boş bırakılırsa ev-yasam kullanılır.',
     },
   ],
   EVIDEA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
-  PORLAND: [
-    { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
-    { key: 'password', label: 'Şifre', type: 'password', required: true },
-  ],
+  PORLAND: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   ALIBABA: [
     { key: 'appKey', label: 'App Key', type: 'text', required: true },
     { key: 'appSecret', label: 'App Secret', type: 'password', required: true },
@@ -539,32 +558,16 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: false,
     },
   ],
-  KITAPYURDU: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  KITAPYURDU: [
+    { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
+    { key: 'password', label: 'Şifre', type: 'password', required: true },
+  ],
   DR: [
-    {
-      key: 'accessToken',
-      label: 'Bearer Token',
-      type: 'password',
-      required: true,
-    },
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
   ],
   SPORTIVE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
-  ENPARA: [
-    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
-    {
-      key: 'clientSecret',
-      label: 'OAuth2 Client Secret',
-      type: 'password',
-      required: true,
-    },
-    {
-      key: 'accessToken',
-      label: 'Access Token (Bearer)',
-      type: 'password',
-      required: true,
-      hint: 'Client credentials veya yetkilendirme akışıyla alınan token.',
-    },
-  ],
+  ENPARA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   LAZADA: [
     { key: 'appKey', label: 'App Key', type: 'text', required: true },
     {

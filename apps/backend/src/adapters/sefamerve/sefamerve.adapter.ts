@@ -11,7 +11,7 @@ export class SefamerveAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'SEFAMERVE',
-      baseUrl: 'https://api.sefamerve.com/merchant/v1',
+      baseUrl: 'https://api.sefamerve.com/marketplace/v1',
       loggerContext: SefamerveAdapter.name,
       rateLimitKey: 'SEFAMERVE',
       pathProfile: '/merchant/me',

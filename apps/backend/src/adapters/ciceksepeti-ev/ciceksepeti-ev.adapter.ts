@@ -18,17 +18,26 @@ import type {
   CiceksepetiProductsResponse,
 } from '../ciceksepeti/ciceksepeti.types';
 
+/** Çiçeksepeti ev & yaşam kanalı — API isteklerinde kategori header değeri */
+const CICEKSEPETI_EV_DEFAULT_CATEGORY = 'ev-yasam';
+
 @Injectable()
 export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
   readonly platform = 'CICEKSEPETI_EV';
   private readonly logger = new Logger(CiceksepetiEvAdapter.name);
 
-  private getClient(apiKey: string): AxiosInstance {
+  private getClient(credentials: Record<string, string>): AxiosInstance {
+    const apiKey = credentials.apiKey;
+    const categoryHeader =
+      credentials.categoryId?.trim() ??
+      credentials.channelId?.trim() ??
+      CICEKSEPETI_EV_DEFAULT_CATEGORY;
     return axios.create({
       baseURL: CICEKSEPETI_BASE_URL,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
+        'X-Category-Id': categoryHeader,
       },
       timeout: 15_000,
     });
@@ -50,7 +59,7 @@ export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         return false;
       }
-      const client = this.getClient(apiKey);
+      const client = this.getClient(credentials);
       await client.get('/supplier');
       return true;
     } catch (error) {
@@ -69,7 +78,7 @@ export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       return [];
     }
-    const client = this.getClient(apiKey);
+    const client = this.getClient(credentials);
     const end = new Date();
     const start = since ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
     const params: Record<string, string | number> = {
@@ -127,7 +136,7 @@ export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       return { items: [], total: 0, page: 0, pageSize: 50 };
     }
-    const client = this.getClient(apiKey);
+    const client = this.getClient(credentials);
     const { data } = await client.get<CiceksepetiProductsResponse>('/products', {
       params: {
         pageNumber: page,
@@ -187,7 +196,7 @@ export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       throw new Error('Çiçeksepeti Ev stok: apiKey eksik');
     }
-    const client = this.getClient(apiKey);
+    const client = this.getClient(credentials);
     await client.put('/products/stock-price-update', {
       items: updates.map((u) => ({
         barcode: u.barcode,
@@ -204,7 +213,7 @@ export class CiceksepetiEvAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       throw new Error('Çiçeksepeti Ev fiyat: apiKey eksik');
     }
-    const client = this.getClient(apiKey);
+    const client = this.getClient(credentials);
     await client.put('/products/stock-price-update', {
       items: updates.map((u) => ({
         barcode: u.barcode,

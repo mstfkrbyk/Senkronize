@@ -173,8 +173,6 @@ export class MarketplaceConnectionService {
       platform === Marketplace.BIMAKILLI ||
       platform === Marketplace.ROBOMARKT ||
       platform === Marketplace.FUUDY ||
-      platform === Marketplace.LIDYANA ||
-      platform === Marketplace.VIVENSE ||
       platform === Marketplace.EVIDEA
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
@@ -196,7 +194,7 @@ export class MarketplaceConnectionService {
       return creds.sellerId ?? null;
     }
     if (platform === Marketplace.PORLAND) {
-      return creds.username ?? null;
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
     if (
       platform === Marketplace.ELEKTRA ||
@@ -204,7 +202,9 @@ export class MarketplaceConnectionService {
       platform === Marketplace.SHOPIGO ||
       platform === Marketplace.GETIR_FOOD ||
       platform === Marketplace.SEFAMERVE ||
-      platform === Marketplace.ADDAX
+      platform === Marketplace.ADDAX ||
+      platform === Marketplace.LIDYANA ||
+      platform === Marketplace.VIVENSE
     ) {
       return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
     }
@@ -224,16 +224,22 @@ export class MarketplaceConnectionService {
     }
     if (
       platform === Marketplace.MADEINCHINA ||
-      platform === Marketplace.KITAPYURDU ||
       platform === Marketplace.SPORTIVE ||
-      platform === Marketplace.MEESHO
+      platform === Marketplace.MEESHO ||
+      platform === Marketplace.ENPARA
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
-    if (platform === Marketplace.EXPORTIFY || platform === Marketplace.DR) {
+    if (platform === Marketplace.KITAPYURDU) {
+      return creds.username ?? null;
+    }
+    if (platform === Marketplace.EXPORTIFY) {
       return creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null;
     }
-    if (platform === Marketplace.ENPARA || platform === Marketplace.TOKOPEDIA) {
+    if (platform === Marketplace.DR) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (platform === Marketplace.TOKOPEDIA) {
       return creds.clientId ?? (creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null);
     }
     if (platform === Marketplace.GITTIGIDIYOR) {

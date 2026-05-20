@@ -11,7 +11,7 @@ export class EnparaAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'ENPARA',
-      baseUrl: 'https://api.enparacarsi.com/v1',
+      baseUrl: 'https://alisveris.enpara.com/api/seller/v1',
       loggerContext: EnparaAdapter.name,
       rateLimitKey: 'ENPARA',
       pathProfile: '/merchant/me',
@@ -20,16 +20,14 @@ export class EnparaAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const accessToken = creds.accessToken?.trim();
-        if (!accessToken) {
-          throw new Error(
-            'Enpara Çarşı: accessToken (OAuth2 Bearer) zorunludur; client credentials ile alınan tokenı girin.',
-          );
+        const apiKey = creds.apiKey?.trim();
+        if (!apiKey) {
+          throw new Error('Enpara Alışveriş: apiKey zorunludur');
         }
         return {
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
+            'X-Api-Key': apiKey,
           },
         };
       },

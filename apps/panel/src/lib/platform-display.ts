@@ -64,7 +64,7 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   KITAPYURDU: { label: 'Kitapyurdu', logo: '📚', color: 'amber' },
   DR: { label: 'D&R', logo: '🎵', color: 'rose' },
   SPORTIVE: { label: 'Sportive', logo: '⚽', color: 'emerald' },
-  ENPARA: { label: 'Enpara Çarşı', logo: '🏦', color: 'cyan' },
+  ENPARA: { label: 'Enpara Alışveriş', logo: '🏦', color: 'cyan' },
   LAZADA: { label: 'Lazada', logo: '🛒', color: 'blue' },
   SHOPEE: { label: 'Shopee', logo: '🧡', color: 'orange' },
   TOKOPEDIA: { label: 'Tokopedia', logo: '🇮🇩', color: 'green' },

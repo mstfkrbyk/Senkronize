@@ -11,7 +11,7 @@ export class AddaxAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'ADDAX',
-      baseUrl: 'https://api.addax.com.tr/marketplace/v1',
+      baseUrl: 'https://api.addax.com.tr/seller/v1',
       loggerContext: AddaxAdapter.name,
       rateLimitKey: 'ADDAX',
       pathProfile: '/merchant/me',

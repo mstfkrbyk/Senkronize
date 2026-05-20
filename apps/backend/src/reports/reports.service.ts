@@ -114,7 +114,7 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.KITAPYURDU]: 'Kitapyurdu',
   [Marketplace.DR]: 'D&R',
   [Marketplace.SPORTIVE]: 'Sportive',
-  [Marketplace.ENPARA]: 'Enpara Çarşı',
+  [Marketplace.ENPARA]: 'Enpara Alışveriş',
   [Marketplace.LAZADA]: 'Lazada',
   [Marketplace.SHOPEE]: 'Shopee',
   [Marketplace.TOKOPEDIA]: 'Tokopedia',

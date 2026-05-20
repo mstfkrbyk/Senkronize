@@ -11,7 +11,7 @@ export class PorlandAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'PORLAND',
-      baseUrl: 'https://api.porland.com.tr/wholesale/v1',
+      baseUrl: 'https://api.porland.com/marketplace/v1',
       loggerContext: PorlandAdapter.name,
       rateLimitKey: 'PORLAND',
       pathProfile: '/merchant/me',
@@ -20,14 +20,15 @@ export class PorlandAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const username = creds.username?.trim();
-        const password = creds.password?.trim();
-        if (!username || !password) {
-          throw new Error('Porland: username ve password (Basic Auth) zorunludur');
+        const apiKey = creds.apiKey?.trim();
+        if (!apiKey) {
+          throw new Error('Porland: apiKey zorunludur');
         }
         return {
-          headers: { 'Content-Type': 'application/json' },
-          auth: { username, password },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': apiKey,
+          },
         };
       },
     };

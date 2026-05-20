@@ -11,7 +11,7 @@ export class SportiveAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'SPORTIVE',
-      baseUrl: 'https://api.sportive.com.tr/seller/v1',
+      baseUrl: 'https://api.sportive.com.tr/marketplace/v1',
       loggerContext: SportiveAdapter.name,
       rateLimitKey: 'SPORTIVE',
       pathProfile: '/merchant/me',

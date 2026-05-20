@@ -11,7 +11,7 @@ export class VivenseAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'VIVENSE',
-      baseUrl: 'https://api.vivense.com/seller/v1',
+      baseUrl: 'https://api.vivense.com/seller/v2',
       loggerContext: VivenseAdapter.name,
       rateLimitKey: 'VIVENSE',
       pathProfile: '/merchant/me',
@@ -20,13 +20,15 @@ export class VivenseAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const apiKey = creds.apiKey?.trim();
-        if (!apiKey) {
-          throw new Error('Vivense: apiKey zorunludur');
+        const accessToken = creds.accessToken?.trim();
+        if (!accessToken) {
+          throw new Error(
+            'Vivense: accessToken (OAuth2 Bearer) zorunludur; OAuth akışıyla alınan tokenı girin.',
+          );
         }
         return {
           headers: {
-            'X-API-Key': apiKey,
+            Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         };

@@ -11,7 +11,7 @@ export class LidyanaAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'LIDYANA',
-      baseUrl: 'https://api.lidyana.com/partner/v1',
+      baseUrl: 'https://api.lidyana.com/seller/v1',
       loggerContext: LidyanaAdapter.name,
       rateLimitKey: 'LIDYANA',
       pathProfile: '/merchant/me',
@@ -20,13 +20,13 @@ export class LidyanaAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const apiKey = creds.apiKey?.trim();
-        if (!apiKey) {
-          throw new Error('Lidyana: apiKey zorunludur');
+        const token = creds.accessToken?.trim();
+        if (!token) {
+          throw new Error('Lidyana: accessToken (Bearer) zorunludur');
         }
         return {
           headers: {
-            'X-API-Key': apiKey,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         };

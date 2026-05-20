@@ -11,7 +11,7 @@ export class KitapyurduAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'KITAPYURDU',
-      baseUrl: 'https://api.kitapyurdu.com/seller/v1',
+      baseUrl: 'https://api.kitapyurdu.com/seller/v2',
       loggerContext: KitapyurduAdapter.name,
       rateLimitKey: 'KITAPYURDU',
       pathProfile: '/merchant/me',
@@ -20,15 +20,14 @@ export class KitapyurduAdapter extends RestStubMarketplaceAdapter {
       pathStock: '/inventory/stock',
       pathPrice: '/inventory/price',
       resolveAuth: async (creds) => {
-        const apiKey = creds.apiKey?.trim();
-        if (!apiKey) {
-          throw new Error('Kitapyurdu: apiKey zorunludur');
+        const username = creds.username?.trim();
+        const password = creds.password?.trim();
+        if (!username || !password) {
+          throw new Error('Kitapyurdu: username ve password zorunludur');
         }
         return {
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Api-Key': apiKey,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          auth: { username, password },
         };
       },
     };

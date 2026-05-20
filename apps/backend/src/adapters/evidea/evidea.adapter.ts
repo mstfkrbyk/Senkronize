@@ -11,7 +11,7 @@ export class EvideaAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'EVIDEA',
-      baseUrl: 'https://api.evidea.com/partner/v1',
+      baseUrl: 'https://api.evidea.com/marketplace/v1',
       loggerContext: EvideaAdapter.name,
       rateLimitKey: 'EVIDEA',
       pathProfile: '/merchant/me',
