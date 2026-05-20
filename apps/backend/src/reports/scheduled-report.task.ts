@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { CustomReportService } from './custom-report.service';
+import { ReportScheduleService } from './report-schedule.service';
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -38,11 +39,14 @@ export class ScheduledReportTask {
   constructor(
     private readonly prisma: PrismaService,
     private readonly customReportService: CustomReportService,
+    private readonly reportScheduleService: ReportScheduleService,
   ) {}
 
   @Cron('0 0 * * *')
   async dispatchScheduledReports(): Promise<void> {
-    const day = new Date().getDay();
+    const now = new Date();
+    const day = now.getDay();
+    const dayOfMonth = now.getDate();
     const rows = await this.prisma.savedReport.findMany({
       where: { NOT: { schedule: { equals: Prisma.DbNull } } },
       select: { id: true, schedule: true, organizationId: true },
@@ -62,5 +66,6 @@ export class ScheduledReportTask {
         });
       }
     }
+    await this.reportScheduleService.dispatchDueSchedules(day, dayOfMonth);
   }
 }

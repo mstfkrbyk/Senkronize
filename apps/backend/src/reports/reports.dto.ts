@@ -1,7 +1,9 @@
 import { Marketplace } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
+  IsEmail,
   IsEnum,
   IsIn,
   IsInt,
@@ -9,6 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { ReportScheduleFrequency, StandardReportKind } from '@prisma/client';
 
 export class DashboardSummaryQueryDto {
   @IsOptional()
@@ -119,4 +122,22 @@ export class VatReportExportQueryDto extends VatReportQueryDto {
   @IsOptional()
   @IsIn(['csv'])
   format?: 'csv';
+}
+
+export class PdfReportQueryDto {
+  @IsOptional()
+  @IsIn(['7d', '30d', '90d'])
+  period?: '7d' | '30d' | '90d';
+}
+
+export class CreateReportScheduleDto {
+  @IsEnum(StandardReportKind)
+  reportKind!: StandardReportKind;
+
+  @IsEnum(ReportScheduleFrequency)
+  frequency!: ReportScheduleFrequency;
+
+  @IsArray()
+  @IsEmail({}, { each: true })
+  emails!: string[];
 }

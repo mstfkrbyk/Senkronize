@@ -604,6 +604,111 @@ export class EmailService {
     await this.send(to, subject, html);
   }
 
+  async sendWeeklyReportSummary(
+    to: string,
+    data: {
+      userName: string;
+      orgName: string;
+      comparison: {
+        orderCount: number;
+        revenue: number;
+        orderGrowthPct: number;
+        revenueGrowthPct: number;
+      };
+      platformRows: { platform: string; orderCount: number; revenue: number }[];
+      stockAlerts: { barcode: string; platform: string; quantity: number }[];
+    },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const formatTry = (n: number): string =>
+      new Intl.NumberFormat('tr-TR', {
+        style: 'currency',
+        currency: 'TRY',
+        maximumFractionDigits: 0,
+      }).format(n);
+    const growthLabel = (pct: number): string =>
+      pct > 0 ? `+${pct}%` : `${pct}%`;
+    const platformRowsHtml = data.platformRows
+      .map(
+        (row) => `
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0">${esc(row.platform)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right">${row.orderCount}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right">${formatTry(row.revenue)}</td>
+        </tr>`,
+      )
+      .join('');
+    const stockRowsHtml =
+      data.stockAlerts.length > 0
+        ? data.stockAlerts
+            .map(
+              (row) => `
+        <tr>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;font-family:monospace">${esc(row.barcode)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0">${esc(row.platform)}</td>
+          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;color:${row.quantity === 0 ? '#dc2626' : '#d97706'}">${row.quantity}</td>
+        </tr>`,
+            )
+            .join('')
+        : `<tr><td colspan="3" style="padding:8px;color:#64748b">Kritik stok uyarısı yok.</td></tr>`;
+    const reportsUrl = `${this.panelBaseUrl()}/reports`;
+    await this.send(
+      to,
+      `Haftalık satış özeti — ${esc(data.orgName)}`,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#0f172a">
+        <h2 style="margin:0 0 8px">Merhaba ${esc(data.userName)},</h2>
+        <p style="color:#64748b;margin:0 0 20px">${esc(data.orgName)} için geçen haftanın özeti:</p>
+
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px">
+          <tr>
+            <td style="padding:12px;background:#f8fafc;border-radius:8px 0 0 8px;border:1px solid #e2e8f0">
+              <div style="font-size:12px;color:#64748b">Sipariş</div>
+              <div style="font-size:22px;font-weight:700">${data.comparison.orderCount}</div>
+              <div style="font-size:12px;color:${data.comparison.orderGrowthPct >= 0 ? '#16a34a' : '#dc2626'}">${growthLabel(data.comparison.orderGrowthPct)} önceki haftaya göre</div>
+            </td>
+            <td style="padding:12px;background:#f8fafc;border-radius:0 8px 8px 0;border:1px solid #e2e8f0;border-left:none">
+              <div style="font-size:12px;color:#64748b">Gelir</div>
+              <div style="font-size:22px;font-weight:700">${formatTry(data.comparison.revenue)}</div>
+              <div style="font-size:12px;color:${data.comparison.revenueGrowthPct >= 0 ? '#16a34a' : '#dc2626'}">${growthLabel(data.comparison.revenueGrowthPct)} önceki haftaya göre</div>
+            </td>
+          </tr>
+        </table>
+
+        <h3 style="font-size:15px;margin:0 0 8px">Platform özeti</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px">
+          <thead>
+            <tr style="background:#f1f5f9">
+              <th style="padding:8px;text-align:left">Platform</th>
+              <th style="padding:8px;text-align:right">Sipariş</th>
+              <th style="padding:8px;text-align:right">Gelir</th>
+            </tr>
+          </thead>
+          <tbody>${platformRowsHtml || '<tr><td colspan="3" style="padding:8px;color:#64748b">Veri yok</td></tr>'}</tbody>
+        </table>
+
+        <h3 style="font-size:15px;margin:0 0 8px">Kritik stok uyarıları</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-size:14px">
+          <thead>
+            <tr style="background:#f1f5f9">
+              <th style="padding:8px;text-align:left">Barkod</th>
+              <th style="padding:8px;text-align:left">Platform</th>
+              <th style="padding:8px;text-align:right">Adet</th>
+            </tr>
+          </thead>
+          <tbody>${stockRowsHtml}</tbody>
+        </table>
+
+        <a href="${esc(reportsUrl)}"
+           style="background:#38bdf8;color:#0f172a;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:600">
+          Raporların Tümünü Gör
+        </a>
+      </div>
+    `,
+    );
+  }
+
   async sendTestNotification(to: string): Promise<void> {
     await this.send(
       to,

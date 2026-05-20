@@ -13,6 +13,7 @@ import {
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -31,9 +32,11 @@ import {
 import { CustomReportService } from './custom-report.service';
 import type { ReportConfig, ReportResult, SavedReportListItem } from './custom-report.types';
 import {
+  CreateReportScheduleDto,
   DashboardSummaryQueryDto,
   DateRangeReportQueryDto,
   OrderTrendQueryDto,
+  PdfReportQueryDto,
   PlatformReportQueryDto,
   ProductsReportQueryDto,
   ProfitReportQueryDto,
@@ -42,6 +45,9 @@ import {
   VatReportExportQueryDto,
   VatReportQueryDto,
 } from './reports.dto';
+import { ReportPdfService } from './report-pdf.service';
+import { ReportScheduleService } from './report-schedule.service';
+import type { ReportScheduleItem } from './report-schedule.service';
 import { ReportsService } from './reports.service';
 import type {
   DashboardSummaryDto,
@@ -65,7 +71,70 @@ export class ReportsController {
     private readonly reportsService: ReportsService,
     private readonly customReportService: CustomReportService,
     private readonly taxReportService: TaxReportService,
+    private readonly reportPdfService: ReportPdfService,
+    private readonly reportScheduleService: ReportScheduleService,
   ) {}
+
+  @Get('pdf/sales')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Satış raporu PDF indir' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF dosyası' })
+  async downloadSalesPdf(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: PdfReportQueryDto,
+  ): Promise<StreamableFile> {
+    const period = query.period ?? '30d';
+    const buffer = await this.reportPdfService.generateSalesReport(org.id, period);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="satis-raporu-${period}.pdf"`,
+    });
+  }
+
+  @Get('pdf/stock')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok raporu PDF indir' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF dosyası' })
+  async downloadStockPdf(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<StreamableFile> {
+    const buffer = await this.reportPdfService.generateStockReport(org.id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename="stok-raporu.pdf"',
+    });
+  }
+
+  @Get('pdf/profit')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kâr raporu PDF indir' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF dosyası' })
+  async downloadProfitPdf(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: PdfReportQueryDto,
+  ): Promise<StreamableFile> {
+    const period = query.period ?? '30d';
+    const buffer = await this.reportPdfService.generateProfitReport(org.id, period);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="kar-raporu-${period}.pdf"`,
+    });
+  }
+
+  @Post('schedule')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Standart rapor zamanlaması kaydet' })
+  @ApiResponse({ status: 201, description: 'Zamanlama kaydedildi' })
+  async createReportSchedule(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateReportScheduleDto,
+  ): Promise<ReportScheduleItem> {
+    return this.reportScheduleService.saveSchedule(org.id, user.id, body);
+  }
 
   @Get('dashboard-summary')
   @UseGuards(JwtAuthGuard)

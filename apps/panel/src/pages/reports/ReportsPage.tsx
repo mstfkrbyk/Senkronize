@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { Download, Printer } from 'lucide-react';
+import { Download, Loader2, Printer, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   CartesianGrid,
@@ -67,6 +67,8 @@ import {
 } from './reportAggregation';
 import { CustomReportBuilder } from './CustomReportBuilder';
 import { SavedReportsList } from './SavedReportsList';
+import { ReportScheduleModal } from './ReportScheduleModal';
+import { useReportPdfDownload } from './hooks/useReportPdfDownload';
 
 function defaultDateRange(): { start: string; end: string } {
   const end = new Date();
@@ -112,6 +114,9 @@ export function ReportsPage(): ReactElement {
 
   const [vatYear, setVatYear] = useState(() => new Date().getFullYear());
   const [vatMonth, setVatMonth] = useState(() => new Date().getMonth() + 1);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+
+  const { downloading, downloadPdf } = useReportPdfDownload();
 
   const filters: ReportFilters = useMemo(
     () => ({
@@ -221,6 +226,18 @@ export function ReportsPage(): ReactElement {
     );
   }
 
+  function profitPdfPeriod(): '7d' | '30d' | '90d' {
+    if (profitPreset === '7') return '7d';
+    if (profitPreset === '90') return '90d';
+    return '30d';
+  }
+
+  function scheduleDefaultKind(): 'SALES' | 'STOCK' | 'PROFIT' {
+    if (activeTab === 'profit') return 'PROFIT';
+    if (activeTab === 'stock') return 'STOCK';
+    return 'SALES';
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -230,7 +247,23 @@ export function ReportsPage(): ReactElement {
             Satış, kâr, stok değeri ve platform performansını tek ekrandan inceleyin.
           </p>
         </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          onClick={() => setScheduleOpen(true)}
+        >
+          <CalendarClock className="mr-2 h-4 w-4" />
+          Rapor Planla
+        </Button>
       </div>
+
+      <ReportScheduleModal
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        defaultReportKind={scheduleDefaultKind()}
+      />
 
       {showSampleBanner ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
@@ -279,6 +312,20 @@ export function ReportsPage(): ReactElement {
           ) : null}
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={downloading === 'sales'}
+              onClick={() => void downloadPdf('sales', '30d')}
+            >
+              {downloading === 'sales' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              PDF İndir
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -500,7 +547,21 @@ export function ReportsPage(): ReactElement {
             </div>
           ) : null}
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={downloading === 'profit'}
+              onClick={() => void downloadPdf('profit', profitPdfPeriod())}
+            >
+              {downloading === 'profit' ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              PDF İndir
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -794,6 +855,20 @@ export function ReportsPage(): ReactElement {
               )}
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={downloading === 'stock'}
+                onClick={() => void downloadPdf('stock')}
+              >
+                {downloading === 'stock' ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                PDF İndir
+              </Button>
               <Button
                 type="button"
                 variant="outline"
