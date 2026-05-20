@@ -6,9 +6,16 @@ import { ensureTestDatabase, getTestDatabaseUrl } from './test-env';
 export default async function globalSetup(): Promise<void> {
   const testUrl = getTestDatabaseUrl();
   process.env.DATABASE_URL = testUrl;
-  ensureTestDatabase(testUrl);
+
+  if (process.env.TEST_SKIP_DB_RESET !== '1') {
+    ensureTestDatabase(testUrl);
+  }
 
   const backendRoot = path.join(__dirname, '..');
+
+  if (process.env.TEST_SKIP_DB_RESET === '1') {
+    return;
+  }
 
   try {
     execSync('npx prisma migrate deploy', {
