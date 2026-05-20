@@ -9,6 +9,10 @@ import type {
 } from '@senkronize/shared';
 
 import {
+  AMAZON_SP_AWS_REGION_EU,
+  AMAZON_SP_EU_BASE_URL,
+} from '../amazon/amazon.constants';
+import {
   amazonCreateSpClient,
   amazonGetLwaToken,
   amazonGetListingsForMarketplace,
@@ -26,6 +30,18 @@ import {
 export class AmazonAeAdapter implements IMarketplaceAdapter {
   readonly platform = 'AMAZON_AE';
   private readonly logger = new Logger(AmazonAeAdapter.name);
+  private readonly spBaseUrl = AMAZON_SP_EU_BASE_URL;
+  private readonly awsRegion = AMAZON_SP_AWS_REGION_EU;
+
+  private async createClient(credentials: Record<string, string>) {
+    const token = await amazonGetLwaToken(credentials, this.spBaseUrl, this.awsRegion);
+    return amazonCreateSpClient(
+      credentials,
+      token,
+      this.spBaseUrl,
+      this.awsRegion,
+    );
+  }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
@@ -33,8 +49,13 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
       if (!clientId || !clientSecret || !refreshToken || !sellerId) {
         return false;
       }
-      const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(credentials, token);
+      const token = await amazonGetLwaToken(credentials, this.spBaseUrl, this.awsRegion);
+      const client = amazonCreateSpClient(
+        credentials,
+        token,
+        this.spBaseUrl,
+        this.awsRegion,
+      );
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -49,8 +70,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
       AMAZON_AE_MARKETPLACE_ID,
@@ -67,8 +87,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -81,8 +100,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -103,8 +121,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,

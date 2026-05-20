@@ -3,13 +3,16 @@ import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
+  BulkPriceUpdateItem,
   BulkResult,
   ListingDetailResponse,
   ListingFilters,
+  ListingKpis,
   ListingsResponse,
   ListingStatus,
   ListingSummary,
 } from '@/types/listing';
+import type { BuyBoxSummary } from '@/types/pricing';
 
 function buildListingParams(
   filters: ListingFilters,
@@ -60,6 +63,61 @@ export function useListingSummary() {
       return data;
     },
     staleTime: 60_000,
+  });
+}
+
+interface ConflictStatsResponse {
+  pending: number;
+  resolved: number;
+  ignored: number;
+  byType: {
+    STOCK_MISMATCH: number;
+    PRICE_MISMATCH: number;
+    STATUS_MISMATCH: number;
+    PRODUCT_NOT_FOUND: number;
+    DUPLICATE_ORDER: number;
+  };
+}
+
+export function useListingKpis() {
+  return useQuery({
+    queryKey: ['listings', 'kpis'],
+    queryFn: async (): Promise<ListingKpis> => {
+      const [activeRes, conflictRes, buyBoxRes] = await Promise.all([
+        api.get<ListingsResponse>('/listings', {
+          params: { status: 'ACTIVE', page: 1, limit: 1 },
+        }),
+        api.get<{ data: ConflictStatsResponse }>('/sync/conflicts/stats'),
+        api.get<BuyBoxSummary>('/pricing/buybox'),
+      ]);
+
+      return {
+        activeCount: activeRes.data.total,
+        priceMismatchCount: conflictRes.data.data.byType.PRICE_MISMATCH,
+        stockMismatchCount: conflictRes.data.data.byType.STOCK_MISMATCH,
+        buyBoxWinRatePct: buyBoxRes.data.winRate,
+      };
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useBuyBoxSnapshotMap(enabled = true) {
+  return useQuery({
+    queryKey: ['pricing', 'buybox', 'snapshots-map'],
+    queryFn: async (): Promise<Map<string, { isWinner: boolean; buyBoxPrice: number }>> => {
+      const { data } = await api.get<BuyBoxSummary>('/pricing/buybox');
+      const map = new Map<string, { isWinner: boolean; buyBoxPrice: number }>();
+      for (const snap of data.snapshots ?? []) {
+        map.set(`${snap.barcode}:${snap.platform}`, {
+          isWinner: snap.isWinner,
+          buyBoxPrice: Number(snap.buyBoxPrice),
+        });
+      }
+      return map;
+    },
+    staleTime: 60_000,
+    enabled,
   });
 }
 
@@ -222,6 +280,42 @@ export function useBulkListingPrice() {
   });
 }
 
+/** Toplu fiyat güncelleme — PATCH `/listings/bulk/price` (fallback: POST). */
+export function useBulkPriceUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: BulkPriceUpdateItem[]): Promise<BulkResult> => {
+      try {
+        const { data } = await api.patch<BulkResult>(
+          '/listings/bulk/price',
+          updates,
+        );
+        return data;
+      } catch (err) {
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 404 || status === 405) {
+          const { data } = await api.post<BulkResult>(
+            '/listings/bulk/price',
+            updates,
+          );
+          return data;
+        }
+        throw err;
+      }
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.success)} fiyat güncellendi`);
+      if (res.failed > 0) {
+        toast.warning(`${String(res.failed)} kayıt güncellenemedi`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
 export function useBulkListingStock() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -255,6 +349,48 @@ export function useBulkListingPush() {
     },
     onSuccess: (res) => {
       toast.success(`${String(res.success)} listeleme platforma gönderildi`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingSync() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<{ synced: number }> => {
+      let synced = 0;
+      for (const id of ids) {
+        await api.post(`/listings/${id}/sync`);
+        synced += 1;
+      }
+      return { synced };
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.synced)} listeleme senkronizasyon kuyruğuna alındı`);
+      void queryClient.invalidateQueries({ queryKey: ['listings'] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+}
+
+export function useBulkListingDelete() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ids: string[]): Promise<{ deleted: number }> => {
+      let deleted = 0;
+      for (const id of ids) {
+        await api.delete(`/listings/${id}`);
+        deleted += 1;
+      }
+      return { deleted };
+    },
+    onSuccess: (res) => {
+      toast.success(`${String(res.deleted)} listeleme platformdan kaldırıldı`);
       void queryClient.invalidateQueries({ queryKey: ['listings'] });
     },
     onError: (err) => {

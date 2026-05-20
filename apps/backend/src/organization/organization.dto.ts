@@ -60,6 +60,30 @@ export class UpdateOrganizationDto {
   @IsObject()
   currencyManualRates?: Record<string, number>;
 
+  @ApiPropertyOptional({ description: 'Vergi numarası (VKN/TCKN)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  taxNumber?: string;
+
+  @ApiPropertyOptional({ description: 'Vergi dairesi' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  taxOffice?: string;
+
+  @ApiPropertyOptional({ description: 'Adres' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Şehir' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+
   @ApiPropertyOptional({ description: 'Organizasyon genelinde 2FA zorunluluğu' })
   @IsOptional()
   @IsBoolean()

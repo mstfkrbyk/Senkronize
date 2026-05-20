@@ -6,11 +6,10 @@ import {
   ChevronDown,
   Loader2,
   RefreshCw,
-  Search,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { BulkPriceUpdateModal } from '@/components/listings/BulkPriceUpdateModal';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
@@ -28,6 +27,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -39,12 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
+import { useListingSyncProgressListener } from '@/hooks/useListingSyncProgress';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useSocket } from '@/hooks/useSocket';
-import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { getApiErrorMessage } from '@/lib/api';
 import { useListingsPageStore } from '@/store/tablePages.store';
 import type {
@@ -55,27 +54,22 @@ import type {
 } from '@/types/listing';
 
 import {
-  useBulkListingPrice,
-  useBulkListingPush,
+  useBulkListingDelete,
   useBulkListingStatus,
   useBulkListingStock,
-  useListingSummary,
+  useBulkListingSync,
+  useBuyBoxSnapshotMap,
   useListings,
+  useSyncListing,
   useSyncListings,
   useUpdatePrice,
   useUpdateStock,
 } from './hooks/useListings';
+import { ListingFilters as ListingFiltersPanel } from './ListingFilters';
+import { ListingsKpiRow } from './ListingsKpiRow';
 import { ListingsTable } from './ListingsTable';
 
 const PAGE_SIZE_DEFAULT = 20;
-
-const STATUS_OPTIONS: { value: ListingStatus | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'Tüm durumlar' },
-  { value: 'ACTIVE', label: 'Aktif' },
-  { value: 'INACTIVE', label: 'Devre dışı' },
-  { value: 'OUT_OF_STOCK', label: 'Stok yok' },
-  { value: 'PENDING', label: 'Beklemede' },
-];
 
 const SORT_OPTIONS: { value: ListingSort; label: string }[] = [
   { value: 'updated_desc', label: 'Son güncelleme' },
@@ -85,31 +79,48 @@ const SORT_OPTIONS: { value: ListingSort; label: string }[] = [
   { value: 'stock_desc', label: 'Stok (azalan)' },
 ];
 
+function listingKey(listing: Listing): string {
+  return `${listing.barcode}:${listing.platform}`;
+}
+
+function matchesBuyBoxFilter(
+  listing: Listing,
+  filter: ListingFilters['buyBoxStatus'],
+  buyBoxMap: Map<string, { isWinner: boolean; buyBoxPrice: number }>,
+): boolean {
+  if (!filter || filter === 'ALL') {
+    return true;
+  }
+  const snap = buyBoxMap.get(listingKey(listing));
+  if (!snap) {
+    return false;
+  }
+  if (filter === 'WINNING') {
+    return snap.isWinner;
+  }
+  return !snap.isWinner;
+}
+
 export function ListingsPage(): ReactElement {
   usePageTitle('Listelemeler');
+  useListingSyncProgressListener();
 
   const queryClient = useQueryClient();
   const { on } = useSocket();
 
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(PAGE_SIZE_DEFAULT);
-  const [platformTab, setPlatformTab] = useState<string>('ALL');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<ListingStatus | 'ALL'>('ALL');
-  const [priceMin, setPriceMin] = useState('');
-  const [priceMax, setPriceMax] = useState('');
-  const [stockMin, setStockMin] = useState('');
-  const [stockMax, setStockMax] = useState('');
-  const [sort, setSort] = useState<ListingSort>('updated_desc');
+  const [filters, setFilters] = useState<ListingFilters>({
+    page: 1,
+    limit: PAGE_SIZE_DEFAULT,
+    sort: 'updated_desc',
+  });
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
 
   const [bulkPriceOpen, setBulkPriceOpen] = useState(false);
   const [bulkStockOpen, setBulkStockOpen] = useState(false);
-  const [bulkPriceValue, setBulkPriceValue] = useState('');
   const [bulkStockValue, setBulkStockValue] = useState('');
   const [priceSavingId, setPriceSavingId] = useState<string | null>(null);
   const [stockSavingId, setStockSavingId] = useState<string | null>(null);
-
-  const debouncedSearch = useDebouncedValue(search, 300);
 
   const selectedListingIds = useListingsPageStore((s) => s.selectedListingIds);
   const toggleListingRow = useListingsPageStore((s) => s.toggleListingRow);
@@ -118,14 +129,15 @@ export function ListingsPage(): ReactElement {
   const setSelectedListingIds = useListingsPageStore((s) => s.setSelectedListingIds);
 
   const connectionsQuery = useMarketplaceConnections();
-  const summaryQuery = useListingSummary();
+  const buyBoxMapQuery = useBuyBoxSnapshotMap();
   const syncListingsMutation = useSyncListings();
+  const syncOneMutation = useSyncListing();
   const updatePriceMutation = useUpdatePrice();
   const updateStockMutation = useUpdateStock();
   const bulkStatusMutation = useBulkListingStatus();
-  const bulkPriceMutation = useBulkListingPrice();
   const bulkStockMutation = useBulkListingStock();
-  const bulkPushMutation = useBulkListingPush();
+  const bulkSyncMutation = useBulkListingSync();
+  const bulkDeleteMutation = useBulkListingDelete();
 
   const activePlatforms = useMemo(() => {
     const conns = connectionsQuery.data ?? [];
@@ -133,49 +145,26 @@ export function ListingsPage(): ReactElement {
   }, [connectionsQuery.data]);
 
   const listingQueryFilters = useMemo((): ListingFilters => {
-    const filters: ListingFilters = {
-      page,
-      limit,
+    const next: ListingFilters = {
+      ...filters,
       search: debouncedSearch.trim() || undefined,
-      sort,
     };
-    if (platformTab !== 'ALL') {
-      filters.platform = platformTab;
+    if (next.buyBoxStatus) {
+      delete next.buyBoxStatus;
     }
-    if (statusFilter !== 'ALL') {
-      filters.status = statusFilter;
-    }
-    const pMin = Number(priceMin);
-    const pMax = Number(priceMax);
-    if (priceMin.trim() && Number.isFinite(pMin)) {
-      filters.priceMin = pMin;
-    }
-    if (priceMax.trim() && Number.isFinite(pMax)) {
-      filters.priceMax = pMax;
-    }
-    const sMin = Number(stockMin);
-    const sMax = Number(stockMax);
-    if (stockMin.trim() && Number.isFinite(sMin)) {
-      filters.stockMin = sMin;
-    }
-    if (stockMax.trim() && Number.isFinite(sMax)) {
-      filters.stockMax = sMax;
-    }
-    return filters;
-  }, [
-    page,
-    limit,
-    debouncedSearch,
-    sort,
-    platformTab,
-    statusFilter,
-    priceMin,
-    priceMax,
-    stockMin,
-    stockMax,
-  ]);
+    return next;
+  }, [filters, debouncedSearch]);
 
   const listingsQuery = useListings(listingQueryFilters);
+  const buyBoxMap = buyBoxMapQuery.data ?? new Map();
+
+  const buyBoxPriceByKey = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const [key, val] of buyBoxMap.entries()) {
+      map.set(key, val.buyBoxPrice);
+    }
+    return map;
+  }, [buyBoxMap]);
 
   useEffect(() => {
     clearListingSelection();
@@ -189,8 +178,20 @@ export function ListingsPage(): ReactElement {
     return unlisten;
   }, [on, queryClient]);
 
-  const data = listingsQuery.data;
-  const total = data?.total ?? 0;
+  const rawData = listingsQuery.data;
+  const filteredItems = useMemo(() => {
+    const items = rawData?.items ?? [];
+    if (!filters.buyBoxStatus || filters.buyBoxStatus === 'ALL') {
+      return items;
+    }
+    return items.filter((l) =>
+      matchesBuyBoxFilter(l, filters.buyBoxStatus, buyBoxMap),
+    );
+  }, [rawData?.items, filters.buyBoxStatus, buyBoxMap]);
+
+  const total = rawData?.total ?? 0;
+  const page = filters.page ?? 1;
+  const limit = filters.limit ?? PAGE_SIZE_DEFAULT;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   const selectedIdSet = useMemo(
@@ -199,16 +200,30 @@ export function ListingsPage(): ReactElement {
   );
 
   const selectedRowsOnPage =
-    data?.items.filter((l) => selectedIdSet.has(l.id)) ?? [];
+    filteredItems.filter((l) => selectedIdSet.has(l.id));
+
+  const allSelectedListings = useMemo(() => {
+    const byId = new Map((rawData?.items ?? []).map((l) => [l.id, l]));
+    return selectedListingIds
+      .map((id) => byId.get(id))
+      .filter((l): l is Listing => l != null);
+  }, [rawData?.items, selectedListingIds]);
 
   const hasActiveFilters = Boolean(
     debouncedSearch.trim() ||
-      platformTab !== 'ALL' ||
-      statusFilter !== 'ALL' ||
-      priceMin.trim() ||
-      priceMax.trim() ||
-      stockMin.trim() ||
-      stockMax.trim(),
+      filters.platforms?.trim() ||
+      filters.platform ||
+      filters.status ||
+      filters.stockMin != null ||
+      filters.stockMax != null ||
+      filters.minSalePrice != null ||
+      filters.maxSalePrice != null ||
+      filters.priceMin != null ||
+      filters.priceMax != null ||
+      filters.lastSyncAtSince?.trim() ||
+      filters.lastSyncAtUntil?.trim() ||
+      filters.category?.trim() ||
+      (filters.buyBoxStatus && filters.buyBoxStatus !== 'ALL'),
   );
 
   const hasMarketplaceConnections =
@@ -217,17 +232,22 @@ export function ListingsPage(): ReactElement {
       : (connectionsQuery.data ?? []).some((c) => c.isActive);
 
   const handleSelectAll = useCallback((): void => {
-    if (!data?.items.length) {
+    if (!filteredItems.length) {
       return;
     }
-    const allIds = data.items.map((l) => l.id);
+    const allIds = filteredItems.map((l) => l.id);
     const allSelected = allIds.every((id) => selectedIdSet.has(id));
     if (allSelected) {
       clearListingSelection();
     } else {
       setSelectedListingIds(allIds);
     }
-  }, [data?.items, selectedIdSet, clearListingSelection, setSelectedListingIds]);
+  }, [
+    filteredItems,
+    selectedIdSet,
+    clearListingSelection,
+    setSelectedListingIds,
+  ]);
 
   const handleInlinePriceSave = (listing: Listing, price: number): void => {
     setPriceSavingId(listing.id);
@@ -265,23 +285,6 @@ export function ListingsPage(): ReactElement {
     clearListingSelection();
   };
 
-  const handleBulkPriceApply = (): void => {
-    const price = Number(String(bulkPriceValue).replace(',', '.'));
-    if (!Number.isFinite(price) || price <= 0 || selectedRowsOnPage.length === 0) {
-      toast.error('Geçerli bir fiyat girin');
-      return;
-    }
-    bulkPriceMutation.mutate(
-      selectedRowsOnPage.map((l) => ({ id: l.id, price })),
-      {
-        onSuccess: () => {
-          setBulkPriceOpen(false);
-          clearListingSelection();
-        },
-      },
-    );
-  };
-
   const handleBulkStockApply = (): void => {
     const stock = Math.round(Number(bulkStockValue));
     if (!Number.isFinite(stock) || stock < 0 || selectedRowsOnPage.length === 0) {
@@ -299,17 +302,6 @@ export function ListingsPage(): ReactElement {
     );
   };
 
-  const resetFilters = (): void => {
-    setSearch('');
-    setStatusFilter('ALL');
-    setPriceMin('');
-    setPriceMax('');
-    setStockMin('');
-    setStockMax('');
-    setPlatformTab('ALL');
-    setPage(1);
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -320,17 +312,6 @@ export function ListingsPage(): ReactElement {
           <p className="text-muted-foreground">
             Pazaryeri ürünlerinizi yönetin, filtreleyin ve toplu işlem yapın.
           </p>
-          {summaryQuery.data ? (
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="secondary">Toplam {summaryQuery.data.total}</Badge>
-              <Badge variant="outline" className="border-green-200 bg-green-50 text-green-800">
-                Onaylı {summaryQuery.data.approved}
-              </Badge>
-              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
-                Bekleyen {summaryQuery.data.pending}
-              </Badge>
-            </div>
-          ) : null}
         </div>
         <Button
           type="button"
@@ -349,222 +330,120 @@ export function ListingsPage(): ReactElement {
         </Button>
       </div>
 
-      <Tabs
-        value={platformTab}
-        onValueChange={(v) => {
-          setPlatformTab(v);
-          setPage(1);
+      <ListingsKpiRow />
+
+      <ListingFiltersPanel
+        filters={filters}
+        onChange={setFilters}
+        searchInput={searchInput}
+        onSearchInputChange={(v) => {
+          setSearchInput(v);
+          setFilters((prev) => ({ ...prev, page: 1 }));
         }}
-      >
-        <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
-          <TabsTrigger value="ALL" className="data-[state=active]:bg-muted">
-            Tümü
-          </TabsTrigger>
-          {activePlatforms.map((platform) => {
-            const branding = getMarketplaceBranding(platform);
-            return (
-              <TabsTrigger
-                key={platform}
-                value={platform}
-                className="gap-1.5 data-[state=active]:bg-muted"
-              >
-                <span aria-hidden>{branding.logo}</span>
-                {branding.label}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
+      />
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="relative max-w-md flex-1">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            className="pl-9"
-            placeholder="Ürün adı veya barkod ara…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-          />
-        </div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handleSelectAll}>
+            {filteredItems.every((l) => selectedIdSet.has(l.id)) &&
+            filteredItems.length > 0
+              ? 'Seçimi kaldır'
+              : 'Tümünü seç'}
+          </Button>
 
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Durum</Label>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => {
-                setStatusFilter(v as ListingStatus | 'ALL');
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Fiyat min</Label>
-            <Input
-              className="w-24"
-              inputMode="decimal"
-              placeholder="Min"
-              value={priceMin}
-              onChange={(e) => {
-                setPriceMin(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Fiyat max</Label>
-            <Input
-              className="w-24"
-              inputMode="decimal"
-              placeholder="Max"
-              value={priceMax}
-              onChange={(e) => {
-                setPriceMax(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Stok min</Label>
-            <Input
-              className="w-20"
-              inputMode="numeric"
-              placeholder="Min"
-              value={stockMin}
-              onChange={(e) => {
-                setStockMin(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Stok max</Label>
-            <Input
-              className="w-20"
-              inputMode="numeric"
-              placeholder="Max"
-              value={stockMax}
-              onChange={(e) => {
-                setStockMax(e.target.value);
-                setPage(1);
-              }}
-            />
-          </div>
-
-          <div className="grid gap-1">
-            <Label className="text-xs text-muted-foreground">Sıralama</Label>
-            <Select
-              value={sort}
-              onValueChange={(v) => {
-                setSort(v as ListingSort);
-              }}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SORT_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {hasActiveFilters ? (
-            <Button type="button" variant="ghost" size="sm" onClick={resetFilters}>
-              <X className="mr-1 h-4 w-4" aria-hidden />
-              Temizle
-            </Button>
+          {selectedListingIds.length > 0 ? (
+            <>
+              <Badge variant="secondary">{selectedListingIds.length} seçili</Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="secondary" size="sm" className="gap-1">
+                    Toplu işlem
+                    <ChevronDown className="h-4 w-4" aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      handleBulkStatus('ACTIVE');
+                    }}
+                  >
+                    Aktif yap
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      handleBulkStatus('INACTIVE');
+                    }}
+                  >
+                    Pasif yap
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setBulkPriceOpen(true);
+                    }}
+                  >
+                    Fiyat güncelle
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setBulkStockValue('');
+                      setBulkStockOpen(true);
+                    }}
+                  >
+                    Stok güncelle
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      bulkSyncMutation.mutate(selectedListingIds, {
+                        onSuccess: () => {
+                          clearListingSelection();
+                        },
+                      });
+                    }}
+                  >
+                    Zorla sync et
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => {
+                      bulkDeleteMutation.mutate(selectedListingIds, {
+                        onSuccess: () => {
+                          clearListingSelection();
+                        },
+                      });
+                    }}
+                  >
+                    Platformdan kaldır
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : null}
         </div>
+
+        <div className="grid gap-1">
+          <Label className="text-xs text-muted-foreground">Sıralama</Label>
+          <Select
+            value={filters.sort ?? 'updated_desc'}
+            onValueChange={(v) => {
+              setFilters((prev) => ({ ...prev, sort: v as ListingSort }));
+            }}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={handleSelectAll}>
-          {data?.items.every((l) => selectedIdSet.has(l.id)) && (data?.items.length ?? 0) > 0
-            ? 'Seçimi kaldır'
-            : 'Tümünü seç'}
-        </Button>
-
-        {selectedListingIds.length > 0 ? (
-          <>
-            <Badge variant="secondary">{selectedListingIds.length} seçili</Badge>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="secondary" size="sm" className="gap-1">
-                  Toplu işlem
-                  <ChevronDown className="h-4 w-4" aria-hidden />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem
-                  onClick={() => {
-                    handleBulkStatus('ACTIVE');
-                  }}
-                >
-                  Aktifleştir
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    handleBulkStatus('INACTIVE');
-                  }}
-                >
-                  Devre dışı bırak
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setBulkPriceValue('');
-                    setBulkPriceOpen(true);
-                  }}
-                >
-                  Fiyat güncelle
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    setBulkStockValue('');
-                    setBulkStockOpen(true);
-                  }}
-                >
-                  Stok güncelle
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => {
-                    bulkPushMutation.mutate(selectedListingIds, {
-                      onSuccess: () => {
-                        clearListingSelection();
-                      },
-                    });
-                  }}
-                >
-                  Platforma gönder
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        ) : null}
-      </div>
-
-      {listingsQuery.isLoading ? <TableSkeleton rows={8} cols={8} /> : null}
+      {listingsQuery.isLoading ? <TableSkeleton rows={8} cols={9} /> : null}
 
       {listingsQuery.isError ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -585,8 +464,8 @@ export function ListingsPage(): ReactElement {
 
       {!listingsQuery.isLoading &&
       !listingsQuery.isError &&
-      data &&
-      data.items.length === 0 ? (
+      rawData &&
+      filteredItems.length === 0 ? (
         <TablePageEmptyState
           hasMarketplaceConnections={hasMarketplaceConnections}
           connectionsLoading={connectionsQuery.isLoading}
@@ -601,20 +480,27 @@ export function ListingsPage(): ReactElement {
 
       {!listingsQuery.isLoading &&
       !listingsQuery.isError &&
-      data &&
-      data.items.length > 0 ? (
+      rawData &&
+      filteredItems.length > 0 ? (
         <ListingsTable
-          listings={data.items}
+          listings={filteredItems}
           selectedIds={selectedIdSet}
+          buyBoxMap={buyBoxMap}
           onToggleRow={toggleListingRow}
           onToggleAllOnPage={(selected) => {
             toggleAllOnPage(
-              data.items.map((l) => l.id),
+              filteredItems.map((l) => l.id),
               selected,
             );
           }}
           onInlinePriceSave={handleInlinePriceSave}
           onInlineStockSave={handleInlineStockSave}
+          onForceSync={(listing) => {
+            syncOneMutation.mutate(listing.id);
+          }}
+          onRemove={(listing) => {
+            bulkDeleteMutation.mutate([listing.id]);
+          }}
           priceSavingId={priceSavingId}
           stockSavingId={stockSavingId}
         />
@@ -622,56 +508,32 @@ export function ListingsPage(): ReactElement {
 
       {!listingsQuery.isLoading &&
       !listingsQuery.isError &&
-      data &&
-      data.items.length > 0 ? (
+      rawData &&
+      filteredItems.length > 0 ? (
         <DataTablePagination
           page={page}
           totalPages={totalPages}
           total={total}
           limit={limit}
-          onPageChange={setPage}
+          onPageChange={(nextPage) => {
+            setFilters((prev) => ({ ...prev, page: nextPage }));
+          }}
           onLimitChange={(nextLimit) => {
-            setLimit(nextLimit);
-            setPage(1);
+            setFilters((prev) => ({ ...prev, limit: nextLimit, page: 1 }));
           }}
         />
       ) : null}
 
-      <Dialog open={bulkPriceOpen} onOpenChange={setBulkPriceOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Toplu fiyat güncelle</DialogTitle>
-            <DialogDescription>
-              Seçili {selectedListingIds.length} listeleme için yeni satış fiyatı
-              uygulanır.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Label htmlFor="bulk-price">Yeni fiyat (₺)</Label>
-            <Input
-              id="bulk-price"
-              className="mt-1.5"
-              inputMode="decimal"
-              value={bulkPriceValue}
-              onChange={(e) => {
-                setBulkPriceValue(e.target.value);
-              }}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setBulkPriceOpen(false)}>
-              İptal
-            </Button>
-            <Button
-              type="button"
-              disabled={bulkPriceMutation.isPending}
-              onClick={handleBulkPriceApply}
-            >
-              Uygula
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <BulkPriceUpdateModal
+        open={bulkPriceOpen}
+        onOpenChange={setBulkPriceOpen}
+        selectedListings={allSelectedListings}
+        buyBoxPriceByKey={buyBoxPriceByKey}
+        activePlatforms={activePlatforms}
+        onSuccess={() => {
+          clearListingSelection();
+        }}
+      />
 
       <Dialog open={bulkStockOpen} onOpenChange={setBulkStockOpen}>
         <DialogContent className="sm:max-w-md">

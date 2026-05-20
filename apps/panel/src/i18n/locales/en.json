@@ -177,6 +177,7 @@
     "users": "Users",
     "organization": "Company",
     "team": "Team",
+    "teamMembers": "Team Members",
     "partners": "Partners",
     "timezones": {
       "istanbul": "Istanbul (UTC+3)",

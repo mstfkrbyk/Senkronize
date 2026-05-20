@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 
-import { UsersPage } from '../UsersPage';
+import { TeamMembersTab } from './TeamMembersTab';
 
 export function TeamTab(): ReactElement {
-  return <UsersPage />;
+  return <TeamMembersTab />;
 }

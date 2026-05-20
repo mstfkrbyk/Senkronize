@@ -23,6 +23,7 @@ export interface AmazonRegionalConfig {
   spBaseUrl: string;
   marketplaceId: string;
   defaultCurrency: string;
+  awsRegion: string;
   loggerContext: string;
 }
 
@@ -50,14 +51,37 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     return this.config.defaultCurrency;
   }
 
+  private async createClient(credentials: Record<string, string>) {
+    const token = await amazonGetLwaToken(
+      credentials,
+      this.config.spBaseUrl,
+      this.config.awsRegion,
+    );
+    return amazonCreateSpClient(
+      credentials,
+      token,
+      this.config.spBaseUrl,
+      this.config.awsRegion,
+    );
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       const { clientId, clientSecret, refreshToken, sellerId } = credentials;
       if (!clientId || !clientSecret || !refreshToken || !sellerId) {
         return false;
       }
-      const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
+      const token = await amazonGetLwaToken(
+        credentials,
+        this.config.spBaseUrl,
+        this.config.awsRegion,
+      );
+      const client = amazonCreateSpClient(
+        credentials,
+        token,
+        this.config.spBaseUrl,
+        this.config.awsRegion,
+      );
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -72,8 +96,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
+    const client = await this.createClient(credentials);
     const marketplaceId = this.resolveMarketplaceId(credentials);
     const currency = this.resolveCurrency(credentials);
     return await amazonGetOrdersForMarketplace(
@@ -88,8 +111,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     return await amazonGetListingsForMarketplace(
@@ -104,8 +126,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     await amazonUpdateStockForMarketplace(
@@ -126,8 +147,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     const currency = this.resolveCurrency(credentials);

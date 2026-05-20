@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Copy, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 import {
@@ -13,7 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +38,18 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { api, getApiErrorMessage } from '@/lib/api';
 
+const API_KEY_PERMISSIONS = [
+  { value: 'orders:read', label: 'Sipariş okuma' },
+  { value: 'orders:write', label: 'Sipariş yazma' },
+  { value: 'products:read', label: 'Ürün okuma' },
+  { value: 'products:write', label: 'Ürün yazma' },
+  { value: 'stock:read', label: 'Stok okuma' },
+  { value: 'stock:write', label: 'Stok yazma' },
+  { value: 'webhooks:manage', label: 'Webhook yönetimi' },
+] as const;
+
+type ApiKeyPermission = (typeof API_KEY_PERMISSIONS)[number]['value'];
+
 interface ApiKeyRow {
   id: string;
   name: string;
@@ -53,6 +68,12 @@ interface CreatedApiKeyResponse {
   key: string;
 }
 
+interface CreateApiKeyInput {
+  name: string;
+  permissions: ApiKeyPermission[];
+  expiresAt?: string;
+}
+
 function formatDate(value: string | null): string {
   if (!value) {
     return '—';
@@ -64,10 +85,24 @@ function formatDate(value: string | null): string {
   }
 }
 
+function statusBadge(row: ApiKeyRow): ReactElement {
+  if (!row.isActive) {
+    return <Badge variant="secondary">Devre dışı</Badge>;
+  }
+  if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) {
+    return <Badge variant="destructive">Süresi doldu</Badge>;
+  }
+  return <Badge variant="default">Aktif</Badge>;
+}
+
 export function ApiKeysTab(): ReactElement {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
+  const [selectedPermissions, setSelectedPermissions] = useState<Set<ApiKeyPermission>>(
+    () => new Set(['orders:read', 'products:read']),
+  );
+  const [expiresAt, setExpiresAt] = useState('');
   const [createdSecret, setCreatedSecret] = useState<CreatedApiKeyResponse | null>(null);
   const [disableId, setDisableId] = useState<string | null>(null);
 
@@ -80,13 +115,19 @@ export function ApiKeysTab(): ReactElement {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (name: string): Promise<CreatedApiKeyResponse> => {
-      const { data } = await api.post<CreatedApiKeyResponse>('/api-keys', { name });
+    mutationFn: async (input: CreateApiKeyInput): Promise<CreatedApiKeyResponse> => {
+      const { data } = await api.post<CreatedApiKeyResponse>('/api-keys', {
+        name: input.name,
+        permissions: input.permissions,
+        ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+      });
       return data;
     },
     onSuccess: (data) => {
       setCreatedSecret(data);
       setNewKeyName('');
+      setExpiresAt('');
+      setSelectedPermissions(new Set(['orders:read', 'products:read']));
       setCreateOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
       toast.success('API anahtarı oluşturuldu');
@@ -102,7 +143,7 @@ export function ApiKeysTab(): ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['api-keys'] });
-      toast.success('API anahtarı devre dışı bırakıldı');
+      toast.success('API anahtarı kaldırıldı');
       setDisableId(null);
     },
     onError: (err: unknown) => {
@@ -110,13 +151,33 @@ export function ApiKeysTab(): ReactElement {
     },
   });
 
+  const togglePermission = (perm: ApiKeyPermission, checked: boolean): void => {
+    setSelectedPermissions((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(perm);
+      } else {
+        next.delete(perm);
+      }
+      return next;
+    });
+  };
+
   const handleCreateSubmit = (): void => {
     const trimmed = newKeyName.trim();
     if (!trimmed) {
       toast.error('Lütfen bir isim girin.');
       return;
     }
-    createMutation.mutate(trimmed);
+    if (selectedPermissions.size === 0) {
+      toast.error('En az bir izin seçmelisiniz.');
+      return;
+    }
+    createMutation.mutate({
+      name: trimmed,
+      permissions: [...selectedPermissions],
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+    });
   };
 
   const copySecret = async (): Promise<void> => {
@@ -142,7 +203,8 @@ export function ApiKeysTab(): ReactElement {
           </p>
         </div>
         <Button type="button" onClick={() => setCreateOpen(true)}>
-          Yeni key oluştur
+          <KeyRound className="mr-2 size-4" />
+          Yeni Anahtar Oluştur
         </Button>
       </div>
 
@@ -164,13 +226,14 @@ export function ApiKeysTab(): ReactElement {
                 <TableHead>Önek</TableHead>
                 <TableHead>Oluşturulma</TableHead>
                 <TableHead>Son kullanım</TableHead>
+                <TableHead>Durum</TableHead>
                 <TableHead className="text-right">İşlemler</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(keysQuery.data ?? []).length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                     Henüz API anahtarı yok.
                   </TableCell>
                 </TableRow>
@@ -185,6 +248,7 @@ export function ApiKeysTab(): ReactElement {
                     <TableCell className="text-sm text-muted-foreground">
                       {formatDate(row.lastUsedAt)}
                     </TableCell>
+                    <TableCell>{statusBadge(row)}</TableCell>
                     <TableCell className="text-right">
                       <Button
                         type="button"
@@ -192,7 +256,7 @@ export function ApiKeysTab(): ReactElement {
                         size="sm"
                         onClick={() => setDisableId(row.id)}
                       >
-                        Sil
+                        Kaldır
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -204,19 +268,52 @@ export function ApiKeysTab(): ReactElement {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Yeni API anahtarı</DialogTitle>
+            <DialogDescription>
+              Anahtar için bir isim, izin kapsamı ve isteğe bağlı son kullanım tarihi belirleyin.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="api-key-name">İsim</Label>
-            <Input
-              id="api-key-name"
-              placeholder="Örn. Tauri masaüstü ajanı"
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              maxLength={120}
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="api-key-name">İsim</Label>
+              <Input
+                id="api-key-name"
+                placeholder="Örn. Tauri masaüstü ajanı"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                maxLength={120}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>İzinler</Label>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {API_KEY_PERMISSIONS.map((perm) => (
+                  <label
+                    key={perm.value}
+                    className="flex cursor-pointer items-center gap-2 rounded-md border p-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={selectedPermissions.has(perm.value)}
+                      onCheckedChange={(checked) =>
+                        togglePermission(perm.value, checked === true)
+                      }
+                    />
+                    <span>{perm.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-expires">Son kullanım tarihi (isteğe bağlı)</Label>
+              <Input
+                id="api-key-expires"
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
@@ -250,11 +347,15 @@ export function ApiKeysTab(): ReactElement {
           </DialogHeader>
           {createdSecret ? (
             <div className="space-y-3">
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100">
+                Bu anahtarı kaybederseniz yeniden oluşturmanız gerekir; mevcut anahtar tekrar görüntülenemez.
+              </div>
               <div className="rounded-md border bg-muted/40 p-3 font-mono text-xs break-all">
                 {createdSecret.key}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={() => void copySecret()}>
+                  <Copy className="mr-2 size-4" />
                   Kopyala
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setCreatedSecret(null)}>
@@ -269,7 +370,7 @@ export function ApiKeysTab(): ReactElement {
       <AlertDialog open={disableId !== null} onOpenChange={(o) => !o && setDisableId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>API anahtarını devre dışı bırak?</AlertDialogTitle>
+            <AlertDialogTitle>API anahtarını kaldır?</AlertDialogTitle>
             <AlertDialogDescription>
               Bu işlem geri alınamaz; anahtar kalıcı olarak kullanılamaz hale gelir. Yerel ajanlar bu anahtarla
               artık bağlanamaz.
@@ -284,7 +385,7 @@ export function ApiKeysTab(): ReactElement {
                 }
               }}
             >
-              Devre dışı bırak
+              Kaldır
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

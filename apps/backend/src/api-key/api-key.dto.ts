@@ -1,5 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsDateString,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
+
+export const API_KEY_PERMISSIONS = [
+  'orders:read',
+  'orders:write',
+  'products:read',
+  'products:write',
+  'stock:read',
+  'stock:write',
+  'webhooks:manage',
+] as const;
+
+export type ApiKeyPermission = (typeof API_KEY_PERMISSIONS)[number];
 
 export class CreateApiKeyDto {
   @ApiProperty({ example: 'Tauri masaüstü ajanı' })
@@ -7,6 +28,25 @@ export class CreateApiKeyDto {
   @IsNotEmpty()
   @MaxLength(120)
   name!: string;
+
+  @ApiPropertyOptional({
+    description: 'İzin kapsamı',
+    type: [String],
+    example: ['orders:read', 'products:read'],
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsIn(API_KEY_PERMISSIONS, { each: true })
+  permissions?: ApiKeyPermission[];
+
+  @ApiPropertyOptional({
+    description: 'Son kullanım tarihi (ISO 8601)',
+    example: '2027-12-31T23:59:59.000Z',
+  })
+  @IsOptional()
+  @IsDateString()
+  expiresAt?: string;
 }
 
 export class ApiKeyListItemDto {

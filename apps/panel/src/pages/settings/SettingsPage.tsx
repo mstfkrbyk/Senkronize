@@ -3,40 +3,33 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuthStore } from '@/store/auth.store';
 
 import { AppearanceTab } from './tabs/AppearanceTab';
 import { ApiKeysTab } from './tabs/ApiKeysTab';
-import { CurrencyTab } from './tabs/CurrencyTab';
 import { NotificationsTab } from './tabs/NotificationsTab';
 import { OrganizationTab } from './tabs/OrganizationTab';
-import { PartnersTab } from './tabs/PartnersTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { ProfileTab } from './tabs/ProfileTab';
 import { SubscriptionPage } from './SubscriptionPage';
-import { TeamTab } from './tabs/TeamTab';
+import { TeamMembersTab } from './tabs/TeamMembersTab';
 import { WebhooksTab } from './tabs/WebhooksTab';
 
 const SETTINGS_TAB_IDS = [
   'profile',
-  'appearance',
   'organization',
-  'currency',
-  'team',
-  'subscription',
-  'notifications',
   'security',
   'api-keys',
   'webhooks',
-  'partners',
+  'notifications',
+  'appearance',
+  'subscription',
+  'team',
 ] as const;
 
 export function SettingsPage(): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
-  const showPartnersTab = orgType !== 'PARTNER';
 
   const tabParam = searchParams.get('tab');
   const defaultTab = location.pathname.includes('/settings/subscription')
@@ -56,18 +49,14 @@ export function SettingsPage(): ReactElement {
       <Tabs key={defaultTab} defaultValue={defaultTab} className="w-full">
         <TabsList className="flex h-auto flex-wrap justify-start gap-1">
           <TabsTrigger value="profile">{t('settings.profile')}</TabsTrigger>
-          <TabsTrigger value="appearance">{t('settings.appearance')}</TabsTrigger>
           <TabsTrigger value="organization">{t('settings.organization')}</TabsTrigger>
-          <TabsTrigger value="currency">{t('settings.currency')}</TabsTrigger>
-          <TabsTrigger value="team">{t('settings.team')}</TabsTrigger>
-          <TabsTrigger value="subscription">{t('settings.subscription')}</TabsTrigger>
-          <TabsTrigger value="notifications">{t('settings.notifications')}</TabsTrigger>
           <TabsTrigger value="security">{t('settings.security')}</TabsTrigger>
           <TabsTrigger value="api-keys">{t('settings.apiKeys')}</TabsTrigger>
           <TabsTrigger value="webhooks">{t('settings.webhooks')}</TabsTrigger>
-          {showPartnersTab ? (
-            <TabsTrigger value="partners">{t('settings.partners')}</TabsTrigger>
-          ) : null}
+          <TabsTrigger value="notifications">{t('settings.notifications')}</TabsTrigger>
+          <TabsTrigger value="appearance">{t('settings.appearance')}</TabsTrigger>
+          <TabsTrigger value="subscription">{t('settings.subscription')}</TabsTrigger>
+          <TabsTrigger value="team">{t('settings.teamMembers')}</TabsTrigger>
         </TabsList>
         <TabsContent value="profile" className="mt-6">
           <p className="mb-4 text-sm text-muted-foreground">
@@ -79,23 +68,8 @@ export function SettingsPage(): ReactElement {
           </p>
           <ProfileTab />
         </TabsContent>
-        <TabsContent value="appearance" className="mt-6">
-          <AppearanceTab />
-        </TabsContent>
         <TabsContent value="organization" className="mt-6">
           <OrganizationTab />
-        </TabsContent>
-        <TabsContent value="currency" className="mt-6">
-          <CurrencyTab />
-        </TabsContent>
-        <TabsContent value="team" className="mt-6">
-          <TeamTab />
-        </TabsContent>
-        <TabsContent value="subscription" className="mt-6">
-          <SubscriptionPage />
-        </TabsContent>
-        <TabsContent value="notifications" className="mt-6">
-          <NotificationsTab />
         </TabsContent>
         <TabsContent value="security" className="mt-6">
           <SecurityTab />
@@ -106,11 +80,18 @@ export function SettingsPage(): ReactElement {
         <TabsContent value="webhooks" className="mt-6">
           <WebhooksTab />
         </TabsContent>
-        {showPartnersTab ? (
-          <TabsContent value="partners" className="mt-6">
-            <PartnersTab />
-          </TabsContent>
-        ) : null}
+        <TabsContent value="notifications" className="mt-6">
+          <NotificationsTab />
+        </TabsContent>
+        <TabsContent value="appearance" className="mt-6">
+          <AppearanceTab />
+        </TabsContent>
+        <TabsContent value="subscription" className="mt-6">
+          <SubscriptionPage />
+        </TabsContent>
+        <TabsContent value="team" className="mt-6">
+          <TeamMembersTab />
+        </TabsContent>
       </Tabs>
     </div>
   );

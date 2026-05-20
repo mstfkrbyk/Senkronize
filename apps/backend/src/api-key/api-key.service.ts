@@ -10,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import type { ApiKeyAuthUser } from './api-key.types';
 import type {
   ApiKeyListItemDto,
+  CreateApiKeyDto,
   CreatedApiKeyResponseDto,
 } from './api-key.dto';
 
@@ -70,19 +71,24 @@ export class ApiKeyService {
 
   async create(
     organizationId: string,
-    name: string,
+    dto: CreateApiKeyDto,
   ): Promise<CreatedApiKeyResponseDto> {
     const secretHex = randomBytes(16).toString('hex');
     const rawKey = `${API_KEY_PREFIX}${secretHex}`;
     const keyHash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
     const keyPrefix = rawKey.substring(0, PREFIX_LEN);
+    const expiresAt =
+      dto.expiresAt != null && dto.expiresAt.length > 0
+        ? new Date(dto.expiresAt)
+        : null;
 
     const row = await this.prisma.apiKey.create({
       data: {
         organizationId,
-        name: name.trim(),
+        name: dto.name.trim(),
         keyHash,
         keyPrefix,
+        expiresAt,
       },
     });
 

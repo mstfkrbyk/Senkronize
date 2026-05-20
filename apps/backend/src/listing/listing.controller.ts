@@ -187,6 +187,17 @@ export class ListingController {
     return this.listingService.bulkUpdatePrice(org.id, updates);
   }
 
+  @Patch('bulk/price')
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Toplu fiyat güncelleme (PATCH)' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkUpdatePricePatch(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() updates: BulkPriceItemDto[],
+  ): Promise<BulkResult> {
+    return this.listingService.bulkUpdatePrice(org.id, updates);
+  }
+
   @Post('bulk/stock')
   @UseGuards(JwtOrApiKeyGuard)
   @ApiOperation({ summary: 'Toplu stok güncelleme' })

@@ -60,6 +60,7 @@ import { AvansasModule } from './avansas/avansas.module';
 import { AuchanModule } from './auchan/auchan.module';
 import { ArtsyModule } from './artsy/artsy.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
+import { AmazonSpApiModule } from './amazon/amazon-sp-api.module';
 import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
 import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
 import { AmazonGlobalModule } from './amazon-global/amazon-global.module';
@@ -451,6 +452,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
 @Module({
   imports: [
     AdaptersCommonModule,
+    AmazonSpApiModule,
     AfterpayModule,
     BerealShopModule,
     Brands4lessModule,

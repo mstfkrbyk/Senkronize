@@ -81,3 +81,36 @@ export class UpdateNotificationPreferencesDto {
   @IsBoolean()
   pushEnabled?: boolean;
 }
+
+export class UpdatePanelPreferencesDto {
+  @ApiPropertyOptional({ enum: ['light', 'dark', 'system'] })
+  @IsOptional()
+  @IsIn(['light', 'dark', 'system'])
+  theme?: 'light' | 'dark' | 'system';
+
+  @ApiPropertyOptional({ enum: ['tr', 'en'] })
+  @IsOptional()
+  @IsIn(['tr', 'en'])
+  language?: 'tr' | 'en';
+
+  @ApiPropertyOptional({ example: 'Europe/Istanbul' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  timezone?: string;
+
+  @ApiPropertyOptional({ enum: ['DD/MM/YYYY', 'MM/DD/YYYY'] })
+  @IsOptional()
+  @IsIn(['DD/MM/YYYY', 'MM/DD/YYYY'])
+  dateFormat?: 'DD/MM/YYYY' | 'MM/DD/YYYY';
+
+  @ApiPropertyOptional({ enum: ['tr-TR', 'en-US'] })
+  @IsOptional()
+  @IsIn(['tr-TR', 'en-US'])
+  currencyFormat?: 'tr-TR' | 'en-US';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  sidebarCollapsedDefault?: boolean;
+}

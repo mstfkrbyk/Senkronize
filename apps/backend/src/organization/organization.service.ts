@@ -42,6 +42,10 @@ export class OrganizationService {
               currencyManualRates: dto.currencyManualRates as Prisma.InputJsonValue,
             }
           : {}),
+        ...(dto.taxNumber !== undefined ? { taxNumber: dto.taxNumber.trim() || null } : {}),
+        ...(dto.taxOffice !== undefined ? { taxOffice: dto.taxOffice.trim() || null } : {}),
+        ...(dto.address !== undefined ? { address: dto.address.trim() || null } : {}),
+        ...(dto.city !== undefined ? { city: dto.city.trim() || null } : {}),
         ...(dto.require2FA !== undefined ? { require2FA: dto.require2FA } : {}),
         ...(dto.passwordMinLength !== undefined
           ? { passwordMinLength: dto.passwordMinLength }

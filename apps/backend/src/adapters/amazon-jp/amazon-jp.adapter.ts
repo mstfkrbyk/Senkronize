@@ -4,6 +4,7 @@ import { AmazonBaseAdapter } from '../amazon/amazon-base.adapter';
 import {
   AMAZON_GLOBAL_MARKETPLACE_CURRENCY,
   AMAZON_GLOBAL_MARKETPLACE_IDS,
+  AMAZON_SP_AWS_REGION_FE,
   AMAZON_SP_FE_BASE_URL,
 } from '../amazon/amazon.constants';
 
@@ -15,6 +16,7 @@ export class AmazonJpAdapter extends AmazonBaseAdapter {
       spBaseUrl: AMAZON_SP_FE_BASE_URL,
       marketplaceId: AMAZON_GLOBAL_MARKETPLACE_IDS.JP,
       defaultCurrency: AMAZON_GLOBAL_MARKETPLACE_CURRENCY[AMAZON_GLOBAL_MARKETPLACE_IDS.JP] ?? 'JPY',
+      awsRegion: AMAZON_SP_AWS_REGION_FE,
       loggerContext: AmazonJpAdapter.name,
     });
   }

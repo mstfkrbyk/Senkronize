@@ -10,6 +10,8 @@ export const CACHE_TTL = {
   PLAN_LIMITS: 86_400,
   /** Listeleme listesi özeti */
   LISTINGS_SUMMARY: 30,
+  /** Amazon LWA access token (55 dk) */
+  AMAZON_LWA_TOKEN: 3_300,
   /** Veri taşıma sihirbazı oturumu */
   MIGRATION_SESSION: 86_400,
 } as const;

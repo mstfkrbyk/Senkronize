@@ -24,7 +24,9 @@ import {
 } from '@/components/ui/select';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type {
+  BuyBoxStatusFilter,
   ListingFilters as ListingFiltersState,
+  ListingStatus,
   ListingStockTier,
 } from '@/types/listing';
 
@@ -41,6 +43,20 @@ const STOCK_TIER_OPTIONS: { value: ListingStockTier; label: string }[] = [
   { value: 'IN_STOCK', label: 'Stokta var (>20)' },
   { value: 'LOW', label: 'Düşük stok (1–20)' },
   { value: 'OUT', label: 'Stok yok' },
+];
+
+const STATUS_OPTIONS: { value: ListingStatus | 'ALL'; label: string }[] = [
+  { value: 'ALL', label: 'Tüm durumlar' },
+  { value: 'ACTIVE', label: 'Aktif' },
+  { value: 'INACTIVE', label: 'Pasif' },
+  { value: 'PENDING', label: 'Bekleyen' },
+  { value: 'OUT_OF_STOCK', label: 'Reddedilen / stok yok' },
+];
+
+const BUYBOX_STATUS_OPTIONS: { value: BuyBoxStatusFilter; label: string }[] = [
+  { value: 'ALL', label: 'Tümü' },
+  { value: 'WINNING', label: 'Kazanıyor' },
+  { value: 'LOSING', label: 'Kaybediyor' },
 ];
 
 function parsePlatformsCsv(csv: string | undefined): string[] {
@@ -64,6 +80,15 @@ function countActiveFilters(f: ListingFiltersState, searchDraft: string): number
     n += 1;
   }
   if (f.stockTier) {
+    n += 1;
+  }
+  if (f.status) {
+    n += 1;
+  }
+  if (f.stockMin !== undefined || f.stockMax !== undefined) {
+    n += 1;
+  }
+  if (f.buyBoxStatus && f.buyBoxStatus !== 'ALL') {
     n += 1;
   }
   if (f.minSalePrice !== undefined || f.maxSalePrice !== undefined) {
@@ -210,6 +235,54 @@ export function ListingFilters({
         </div>
 
         <div className="grid gap-2 md:min-w-[180px]">
+          <Label htmlFor="listing-status">Durum</Label>
+          <Select
+            value={filters.status ?? 'ALL'}
+            onValueChange={(v) =>
+              setField(
+                'status',
+                v === 'ALL' ? undefined : (v as ListingStatus),
+              )
+            }
+          >
+            <SelectTrigger id="listing-status">
+              <SelectValue placeholder="Tüm durumlar" />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2 md:min-w-[180px]">
+          <Label htmlFor="listing-buybox-status">BuyBox durumu</Label>
+          <Select
+            value={filters.buyBoxStatus ?? 'ALL'}
+            onValueChange={(v) =>
+              setField(
+                'buyBoxStatus',
+                v === 'ALL' ? undefined : (v as BuyBoxStatusFilter),
+              )
+            }
+          >
+            <SelectTrigger id="listing-buybox-status">
+              <SelectValue placeholder="Tümü" />
+            </SelectTrigger>
+            <SelectContent>
+              {BUYBOX_STATUS_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="grid gap-2 md:min-w-[180px]">
           <Label htmlFor="listing-stock-tier">Stok durumu</Label>
           <Select
             value={filters.stockTier ?? 'all'}
@@ -268,6 +341,43 @@ export function ListingFilters({
               setField(
                 'maxSalePrice',
                 v === '' ? undefined : Number(v.replace(',', '.')),
+              );
+            }}
+          />
+        </div>
+
+        <div className="grid gap-2 md:min-w-[100px]">
+          <Label htmlFor="listing-stock-min">Stok min</Label>
+          <Input
+            id="listing-stock-min"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            placeholder="Min"
+            value={filters.stockMin ?? ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              setField(
+                'stockMin',
+                v === '' ? undefined : Math.round(Number(v)),
+              );
+            }}
+          />
+        </div>
+        <div className="grid gap-2 md:min-w-[100px]">
+          <Label htmlFor="listing-stock-max">Stok max</Label>
+          <Input
+            id="listing-stock-max"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            placeholder="Max"
+            value={filters.stockMax ?? ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              setField(
+                'stockMax',
+                v === '' ? undefined : Math.round(Number(v)),
               );
             }}
           />

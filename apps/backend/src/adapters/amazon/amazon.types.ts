@@ -103,3 +103,40 @@ export interface AmazonFeedDocumentResponse {
 export interface AmazonFeedResponse {
   feedId: string;
 }
+
+/** Kargo bildirimi */
+export interface AmazonShipmentPackageDetail {
+  packageReferenceId: string;
+  trackingNumber: string;
+  shipDate: string;
+  shipMethod?: string;
+  carrierCode: string;
+}
+
+export interface AmazonConfirmShipmentBody {
+  packageDetail: AmazonShipmentPackageDetail;
+}
+
+/** Reports API */
+export interface AmazonCreateReportBody {
+  reportType: string;
+  marketplaceIds: string[];
+  dataStartTime?: string;
+  dataEndTime?: string;
+}
+
+export interface AmazonCreateReportResponse {
+  reportId: string;
+}
+
+export interface AmazonReportStatusResponse {
+  reportId: string;
+  processingStatus: string;
+  reportDocumentId?: string;
+}
+
+export interface AmazonReportDocumentResponse {
+  reportDocumentId: string;
+  url: string;
+  compressionAlgorithm?: string;
+}

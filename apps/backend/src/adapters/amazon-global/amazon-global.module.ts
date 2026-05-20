@@ -5,6 +5,7 @@ import { AmazonDeAdapter } from '../amazon-de/amazon-de.adapter';
 import { AmazonFrAdapter } from '../amazon-fr/amazon-fr.adapter';
 import { AmazonJpAdapter } from '../amazon-jp/amazon-jp.adapter';
 import { AmazonUkAdapter } from '../amazon-uk/amazon-uk.adapter';
+import { AmazonUsAdapter } from '../amazon-us/amazon-us.adapter';
 
 @Module({
   providers: [
@@ -13,6 +14,7 @@ import { AmazonUkAdapter } from '../amazon-uk/amazon-uk.adapter';
     AmazonFrAdapter,
     AmazonCaAdapter,
     AmazonJpAdapter,
+    AmazonUsAdapter,
   ],
   exports: [
     AmazonUkAdapter,
@@ -20,6 +22,7 @@ import { AmazonUkAdapter } from '../amazon-uk/amazon-uk.adapter';
     AmazonFrAdapter,
     AmazonCaAdapter,
     AmazonJpAdapter,
+    AmazonUsAdapter,
   ],
 })
 export class AmazonGlobalModule {}

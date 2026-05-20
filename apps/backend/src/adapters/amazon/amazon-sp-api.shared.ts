@@ -9,129 +9,57 @@ import type {
 
 type AmazonOrderLine = MarketplaceOrder['items'][number];
 
-import { AMAZON_LWA_URL, AMAZON_SP_BASE_URL } from './amazon.constants';
-import { signAmazonSpApiRequest } from './amazon-sp-api-sigv4';
+import { AmazonSpApiAuth } from './amazon-sp-api.auth';
+
+export { AmazonSpApiAuth, configureAmazonSpApiCache } from './amazon-sp-api.auth';
+import { AMAZON_REPORT_TYPE_ALL_ORDERS } from './amazon.constants';
 import type {
   AmazonCatalogItemsResponse,
+  AmazonConfirmShipmentBody,
+  AmazonCreateReportResponse,
   AmazonFeedDocumentResponse,
   AmazonFeedResponse,
   AmazonListingsListResponse,
   AmazonListingItem,
-  AmazonLwaTokenResponse,
   AmazonOrderItemPayload,
   AmazonOrderItemsResponse,
   AmazonOrderPayload,
   AmazonOrdersListResponse,
+  AmazonReportDocumentResponse,
+  AmazonReportStatusResponse,
 } from './amazon.types';
 
-export function amazonResolveLwaCredentials(credentials: Record<string, string>): {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-} {
-  const clientId =
-    credentials.clientId?.trim() ||
-    credentials.lwaClientId?.trim() ||
-    '';
-  const clientSecret =
-    credentials.clientSecret?.trim() ||
-    credentials.lwaClientSecret?.trim() ||
-    '';
-  const refreshToken = credentials.refreshToken?.trim() ?? '';
-  if (!clientId || !clientSecret || !refreshToken) {
-    throw new Error(
-      'Amazon: clientId, clientSecret ve refreshToken (LWA) zorunludur',
-    );
-  }
-  return { clientId, clientSecret, refreshToken };
-}
+export {
+  amazonResolveLwaCredentials,
+  amazonResolveAwsCredentials,
+  amazonResolveMarketplaceId,
+} from './amazon-sp-api.credentials';
 
-export function amazonResolveAwsCredentials(credentials: Record<string, string>): {
-  accessKeyId: string;
-  secretAccessKey: string;
-} {
-  const accessKeyId = credentials.accessKeyId?.trim() ?? '';
-  const secretAccessKey = credentials.secretAccessKey?.trim() ?? '';
-  if (!accessKeyId || !secretAccessKey) {
-    throw new Error('Amazon: accessKeyId ve secretAccessKey (IAM) zorunludur');
-  }
-  return { accessKeyId, secretAccessKey };
+export function createAmazonSpApiAuth(
+  credentials: Record<string, string>,
+  spBaseUrl: string,
+  awsRegion = 'eu-west-1',
+): AmazonSpApiAuth {
+  return new AmazonSpApiAuth(credentials, spBaseUrl, awsRegion);
 }
 
 export async function amazonGetLwaToken(
   credentials: Record<string, string>,
+  spBaseUrl: string,
+  awsRegion = 'eu-west-1',
 ): Promise<string> {
-  const { clientId, clientSecret, refreshToken } =
-    amazonResolveLwaCredentials(credentials);
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-  });
-  try {
-    const { data } = await axios.post<AmazonLwaTokenResponse>(AMAZON_LWA_URL, body, {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 20_000,
-    });
-    if (typeof data.access_token !== 'string' || data.access_token.length === 0) {
-      throw new Error('Amazon LWA yanıtında access_token yok');
-    }
-    return data.access_token;
-  } catch (error) {
-    throw amazonToApiError('LWA token', error);
-  }
+  const auth = createAmazonSpApiAuth(credentials, spBaseUrl, awsRegion);
+  return auth.getAccessTokenFromCredentials(credentials);
 }
 
 export function amazonCreateSpClient(
   credentials: Record<string, string>,
   accessToken: string,
-  baseUrl: string = AMAZON_SP_BASE_URL,
+  baseUrl: string,
+  awsRegion = 'eu-west-1',
 ): AxiosInstance {
-  const { accessKeyId, secretAccessKey } = amazonResolveAwsCredentials(credentials);
-  const client = axios.create({
-    baseURL: baseUrl,
-    headers: {
-      'x-amz-access-token': accessToken,
-      'Content-Type': 'application/json',
-    },
-    timeout: 30_000,
-  });
-  client.interceptors.request.use((config) =>
-    signAmazonSpApiRequest(config, accessKeyId, secretAccessKey, baseUrl),
-  );
-  return client;
-}
-
-export function amazonResolveMarketplaceId(
-  credentials: Record<string, string>,
-  fallback: string,
-): string {
-  const raw = credentials.marketplaceId?.trim();
-  return raw && raw.length > 0 ? raw : fallback;
-}
-
-function amazonToApiError(context: string, error: unknown): Error {
-  if (isAxiosError(error)) {
-    const status = error.response?.status;
-    const data = error.response?.data;
-    let detail = error.message;
-    if (typeof data === 'object' && data !== null) {
-      const errors = (data as { errors?: Array<{ message?: string }> }).errors;
-      if (Array.isArray(errors) && errors[0]?.message) {
-        detail = errors[0].message;
-      } else if ('message' in data && typeof data.message === 'string') {
-        detail = data.message;
-      }
-    }
-    return new Error(
-      `Amazon SP-API ${context}${status != null ? ` (${String(status)})` : ''}: ${detail}`,
-    );
-  }
-  if (error instanceof Error) {
-    return error;
-  }
-  return new Error(`Amazon SP-API ${context}: Bilinmeyen hata`);
+  const auth = createAmazonSpApiAuth(credentials, baseUrl, awsRegion);
+  return auth.createSignedClient(accessToken);
 }
 
 export function amazonMapOrderItem(item: AmazonOrderItemPayload): AmazonOrderLine {
@@ -210,6 +138,29 @@ export function amazonMapCatalogItem(
   };
 }
 
+function amazonToApiError(context: string, error: unknown): Error {
+  if (isAxiosError(error)) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    let detail = error.message;
+    if (typeof data === 'object' && data !== null) {
+      const errors = (data as { errors?: Array<{ message?: string }> }).errors;
+      if (Array.isArray(errors) && errors[0]?.message) {
+        detail = errors[0].message;
+      } else if ('message' in data && typeof data.message === 'string') {
+        detail = data.message;
+      }
+    }
+    return new Error(
+      `Amazon SP-API ${context}${status != null ? ` (${String(status)})` : ''}: ${detail}`,
+    );
+  }
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(`Amazon SP-API ${context}: Bilinmeyen hata`);
+}
+
 async function amazonFetchOrderItems(
   client: AxiosInstance,
   orderId: string,
@@ -225,6 +176,14 @@ async function amazonFetchOrderItems(
   }
 }
 
+const AMAZON_ORDER_PAGE_SIZE = 100;
+const AMAZON_ORDER_STATUSES = [
+  'Unshipped',
+  'PartiallyShipped',
+  'Shipped',
+  'Pending',
+] as const;
+
 export async function amazonGetOrdersForMarketplace(
   client: AxiosInstance,
   marketplaceId: string,
@@ -234,25 +193,122 @@ export async function amazonGetOrdersForMarketplace(
   const createdAfter = since
     ? since.toISOString()
     : new Date(Date.now() - 7 * 86400000).toISOString();
-  const q = new URLSearchParams();
-  q.append('MarketplaceIds', marketplaceId);
-  q.append('CreatedAfter', createdAfter);
-  for (const status of ['Unshipped', 'PartiallyShipped'] as const) {
-    q.append('OrderStatuses', status);
-  }
+
+  const mapped: MarketplaceOrder[] = [];
+  let nextToken: string | undefined;
+
   try {
-    const { data } = await client.get<AmazonOrdersListResponse>('/orders/v0/orders', {
-      params: q,
-    });
-    const orders: AmazonOrderPayload[] = data.payload?.Orders ?? [];
-    const mapped: MarketplaceOrder[] = [];
-    for (const o of orders) {
-      const items = await amazonFetchOrderItems(client, o.AmazonOrderId);
-      mapped.push(amazonMapOrder(o, items, defaultCurrency));
-    }
+    do {
+      const q = new URLSearchParams();
+      q.append('MarketplaceIds', marketplaceId);
+      q.append('CreatedAfter', createdAfter);
+      q.append('MaxResultsPerPage', String(AMAZON_ORDER_PAGE_SIZE));
+      for (const status of AMAZON_ORDER_STATUSES) {
+        q.append('OrderStatuses', status);
+      }
+      if (nextToken) {
+        q.append('NextToken', nextToken);
+      }
+
+      const { data } = await client.get<AmazonOrdersListResponse>('/orders/v0/orders', {
+        params: q,
+      });
+      const orders: AmazonOrderPayload[] = data.payload?.Orders ?? [];
+      for (const o of orders) {
+        const items = await amazonFetchOrderItems(client, o.AmazonOrderId);
+        mapped.push(amazonMapOrder(o, items, defaultCurrency));
+      }
+      nextToken = data.payload?.NextToken;
+    } while (typeof nextToken === 'string' && nextToken.length > 0);
+
     return mapped;
   } catch (error) {
     throw amazonToApiError('sipariş listesi', error);
+  }
+}
+
+export interface AmazonShipmentNotifyInput {
+  packageReferenceId: string;
+  trackingNumber: string;
+  shipDate: string;
+  carrierCode: string;
+  shipMethod?: string;
+}
+
+/** Sipariş kargo bildirimi — POST /orders/v0/orders/{orderId}/shipment */
+export async function amazonConfirmShipment(
+  client: AxiosInstance,
+  orderId: string,
+  input: AmazonShipmentNotifyInput,
+): Promise<void> {
+  const body: AmazonConfirmShipmentBody = {
+    packageDetail: {
+      packageReferenceId: input.packageReferenceId,
+      trackingNumber: input.trackingNumber,
+      shipDate: input.shipDate,
+      carrierCode: input.carrierCode,
+      shipMethod: input.shipMethod,
+    },
+  };
+  try {
+    await client.post(
+      `/orders/v0/orders/${encodeURIComponent(orderId)}/shipment`,
+      body,
+    );
+  } catch (error) {
+    throw amazonToApiError('kargo bildirimi', error);
+  }
+}
+
+/** Catalog Items API — ASIN veya SKU ile arama */
+export async function amazonGetCatalogByIdentifiers(
+  client: AxiosInstance,
+  marketplaceId: string,
+  identifiers: string[],
+  identifierType: 'ASIN' | 'SKU' = 'ASIN',
+): Promise<MarketplaceListing[]> {
+  if (identifiers.length === 0) {
+    return [];
+  }
+  try {
+    const { data } = await client.get<AmazonCatalogItemsResponse>(
+      '/catalog/2022-04-01/items',
+      {
+        params: {
+          marketplaceIds: marketplaceId,
+          identifiers: identifiers.join(','),
+          identifiersType: identifierType,
+          includedData: 'summaries,images',
+        },
+      },
+    );
+    const catalogItems = data.items ?? [];
+    return catalogItems.map((item) =>
+      amazonMapCatalogItem(item.asin ?? identifiers[0] ?? '', item),
+    );
+  } catch (error) {
+    throw amazonToApiError('katalog kimlik araması', error);
+  }
+}
+
+/** Listings Items API — tek SKU detayı */
+export async function amazonGetListingItem(
+  client: AxiosInstance,
+  sellerId: string,
+  sku: string,
+  marketplaceId: string,
+): Promise<MarketplaceListing | null> {
+  try {
+    const { data } = await client.get<AmazonListingItem>(
+      `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}`,
+      { params: { marketplaceIds: marketplaceId, includedData: 'summaries,offers' } },
+    );
+    return amazonMapListingItem(data);
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    throw amazonToApiError('listeleme detayı', error);
   }
 }
 
@@ -265,6 +321,15 @@ export async function amazonGetListingsForMarketplace(
 ): Promise<PaginatedResult<MarketplaceListing>> {
   const keyword = searchKeyword?.trim();
   if (keyword && keyword.length > 0) {
+    const byAsin = await amazonGetCatalogByIdentifiers(
+      client,
+      marketplaceId,
+      [keyword],
+      'ASIN',
+    );
+    if (byAsin.length > 0) {
+      return { items: byAsin, total: byAsin.length, page, pageSize: 50 };
+    }
     try {
       const { data } = await client.get<AmazonCatalogItemsResponse>(
         '/catalog/2022-04-01/items',
@@ -294,7 +359,7 @@ export async function amazonGetListingsForMarketplace(
 
   try {
     const { data } = await client.get<AmazonListingsListResponse>(
-      `/listings/2021-08-01/items/${sellerId}`,
+      `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}`,
       {
         params: {
           marketplaceIds: marketplaceId,
@@ -313,6 +378,64 @@ export async function amazonGetListingsForMarketplace(
   } catch (error) {
     throw amazonToApiError('ürün listesi', error);
   }
+}
+
+function buildStockListingBody(quantity: number): {
+  productType: string;
+  patches: Array<{ op: string; path: string; value: unknown[] }>;
+} {
+  return {
+    productType: 'PRODUCT',
+    patches: [
+      {
+        op: 'replace',
+        path: '/attributes/item_quantity',
+        value: [{ value: Math.max(0, Math.round(quantity)) }],
+      },
+    ],
+  };
+}
+
+function buildPriceListingBody(
+  salePrice: number,
+  currency: string,
+): {
+  productType: string;
+  patches: Array<{ op: string; path: string; value: unknown[] }>;
+} {
+  return {
+    productType: 'PRODUCT',
+    patches: [
+      {
+        op: 'replace',
+        path: '/attributes/purchasable_offer',
+        value: [
+          {
+            currency,
+            our_price: [
+              {
+                schedule: [{ value_with_tax: salePrice }],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function amazonPutListingItem(
+  client: AxiosInstance,
+  sellerId: string,
+  sku: string,
+  marketplaceId: string,
+  body: { productType: string; patches: Array<{ op: string; path: string; value: unknown[] }> },
+): Promise<void> {
+  await client.put(
+    `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(sku)}`,
+    body,
+    { params: { marketplaceIds: marketplaceId } },
+  );
 }
 
 async function amazonCreateFeedDocument(
@@ -342,7 +465,6 @@ async function amazonUploadFeedDocument(
 
 async function amazonCreateInventoryFeed(
   client: AxiosInstance,
-  sellerId: string,
   marketplaceId: string,
   feedDocumentId: string,
 ): Promise<string> {
@@ -354,7 +476,6 @@ async function amazonCreateInventoryFeed(
   if (!data.feedId) {
     throw new Error('Amazon stok feed kaydı oluşturulamadı');
   }
-  void sellerId;
   return data.feedId;
 }
 
@@ -376,50 +497,48 @@ export async function amazonUpdateStockForMarketplace(
   if (updates.length === 0) {
     return;
   }
+
+  for (const u of updates) {
+    try {
+      await amazonPutListingItem(
+        client,
+        sellerId,
+        u.barcode,
+        marketplaceId,
+        buildStockListingBody(u.quantity),
+      );
+    } catch (putError) {
+      const putMessage =
+        putError instanceof Error ? putError.message : 'PUT listeleme başarısız';
+      try {
+        await client.patch(
+          `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(u.barcode)}`,
+          buildStockListingBody(u.quantity),
+          { params: { marketplaceIds: marketplaceId } },
+        );
+      } catch (patchError) {
+        onItemError(
+          u.barcode,
+          `${putMessage}; PATCH: ${
+            patchError instanceof Error ? patchError.message : 'Bilinmeyen hata'
+          }`,
+        );
+      }
+    }
+  }
+
+  if (updates.length <= 3) {
+    return;
+  }
+
   const contentType = 'text/tab-separated-values; charset=UTF-8';
   try {
     const doc = await amazonCreateFeedDocument(client, contentType);
     const tsv = buildInventoryFeedTsv(updates);
     await amazonUploadFeedDocument(doc.url, tsv, contentType);
-    await amazonCreateInventoryFeed(
-      client,
-      sellerId,
-      marketplaceId,
-      doc.feedDocumentId,
-    );
-  } catch (feedError) {
-    const feedMessage =
-      feedError instanceof Error ? feedError.message : 'Feed gönderimi başarısız';
-    for (const u of updates) {
-      try {
-        await client.patch(
-          `/listings/2021-08-01/items/${sellerId}/${encodeURIComponent(u.barcode)}`,
-          {
-            productType: 'PRODUCT',
-            patches: [
-              {
-                op: 'replace',
-                path: '/attributes/fulfillment_availability',
-                value: [
-                  {
-                    fulfillment_channel_code: 'DEFAULT',
-                    quantity: u.quantity,
-                  },
-                ],
-              },
-            ],
-          },
-          { params: { marketplaceIds: marketplaceId } },
-        );
-      } catch (error) {
-        onItemError(
-          u.barcode,
-          `${feedMessage}; yedek patch: ${
-            error instanceof Error ? error.message : 'Bilinmeyen hata'
-          }`,
-        );
-      }
-    }
+    await amazonCreateInventoryFeed(client, marketplaceId, doc.feedDocumentId);
+  } catch {
+    // Toplu feed isteğe bağlı; tekil PUT/PATCH yukarıda denendi
   }
 }
 
@@ -433,34 +552,140 @@ export async function amazonUpdatePriceForMarketplace(
 ): Promise<void> {
   for (const u of updates) {
     try {
-      await client.patch(
-        `/listings/2021-08-01/items/${sellerId}/${encodeURIComponent(u.barcode)}`,
-        {
-          productType: 'PRODUCT',
-          patches: [
-            {
-              op: 'replace',
-              path: '/attributes/purchasable_offer',
-              value: [
-                {
-                  currency,
-                  our_price: [
-                    {
-                      schedule: [{ value_with_tax: u.salePrice }],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-        { params: { marketplaceIds: marketplaceId } },
-      );
-    } catch (error) {
-      onItemError(
+      await amazonPutListingItem(
+        client,
+        sellerId,
         u.barcode,
-        error instanceof Error ? error.message : 'Bilinmeyen hata',
+        marketplaceId,
+        buildPriceListingBody(u.salePrice, currency),
       );
+    } catch (putError) {
+      const putMessage =
+        putError instanceof Error ? putError.message : 'PUT fiyat başarısız';
+      try {
+        await client.patch(
+          `/listings/2021-08-01/items/${encodeURIComponent(sellerId)}/${encodeURIComponent(u.barcode)}`,
+          buildPriceListingBody(u.salePrice, currency),
+          { params: { marketplaceIds: marketplaceId } },
+        );
+      } catch (patchError) {
+        onItemError(
+          u.barcode,
+          `${putMessage}; PATCH: ${
+            patchError instanceof Error ? patchError.message : 'Bilinmeyen hata'
+          }`,
+        );
+      }
     }
   }
+}
+
+const REPORT_POLL_INTERVAL_MS = 5_000;
+const REPORT_POLL_MAX_ATTEMPTS = 60;
+
+/** Satış raporu isteği oluşturur */
+export async function amazonCreateSalesReport(
+  client: AxiosInstance,
+  marketplaceId: string,
+  dataStartTime?: string,
+  dataEndTime?: string,
+): Promise<string> {
+  try {
+    const { data } = await client.post<AmazonCreateReportResponse>(
+      '/reports/2021-06-30/reports',
+      {
+        reportType: AMAZON_REPORT_TYPE_ALL_ORDERS,
+        marketplaceIds: [marketplaceId],
+        dataStartTime,
+        dataEndTime,
+      },
+    );
+    if (!data.reportId) {
+      throw new Error('Amazon rapor kimliği alınamadı');
+    }
+    return data.reportId;
+  } catch (error) {
+    throw amazonToApiError('rapor oluşturma', error);
+  }
+}
+
+/** Rapor durumunu kontrol eder */
+export async function amazonGetReportStatus(
+  client: AxiosInstance,
+  reportId: string,
+): Promise<AmazonReportStatusResponse> {
+  try {
+    const { data } = await client.get<AmazonReportStatusResponse>(
+      `/reports/2021-06-30/reports/${encodeURIComponent(reportId)}`,
+    );
+    return data;
+  } catch (error) {
+    throw amazonToApiError('rapor durumu', error);
+  }
+}
+
+/** Rapor belgesi indirme URL'sini alır */
+export async function amazonGetReportDocument(
+  client: AxiosInstance,
+  reportDocumentId: string,
+): Promise<AmazonReportDocumentResponse> {
+  try {
+    const { data } = await client.get<AmazonReportDocumentResponse>(
+      `/reports/2021-06-30/documents/${encodeURIComponent(reportDocumentId)}`,
+    );
+    if (!data.url) {
+      throw new Error('Amazon rapor indirme URL yok');
+    }
+    return data;
+  } catch (error) {
+    throw amazonToApiError('rapor belgesi', error);
+  }
+}
+
+/** Rapor hazır olana kadar bekler ve ham içeriği indirir */
+export async function amazonDownloadSalesReport(
+  client: AxiosInstance,
+  marketplaceId: string,
+  dataStartTime?: string,
+  dataEndTime?: string,
+): Promise<string> {
+  const reportId = await amazonCreateSalesReport(
+    client,
+    marketplaceId,
+    dataStartTime,
+    dataEndTime,
+  );
+
+  let reportDocumentId: string | undefined;
+  for (let attempt = 0; attempt < REPORT_POLL_MAX_ATTEMPTS; attempt += 1) {
+    const status = await amazonGetReportStatus(client, reportId);
+    const processing = status.processingStatus?.toUpperCase() ?? '';
+    if (processing === 'DONE' && status.reportDocumentId) {
+      reportDocumentId = status.reportDocumentId;
+      break;
+    }
+    if (processing === 'FATAL' || processing === 'CANCELLED') {
+      throw new Error(`Amazon rapor işleme başarısız: ${processing}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, REPORT_POLL_INTERVAL_MS));
+  }
+
+  if (!reportDocumentId) {
+    throw new Error('Amazon rapor zaman aşımı');
+  }
+
+  const doc = await amazonGetReportDocument(client, reportDocumentId);
+  const { data: raw } = await axios.get<ArrayBuffer>(doc.url, {
+    responseType: 'arraybuffer',
+    timeout: 120_000,
+  });
+
+  if (doc.compressionAlgorithm?.toUpperCase() === 'GZIP') {
+    const zlib = await import('zlib');
+    const buf = Buffer.from(raw);
+    const decompressed = zlib.gunzipSync(buf);
+    return decompressed.toString('utf8');
+  }
+
+  return Buffer.from(raw).toString('utf8');
 }

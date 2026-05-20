@@ -53,7 +53,7 @@ export class ApiKeyController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Body() dto: CreateApiKeyDto,
   ): Promise<CreatedApiKeyResponseDto> {
-    return this.apiKeyService.create(org.id, dto.name);
+    return this.apiKeyService.create(org.id, dto);
   }
 
   @Delete(':id')

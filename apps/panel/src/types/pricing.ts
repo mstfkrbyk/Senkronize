@@ -124,12 +124,23 @@ export interface BuyBoxListingAnalysis {
   suggestedPrice: number;
 }
 
+export interface BuyBoxSnapshotSummary {
+  barcode: string;
+  platform: string;
+  buyBoxPrice: string;
+  ourPrice: string;
+  isWinner: boolean;
+  competitorCount: number;
+  capturedAt: string;
+}
+
 export interface BuyBoxSummary {
   totalListings: number;
   winningBuyBox: number;
   winRate: number;
   activeRules: number;
   platforms: Array<{ platform: string; winRate: number; listings: number }>;
+  snapshots?: BuyBoxSnapshotSummary[];
 }
 
 export interface PriceHistoryEntry {

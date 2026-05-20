@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -8,7 +9,10 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { AMAZON_TR_MARKETPLACE_ID } from './amazon.constants';
+import {
+  AMAZON_MARKETPLACE_CONFIG,
+  AMAZON_TR_MARKETPLACE_ID,
+} from './amazon.constants';
 import {
   amazonCreateSpClient,
   amazonGetLwaToken,
@@ -23,6 +27,21 @@ import {
 export class AmazonAdapter implements IMarketplaceAdapter {
   readonly platform = 'AMAZON_TR';
   private readonly logger = new Logger(AmazonAdapter.name);
+  private readonly trConfig = AMAZON_MARKETPLACE_CONFIG.TR;
+
+  private async createClient(credentials: Record<string, string>): Promise<AxiosInstance> {
+    const token = await amazonGetLwaToken(
+      credentials,
+      this.trConfig.spBaseUrl,
+      this.trConfig.awsRegion,
+    );
+    return amazonCreateSpClient(
+      credentials,
+      token,
+      this.trConfig.spBaseUrl,
+      this.trConfig.awsRegion,
+    );
+  }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
@@ -30,8 +49,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
       if (!refreshToken || !sellerId || !accessKeyId || !secretAccessKey) {
         return false;
       }
-      const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(credentials, token);
+      const client = await this.createClient(credentials);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -46,8 +64,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
       AMAZON_TR_MARKETPLACE_ID,
@@ -55,7 +72,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     return await amazonGetOrdersForMarketplace(
       client,
       marketplaceId,
-      'TRY',
+      this.trConfig.defaultCurrency,
       since,
     );
   }
@@ -64,8 +81,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -78,8 +94,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -100,8 +115,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(credentials, token);
+    const client = await this.createClient(credentials);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -111,7 +125,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
       client,
       sellerId,
       marketplaceId,
-      'TRY',
+      this.trConfig.defaultCurrency,
       updates,
       (sku, message) => {
         this.logger.warn('Amazon fiyat güncellemesi başarısız', { sku, error: message });

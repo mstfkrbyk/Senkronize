@@ -28,6 +28,7 @@ import { AmazonEuAdapter } from './amazon-eu/amazon-eu.adapter';
 import { AmazonFrAdapter } from './amazon-fr/amazon-fr.adapter';
 import { AmazonJpAdapter } from './amazon-jp/amazon-jp.adapter';
 import { AmazonUkAdapter } from './amazon-uk/amazon-uk.adapter';
+import { AmazonUsAdapter } from './amazon-us/amazon-us.adapter';
 import { ArcelikAdapter } from './arcelik/arcelik.adapter';
 import { AracimAdapter } from './aracim/aracim.adapter';
 import { ArticleAdapter } from './article/article.adapter';
@@ -465,6 +466,7 @@ export class AdapterRegistry {
     private readonly amazonFr: AmazonFrAdapter,
     private readonly amazonJp: AmazonJpAdapter,
     private readonly amazonUk: AmazonUkAdapter,
+    private readonly amazonUs: AmazonUsAdapter,
     private readonly allegro: AllegroAdapter,
     private readonly wildberries: WildberriesAdapter,
     private readonly walmart: WalmartAdapter,
@@ -915,6 +917,7 @@ export class AdapterRegistry {
       ['AMAZON_FR', amazonFr],
       ['AMAZON_JP', amazonJp],
       ['AMAZON_UK', amazonUk],
+      ['AMAZON_US', amazonUs],
       ['AKULAKU', akulaku],
       ['AMERICANAS', americanas],
       ['ALLEGRO', allegro],

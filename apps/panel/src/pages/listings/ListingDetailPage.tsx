@@ -1,15 +1,19 @@
 import type { ReactElement } from 'react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
   ArrowLeft,
+  Check,
   ExternalLink,
   Loader2,
   RefreshCw,
+  X,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
   CartesianGrid,
   Line,
@@ -30,20 +34,37 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { api, getApiErrorMessage } from '@/lib/api';
 import {
   getListingPlatformUrl,
   LISTING_STATUS_CLASS,
   LISTING_STATUS_LABEL,
 } from '@/lib/listing-display';
-import { getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import {
+  useBuyBoxListingAnalysis,
+  useCompetitorPrices,
+} from '@/pages/pricing/hooks/usePricing';
+import { formatTry } from '@/pages/pricing/pricing-utils';
+import type { SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
 
 import {
   useListingDetail,
   useSyncListing,
+  useUpdatePrice,
 } from './hooks/useListings';
 
 function formatTryFromDecimal(value: string): string {
@@ -64,17 +85,65 @@ function formatDate(iso: string | null): string {
   }
 }
 
+function syncStatusBadge(status: SyncLogStatus): ReactElement {
+  const map: Record<
+    SyncLogStatus,
+    { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }
+  > = {
+    RUNNING: { label: 'Çalışıyor', variant: 'secondary' },
+    SUCCESS: { label: 'Başarılı', variant: 'default' },
+    PARTIAL: { label: 'Kısmi', variant: 'outline' },
+    FAILED: { label: 'Başarısız', variant: 'destructive' },
+  };
+  const c = map[status];
+  return <Badge variant={c.variant}>{c.label}</Badge>;
+}
+
 export function ListingDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
   const listingId = id ?? null;
 
   const detailQuery = useListingDetail(listingId, true);
   const syncMutation = useSyncListing();
+  const updatePriceMutation = useUpdatePrice();
 
   const listing = detailQuery.data?.listing;
   const title = listing?.title ?? 'Listeleme detayı';
   usePageTitle(title);
   useBreadcrumbTail(title);
+
+  const buyBoxAnalysisQuery = useBuyBoxListingAnalysis(listingId, listing != null);
+  const competitorQuery = useCompetitorPrices(
+    listing?.barcode ?? null,
+    listing != null,
+  );
+
+  const syncHistoryQuery = useQuery({
+    queryKey: ['sync-logs', 'listing', listing?.platform, listing?.barcode],
+    queryFn: async (): Promise<SyncLogEntry[]> => {
+      const params = new URLSearchParams({
+        platform: listing!.platform,
+        limit: '10',
+        jobTypeStartsWith: 'listings',
+      });
+      const { data } = await api.get<{ data: SyncLogEntry[] }>(
+        `/sync/logs?${params.toString()}`,
+      );
+      return data.data;
+    },
+    enabled: listing != null,
+    staleTime: 30_000,
+  });
+
+  const [salePriceInput, setSalePriceInput] = useState('');
+  const [listPriceInput, setListPriceInput] = useState('');
+
+  useEffect(() => {
+    if (listing) {
+      setSalePriceInput(String(Number(listing.salePrice)));
+      setListPriceInput(String(Number(listing.listPrice)));
+    }
+  }, [listing]);
 
   const chartData = useMemo(() => {
     const pts = detailQuery.data?.priceHistory ?? [];
@@ -94,6 +163,32 @@ export function ListingDetailPage(): ReactElement {
           listing.barcode,
         )
       : null;
+
+  const handlePriceSave = (): void => {
+    if (!listing) {
+      return;
+    }
+    const salePrice = Number(String(salePriceInput).replace(',', '.'));
+    const listPrice = Number(String(listPriceInput).replace(',', '.'));
+    if (
+      !Number.isFinite(salePrice) ||
+      salePrice <= 0 ||
+      !Number.isFinite(listPrice) ||
+      listPrice <= 0
+    ) {
+      toast.error('Geçerli fiyat değerleri girin');
+      return;
+    }
+    if (listPrice < salePrice) {
+      toast.error('Liste fiyatı satış fiyatından düşük olamaz');
+      return;
+    }
+    updatePriceMutation.mutate({
+      id: listing.id,
+      salePrice,
+      listPrice,
+    });
+  };
 
   if (detailQuery.isLoading) {
     return (
@@ -124,7 +219,9 @@ export function ListingDetailPage(): ReactElement {
 
   const branding = getMarketplaceBranding(listing.platform);
   const buyBox = detailQuery.data?.buyBox;
-  const syncErrors = detailQuery.data?.syncErrors ?? [];
+  const buyBoxAnalysis = buyBoxAnalysisQuery.data;
+  const competitors = competitorQuery.data ?? [];
+  const syncHistory = syncHistoryQuery.data ?? [];
 
   return (
     <div className="space-y-6">
@@ -147,7 +244,7 @@ export function ListingDetailPage(): ReactElement {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {branding.label} · Barkod{' '}
+            {branding.label} · SKU{' '}
             <span className="font-mono">{listing.barcode}</span>
           </p>
         </div>
@@ -174,7 +271,7 @@ export function ListingDetailPage(): ReactElement {
             ) : (
               <RefreshCw className="h-4 w-4" aria-hidden />
             )}
-            Şimdi sync et
+            Zorla Sync Et
           </Button>
         </div>
       </div>
@@ -182,7 +279,7 @@ export function ListingDetailPage(): ReactElement {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="text-base">Ürün bilgileri</CardTitle>
+            <CardTitle className="text-base">Listing bilgileri</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {listing.imageUrls[0] ? (
@@ -195,7 +292,11 @@ export function ListingDetailPage(): ReactElement {
             ) : null}
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="text-muted-foreground">Barkod</dt>
+                <dt className="text-muted-foreground">Platform</dt>
+                <dd>{branding.label}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Ürün / SKU</dt>
                 <dd className="font-mono">{listing.barcode}</dd>
               </div>
               <div>
@@ -203,8 +304,12 @@ export function ListingDetailPage(): ReactElement {
                 <dd>{detailQuery.data?.category?.trim() || '—'}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Platform SKU</dt>
+                <dt className="text-muted-foreground">Platform ürün ID</dt>
                 <dd className="font-mono text-xs">{listing.platformProductId}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Stok</dt>
+                <dd className="font-semibold tabular-nums">{listing.quantity}</dd>
               </div>
             </dl>
           </CardContent>
@@ -212,7 +317,7 @@ export function ListingDetailPage(): ReactElement {
 
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle className="text-base">Platform fiyat ve stok</CardTitle>
+            <CardTitle className="text-base">Fiyat düzenleme</CardTitle>
             <CardDescription>
               Son senkron:{' '}
               {listing.lastSyncAt
@@ -223,24 +328,45 @@ export function ListingDetailPage(): ReactElement {
                 : 'Henüz yok'}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-xs text-muted-foreground">Satış fiyatı</p>
-                <p className="text-xl font-semibold tabular-nums">
-                  {formatTryFromDecimal(listing.salePrice)}
-                </p>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="detail-sale-price">Satış fiyatı (₺)</Label>
+                <Input
+                  id="detail-sale-price"
+                  inputMode="decimal"
+                  value={salePriceInput}
+                  onChange={(e) => {
+                    setSalePriceInput(e.target.value);
+                  }}
+                />
               </div>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-xs text-muted-foreground">Liste fiyatı</p>
-                <p className="text-xl font-semibold tabular-nums">
-                  {formatTryFromDecimal(listing.listPrice)}
-                </p>
+              <div className="grid gap-2">
+                <Label htmlFor="detail-list-price">Liste fiyatı (₺)</Label>
+                <Input
+                  id="detail-list-price"
+                  inputMode="decimal"
+                  value={listPriceInput}
+                  onChange={(e) => {
+                    setListPriceInput(e.target.value);
+                  }}
+                />
               </div>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-xs text-muted-foreground">Stok</p>
-                <p className="text-xl font-semibold tabular-nums">{listing.quantity}</p>
-              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                disabled={updatePriceMutation.isPending}
+                onClick={handlePriceSave}
+              >
+                {updatePriceMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                ) : null}
+                Fiyatı kaydet
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Mevcut: {formatTryFromDecimal(listing.salePrice)}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -293,33 +419,51 @@ export function ListingDetailPage(): ReactElement {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">BuyBox durumu</CardTitle>
+            <CardDescription>Rekabet analizi özeti</CardDescription>
           </CardHeader>
-          <CardContent>
-            {buyBox ? (
-              <div className="space-y-2 text-sm">
-                {buyBox.isWinner ? (
-                  <Badge className="border-0 bg-emerald-600 text-white">
-                    BuyBox kazanan
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary">BuyBox kaybeden</Badge>
-                )}
-                <p className="text-muted-foreground">
-                  BuyBox fiyatı:{' '}
-                  <span className="font-medium text-foreground">
-                    {formatTryFromDecimal(buyBox.buyBoxPrice)}
-                  </span>
-                </p>
-                <p className="text-muted-foreground">
-                  Bizim fiyat:{' '}
-                  <span className="font-medium text-foreground">
-                    {formatTryFromDecimal(buyBox.ourPrice)}
-                  </span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDate(buyBox.capturedAt)}
-                </p>
-              </div>
+          <CardContent className="space-y-4">
+            {buyBox || buyBoxAnalysis ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(buyBox?.isWinner ?? buyBoxAnalysis?.hasBuyBox) ? (
+                    <Badge className="gap-1 border-0 bg-emerald-600 text-white">
+                      <Check className="h-3 w-3" aria-hidden />
+                      Kazanıyor
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 border-amber-400 text-amber-800">
+                      <X className="h-3 w-3" aria-hidden />
+                      Kaybediyor
+                    </Badge>
+                  )}
+                </div>
+                <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-muted-foreground">BuyBox fiyatı</dt>
+                    <dd className="font-medium tabular-nums">
+                      {buyBox
+                        ? formatTryFromDecimal(buyBox.buyBoxPrice)
+                        : buyBoxAnalysis?.buyBoxPrice != null
+                          ? formatTry(buyBoxAnalysis.buyBoxPrice)
+                          : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Bizim fiyat</dt>
+                    <dd className="font-medium tabular-nums">
+                      {buyBox
+                        ? formatTryFromDecimal(buyBox.ourPrice)
+                        : formatTry(buyBoxAnalysis?.currentPrice ?? Number(listing.salePrice))}
+                    </dd>
+                  </div>
+                  {buyBoxAnalysis ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-muted-foreground">Öneri</dt>
+                      <dd>{buyBoxAnalysis.recommendation}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </>
             ) : (
               <p className="text-sm text-muted-foreground">BuyBox verisi yok</p>
             )}
@@ -329,26 +473,78 @@ export function ListingDetailPage(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Senkron hata logları</CardTitle>
-          <CardDescription>Son 30 gün — bu ürünle ilişkili hatalar</CardDescription>
+          <CardTitle className="text-base">Rekabet analizi</CardTitle>
+          <CardDescription>Platform rakip fiyatları</CardDescription>
         </CardHeader>
         <CardContent>
-          {syncErrors.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Kayıtlı hata yok</p>
+          {competitorQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : competitors.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Rakip fiyat verisi yok</p>
           ) : (
-            <ul className="space-y-3">
-              {syncErrors.map((err) => (
-                <li
-                  key={err.id}
-                  className="rounded-md border border-destructive/20 bg-destructive/5 p-3 text-sm"
-                >
-                  <p className="font-medium text-destructive">{err.message}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {formatDate(err.createdAt)}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Rakip</TableHead>
+                  <TableHead className="text-right">Fiyat</TableHead>
+                  <TableHead>Son güncelleme</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {competitors.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>
+                      {row.competitorName?.trim() || row.competitorId}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatTry(Number(row.price))}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(row.capturedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Sync geçmişi</CardTitle>
+          <CardDescription>Son 10 senkronizasyon</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {syncHistoryQuery.isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : syncHistory.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Sync kaydı yok</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Durum</TableHead>
+                  <TableHead>İşlem</TableHead>
+                  <TableHead className="text-right">İşlenen</TableHead>
+                  <TableHead>Zaman</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {syncHistory.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>{syncStatusBadge(log.status)}</TableCell>
+                    <TableCell className="text-muted-foreground">{log.jobType}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {log.itemsProcessed}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {formatDate(log.completedAt ?? log.startedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

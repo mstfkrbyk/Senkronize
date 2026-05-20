@@ -53,6 +53,15 @@ export interface ListingSummary {
   byPlatform: Record<string, number>;
 }
 
+export interface ListingKpis {
+  activeCount: number;
+  priceMismatchCount: number;
+  stockMismatchCount: number;
+  buyBoxWinRatePct: number;
+}
+
+export type BuyBoxStatusFilter = 'ALL' | 'WINNING' | 'LOSING';
+
 export interface ListingFilters {
   platform?: string;
   /** Virgülle birleştirilmiş çoklu platform (API `platforms`). */
@@ -69,10 +78,16 @@ export interface ListingFilters {
   lastSyncAtSince?: string;
   lastSyncAtUntil?: string;
   category?: string;
+  buyBoxStatus?: BuyBoxStatusFilter;
   search?: string;
   sort?: ListingSort;
   page?: number;
   limit?: number;
+}
+
+export interface BulkPriceUpdateItem {
+  id: string;
+  price: number;
 }
 
 export interface ListingDetailPricePoint {

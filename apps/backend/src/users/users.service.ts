@@ -19,6 +19,7 @@ import { AuditLogsQueryDto } from './audit-logs-query.dto';
 import {
   InviteUserDto,
   UpdateNotificationPreferencesDto,
+  UpdatePanelPreferencesDto,
   UpdateUserRoleDto,
 } from './users.dto';
 
@@ -708,5 +709,71 @@ export class UsersService {
       metadata: JSON.stringify(l.metadata),
     }));
     return `\uFEFF${Papa.unparse(rows)}`;
+  }
+
+  async getPanelPreferences(userId: string): Promise<Record<string, unknown>> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { permissions: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    const permissions = user.permissions as Record<string, unknown> | null;
+    const panel = permissions?.panelPreferences;
+    return typeof panel === 'object' && panel !== null && !Array.isArray(panel)
+      ? (panel as Record<string, unknown>)
+      : {};
+  }
+
+  async updatePanelPreferences(
+    userId: string,
+    dto: UpdatePanelPreferencesDto,
+  ): Promise<Record<string, unknown>> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { permissions: true },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    const existing =
+      typeof user.permissions === 'object' &&
+      user.permissions !== null &&
+      !Array.isArray(user.permissions)
+        ? (user.permissions as Record<string, unknown>)
+        : {};
+
+    const currentPanel =
+      typeof existing.panelPreferences === 'object' &&
+      existing.panelPreferences !== null &&
+      !Array.isArray(existing.panelPreferences)
+        ? (existing.panelPreferences as Record<string, unknown>)
+        : {};
+
+    const nextPanel = {
+      ...currentPanel,
+      ...(dto.theme !== undefined ? { theme: dto.theme } : {}),
+      ...(dto.language !== undefined ? { language: dto.language } : {}),
+      ...(dto.timezone !== undefined ? { timezone: dto.timezone } : {}),
+      ...(dto.dateFormat !== undefined ? { dateFormat: dto.dateFormat } : {}),
+      ...(dto.currencyFormat !== undefined ? { currencyFormat: dto.currencyFormat } : {}),
+      ...(dto.sidebarCollapsedDefault !== undefined
+        ? { sidebarCollapsedDefault: dto.sidebarCollapsedDefault }
+        : {}),
+    };
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        permissions: {
+          ...existing,
+          panelPreferences: nextPanel,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return nextPanel;
   }
 }

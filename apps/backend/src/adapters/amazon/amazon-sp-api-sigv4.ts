@@ -1,8 +1,8 @@
 import { createHash, createHmac } from 'crypto';
 import type { AxiosRequestHeaders, InternalAxiosRequestConfig } from 'axios';
 
-const SP_API_REGION = 'eu-west-1';
 const SP_API_SERVICE = 'execute-api';
+const DEFAULT_SP_API_REGION = 'eu-west-1';
 
 function sha256Hex(data: string): string {
   return createHash('sha256').update(data, 'utf8').digest('hex');
@@ -46,6 +46,7 @@ export function signAmazonSpApiRequest(
   accessKeyId: string,
   secretAccessKey: string,
   baseUrl: string,
+  region: string = DEFAULT_SP_API_REGION,
 ): InternalAxiosRequestConfig {
   const method = (config.method ?? 'GET').toUpperCase();
   const base = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
@@ -98,7 +99,7 @@ export function signAmazonSpApiRequest(
     payloadHash,
   ].join('\n');
 
-  const credentialScope = `${dateStamp}/${SP_API_REGION}/${SP_API_SERVICE}/aws4_request`;
+  const credentialScope = `${dateStamp}/${region}/${SP_API_SERVICE}/aws4_request`;
   const stringToSign = [
     'AWS4-HMAC-SHA256',
     amzDate,
@@ -107,7 +108,7 @@ export function signAmazonSpApiRequest(
   ].join('\n');
 
   const signature = hmacSha256(
-    signingKey(secretAccessKey, dateStamp, SP_API_REGION, SP_API_SERVICE),
+    signingKey(secretAccessKey, dateStamp, region, SP_API_SERVICE),
     stringToSign,
   ).toString('hex');
 

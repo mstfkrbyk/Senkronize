@@ -31,6 +31,7 @@ import {
   InviteUserDto,
   TransferOwnershipDto,
   UpdateNotificationPreferencesDto,
+  UpdatePanelPreferencesDto,
   UpdateUserRoleDto,
 } from './users.dto';
 import { SessionService } from '../auth/session.service';
@@ -202,6 +203,25 @@ export class UsersController {
       user.currentOrgId,
       dto,
     );
+  }
+
+  @Get('panel-preferences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Panel görünüm tercihleri' })
+  @ApiResponse({ status: 200, description: 'Tercihler' })
+  async getPanelPreferences(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getPanelPreferences(user.id);
+  }
+
+  @Patch('panel-preferences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Panel görünüm tercihlerini güncelle' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async updatePanelPreferences(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdatePanelPreferencesDto,
+  ) {
+    return this.usersService.updatePanelPreferences(user.id, dto);
   }
 
   @Post('export-data')
