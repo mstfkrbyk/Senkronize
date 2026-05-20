@@ -27,6 +27,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AnomalyDetectionService } from '../../security/anomaly-detection.service';
 import { IpGeolocationService } from '../../security/ip-geolocation.service';
 import { SecurityNotificationService } from '../../security/security-notification.service';
+import { PostHogService } from '../../analytics/posthog.service';
 import { RegisterDto } from '../auth.dto';
 import { AuthService } from '../auth.service';
 import { PasswordPolicyService } from '../password-policy.service';
@@ -203,6 +204,10 @@ describe('AuthService', () => {
             notifySuspiciousLogin: jest.fn(),
           },
         },
+        {
+          provide: PostHogService,
+          useValue: { capture: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -349,7 +354,14 @@ describe('AuthService', () => {
         organizationId: 'org-2',
         role: UserRole.OWNER,
         twoFactorEnabled: false,
-        organization: { deletedAt: null, suspended: false },
+        passwordChangedAt: new Date(),
+        createdAt: new Date(),
+        organization: {
+          deletedAt: null,
+          suspended: false,
+          require2FA: false,
+          passwordMaxAgeDays: 90,
+        },
       } as never);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
@@ -362,6 +374,9 @@ describe('AuthService', () => {
         accessToken: 'access-token',
         refreshToken: 'refresh-token',
         sessionId: 'sess-reg',
+        requiresTwoFactorSetup: false,
+        passwordChangeRequired: false,
+        passwordChangeWarning: false,
       });
       expect(prismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'u2' },
