@@ -315,6 +315,18 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.PGMALL]: 'PGMall',
   [Marketplace.KOGAN]: 'Kogan',
   [Marketplace.THEMARKET_NZ]: 'TheMarket NZ',
+  [Marketplace.FARFETCH]: 'Farfetch',
+  [Marketplace.NET_A_PORTER]: 'Net-a-Porter',
+  [Marketplace.MYTHERESA]: 'Mytheresa',
+  [Marketplace.VESTIAIRE]: 'Vestiaire Collective',
+  [Marketplace.REBELLE]: 'Rebelle',
+  [Marketplace.ZALANDO_LOUNGE]: 'Zalando Lounge',
+  [Marketplace.PRIVALIA]: 'Privalia',
+  [Marketplace.BRAND_ALLEY]: 'Brand Alley',
+  [Marketplace.SHOWROOMPRIVE]: 'Showroomprive',
+  [Marketplace.VENTE_EXCLUSIVE]: 'Vente-Exclusive',
+  [Marketplace.GRAILED]: 'Grailed',
+  [Marketplace.TISE]: 'Tise',
 };
 
 @Injectable()

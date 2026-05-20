@@ -1730,6 +1730,82 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   PGMALL: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   KOGAN: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   THEMARKET_NZ: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  FARFETCH: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa Farfetch varsayılan token uç noktası kullanılır.',
+    },
+  ],
+  NET_A_PORTER: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MYTHERESA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  VESTIAIRE: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa Vestiaire Collective varsayılan token uç noktası kullanılır.',
+    },
+  ],
+  REBELLE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ZALANDO_LOUNGE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  PRIVALIA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  BRAND_ALLEY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  SHOWROOMPRIVE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  VENTE_EXCLUSIVE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  DEPOP: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: false,
+    },
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+    {
+      key: 'oauthTokenUrl',
+      label: 'Token URL (opsiyonel)',
+      type: 'url',
+      required: false,
+      hint: 'Boşsa Depop varsayılan token uç noktası kullanılır.',
+    },
+  ],
+  GRAILED: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  TISE: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -2322,6 +2398,18 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'PGMALL',
   'KOGAN',
   'THEMARKET_NZ',
+  'FARFETCH',
+  'NET_A_PORTER',
+  'MYTHERESA',
+  'VESTIAIRE',
+  'REBELLE',
+  'ZALANDO_LOUNGE',
+  'PRIVALIA',
+  'BRAND_ALLEY',
+  'SHOWROOMPRIVE',
+  'VENTE_EXCLUSIVE',
+  'GRAILED',
+  'TISE',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

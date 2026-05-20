@@ -352,6 +352,18 @@ import { ThemarketNzModule } from './themarket-nz/themarket-nz.module';
 import { YahooAuctionsJpModule } from './yahoo-auctions-jp/yahoo-auctions-jp.module';
 import { ZaloraMyModule } from './zalora-my/zalora-my.module';
 import { ZozotownModule } from './zozotown/zozotown.module';
+import { BrandAlleyModule } from './brand-alley/brand-alley.module';
+import { FarfetchModule } from './farfetch/farfetch.module';
+import { GrailedModule } from './grailed/grailed.module';
+import { MytheresaModule } from './mytheresa/mytheresa.module';
+import { NetAPorterModule } from './net-a-porter/net-a-porter.module';
+import { PrivaliaModule } from './privalia/privalia.module';
+import { RebelleModule } from './rebelle/rebelle.module';
+import { ShowroompriveModule } from './showroomprive/showroomprive.module';
+import { TiseModule } from './tise/tise.module';
+import { VenteExclusiveModule } from './vente-exclusive/vente-exclusive.module';
+import { VestiaireModule } from './vestiaire/vestiaire.module';
+import { ZalandoLoungeModule } from './zalando-lounge/zalando-lounge.module';
 import { ZaraModule } from './zara/zara.module';
 import { ZaraTrModule } from './zara-tr/zara-tr.module';
 import { ZirveAdapter } from './zirve/zirve.adapter';
@@ -689,6 +701,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     YahooAuctionsJpModule,
     ZaloraMyModule,
     ZozotownModule,
+    BrandAlleyModule,
+    FarfetchModule,
+    GrailedModule,
+    MytheresaModule,
+    NetAPorterModule,
+    PrivaliaModule,
+    RebelleModule,
+    ShowroompriveModule,
+    TiseModule,
+    VenteExclusiveModule,
+    VestiaireModule,
+    ZalandoLoungeModule,
   ],
   providers: [
     AmazonAdapter,
@@ -1059,6 +1083,18 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     YahooAuctionsJpModule,
     ZaloraMyModule,
     ZozotownModule,
+    BrandAlleyModule,
+    FarfetchModule,
+    GrailedModule,
+    MytheresaModule,
+    NetAPorterModule,
+    PrivaliaModule,
+    RebelleModule,
+    ShowroompriveModule,
+    TiseModule,
+    VenteExclusiveModule,
+    VestiaireModule,
+    ZalandoLoungeModule,
   ],
 })
 export class AdapterModule {}

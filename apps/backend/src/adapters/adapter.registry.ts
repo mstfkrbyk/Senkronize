@@ -356,6 +356,18 @@ import { ThemarketNzAdapter } from './themarket-nz/themarket-nz.adapter';
 import { YahooAuctionsJpAdapter } from './yahoo-auctions-jp/yahoo-auctions-jp.adapter';
 import { ZaloraMyAdapter } from './zalora-my/zalora-my.adapter';
 import { ZozotownAdapter } from './zozotown/zozotown.adapter';
+import { BrandAlleyAdapter } from './brand-alley/brand-alley.adapter';
+import { FarfetchAdapter } from './farfetch/farfetch.adapter';
+import { GrailedAdapter } from './grailed/grailed.adapter';
+import { MytheresaAdapter } from './mytheresa/mytheresa.adapter';
+import { NetAPorterAdapter } from './net-a-porter/net-a-porter.adapter';
+import { PrivaliaAdapter } from './privalia/privalia.adapter';
+import { RebelleAdapter } from './rebelle/rebelle.adapter';
+import { ShowroompriveAdapter } from './showroomprive/showroomprive.adapter';
+import { TiseAdapter } from './tise/tise.adapter';
+import { VenteExclusiveAdapter } from './vente-exclusive/vente-exclusive.adapter';
+import { VestiaireAdapter } from './vestiaire/vestiaire.adapter';
+import { ZalandoLoungeAdapter } from './zalando-lounge/zalando-lounge.adapter';
 import { ErpAdapterRegistry } from './erp/erp-adapter.registry';
 import { EcommerceAdapterRegistry } from './ecommerce/ecommerce-adapter.registry';
 
@@ -721,6 +733,18 @@ export class AdapterRegistry {
     private readonly yahooAuctionsJp: YahooAuctionsJpAdapter,
     private readonly zaloraMy: ZaloraMyAdapter,
     private readonly zozotown: ZozotownAdapter,
+    private readonly brandAlley: BrandAlleyAdapter,
+    private readonly farfetch: FarfetchAdapter,
+    private readonly grailed: GrailedAdapter,
+    private readonly mytheresa: MytheresaAdapter,
+    private readonly netAPorter: NetAPorterAdapter,
+    private readonly privalia: PrivaliaAdapter,
+    private readonly rebelle: RebelleAdapter,
+    private readonly showroomprive: ShowroompriveAdapter,
+    private readonly tise: TiseAdapter,
+    private readonly venteExclusive: VenteExclusiveAdapter,
+    private readonly vestiaire: VestiaireAdapter,
+    private readonly zalandoLounge: ZalandoLoungeAdapter,
     private readonly erpAdapterRegistry: ErpAdapterRegistry,
     private readonly ecommerceAdapterRegistry: EcommerceAdapterRegistry,
   ) {
@@ -1057,6 +1081,18 @@ export class AdapterRegistry {
       ['YAHOO_AUCTIONS_JP', yahooAuctionsJp],
       ['ZALORA_MY', zaloraMy],
       ['ZOZOTOWN', zozotown],
+      ['FARFETCH', farfetch],
+      ['NET_A_PORTER', netAPorter],
+      ['MYTHERESA', mytheresa],
+      ['VESTIAIRE', vestiaire],
+      ['REBELLE', rebelle],
+      ['ZALANDO_LOUNGE', zalandoLounge],
+      ['PRIVALIA', privalia],
+      ['BRAND_ALLEY', brandAlley],
+      ['SHOWROOMPRIVE', showroomprive],
+      ['VENTE_EXCLUSIVE', venteExclusive],
+      ['GRAILED', grailed],
+      ['TISE', tise],
       ['TICIMAX_MP', ticimaxMp],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([

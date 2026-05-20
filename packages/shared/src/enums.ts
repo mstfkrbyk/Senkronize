@@ -330,7 +330,19 @@ export type Marketplace =
   | 'ZALORA_MY'
   | 'PGMALL'
   | 'KOGAN'
-  | 'THEMARKET_NZ';
+  | 'THEMARKET_NZ'
+  | 'FARFETCH'
+  | 'NET_A_PORTER'
+  | 'MYTHERESA'
+  | 'VESTIAIRE'
+  | 'REBELLE'
+  | 'ZALANDO_LOUNGE'
+  | 'PRIVALIA'
+  | 'BRAND_ALLEY'
+  | 'SHOWROOMPRIVE'
+  | 'VENTE_EXCLUSIVE'
+  | 'GRAILED'
+  | 'TISE';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

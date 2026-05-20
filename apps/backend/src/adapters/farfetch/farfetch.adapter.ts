@@ -8,13 +8,13 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 
 @Injectable()
-export class DepopAdapter extends RestStubMarketplaceAdapter {
+export class FarfetchAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
-      platform: 'DEPOP',
-      baseUrl: 'https://api.depop.com/api/v1',
-      loggerContext: DepopAdapter.name,
-      rateLimitKey: 'DEPOP',
+      platform: 'FARFETCH',
+      baseUrl: 'https://api.farfetch.com/v1',
+      loggerContext: FarfetchAdapter.name,
+      rateLimitKey: 'FARFETCH',
       pathProfile: '/merchant/me',
       pathOrders: '/orders',
       pathProducts: '/products',
@@ -34,11 +34,11 @@ export class DepopAdapter extends RestStubMarketplaceAdapter {
         const clientSecret = creds.clientSecret?.trim();
         if (!clientId || !clientSecret) {
           throw new Error(
-            'Depop: clientId ve clientSecret (veya accessToken) zorunludur',
+            'Farfetch: clientId ve clientSecret (veya accessToken) zorunludur',
           );
         }
         const tokenUrl =
-          creds.oauthTokenUrl?.trim() ?? 'https://api.depop.com/oauth/token';
+          creds.oauthTokenUrl?.trim() ?? 'https://api.farfetch.com/oauth/token';
         const token = await fetchClientCredentialsToken(
           tokenUrl,
           clientId,

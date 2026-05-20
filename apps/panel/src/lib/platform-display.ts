@@ -232,6 +232,18 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   PGMALL: { label: 'PGMall', logo: '🇲🇾', color: 'emerald' },
   KOGAN: { label: 'Kogan', logo: '🇦🇺', color: 'blue' },
   THEMARKET_NZ: { label: 'TheMarket NZ', logo: '🇳🇿', color: 'green' },
+  FARFETCH: { label: 'Farfetch', logo: '👜', color: 'slate' },
+  NET_A_PORTER: { label: 'Net-a-Porter', logo: '✨', color: 'zinc' },
+  MYTHERESA: { label: 'Mytheresa', logo: '🇩🇪', color: 'rose' },
+  VESTIAIRE: { label: 'Vestiaire Collective', logo: '♻️', color: 'emerald' },
+  REBELLE: { label: 'Rebelle', logo: '👗', color: 'pink' },
+  ZALANDO_LOUNGE: { label: 'Zalando Lounge', logo: '🇩🇪', color: 'orange' },
+  PRIVALIA: { label: 'Privalia', logo: '🇪🇸', color: 'red' },
+  BRAND_ALLEY: { label: 'Brand Alley', logo: '🇬🇧', color: 'blue' },
+  SHOWROOMPRIVE: { label: 'Showroomprive', logo: '🇫🇷', color: 'violet' },
+  VENTE_EXCLUSIVE: { label: 'Vente-Exclusive', logo: '🇧🇪', color: 'sky' },
+  GRAILED: { label: 'Grailed', logo: '👔', color: 'stone' },
+  TISE: { label: 'Tise', logo: '🇳🇴', color: 'cyan' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

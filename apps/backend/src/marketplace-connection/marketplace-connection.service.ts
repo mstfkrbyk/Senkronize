@@ -240,6 +240,16 @@ export class MarketplaceConnectionService {
       platform === Marketplace.PGMALL ||
       platform === Marketplace.KOGAN ||
       platform === Marketplace.THEMARKET_NZ ||
+      platform === Marketplace.NET_A_PORTER ||
+      platform === Marketplace.MYTHERESA ||
+      platform === Marketplace.REBELLE ||
+      platform === Marketplace.ZALANDO_LOUNGE ||
+      platform === Marketplace.PRIVALIA ||
+      platform === Marketplace.BRAND_ALLEY ||
+      platform === Marketplace.SHOWROOMPRIVE ||
+      platform === Marketplace.VENTE_EXCLUSIVE ||
+      platform === Marketplace.GRAILED ||
+      platform === Marketplace.TISE ||
       platform === Marketplace.ENPARA
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
@@ -446,7 +456,10 @@ export class MarketplaceConnectionService {
       platform === Marketplace.MERCARI ||
       platform === Marketplace.MERCARI_JP ||
       platform === Marketplace.YAHOO_AUCTIONS_JP ||
-      platform === Marketplace.KAKAO_COMMERCE
+      platform === Marketplace.KAKAO_COMMERCE ||
+      platform === Marketplace.FARFETCH ||
+      platform === Marketplace.VESTIAIRE ||
+      platform === Marketplace.DEPOP
     ) {
       return creds.accessToken
         ? `${creds.accessToken.slice(0, 6)}...`
