@@ -6,8 +6,27 @@ export function coupangSignedDate(now = new Date()): string {
 }
 
 /**
- * Coupang CEA HMAC-SHA256 imzası.
+ * Coupang Gateway HMAC-SHA256 Authorization başlığı.
  * @see https://developers.coupang.com/hc/en-us/articles/360033917054
+ */
+export function coupangHmac(
+  method: string,
+  path: string,
+  accessKey: string,
+  secretKey: string,
+  now = new Date(),
+): string {
+  const datetime = now.toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const message = `${datetime}${method.toUpperCase()}${path}`;
+  const signature = createHmac('sha256', secretKey)
+    .update(message, 'utf8')
+    .digest('hex');
+  return `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${datetime}, signature=${signature}`;
+}
+
+/**
+ * Coupang CEA HMAC-SHA256 imzası (legacy api.coupang.com).
+ * @deprecated Yeni entegrasyonlarda {@link coupangHmac} kullanın.
  */
 export function coupangAuthorizationHeader(
   accessKey: string,

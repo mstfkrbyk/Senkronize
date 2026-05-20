@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isAxiosError } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -9,6 +10,10 @@ import type {
 } from '@senkronize/shared';
 
 import { EncryptionService } from '../../common/encryption/encryption.service';
+import {
+  MarketplaceTokenCache,
+  marketplaceTokenCacheKey,
+} from '../common/marketplace-token-cache';
 import {
   axiosWithRetry,
   PLATFORM_RATE_LIMITS,
@@ -21,13 +26,18 @@ const ROWS_PER_PAGE = 50;
 
 interface Street11OrderRow {
   ordNo?: string | number;
+  orderNo?: string | number;
   ordPrdSeq?: string | number;
   prdNo?: string | number;
+  productCode?: string | number;
   prdNm?: string;
+  productName?: string;
   ordAmt?: number | string;
   ordQty?: number | string;
   ordDt?: string;
+  orderDate?: string;
   ordNm?: string;
+  buyerName?: string;
   rcvrNm?: string;
   ordStatCd?: string;
   selPrc?: number | string;
@@ -38,7 +48,10 @@ export class Street11Adapter implements IMarketplaceAdapter {
   readonly platform = 'STREET11';
   private readonly logger = new Logger(Street11Adapter.name);
 
-  constructor(private readonly encryptionService: EncryptionService) {
+  constructor(
+    private readonly encryptionService: EncryptionService,
+    private readonly tokenCache: MarketplaceTokenCache,
+  ) {
     void this.encryptionService;
   }
 
@@ -47,39 +60,74 @@ export class Street11Adapter implements IMarketplaceAdapter {
   }
 
   private requireApiKey(credentials: Record<string, string>): string {
-    const apiKey = credentials.apiKey?.trim();
+    const apiKey = credentials.apiKey?.trim() ?? credentials.openapikey?.trim();
     if (!apiKey) {
-      throw new Error('11Street KR: apiKey zorunludur');
+      throw new Error('11Street KR: apiKey (openapikey) zorunludur');
     }
     return apiKey;
   }
 
-  private requireSellerId(credentials: Record<string, string>): string {
-    const sellerId =
-      credentials.sellerId?.trim() ??
-      credentials.supplierId?.trim() ??
-      credentials.vendorId?.trim() ??
-      '';
-    if (!sellerId) {
-      throw new Error('11Street KR: sellerId (veya supplierId/vendorId) zorunludur');
+  private tokenKey(apiKey: string): string {
+    return marketplaceTokenCacheKey(this.platform, apiKey);
+  }
+
+  private async getAccessToken(
+    credentials: Record<string, string>,
+    forceRefresh = false,
+  ): Promise<string> {
+    const apiKey = this.requireApiKey(credentials);
+    const cacheKey = this.tokenKey(apiKey);
+    if (!forceRefresh) {
+      const cached = await this.tokenCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    } else {
+      await this.tokenCache.invalidate(cacheKey);
     }
-    return sellerId;
+    await this.tokenCache.set(cacheKey, apiKey);
+    return apiKey;
   }
 
-  private headers(apiKey: string): { headers: Record<string, string> } {
-    return {
-      headers: {
-        'Content-Type': 'application/json',
-        openapikey: apiKey,
-      },
+  private async request<T>(
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST' | 'PUT',
+    path: string,
+    options: {
+      params?: Record<string, string>;
+      body?: Record<string, unknown>;
+    } = {},
+  ): Promise<T> {
+    const execute = async (forceRefresh: boolean): Promise<T> => {
+      const token = await this.getAccessToken(credentials, forceRefresh);
+      let data: unknown;
+      await withRateLimit(this.platform, this.rpm(), async () => {
+        data = await axiosWithRetry<unknown>(
+          {
+            method,
+            url: `${STREET11_BASE}${path}`,
+            timeout: 20_000,
+            params: options.params,
+            data: options.body,
+            headers: {
+              'Content-Type': 'application/json',
+              openapikey: token,
+            },
+          },
+          { retryOn: [429, 500, 502, 503, 504] },
+        );
+      });
+      return data as T;
     };
-  }
 
-  private formatOrderDate(d: Date): string {
-    const y = String(d.getFullYear());
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}${m}${day}`;
+    try {
+      return await execute(false);
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 401) {
+        return await execute(true);
+      }
+      throw error;
+    }
   }
 
   private ensureArray<T>(v: T | T[] | undefined): T[] {
@@ -96,31 +144,48 @@ export class Street11Adapter implements IMarketplaceAdapter {
     if (!isRecord(data)) {
       return [];
     }
-    if (Array.isArray(data.orders)) {
-      return data.orders as Street11OrderRow[];
+    for (const key of [
+      'purchaseOrders',
+      'orders',
+      'orderList',
+      'items',
+      'data',
+    ]) {
+      const val = data[key];
+      if (Array.isArray(val)) {
+        return val as Street11OrderRow[];
+      }
     }
-    if (Array.isArray(data.orderList)) {
-      return data.orderList as Street11OrderRow[];
-    }
-    if (isRecord(data.result) && Array.isArray(data.result.orders)) {
-      return data.result.orders as Street11OrderRow[];
+    if (isRecord(data.result)) {
+      for (const key of ['purchaseOrders', 'orders', 'orderList']) {
+        const val = data.result[key];
+        if (Array.isArray(val)) {
+          return val as Street11OrderRow[];
+        }
+      }
     }
     return [];
   }
 
   private mapOrder(row: Street11OrderRow): MarketplaceOrder | null {
-    const idRaw = row.ordNo;
+    const idRaw = row.ordNo ?? row.orderNo;
     if (idRaw === undefined || idRaw === null) {
       return null;
     }
     const name =
       typeof row.ordNm === 'string' && row.ordNm.length > 0
         ? row.ordNm
-        : typeof row.rcvrNm === 'string' && row.rcvrNm.length > 0
-          ? row.rcvrNm
-          : '—';
+        : typeof row.buyerName === 'string' && row.buyerName.length > 0
+          ? row.buyerName
+          : typeof row.rcvrNm === 'string' && row.rcvrNm.length > 0
+            ? row.rcvrNm
+            : '—';
     const prdNo =
-      row.prdNo !== undefined && row.prdNo !== null ? String(row.prdNo) : '';
+      row.prdNo !== undefined && row.prdNo !== null
+        ? String(row.prdNo)
+        : row.productCode !== undefined && row.productCode !== null
+          ? String(row.productCode)
+          : '';
     const qtyRaw = row.ordQty;
     const quantity =
       typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
@@ -128,14 +193,14 @@ export class Street11Adapter implements IMarketplaceAdapter {
         : typeof qtyRaw === 'string'
           ? Math.max(0, Math.round(parseFloat(qtyRaw) || 0))
           : 1;
-    const createdRaw = row.ordDt;
+    const createdRaw = row.ordDt ?? row.orderDate;
     const createdAt =
       typeof createdRaw === 'string' && createdRaw.length > 0
         ? new Date(createdRaw).toISOString()
         : new Date().toISOString();
     return {
       platformOrderId: String(idRaw),
-      status: typeof row.ordStatCd === 'string' ? row.ordStatCd : 'NEW',
+      status: typeof row.ordStatCd === 'string' ? row.ordStatCd : 'Order',
       customerName: name,
       items: [
         {
@@ -147,7 +212,12 @@ export class Street11Adapter implements IMarketplaceAdapter {
             row.ordPrdSeq !== undefined && row.ordPrdSeq !== null
               ? String(row.ordPrdSeq)
               : prdNo,
-          productName: typeof row.prdNm === 'string' ? row.prdNm : undefined,
+          productName:
+            typeof row.prdNm === 'string'
+              ? row.prdNm
+              : typeof row.productName === 'string'
+                ? row.productName
+                : undefined,
         },
       ],
       totalAmount: parseMoney(row.ordAmt ?? row.selPrc),
@@ -158,26 +228,18 @@ export class Street11Adapter implements IMarketplaceAdapter {
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const apiKey = this.requireApiKey(credentials);
-      const sellerId = this.requireSellerId(credentials);
-      const url = `${STREET11_BASE}/orderdtl`;
-      await withRateLimit('STREET11', this.rpm(), async () => {
-        await axiosWithRetry<unknown>(
-          {
-            method: 'GET',
-            url,
-            timeout: 12_000,
-            params: {
-              sellerId,
-              orderDt: this.formatOrderDate(new Date()),
-              pageNum: '1',
-              rowsPerPage: String(ROWS_PER_PAGE),
-            },
-            ...this.headers(apiKey),
+      await this.request<unknown>(
+        credentials,
+        'GET',
+        '/prodmallservice/purchaseorders',
+        {
+          params: {
+            pageNo: '1',
+            rowsPerPage: '1',
+            selOrdStatusCd: 'Order',
           },
-          { maxRetries: 1 },
-        );
-      });
+        },
+      );
       return true;
     } catch (error) {
       this.logger.warn('11Street KR bağlantı testi başarısız', {
@@ -189,52 +251,34 @@ export class Street11Adapter implements IMarketplaceAdapter {
 
   async getOrders(
     credentials: Record<string, string>,
-    since?: Date,
+    _since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const apiKey = this.requireApiKey(credentials);
-      const sellerId = this.requireSellerId(credentials);
-      const end = new Date();
-      const start = since ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const dates: string[] = [];
-      const cursor = new Date(start);
-      while (cursor <= end) {
-        dates.push(this.formatOrderDate(cursor));
-        cursor.setDate(cursor.getDate() + 1);
-      }
       const byOrderId = new Map<string, MarketplaceOrder>();
-      for (const orderDt of dates) {
-        let pageNum = 1;
-        let hasMore = true;
-        while (hasMore) {
-          let data: unknown;
-          await withRateLimit('STREET11', this.rpm(), async () => {
-            data = await axiosWithRetry<unknown>(
-              {
-                method: 'GET',
-                url: `${STREET11_BASE}/orderdtl`,
-                timeout: 20_000,
-                params: {
-                  sellerId,
-                  orderDt,
-                  pageNum: String(pageNum),
-                  rowsPerPage: String(ROWS_PER_PAGE),
-                },
-                ...this.headers(apiKey),
-              },
-              {},
-            );
-          });
-          const rows = this.normalizeOrderRows(data);
-          for (const row of rows) {
-            const mapped = this.mapOrder(row);
-            if (mapped) {
-              byOrderId.set(mapped.platformOrderId, mapped);
-            }
+      let pageNo = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const data = await this.request<unknown>(
+          credentials,
+          'GET',
+          '/prodmallservice/purchaseorders',
+          {
+            params: {
+              pageNo: String(pageNo),
+              rowsPerPage: String(ROWS_PER_PAGE),
+              selOrdStatusCd: 'Order',
+            },
+          },
+        );
+        const rows = this.normalizeOrderRows(data);
+        for (const row of rows) {
+          const mapped = this.mapOrder(row);
+          if (mapped) {
+            byOrderId.set(mapped.platformOrderId, mapped);
           }
-          hasMore = rows.length >= ROWS_PER_PAGE;
-          pageNum += 1;
         }
+        hasMore = rows.length >= ROWS_PER_PAGE;
+        pageNo += 1;
       }
       return [...byOrderId.values()];
     } catch (error) {
@@ -259,26 +303,19 @@ export class Street11Adapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const apiKey = this.requireApiKey(credentials);
       for (const u of updates) {
-        const prdNo = u.barcode.trim();
-        await withRateLimit('STREET11', this.rpm(), async () => {
-          await axiosWithRetry<unknown>(
-            {
-              method: 'PUT',
-              url: `${STREET11_BASE}/products/stock`,
-              timeout: 20_000,
-              params: { prdNo },
-              data: {
-                prdNo,
-                ordStatCd: '01',
-                stckCnt: u.quantity,
-              },
-              ...this.headers(apiKey),
+        const productCode = u.barcode.trim();
+        await this.request<unknown>(
+          credentials,
+          'PUT',
+          `/prodmallservice/products/${encodeURIComponent(productCode)}/inventory`,
+          {
+            body: {
+              productCode,
+              stockQty: u.quantity,
             },
-            {},
-          );
-        });
+          },
+        );
       }
     } catch (error) {
       throwSyncFailed('STREET11', 'updateStock', error);
@@ -290,28 +327,47 @@ export class Street11Adapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     try {
-      const apiKey = this.requireApiKey(credentials);
       for (const u of updates) {
-        const prdNo = u.barcode.trim();
-        await withRateLimit('STREET11', this.rpm(), async () => {
-          await axiosWithRetry<unknown>(
-            {
-              method: 'PUT',
-              url: `${STREET11_BASE}/products/price`,
-              timeout: 20_000,
-              params: { prdNo },
-              data: {
-                prdNo,
-                selPrc: u.salePrice,
-              },
-              ...this.headers(apiKey),
+        const productCode = u.barcode.trim();
+        await this.request<unknown>(
+          credentials,
+          'PUT',
+          `/prodmallservice/products/${encodeURIComponent(productCode)}/saleprice`,
+          {
+            body: {
+              productCode,
+              salePrice: u.salePrice,
             },
-            {},
-          );
-        });
+          },
+        );
       }
     } catch (error) {
       throwSyncFailed('STREET11', 'updatePrice', error);
+    }
+  }
+
+  async shipOrder(
+    credentials: Record<string, string>,
+    payload: {
+      orderId: string;
+      deliveryCompanyCode: string;
+      invoiceNumber: string;
+    },
+  ): Promise<void> {
+    try {
+      await this.request<unknown>(
+        credentials,
+        'POST',
+        `/prodmallservice/purchaseorders/${encodeURIComponent(payload.orderId)}/shipments`,
+        {
+          body: {
+            deliveryCompanyCode: payload.deliveryCompanyCode,
+            invoiceNumber: payload.invoiceNumber,
+          },
+        },
+      );
+    } catch (error) {
+      throwSyncFailed('STREET11', 'shipOrder', error);
     }
   }
 }

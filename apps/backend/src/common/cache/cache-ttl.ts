@@ -14,6 +14,8 @@ export const CACHE_TTL = {
   AMAZON_LWA_TOKEN: 3_300,
   /** Etsy OAuth access token (55 dk) */
   ETSY_OAUTH_TOKEN: 3_300,
+  /** Pazaryeri erişim / sertifika token (1 saat) */
+  MARKETPLACE_ACCESS_TOKEN: 3_600,
   /** Veri taşıma sihirbazı oturumu */
   MIGRATION_SESSION: 86_400,
 } as const;

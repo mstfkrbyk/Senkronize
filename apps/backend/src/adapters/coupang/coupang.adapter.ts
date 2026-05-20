@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isAxiosError } from 'axios';
 import type { AxiosRequestConfig } from 'axios';
 import type {
   IMarketplaceAdapter,
@@ -11,12 +12,16 @@ import type {
 
 import { EncryptionService } from '../../common/encryption/encryption.service';
 import {
+  MarketplaceTokenCache,
+  marketplaceTokenCacheKey,
+} from '../common/marketplace-token-cache';
+import {
   axiosWithRetry,
   PLATFORM_RATE_LIMITS,
   withRateLimit,
 } from '../../common/utils/http-retry';
 import { isRecord, parseMoney, throwSyncFailed } from '../stub-helpers';
-import { coupangAuthorizationHeader } from './coupang.sign';
+import { coupangHmac } from './coupang.sign';
 import type {
   CoupangOrderItemRow,
   CoupangOrdersheetRow,
@@ -24,14 +29,18 @@ import type {
   CoupangProductRow,
 } from './coupang.types';
 
-const COUPANG_BASE = 'https://api.coupang.com/v2';
+const COUPANG_BASE = 'https://api-gateway.coupang.com/v2';
+const COUPANG_TOKEN_SENTINEL = 'hmac';
 
 @Injectable()
 export class CoupangAdapter implements IMarketplaceAdapter {
   readonly platform = 'COUPANG';
   private readonly logger = new Logger(CoupangAdapter.name);
 
-  constructor(private readonly encryptionService: EncryptionService) {
+  constructor(
+    private readonly encryptionService: EncryptionService,
+    private readonly tokenCache: MarketplaceTokenCache,
+  ) {
     void this.encryptionService;
   }
 
@@ -66,45 +75,59 @@ export class CoupangAdapter implements IMarketplaceAdapter {
     return { accessKey, secretKey, vendorId };
   }
 
+  private tokenKey(accessKey: string, vendorId: string): string {
+    return marketplaceTokenCacheKey(
+      this.platform,
+      `${accessKey}:${vendorId}`,
+    );
+  }
+
+  private async ensureAuthSession(
+    credentials: Record<string, string>,
+    forceRefresh = false,
+  ): Promise<{ accessKey: string; secretKey: string }> {
+    const { accessKey, secretKey, vendorId } = this.requireKeys(credentials);
+    const cacheKey = this.tokenKey(accessKey, vendorId);
+    if (!forceRefresh) {
+      const cached = await this.tokenCache.get(cacheKey);
+      if (cached === COUPANG_TOKEN_SENTINEL) {
+        return { accessKey, secretKey };
+      }
+    } else {
+      await this.tokenCache.invalidate(cacheKey);
+    }
+    await this.tokenCache.set(cacheKey, COUPANG_TOKEN_SENTINEL);
+    return { accessKey, secretKey };
+  }
+
   private authHeaders(
     accessKey: string,
     secretKey: string,
     method: string,
     path: string,
-    queryString = '',
   ): Pick<AxiosRequestConfig, 'headers'> {
     return {
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: coupangAuthorizationHeader(
-          accessKey,
-          secretKey,
-          method,
-          path,
-          queryString,
-        ),
+        'Content-Type': 'application/json;charset=UTF-8',
+        Authorization: coupangHmac(method, path, accessKey, secretKey),
       },
     };
   }
 
-  private buildQueryString(params: Record<string, string>): string {
-    const keys = Object.keys(params).sort();
-    return keys.map((k) => `${k}=${params[k]}`).join('&');
-  }
-
   private splitProductOption(barcode: string): {
-    productId: string;
-    optionId: string;
+    sellerProductId: string;
+    vendorItemId: string;
   } {
     const sep = barcode.includes('|') ? '|' : barcode.includes(':') ? ':' : null;
     if (sep) {
-      const [productId, optionId] = barcode.split(sep, 2);
+      const [sellerProductId, vendorItemId] = barcode.split(sep, 2);
       return {
-        productId: productId.trim(),
-        optionId: (optionId ?? '').trim(),
+        sellerProductId: sellerProductId.trim(),
+        vendorItemId: (vendorItemId ?? '').trim(),
       };
     }
-    return { productId: barcode.trim(), optionId: barcode.trim() };
+    const id = barcode.trim();
+    return { sellerProductId: id, vendorItemId: id };
   }
 
   private async request<T>(
@@ -114,31 +137,48 @@ export class CoupangAdapter implements IMarketplaceAdapter {
     params: Record<string, string> = {},
     body?: Record<string, unknown>,
   ): Promise<T> {
-    const { accessKey, secretKey } = this.requireKeys(credentials);
-    const queryString = this.buildQueryString(params);
-    const url =
-      queryString.length > 0
-        ? `${COUPANG_BASE}${path}?${queryString}`
-        : `${COUPANG_BASE}${path}`;
-    let data: unknown;
-    await withRateLimit('COUPANG', this.rpm(), async () => {
-      data = await axiosWithRetry<unknown>(
-        {
-          method,
-          url,
-          timeout: 25_000,
-          data: body,
-          ...this.authHeaders(accessKey, secretKey, method, path, queryString),
-        },
-        {},
+    const execute = async (forceRefresh: boolean): Promise<T> => {
+      const { accessKey, secretKey } = await this.ensureAuthSession(
+        credentials,
+        forceRefresh,
       );
-    });
-    if (isRecord(data) && data.code === 'ERROR') {
-      const msg =
-        typeof data.message === 'string' ? data.message : 'Coupang API hatası';
-      throw new Error(msg);
+      const queryString = Object.keys(params)
+        .sort()
+        .map((k) => `${k}=${params[k]}`)
+        .join('&');
+      const url =
+        queryString.length > 0
+          ? `${COUPANG_BASE}${path}?${queryString}`
+          : `${COUPANG_BASE}${path}`;
+      let data: unknown;
+      await withRateLimit(this.platform, this.rpm(), async () => {
+        data = await axiosWithRetry<unknown>(
+          {
+            method,
+            url,
+            timeout: 25_000,
+            data: body,
+            ...this.authHeaders(accessKey, secretKey, method, path),
+          },
+          { retryOn: [429, 500, 502, 503, 504] },
+        );
+      });
+      if (isRecord(data) && data.code === 'ERROR') {
+        const msg =
+          typeof data.message === 'string' ? data.message : 'Coupang API hatası';
+        throw new Error(msg);
+      }
+      return (isRecord(data) && 'data' in data ? data.data : data) as T;
+    };
+
+    try {
+      return await execute(false);
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 401) {
+        return await execute(true);
+      }
+      throw error;
     }
-    return (isRecord(data) && 'data' in data ? data.data : data) as T;
   }
 
   private ensureArray<T>(v: T | T[] | undefined): T[] {
@@ -237,16 +277,13 @@ export class CoupangAdapter implements IMarketplaceAdapter {
       const end = new Date();
       const start = since ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
       const path = `/vendors/${vendorId}/ordersheets`;
-      const raw = await this.request<CoupangOrdersheetRow[] | { content?: CoupangOrdersheetRow[] }>(
-        credentials,
-        'GET',
-        path,
-        {
-          createdAtFrom: start.toISOString(),
-          createdAtTo: end.toISOString(),
-          status: 'ACCEPT',
-        },
-      );
+      const raw = await this.request<
+        CoupangOrdersheetRow[] | { content?: CoupangOrdersheetRow[] }
+      >(credentials, 'GET', path, {
+        createdAtFrom: start.toISOString(),
+        createdAtTo: end.toISOString(),
+        status: 'ACCEPT',
+      });
       const sheets = Array.isArray(raw)
         ? raw
         : this.ensureArray(isRecord(raw) ? raw.content : undefined);
@@ -369,8 +406,8 @@ export class CoupangAdapter implements IMarketplaceAdapter {
     try {
       const { vendorId } = this.requireKeys(credentials);
       for (const u of updates) {
-        const { productId, optionId } = this.splitProductOption(u.barcode);
-        const path = `/vendors/${vendorId}/products/${productId}/options/${optionId}`;
+        const { sellerProductId, vendorItemId } = this.splitProductOption(u.barcode);
+        const path = `/vendors/${vendorId}/products/${sellerProductId}/items/${vendorItemId}`;
         await this.request<unknown>(credentials, 'PUT', path, {}, {
           maximumBuyCount: Math.max(0, u.quantity),
         });
@@ -387,15 +424,34 @@ export class CoupangAdapter implements IMarketplaceAdapter {
     try {
       const { vendorId } = this.requireKeys(credentials);
       for (const u of updates) {
-        const { productId, optionId } = this.splitProductOption(u.barcode);
-        const path = `/vendors/${vendorId}/products/${productId}/options/${optionId}`;
+        const { sellerProductId, vendorItemId } = this.splitProductOption(u.barcode);
+        const path = `/vendors/${vendorId}/products/${sellerProductId}/items/${vendorItemId}`;
         await this.request<unknown>(credentials, 'PUT', path, {}, {
-          maximumBuyCount: 50,
           salePrice: u.salePrice,
         });
       }
     } catch (error) {
       throwSyncFailed('COUPANG', 'updatePrice', error);
+    }
+  }
+
+  async shipOrder(
+    credentials: Record<string, string>,
+    payload: {
+      orderSheetId: string;
+      deliveryCompanyCode: string;
+      invoiceNumber: string;
+    },
+  ): Promise<void> {
+    try {
+      const { vendorId } = this.requireKeys(credentials);
+      const path = `/vendors/${vendorId}/ordersheets/${payload.orderSheetId}/shipments`;
+      await this.request<unknown>(credentials, 'PUT', path, {}, {
+        deliveryCompanyCode: payload.deliveryCompanyCode,
+        invoiceNumber: payload.invoiceNumber,
+      });
+    } catch (error) {
+      throwSyncFailed('COUPANG', 'shipOrder', error);
     }
   }
 }

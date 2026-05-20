@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { isAxiosError } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -10,30 +11,37 @@ import type {
 
 import { EncryptionService } from '../../common/encryption/encryption.service';
 import {
+  MarketplaceTokenCache,
+  marketplaceTokenCacheKey,
+} from '../common/marketplace-token-cache';
+import {
   axiosWithRetry,
   PLATFORM_RATE_LIMITS,
   withRateLimit,
 } from '../../common/utils/http-retry';
 import { isRecord, parseMoney, throwSyncFailed } from '../stub-helpers';
+import {
+  fetchQoo10AccessToken,
+  QOO10_GOODS_BASE,
+  QOO10_SELLER_BASE,
+  resolveQoo10Credentials,
+  type Qoo10ResolvedCredentials,
+} from './qoo10.auth';
 import type {
   Qoo10ApiEnvelope,
   Qoo10GoodsRow,
-  Qoo10ShippingRow,
+  Qoo10OrderRow,
 } from './qoo10.types';
-
-const QOO10_BASE =
-  'https://api.qoo10.jp/GMKT.INC.Front.BizAPI/Biz.qxf';
-const METHOD_SHIPPING_INFO = 'ShoppingCartOffSale.GetShippingInfo';
-const METHOD_SET_STOCK = 'ItemsBasic.SetSellingStockQty';
-const METHOD_SET_PRICE = 'ItemsBasic.UpdateSellingPrice';
-const METHOD_ALL_GOODS = 'ItemsBasic.GetAllGoodsInfo';
 
 @Injectable()
 export class Qoo10Adapter implements IMarketplaceAdapter {
   readonly platform = 'QOO10';
   private readonly logger = new Logger(Qoo10Adapter.name);
 
-  constructor(private readonly encryptionService: EncryptionService) {
+  constructor(
+    private readonly encryptionService: EncryptionService,
+    private readonly tokenCache: MarketplaceTokenCache,
+  ) {
     void this.encryptionService;
   }
 
@@ -41,39 +49,25 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     return PLATFORM_RATE_LIMITS.QOO10 ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private requireQKey(credentials: Record<string, string>): string {
-    const qKey = credentials.apiKey?.trim() ?? credentials.qKey?.trim();
-    if (!qKey) {
-      throw new Error('Qoo10: apiKey (QKey) zorunludur');
-    }
-    return qKey;
+  private tokenKey(creds: Qoo10ResolvedCredentials): string {
+    return marketplaceTokenCacheKey(
+      this.platform,
+      `${creds.applicationKey}:${creds.userKey}`,
+    );
   }
 
-  private goodsCd(credentials: Record<string, string>): string | undefined {
-    const raw = credentials.goodsCd?.trim() ?? credentials.GoodsCd?.trim();
-    return raw && raw.length > 0 ? raw : undefined;
-  }
-
-  private formatQoo10Date(d: Date): string {
+  private formatDate(d: Date): string {
     const y = String(d.getFullYear());
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}${m}${day}`;
   }
 
-  private buildUrl(
-    method: string,
-    qKey: string,
-    extraParams: Record<string, string> = {},
-  ): string {
-    const params = new URLSearchParams({
-      v: '1.0',
-      method,
-      key: qKey,
-      returnType: 'json',
-      ...extraParams,
-    });
-    return `${QOO10_BASE}?${params.toString()}`;
+  private ensureArray<T>(v: T | T[] | undefined): T[] {
+    if (v === undefined) {
+      return [];
+    }
+    return Array.isArray(v) ? v : [v];
   }
 
   private unwrapResult(data: unknown): unknown {
@@ -90,11 +84,64 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     return env.ResultObject ?? data;
   }
 
-  private ensureArray<T>(v: T | T[] | undefined): T[] {
-    if (v === undefined) {
-      return [];
+  private async getAccessToken(
+    credentials: Record<string, string>,
+    forceRefresh = false,
+  ): Promise<string> {
+    const creds = resolveQoo10Credentials(credentials);
+    const cacheKey = this.tokenKey(creds);
+    if (!forceRefresh) {
+      const cached = await this.tokenCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+    } else {
+      await this.tokenCache.invalidate(cacheKey);
     }
-    return Array.isArray(v) ? v : [v];
+    const token = await fetchQoo10AccessToken(creds);
+    await this.tokenCache.set(cacheKey, token);
+    return token;
+  }
+
+  private async request<T>(
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST' | 'PUT',
+    url: string,
+    options: {
+      params?: Record<string, string>;
+      body?: Record<string, unknown>;
+    } = {},
+  ): Promise<T> {
+    const execute = async (forceRefresh: boolean): Promise<T> => {
+      const qAuthKey = await this.getAccessToken(credentials, forceRefresh);
+      let result: unknown;
+      await withRateLimit(this.platform, this.rpm(), async () => {
+        result = await axiosWithRetry<unknown>(
+          {
+            method,
+            url,
+            timeout: 25_000,
+            params: options.params,
+            data: options.body,
+            headers: {
+              'Content-Type': 'application/json',
+              QAuthKey: qAuthKey,
+            },
+          },
+          { retryOn: [429, 500, 502, 503, 504] },
+        );
+      });
+      return this.unwrapResult(result) as T;
+    };
+
+    try {
+      return await execute(false);
+    } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 401) {
+        return await execute(true);
+      }
+      throw error;
+    }
   }
 
   private splitBarcode(barcode: string): { itemCode: string; optionCode: string } {
@@ -109,58 +156,45 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     return { itemCode: barcode.trim(), optionCode: '' };
   }
 
-  private async invoke<T>(
-    credentials: Record<string, string>,
-    method: string,
-    httpMethod: 'GET' | 'POST',
-    params: Record<string, string> = {},
-    body?: Record<string, unknown>,
-  ): Promise<T> {
-    const qKey = this.requireQKey(credentials);
-    const goods = this.goodsCd(credentials);
-    const query: Record<string, string> = { ...params };
-    if (goods) {
-      query.gd_cd = goods;
-      query.GoodsCd = goods;
+  private normalizeOrderRows(raw: unknown): Qoo10OrderRow[] {
+    if (Array.isArray(raw)) {
+      return raw as Qoo10OrderRow[];
     }
-    const url = this.buildUrl(method, qKey, query);
-    let result: unknown;
-    await withRateLimit('QOO10', this.rpm(), async () => {
-      result = await axiosWithRetry<unknown>(
-        {
-          method: httpMethod,
-          url,
-          timeout: 25_000,
-          headers: { 'Content-Type': 'application/json' },
-          data: body,
-        },
-        {},
-      );
-    });
-    return this.unwrapResult(result) as T;
+    if (!isRecord(raw)) {
+      return [];
+    }
+    for (const key of ['GoodsOrders', 'OrderList', 'Orders', 'items']) {
+      const val = raw[key];
+      if (Array.isArray(val)) {
+        return val as Qoo10OrderRow[];
+      }
+    }
+    return [];
   }
 
-  private mapOrder(row: Qoo10ShippingRow): MarketplaceOrder | null {
-    const idRaw = row.OrderNo ?? row.PackNo;
+  private mapOrder(row: Qoo10OrderRow): MarketplaceOrder | null {
+    const idRaw = row.OrderNo ?? row.OrderId ?? row.PackNo;
     if (idRaw === undefined || idRaw === null) {
       return null;
     }
     const name =
       typeof row.BuyerName === 'string' && row.BuyerName.length > 0
         ? row.BuyerName
-        : typeof row.Buyer === 'string' && row.Buyer.length > 0
-          ? row.Buyer
-          : '—';
+        : typeof row.BuyerNm === 'string' && row.BuyerNm.length > 0
+          ? row.BuyerNm
+          : typeof row.Buyer === 'string' && row.Buyer.length > 0
+            ? row.Buyer
+            : '—';
     const itemCode =
       typeof row.ItemCode === 'string' ? row.ItemCode : String(row.ItemCode ?? '');
-    const qtyRaw = row.OrderQty;
+    const qtyRaw = row.OrderQty ?? row.ItemQty;
     const quantity =
       typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
         ? Math.max(0, Math.round(qtyRaw))
         : typeof qtyRaw === 'string'
           ? Math.max(0, Math.round(parseFloat(qtyRaw) || 0))
           : 1;
-    const createdRaw = row.OrderDate ?? row.PaymentDate;
+    const createdRaw = row.OrderDate;
     const createdAt =
       typeof createdRaw === 'string' && createdRaw.length > 0
         ? new Date(createdRaw).toISOString()
@@ -168,21 +202,25 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     return {
       platformOrderId: String(idRaw),
       status:
-        typeof row.ShippingStatus === 'string' ? row.ShippingStatus : 'DELIVERY_WAIT',
+        typeof row.OrderStatus === 'string' ? row.OrderStatus : 'NEW',
       customerName: name,
       items: [
         {
           sku: itemCode,
           barcode: itemCode,
           quantity,
-          unitPrice: parseMoney(row.OrderPrice ?? row.Total),
+          unitPrice: parseMoney(row.OrderPrice ?? row.SellerPrice ?? row.Total),
           platformItemId: itemCode,
           productName:
-            typeof row.ItemTitle === 'string' ? row.ItemTitle : undefined,
+            typeof row.ItemTitle === 'string'
+              ? row.ItemTitle
+              : typeof row.ItemNm === 'string'
+                ? row.ItemNm
+                : undefined,
         },
       ],
-      totalAmount: parseMoney(row.Total ?? row.OrderPrice),
-      currency: typeof row.Currency === 'string' ? row.Currency : 'JPY',
+      totalAmount: parseMoney(row.Total ?? row.OrderPrice ?? row.SellerPrice),
+      currency: typeof row.Currency === 'string' ? row.Currency : 'USD',
       createdAt,
     };
   }
@@ -192,14 +230,16 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
       const end = new Date();
       const start = new Date(end);
       start.setDate(start.getDate() - 1);
-      await this.invoke<unknown>(
+      await this.request<unknown>(
         credentials,
-        METHOD_SHIPPING_INFO,
         'GET',
+        `${QOO10_SELLER_BASE}/seller/GoodsOrders`,
         {
-          StartDt: this.formatQoo10Date(start),
-          EndDt: this.formatQoo10Date(end),
-          ShippingStatus: 'DELIVERY_WAIT',
+          params: {
+            OrderStatus: 'NEW',
+            StartDate: this.formatDate(start),
+            EndDate: this.formatDate(end),
+          },
         },
       );
       return true;
@@ -218,23 +258,19 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     try {
       const end = new Date();
       const start = since ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const raw = await this.invoke<unknown>(credentials, METHOD_SHIPPING_INFO, 'GET', {
-        StartDt: this.formatQoo10Date(start),
-        EndDt: this.formatQoo10Date(end),
-        ShippingStatus: 'DELIVERY_WAIT',
-      });
-      const rows = this.ensureArray(
-        isRecord(raw)
-          ? (raw.ShippingInfo as Qoo10ShippingRow[] | Qoo10ShippingRow | undefined)
-          : Array.isArray(raw)
-            ? (raw as Qoo10ShippingRow[])
-            : undefined,
+      const raw = await this.request<unknown>(
+        credentials,
+        'GET',
+        `${QOO10_SELLER_BASE}/seller/GoodsOrders`,
+        {
+          params: {
+            OrderStatus: 'NEW',
+            StartDate: this.formatDate(start),
+            EndDate: this.formatDate(end),
+          },
+        },
       );
-      const list =
-        rows.length > 0
-          ? rows
-          : this.ensureArray(raw as Qoo10ShippingRow | Qoo10ShippingRow[] | undefined);
-      return list
+      return this.normalizeOrderRows(raw)
         .map((r) => this.mapOrder(r))
         .filter((x): x is MarketplaceOrder => x !== null);
     } catch (error) {
@@ -247,9 +283,17 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     try {
-      const raw = await this.invoke<unknown>(credentials, METHOD_ALL_GOODS, 'GET', {
-        Page: String(page + 1),
-      });
+      const raw = await this.request<unknown>(
+        credentials,
+        'GET',
+        `${QOO10_GOODS_BASE}/goods/GetGoodsInfo`,
+        {
+          params: {
+            Page: String(page + 1),
+            RowsPerPage: '50',
+          },
+        },
+      );
       const rows = this.ensureArray(
         isRecord(raw)
           ? (raw.Items as Qoo10GoodsRow[] | Qoo10GoodsRow | undefined)
@@ -257,11 +301,7 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
             ? (raw as Qoo10GoodsRow[])
             : undefined,
       );
-      const list =
-        rows.length > 0
-          ? rows
-          : this.ensureArray(raw as Qoo10GoodsRow | Qoo10GoodsRow[] | undefined);
-      const items: MarketplaceListing[] = list.map((row, i) => {
+      const items: MarketplaceListing[] = rows.map((row, i) => {
         const itemCode =
           typeof row.ItemCode === 'string'
             ? row.ItemCode
@@ -270,14 +310,14 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
           typeof row.OptionCode === 'string' ? row.OptionCode : '';
         const barcode =
           option.length > 0 ? `${itemCode}|${option}` : itemCode;
-        const qtyRaw = row.StockQty;
+        const qtyRaw = row.StockQty ?? row.ItemQty;
         const quantity =
           typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
             ? Math.max(0, Math.round(qtyRaw))
             : typeof qtyRaw === 'string'
               ? Math.max(0, Math.round(parseFloat(qtyRaw) || 0))
               : 0;
-        const sale = parseMoney(row.ItemPrice);
+        const sale = parseMoney(row.SellerPrice ?? row.ItemPrice);
         const title =
           typeof row.ItemTitle === 'string'
             ? row.ItemTitle
@@ -312,12 +352,18 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
   ): Promise<void> {
     try {
       for (const u of updates) {
-        const { itemCode, optionCode } = this.splitBarcode(u.barcode);
-        await this.invoke<unknown>(credentials, METHOD_SET_STOCK, 'POST', {}, {
-          ItemCode: itemCode,
-          StockQty: u.quantity,
-          OptionCode: optionCode,
-        });
+        const { itemCode } = this.splitBarcode(u.barcode);
+        await this.request<unknown>(
+          credentials,
+          'POST',
+          `${QOO10_GOODS_BASE}/goods/UpdateGoodsInventory`,
+          {
+            body: {
+              ItemCode: itemCode,
+              ItemQty: u.quantity,
+            },
+          },
+        );
       }
     } catch (error) {
       throwSyncFailed('QOO10', 'updateStock', error);
@@ -330,15 +376,47 @@ export class Qoo10Adapter implements IMarketplaceAdapter {
   ): Promise<void> {
     try {
       for (const u of updates) {
-        const { itemCode, optionCode } = this.splitBarcode(u.barcode);
-        await this.invoke<unknown>(credentials, METHOD_SET_PRICE, 'POST', {}, {
-          ItemCode: itemCode,
-          ItemPrice: u.salePrice,
-          OptionCode: optionCode,
-        });
+        const { itemCode } = this.splitBarcode(u.barcode);
+        await this.request<unknown>(
+          credentials,
+          'POST',
+          `${QOO10_GOODS_BASE}/goods/UpdateGoodsPrice`,
+          {
+            body: {
+              ItemCode: itemCode,
+              SellerPrice: u.salePrice,
+            },
+          },
+        );
       }
     } catch (error) {
       throwSyncFailed('QOO10', 'updatePrice', error);
+    }
+  }
+
+  async shipOrder(
+    credentials: Record<string, string>,
+    payload: {
+      orderId: string;
+      trackingNo: string;
+      shippingCompany: string;
+    },
+  ): Promise<void> {
+    try {
+      await this.request<unknown>(
+        credentials,
+        'POST',
+        `${QOO10_SELLER_BASE}/seller/UpdateOrderShipping`,
+        {
+          body: {
+            orderId: payload.orderId,
+            trackingNo: payload.trackingNo,
+            shippingCompany: payload.shippingCompany,
+          },
+        },
+      );
+    } catch (error) {
+      throwSyncFailed('QOO10', 'shipOrder', error);
     }
   }
 }
