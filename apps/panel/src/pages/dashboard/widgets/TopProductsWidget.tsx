@@ -10,8 +10,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDashboardPeriod } from '@/hooks/useDashboardPeriod';
 import { api, getApiErrorMessage } from '@/lib/api';
-import type { TopProductsResponse } from '@/types/analytics';
+import type { DashboardTopProductRow } from '@/types/dashboard-widgets';
 
 function formatTry(amount: number): string {
   return new Intl.NumberFormat('tr-TR', {
@@ -22,24 +23,26 @@ function formatTry(amount: number): string {
 }
 
 export function TopProductsWidget(): ReactElement {
+  const { api: periodApi } = useDashboardPeriod();
+
   const query = useQuery({
-    queryKey: ['dashboard', 'top-products'],
-    queryFn: async (): Promise<TopProductsResponse> => {
-      const { data } = await api.get<TopProductsResponse>('/analytics/top-products', {
-        params: { period: '7d', limit: 5 },
+    queryKey: ['dashboard', 'top-products', periodApi.queryKey],
+    queryFn: async (): Promise<DashboardTopProductRow[]> => {
+      const { data } = await api.get<DashboardTopProductRow[]>('/dashboard/top-products', {
+        params: { period: periodApi.kpiPeriod, limit: 10 },
       });
       return data;
     },
     staleTime: 120_000,
   });
 
-  const products = (query.data?.products ?? []).slice(0, 5);
+  const products = (query.data ?? []).slice(0, 10);
 
   return (
     <Card className="h-full">
       <CardHeader>
         <CardTitle>En çok satan ürünler</CardTitle>
-        <CardDescription>Son 7 gün · ilk 5 ürün</CardDescription>
+        <CardDescription>Seçili dönem · ilk 10 ürün</CardDescription>
       </CardHeader>
       <CardContent>
         {query.isLoading ? (
@@ -56,29 +59,32 @@ export function TopProductsWidget(): ReactElement {
           <EmptyState title="Veri yok" description="Henüz satış kaydı bulunmuyor." />
         ) : null}
         {!query.isLoading && products.length > 0 ? (
-          <ol className="space-y-2">
-            {products.map((row, index) => (
-              <li
-                key={row.barcode}
-                className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
-              >
-                <div className="min-w-0">
-                  <span className="mr-2 font-medium text-muted-foreground">
-                    {String(index + 1)}.
-                  </span>
-                  <span className="font-medium">
-                    {row.productName?.trim() || row.barcode}
-                  </span>
-                  <p className="text-xs text-muted-foreground">
-                    {row.quantity} adet · {row.orderCount} sipariş
-                  </p>
-                </div>
-                <span className="shrink-0 tabular-nums font-medium">
-                  {formatTry(row.revenue)}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 pr-2 font-medium">#</th>
+                  <th className="pb-2 pr-2 font-medium">Ürün</th>
+                  <th className="pb-2 pr-2 font-medium text-right">Satış</th>
+                  <th className="pb-2 font-medium text-right">Gelir</th>
+                </tr>
+              </thead>
+              <tbody>
+                {products.map((row, index) => (
+                  <tr key={row.sku ?? row.name ?? String(index)} className="border-b last:border-0">
+                    <td className="py-2 pr-2 text-muted-foreground">{index + 1}</td>
+                    <td className="max-w-[180px] truncate py-2 pr-2 font-medium">
+                      {row.name?.trim() || row.sku || '—'}
+                    </td>
+                    <td className="py-2 pr-2 text-right tabular-nums">{row.sales}</td>
+                    <td className="py-2 text-right tabular-nums font-medium">
+                      {formatTry(row.revenue)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : null}
       </CardContent>
     </Card>

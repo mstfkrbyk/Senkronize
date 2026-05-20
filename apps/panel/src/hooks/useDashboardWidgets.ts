@@ -1,108 +1,109 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 
+import { api } from '@/lib/api';
+import { WIDGET_DEFAULT_SIZE } from '@/pages/dashboard/widget-meta';
 import {
   DEFAULT_WIDGETS,
-  WIDGET_STORAGE_KEY,
   parseStoredWidgets,
   type Widget,
   type WidgetType,
 } from '@/types/dashboard-widgets';
 
-import { WIDGET_DEFAULT_SIZE } from '@/pages/dashboard/widget-meta';
-
-function loadWidgets(): Widget[] {
-  try {
-    const raw = localStorage.getItem(WIDGET_STORAGE_KEY);
-    if (!raw) {
-      return DEFAULT_WIDGETS;
-    }
-    return parseStoredWidgets(JSON.parse(raw) as unknown);
-  } catch {
-    return DEFAULT_WIDGETS;
-  }
-}
-
 function sortByPosition(widgets: Widget[]): Widget[] {
   return [...widgets].sort((a, b) => a.position - b.position);
+}
+
+interface WidgetsApiResponse {
+  widgets: Widget[];
 }
 
 export function useDashboardWidgets(): {
   widgets: Widget[];
   enabledTypes: Set<WidgetType>;
-  saveWidgets: (draft: Widget[]) => void;
+  isLoading: boolean;
+  isSaving: boolean;
+  saveWidgets: (
+    draft: Widget[],
+    options?: { onSuccess?: () => void; onError?: () => void },
+  ) => void;
   resetToDefault: () => Widget[];
-  removeWidget: (widgets: Widget[], type: WidgetType) => Widget[];
-  addWidget: (widgets: Widget[], type: WidgetType) => Widget[];
-  reorderWidgets: (widgets: Widget[], activeId: string, overId: string) => Widget[];
+  isVisible: (type: WidgetType) => boolean;
 } {
-  const [widgets, setWidgets] = useState<Widget[]>(() => sortByPosition(loadWidgets()));
+  const queryClient = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ['dashboard', 'widgets'],
+    queryFn: async (): Promise<Widget[]> => {
+      const { data } = await api.get<WidgetsApiResponse>('/dashboard/widgets');
+      return sortByPosition(parseStoredWidgets(data.widgets));
+    },
+    staleTime: 300_000,
+  });
+
+  const mutation = useMutation({
+    mutationFn: async (draft: Widget[]): Promise<Widget[]> => {
+      const normalized = sortByPosition(
+        draft.map((w, index) => ({
+          ...w,
+          position: index,
+          visible: w.visible !== false,
+          size: w.size ?? WIDGET_DEFAULT_SIZE[w.type],
+        })),
+      );
+      const { data } = await api.patch<WidgetsApiResponse>('/dashboard/widgets', {
+        widgets: normalized,
+      });
+      return sortByPosition(parseStoredWidgets(data.widgets));
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(['dashboard', 'widgets'], saved);
+    },
+  });
+
+  const widgets = query.data ?? DEFAULT_WIDGETS;
 
   const enabledTypes = useMemo(
-    () => new Set(widgets.map((w) => w.type)),
+    () =>
+      new Set(
+        widgets.filter((w) => w.visible !== false).map((w) => w.type),
+      ),
     [widgets],
   );
 
-  const persist = useCallback((next: Widget[]): void => {
-    const sorted = sortByPosition(
-      next.map((w, index) => ({ ...w, position: index })),
-    );
-    setWidgets(sorted);
-    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(sorted));
-  }, []);
+  const isVisible = useCallback(
+    (type: WidgetType): boolean => enabledTypes.has(type),
+    [enabledTypes],
+  );
 
   const saveWidgets = useCallback(
-    (draft: Widget[]): void => {
-      persist(draft);
+    (
+      draft: Widget[],
+      options?: { onSuccess?: () => void; onError?: () => void },
+    ): void => {
+      mutation.mutate(draft, {
+        onSuccess: () => {
+          options?.onSuccess?.();
+        },
+        onError: () => {
+          options?.onError?.();
+        },
+      });
     },
-    [persist],
+    [mutation],
   );
 
   const resetToDefault = useCallback((): Widget[] => {
     return sortByPosition(DEFAULT_WIDGETS);
   }, []);
 
-  const removeWidget = useCallback((list: Widget[], type: WidgetType): Widget[] => {
-    return sortByPosition(list.filter((w) => w.type !== type));
-  }, []);
-
-  const addWidget = useCallback((list: Widget[], type: WidgetType): Widget[] => {
-    if (list.some((w) => w.type === type)) {
-      return list;
-    }
-    const maxPos = list.reduce((m, w) => Math.max(m, w.position), -1);
-    return sortByPosition([
-      ...list,
-      {
-        id: `w-${type}-${String(Date.now())}`,
-        type,
-        size: WIDGET_DEFAULT_SIZE[type],
-        position: maxPos + 1,
-      },
-    ]);
-  }, []);
-
-  const reorderWidgets = useCallback(
-    (list: Widget[], activeId: string, overId: string): Widget[] => {
-      const oldIndex = list.findIndex((w) => w.id === activeId);
-      const newIndex = list.findIndex((w) => w.id === overId);
-      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-        return list;
-      }
-      const next = [...list];
-      const [moved] = next.splice(oldIndex, 1);
-      next.splice(newIndex, 0, moved);
-      return sortByPosition(next.map((w, index) => ({ ...w, position: index })));
-    },
-    [],
-  );
-
   return {
-    widgets: sortByPosition(widgets),
+    widgets,
     enabledTypes,
+    isLoading: query.isPending,
+    isSaving: mutation.isPending,
     saveWidgets,
     resetToDefault,
-    removeWidget,
-    addWidget,
-    reorderWidgets,
+    isVisible,
   };
 }

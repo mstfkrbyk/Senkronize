@@ -16,14 +16,22 @@ import { api } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { Listing } from '@/types/listing';
 
-export function LowStockWidget(): ReactElement {
+interface Props {
+  showChart?: boolean;
+  limit?: number;
+}
+
+export function LowStockWidget({
+  showChart = true,
+  limit = 5,
+}: Props): ReactElement {
   const navigate = useNavigate();
 
   const query = useQuery({
-    queryKey: ['dashboard', 'low-stock'],
+    queryKey: ['dashboard', 'low-stock', limit],
     queryFn: async (): Promise<Listing[]> => {
       const { data } = await api.get<{ items: Listing[] }>('/listings', {
-        params: { stockTier: 'LOW', limit: 5, page: 1 },
+        params: { stockTier: 'LOW', limit, page: 1 },
       });
       return data.items;
     },
@@ -42,8 +50,8 @@ export function LowStockWidget(): ReactElement {
       }}
     >
       <CardHeader>
-        <CardTitle>Düşük stok</CardTitle>
-        <CardDescription>En kritik 5 ürün</CardDescription>
+        <CardTitle>Stok uyarıları</CardTitle>
+        <CardDescription>Kritik stok seviyesindeki ürünler</CardDescription>
       </CardHeader>
       <CardContent>
         {query.isPending ? <Skeleton className="h-32 w-full" /> : null}
@@ -52,20 +60,22 @@ export function LowStockWidget(): ReactElement {
         ) : null}
         {!query.isPending && query.data && query.data.length > 0 ? (
           <>
-            <div className="mb-3 h-24">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8 }}>
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={48}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <Bar dataKey="stok" fill="hsl(38 92% 50%)" radius={2} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            {showChart ? (
+              <div className="mb-3 h-24">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={48}
+                      tick={{ fontSize: 10 }}
+                    />
+                    <Bar dataKey="stok" fill="hsl(38 92% 50%)" radius={2} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : null}
             <ul className="space-y-2">
               {query.data.map((l) => (
                 <li key={l.id} className="flex justify-between gap-2 text-sm">

@@ -12,16 +12,18 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDashboardPeriod } from '@/hooks/useDashboardPeriod';
 import { api } from '@/lib/api';
 import type { DashboardApiSummary } from '@/types/dashboard-widgets';
 
 export function BuyboxRateWidget(): ReactElement {
   const navigate = useNavigate();
+  const { api: periodApi } = useDashboardPeriod();
   const query = useQuery({
-    queryKey: ['dashboard', 'summary', 'default'],
+    queryKey: ['dashboard', 'summary', periodApi.queryKey],
     queryFn: async (): Promise<DashboardApiSummary> => {
       const { data } = await api.get<DashboardApiSummary>('/dashboard/summary', {
-        params: { period: 'default' },
+        params: { period: periodApi.summaryPeriod },
       });
       return data;
     },

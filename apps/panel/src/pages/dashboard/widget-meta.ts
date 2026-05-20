@@ -1,28 +1,39 @@
 import type { WidgetSize, WidgetType } from '@/types/dashboard-widgets';
 
 export const ALL_WIDGET_TYPES: WidgetType[] = [
+  'kpi-revenue',
+  'kpi-orders',
+  'kpi-listings',
+  'kpi-buybox',
   'revenue-chart',
-  'orders-summary',
   'platform-breakdown',
-  'stock-alerts',
-  'sync-status',
-  'top-products',
   'recent-orders',
+  'stock-alerts',
+  'top-products',
+  'sync-status',
   'buybox-rate',
 ];
 
 export const WIDGET_LABELS: Record<WidgetType, string> = {
-  'revenue-chart': 'Gelir grafiği',
+  'kpi-revenue': 'Bugünkü gelir',
+  'kpi-orders': 'Toplam sipariş',
+  'kpi-listings': 'Aktif listeleme',
+  'kpi-buybox': 'BuyBox kazanma oranı',
+  'revenue-chart': 'Gelir trendi',
   'orders-summary': 'Sipariş özeti',
   'platform-breakdown': 'Platform dağılımı',
-  'stock-alerts': 'Kritik stok listesi',
-  'sync-status': 'Senkronizasyon durumu',
+  'stock-alerts': 'Stok uyarıları',
+  'sync-status': 'Sync durumu',
   'top-products': 'En çok satan ürünler',
   'recent-orders': 'Son siparişler',
-  'buybox-rate': 'BuyBox oranı',
+  'buybox-rate': 'BuyBox özeti',
 };
 
 export const WIDGET_DEFAULT_SIZE: Record<WidgetType, WidgetSize> = {
+  'kpi-revenue': '1x1',
+  'kpi-orders': '1x1',
+  'kpi-listings': '1x1',
+  'kpi-buybox': '1x1',
   'revenue-chart': '2x1',
   'orders-summary': '2x1',
   'platform-breakdown': '1x1',

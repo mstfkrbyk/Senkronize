@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Area,
@@ -11,7 +10,6 @@ import {
   YAxis,
 } from 'recharts';
 
-import { Button } from '@/components/ui/button';
 import {
   Card,
   CardContent,
@@ -20,14 +18,9 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDashboardPeriod } from '@/hooks/useDashboardPeriod';
 import { api } from '@/lib/api';
 import type { DashboardOrdersTrendPoint } from '@/types/dashboard-widgets';
-
-const PERIODS = [
-  { days: 7, label: '7g' },
-  { days: 14, label: '14g' },
-  { days: 30, label: '30g' },
-] as const;
 
 function formatTry(value: number): string {
   return new Intl.NumberFormat('tr-TR', {
@@ -38,10 +31,11 @@ function formatTry(value: number): string {
 }
 
 export function RevenueChartWidget(): ReactElement {
-  const [days, setDays] = useState<7 | 14 | 30>(7);
+  const { api: periodApi } = useDashboardPeriod();
+  const days = periodApi.trendDays;
 
   const trendQuery = useQuery({
-    queryKey: ['dashboard', 'orders-trend', days],
+    queryKey: ['dashboard', 'orders-trend', periodApi.queryKey, days],
     queryFn: async (): Promise<DashboardOrdersTrendPoint[]> => {
       const { data } = await api.get<{ points: DashboardOrdersTrendPoint[] }>(
         '/dashboard/orders-trend',
@@ -59,26 +53,11 @@ export function RevenueChartWidget(): ReactElement {
 
   return (
     <Card className="h-full">
-      <CardHeader className="flex flex-row items-start justify-between gap-2">
-        <div>
-          <CardTitle>Gelir grafiği</CardTitle>
-          <CardDescription>Günlük tahmini gelir (TRY)</CardDescription>
-        </div>
-        <div className="flex shrink-0 gap-1">
-          {PERIODS.map((p) => (
-            <Button
-              key={p.days}
-              type="button"
-              size="sm"
-              variant={days === p.days ? 'default' : 'outline'}
-              onClick={() => {
-                setDays(p.days);
-              }}
-            >
-              {p.label}
-            </Button>
-          ))}
-        </div>
+      <CardHeader>
+        <CardTitle>Gelir trendi</CardTitle>
+        <CardDescription>
+          Son {String(days)} gün · günlük gelir (TRY)
+        </CardDescription>
       </CardHeader>
       <CardContent className="h-56 min-h-[14rem]">
         {trendQuery.isPending ? (

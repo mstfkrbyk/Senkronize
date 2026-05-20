@@ -6,6 +6,14 @@ import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   Card,
   CardContent,
   CardDescription,
@@ -36,15 +44,23 @@ function StatusBadge({ status }: { status: OrderStatus }): ReactElement {
   );
 }
 
-export function RecentOrdersWidget(): ReactElement {
+interface Props {
+  limit?: number;
+  variant?: 'list' | 'table';
+}
+
+export function RecentOrdersWidget({
+  limit = 10,
+  variant = 'table',
+}: Props): ReactElement {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
   const query = useQuery({
-    queryKey: ['dashboard', 'recent-orders'],
+    queryKey: ['dashboard', 'recent-orders', limit],
     queryFn: async (): Promise<Order[]> => {
       const { data } = await api.get<{ items: Order[] }>('/orders', {
-        params: { limit: 5, page: 1 },
+        params: { limit, page: 1 },
       });
       return data.items;
     },
@@ -93,29 +109,60 @@ export function RecentOrdersWidget(): ReactElement {
           />
         ) : null}
         {!query.isPending && !query.isError && query.data && query.data.length > 0 ? (
-          <ul className="divide-y">
-            {query.data.map((order) => (
-              <li
-                key={order.id}
-                className="flex items-center justify-between gap-2 py-2.5 first:pt-0"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {getMarketplaceBranding(order.platform).label} · {order.customerName}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {order.platformCreatedAt.slice(0, 10)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  <span className="text-sm font-medium tabular-nums">
-                    {formatTry(order.totalAmount, order.currency)}
-                  </span>
-                  <StatusBadge status={order.status} />
-                </div>
-              </li>
-            ))}
-          </ul>
+          variant === 'table' ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Platform</TableHead>
+                  <TableHead>Müşteri</TableHead>
+                  <TableHead className="text-right">Tutar</TableHead>
+                  <TableHead>Durum</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {query.data.map((order) => (
+                  <TableRow key={order.id}>
+                    <TableCell className="font-medium">
+                      {getMarketplaceBranding(order.platform).label}
+                    </TableCell>
+                    <TableCell className="max-w-[140px] truncate">
+                      {order.customerName}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatTry(order.totalAmount, order.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={order.status} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <ul className="divide-y">
+              {query.data.map((order) => (
+                <li
+                  key={order.id}
+                  className="flex items-center justify-between gap-2 py-2.5 first:pt-0"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {getMarketplaceBranding(order.platform).label} · {order.customerName}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {order.platformCreatedAt.slice(0, 10)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-sm font-medium tabular-nums">
+                      {formatTry(order.totalAmount, order.currency)}
+                    </span>
+                    <StatusBadge status={order.status} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )
         ) : null}
       </CardContent>
     </Card>
