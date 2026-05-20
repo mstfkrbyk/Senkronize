@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -50,6 +50,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api';
@@ -89,6 +90,18 @@ interface DraftLine {
   productBarcode: string;
   quantity: string;
 }
+
+const APPROVER_ROLES = new Set(['SUPER_ADMIN', 'OWNER', 'ADMIN', 'MANAGER']);
+
+function canApproveTransfers(role: string | undefined): boolean {
+  return role !== undefined && APPROVER_ROLES.has(role);
+}
+
+const WIZARD_STEPS = [
+  { step: 1, label: 'Ürün seç' },
+  { step: 2, label: 'Miktarları belirle' },
+  { step: 3, label: 'Onayla' },
+] as const;
 
 function TransferTimeline({
   status,
@@ -157,16 +170,130 @@ function TransferTimeline({
   );
 }
 
+function TransferDetailModal({
+  id,
+  open,
+  onOpenChange,
+}: {
+  id: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}): ReactElement | null {
+  const transferQ = useStockTransfer(id ?? undefined);
+  const confirmMut = useConfirmStockTransfer();
+  const cancelMut = useCancelStockTransfer();
+  const { data: me } = useAuth();
+  const canApprove = canApproveTransfers(me?.user.role);
+
+  const transfer = transferQ.data;
+  const canAct =
+    canApprove &&
+    (transfer?.status === 'DRAFT' || transfer?.status === 'IN_TRANSIT');
+
+  if (!id) {
+    return null;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Transfer detayı</DialogTitle>
+        </DialogHeader>
+        {transferQ.isLoading ? (
+          <p className="text-muted-foreground text-sm">Yükleniyor…</p>
+        ) : !transfer ? (
+          <p className="text-destructive text-sm">Transfer yüklenemedi.</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm">
+                {transfer.fromWarehouseName} → {transfer.toWarehouseName}
+              </p>
+              <Badge variant={STATUS_VARIANT[transfer.status]}>
+                {STATUS_LABEL[transfer.status]}
+              </Badge>
+            </div>
+            <TransferTimeline
+              status={transfer.status}
+              createdAt={transfer.createdAt}
+              completedAt={transfer.completedAt}
+            />
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ürün</TableHead>
+                  <TableHead className="text-right">Miktar</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transfer.items.map((it) => (
+                  <TableRow key={it.id}>
+                    <TableCell className="text-sm">
+                      {it.productName}
+                      <div className="font-mono text-xs text-muted-foreground">
+                        {it.productBarcode}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {it.quantity}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            {canAct ? (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={cancelMut.isPending}
+                  onClick={() => {
+                    void cancelMut.mutateAsync(id).then(() => {
+                      toast.success('Transfer reddedildi / iptal edildi');
+                      void transferQ.refetch();
+                    });
+                  }}
+                >
+                  Reddet
+                </Button>
+                <Button
+                  type="button"
+                  disabled={confirmMut.isPending}
+                  onClick={() => {
+                    void confirmMut.mutateAsync(id).then(() => {
+                      toast.success('Transfer onaylandı');
+                      void transferQ.refetch();
+                    });
+                  }}
+                >
+                  Onayla
+                </Button>
+              </div>
+            ) : null}
+            <Button type="button" variant="link" className="h-auto px-0" asChild>
+              <Link to={`/stock/transfers/${id}`}>Tam detay sayfası</Link>
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TransferDetailView({ id }: { id: string }): ReactElement {
   usePageTitle('Transfer detayı');
   const navigate = useNavigate();
   const transferQ = useStockTransfer(id);
   const confirmMut = useConfirmStockTransfer();
   const cancelMut = useCancelStockTransfer();
+  const { data: me } = useAuth();
 
   const transfer = transferQ.data;
+  const canApprove = canApproveTransfers(me?.user.role);
   const canAct =
-    transfer?.status === 'DRAFT' || transfer?.status === 'IN_TRANSIT';
+    canApprove &&
+    (transfer?.status === 'DRAFT' || transfer?.status === 'IN_TRANSIT');
 
   const onConfirm = async (): Promise<void> => {
     try {
@@ -306,8 +433,11 @@ function TransferDetailView({ id }: { id: string }): ReactElement {
 function TransferListView(): ReactElement {
   usePageTitle('Stok transferi');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [tab, setTab] = useState<TransferStatusApi>('DRAFT');
   const [modalOpen, setModalOpen] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3>(1);
+  const [detailModalId, setDetailModalId] = useState<string | null>(null);
 
   const transfersQ = useStockTransfers({ status: tab, limit: 50 });
   const warehousesQ = useWarehouses();
@@ -320,6 +450,36 @@ function TransferListView(): ReactElement {
   const [productSearch, setProductSearch] = useState('');
   const [searchResults, setSearchResults] = useState<ProductListItem[]>([]);
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const barcode = searchParams.get('barcode');
+    if (barcode && barcode.trim().length >= 2) {
+      setModalOpen(true);
+      setWizardStep(1);
+      void (async (): Promise<void> => {
+        try {
+          const { data } = await api.get<{ items: ProductListItem[] }>(
+            '/products',
+            { params: { search: barcode.trim(), limit: 1 } },
+          );
+          const product = data.items[0];
+          if (product) {
+            setLines([
+              {
+                key: product.id,
+                productId: product.id,
+                productName: product.name,
+                productBarcode: product.barcode,
+                quantity: '1',
+              },
+            ]);
+          }
+        } catch {
+          /* ignore */
+        }
+      })();
+    }
+  }, [searchParams]);
 
   const searchProducts = useCallback(async (q: string): Promise<void> => {
     const term = q.trim();
@@ -371,6 +531,42 @@ function TransferListView(): ReactElement {
     setLines([]);
     setProductSearch('');
     setSearchResults([]);
+    setWizardStep(1);
+  };
+
+  const fromWarehouseName =
+    warehousesQ.data?.find((w) => w.id === fromWarehouseId)?.name ?? '—';
+  const toWarehouseName =
+    warehousesQ.data?.find((w) => w.id === toWarehouseId)?.name ?? '—';
+
+  const goNextStep = (): void => {
+    if (wizardStep === 1) {
+      if (!fromWarehouseId || !toWarehouseId) {
+        toast.error('Kaynak ve hedef depo seçin.');
+        return;
+      }
+      if (fromWarehouseId === toWarehouseId) {
+        toast.error('Kaynak ve hedef depo farklı olmalı.');
+        return;
+      }
+      if (lines.length === 0) {
+        toast.error('En az bir ürün ekleyin.');
+        return;
+      }
+      setWizardStep(2);
+      return;
+    }
+    if (wizardStep === 2) {
+      const invalid = lines.some((l) => {
+        const q = Number.parseInt(l.quantity, 10);
+        return !Number.isFinite(q) || q <= 0;
+      });
+      if (invalid) {
+        toast.error('Tüm satırlarda geçerli miktar girin.');
+        return;
+      }
+      setWizardStep(3);
+    }
   };
 
   const submitTransfer = async (): Promise<void> => {
@@ -507,9 +703,19 @@ function TransferListView(): ReactElement {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button type="button" variant="outline" size="sm" asChild>
-                          <Link to={`/stock/transfers/${row.id}`}>Detay</Link>
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDetailModalId(row.id)}
+                          >
+                            Detay
+                          </Button>
+                          <Button type="button" variant="outline" size="sm" asChild>
+                            <Link to={`/stock/transfers/${row.id}`}>Aç</Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -519,6 +725,16 @@ function TransferListView(): ReactElement {
           )}
         </CardContent>
       </Card>
+
+      <TransferDetailModal
+        id={detailModalId}
+        open={detailModalId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailModalId(null);
+          }
+        }}
+      />
 
       <Dialog
         open={modalOpen}
@@ -534,86 +750,112 @@ function TransferListView(): ReactElement {
               Yeni transfer
             </DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3">
-            <div className="grid gap-2">
-              <Label>Kaynak depo</Label>
-              <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(warehousesQ.data ?? []).map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name} ({w.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Hedef depo</Label>
-              <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seçin" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(warehousesQ.data ?? [])
-                    .filter((w) => w.id !== fromWarehouseId)
-                    .map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name} ({w.code})
-                      </SelectItem>
+
+          <div className="flex items-center gap-2">
+            {WIZARD_STEPS.map(({ step, label }) => (
+              <div
+                key={step}
+                className={`flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2 text-center text-xs ${
+                  wizardStep === step
+                    ? 'border-sky-400 bg-sky-50'
+                    : wizardStep > step
+                      ? 'border-emerald-200 bg-emerald-50'
+                      : 'border-muted'
+                }`}
+              >
+                <span className="font-semibold">{step}</span>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {wizardStep === 1 ? (
+            <div className="grid gap-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label>Kaynak depo</Label>
+                  <Select value={fromWarehouseId} onValueChange={setFromWarehouseId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(warehousesQ.data ?? []).map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name} ({w.code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>Hedef depo</Label>
+                  <Select value={toWarehouseId} onValueChange={setToWarehouseId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seçin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(warehousesQ.data ?? [])
+                        .filter((w) => w.id !== fromWarehouseId)
+                        .map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name} ({w.code})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>Ürün ekle</Label>
+                <Input
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    void searchProducts(e.target.value);
+                  }}
+                  placeholder="Ürün adı veya barkod ara…"
+                />
+                {searching ? (
+                  <p className="text-muted-foreground text-xs">Aranıyor…</p>
+                ) : null}
+                {searchResults.length > 0 ? (
+                  <ul className="max-h-36 overflow-y-auto rounded-md border text-sm">
+                    {searchResults.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          className="hover:bg-muted w-full px-3 py-2 text-left"
+                          onClick={() => addLine(p)}
+                        >
+                          {p.name}
+                          <span className="text-muted-foreground ml-2 font-mono text-xs">
+                            {p.barcode}
+                          </span>
+                        </button>
+                      </li>
                     ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="transfer-note">Not (isteğe bağlı)</Label>
-              <Input
-                id="transfer-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Ürün ekle</Label>
-              <Input
-                value={productSearch}
-                onChange={(e) => {
-                  setProductSearch(e.target.value);
-                  void searchProducts(e.target.value);
-                }}
-                placeholder="Ürün adı veya barkod ara…"
-              />
-              {searching ? (
-                <p className="text-muted-foreground text-xs">Aranıyor…</p>
-              ) : null}
-              {searchResults.length > 0 ? (
-                <ul className="max-h-36 overflow-y-auto rounded-md border text-sm">
-                  {searchResults.map((p) => (
-                    <li key={p.id}>
-                      <button
-                        type="button"
-                        className="hover:bg-muted w-full px-3 py-2 text-left"
-                        onClick={() => addLine(p)}
-                      >
-                        {p.name}
-                        <span className="text-muted-foreground ml-2 font-mono text-xs">
-                          {p.barcode}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                  </ul>
+                ) : null}
+              </div>
+              {lines.length > 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  {lines.length} ürün seçildi
+                </p>
               ) : null}
             </div>
-            {lines.length > 0 ? (
+          ) : null}
+
+          {wizardStep === 2 ? (
+            <div className="space-y-3">
+              <p className="text-muted-foreground text-sm">
+                {fromWarehouseName} → {toWarehouseName}
+              </p>
               <div className="overflow-x-auto rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Ürün</TableHead>
-                      <TableHead className="w-24">Miktar</TableHead>
+                      <TableHead className="w-28">Miktar</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
@@ -657,23 +899,89 @@ function TransferListView(): ReactElement {
                   </TableBody>
                 </Table>
               </div>
-            ) : null}
-          </div>
-          <DialogFooter>
+              <div className="grid gap-2">
+                <Label htmlFor="transfer-note">Not (isteğe bağlı)</Label>
+                <Input
+                  id="transfer-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {wizardStep === 3 ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border p-3">
+                <p>
+                  <span className="text-muted-foreground">Kaynak:</span>{' '}
+                  {fromWarehouseName}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Hedef:</span>{' '}
+                  {toWarehouseName}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Kalem:</span>{' '}
+                  {lines.length}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Toplam adet:</span>{' '}
+                  {lines.reduce(
+                    (s, l) => s + (Number.parseInt(l.quantity, 10) || 0),
+                    0,
+                  )}
+                </p>
+                {note.trim() ? (
+                  <p>
+                    <span className="text-muted-foreground">Not:</span> {note}
+                  </p>
+                ) : null}
+              </div>
+              <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
+                {lines.map((l) => (
+                  <li key={l.key} className="flex justify-between gap-2">
+                    <span className="line-clamp-1">{l.productName}</span>
+                    <span className="tabular-nums">{l.quantity} adet</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <DialogFooter className="gap-2 sm:justify-between">
             <Button
               type="button"
-              variant="secondary"
-              onClick={() => setModalOpen(false)}
+              variant="ghost"
+              disabled={wizardStep === 1}
+              onClick={() =>
+                setWizardStep((s) => (s > 1 ? ((s - 1) as 1 | 2 | 3) : s))
+              }
             >
-              Vazgeç
+              Geri
             </Button>
-            <Button
-              type="button"
-              disabled={createMut.isPending}
-              onClick={() => void submitTransfer()}
-            >
-              Oluştur
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setModalOpen(false)}
+              >
+                Vazgeç
+              </Button>
+              {wizardStep < 3 ? (
+                <Button type="button" onClick={goNextStep}>
+                  İleri
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  disabled={createMut.isPending}
+                  onClick={() => void submitTransfer()}
+                >
+                  Transferi oluştur
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -57,10 +57,7 @@ function rowToneClass(days: number | null): string {
   if (days < 14) {
     return 'bg-amber-50/90 dark:bg-amber-950/25';
   }
-  if (days < 30) {
-    return 'bg-emerald-50/60 dark:bg-emerald-950/20';
-  }
-  return '';
+  return 'bg-emerald-50/60 dark:bg-emerald-950/20';
 }
 
 function daysBadgeLabel(days: number | null): string {
@@ -346,7 +343,7 @@ export function StockForecastPage(): ReactElement {
           <CardHeader>
             <CardTitle>Ürün listesi</CardTitle>
             <CardDescription>
-              Kırmızı: 7 günden az, sarı: 14 günden az, yeşil: 30 gün ve üzeri.
+              Kırmızı: 7 günden az, turuncu: 7–14 gün, yeşil: 14 günden fazla.
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -499,11 +496,11 @@ export function StockForecastPage(): ReactElement {
                                 'qty',
                                 String(Math.max(1, row.recommendedOrderQty || 1)),
                               );
-                              navigate(`/purchase-orders?${params.toString()}`);
+                              navigate(`/suppliers?${params.toString()}`);
                             }}
                           >
                             <ShoppingCart className="size-3.5" aria-hidden />
-                            Sipariş
+                            Yeniden Sipariş Ver
                           </Button>
                         </TableCell>
                       </TableRow>

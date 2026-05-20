@@ -1,8 +1,15 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { MapPin, Package, TrendingDown, Warehouse } from 'lucide-react';
+import {
+  MapPin,
+  Package,
+  Pencil,
+  TrendingDown,
+  Warehouse,
+} from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import {
   Sheet,
   SheetContent,
@@ -29,6 +37,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -45,10 +60,14 @@ import type { StockOverviewRow, WarehouseDto } from '@/types/stock';
 import { useProductCostMap } from './hooks/useProductCostMap';
 import {
   useCreateWarehouse,
-  useDailyMovementFlow,
+  useStockHistoryOrg,
   useStockOverview,
+  useUpdateWarehouse,
   useWarehouses,
 } from './hooks/useStockManagement';
+import {
+  movementBadgeClass,
+} from './stock-movement-labels';
 
 function slugCode(name: string): string {
   const base = name
@@ -87,37 +106,50 @@ function computeWarehouseStats(
   return { productCount, totalQty, totalValue };
 }
 
-interface TopProductRow {
+interface ProductRow {
   barcode: string;
   name: string;
+  sku: string | null;
   quantity: number;
   value: number;
 }
 
-function topProductsByValue(
+function productsInWarehouse(
   rows: StockOverviewRow[],
   warehouseId: string,
   costMap: Map<string, number>,
-  limit = 10,
-): TopProductRow[] {
-  const list: TopProductRow[] = [];
+): ProductRow[] {
+  const list: ProductRow[] = [];
   for (const row of rows) {
     const wh = row.byWarehouse.find((w) => w.warehouseId === warehouseId);
-    if (!wh) {
+    if (!wh || wh.quantity <= 0) {
       continue;
     }
     const cost = costMap.get(row.barcode) ?? 0;
     list.push({
       barcode: row.barcode,
       name: row.productName ?? row.barcode,
+      sku: row.sku,
       quantity: wh.quantity,
       value: wh.quantity * cost,
     });
   }
-  return list
-    .sort((a, b) => b.value - a.value || b.quantity - a.quantity)
-    .slice(0, limit);
+  return list.sort((a, b) => b.quantity - a.quantity);
 }
+
+interface WarehouseFormState {
+  name: string;
+  address: string;
+  description: string;
+  isActive: boolean;
+}
+
+const EMPTY_FORM: WarehouseFormState = {
+  name: '',
+  address: '',
+  description: '',
+  isActive: true,
+};
 
 export function WarehousesPage(): ReactElement {
   usePageTitle('Depo yönetimi');
@@ -125,18 +157,22 @@ export function WarehousesPage(): ReactElement {
   const warehousesQuery = useWarehouses();
   const overviewQuery = useStockOverview();
   const costMapQuery = useProductCostMap();
-  const flowQuery = useDailyMovementFlow(7);
   const createMutation = useCreateWarehouse();
+  const updateMutation = useUpdateWarehouse();
 
   const [whOpen, setWhOpen] = useState(false);
-  const [whName, setWhName] = useState('');
-  const [whAddress, setWhAddress] = useState('');
-  const [whDescription, setWhDescription] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState<WarehouseFormState>(EMPTY_FORM);
   const [detailId, setDetailId] = useState<string | null>(null);
 
   const costMap = costMapQuery.data ?? new Map<string, number>();
   const overview = overviewQuery.data ?? [];
   const warehouses: WarehouseDto[] = warehousesQuery.data ?? [];
+
+  const orgTotalQty = useMemo(
+    () => overview.reduce((s, r) => s + r.totalQuantity, 0),
+    [overview],
+  );
 
   const detailWarehouse = warehouses.find((w) => w.id === detailId);
 
@@ -147,11 +183,11 @@ export function WarehousesPage(): ReactElement {
     return computeWarehouseStats(overview, detailId, costMap);
   }, [detailId, overview, costMap]);
 
-  const detailTop = useMemo(() => {
+  const detailProducts = useMemo(() => {
     if (!detailId) {
       return [];
     }
-    return topProductsByValue(overview, detailId, costMap);
+    return productsInWarehouse(overview, detailId, costMap);
   }, [detailId, overview, costMap]);
 
   const detailLowStock = useMemo(() => {
@@ -164,44 +200,75 @@ export function WarehousesPage(): ReactElement {
     });
   }, [detailId, overview]);
 
+  const detailMovementsQuery = useStockHistoryOrg({
+    warehouseId: detailId ?? undefined,
+    limit: 8,
+    page: 1,
+  });
+
+  const occupancyPercent = useMemo(() => {
+    if (!detailStats || orgTotalQty <= 0) {
+      return 0;
+    }
+    return Math.min(100, Math.round((detailStats.totalQty / orgTotalQty) * 100));
+  }, [detailStats, orgTotalQty]);
+
+  const openCreate = (): void => {
+    setEditId(null);
+    setForm(EMPTY_FORM);
+    setWhOpen(true);
+  };
+
+  const openEdit = (w: WarehouseDto): void => {
+    setEditId(w.id);
+    setForm({
+      name: w.name,
+      address: w.address?.split('\n')[0] ?? '',
+      description: w.address?.split('\n').slice(1).join('\n') ?? '',
+      isActive: w.isActive,
+    });
+    setWhOpen(true);
+  };
+
   const submitWarehouse = (): void => {
-    const name = whName.trim();
+    const name = form.name.trim();
     if (!name) {
       toast.error('Depo adı gerekli.');
       return;
     }
-    const addressParts = [whAddress.trim(), whDescription.trim()].filter(
+    const addressParts = [form.address.trim(), form.description.trim()].filter(
       (p) => p.length > 0,
     );
+    const address = addressParts.length > 0 ? addressParts.join('\n') : undefined;
+
+    if (editId) {
+      updateMutation.mutate(
+        { id: editId, name, address, isActive: form.isActive },
+        {
+          onSuccess: () => {
+            toast.success('Depo güncellendi');
+            setWhOpen(false);
+            setEditId(null);
+            setForm(EMPTY_FORM);
+          },
+          onError: (e) => toast.error(getApiErrorMessage(e)),
+        },
+      );
+      return;
+    }
+
     createMutation.mutate(
-      {
-        name,
-        code: slugCode(name),
-        address: addressParts.length > 0 ? addressParts.join('\n') : undefined,
-      },
+      { name, code: slugCode(name), address },
       {
         onSuccess: () => {
           toast.success('Depo oluşturuldu');
           setWhOpen(false);
-          setWhName('');
-          setWhAddress('');
-          setWhDescription('');
+          setForm(EMPTY_FORM);
         },
         onError: (e) => toast.error(getApiErrorMessage(e)),
       },
     );
   };
-
-  const flowSummary = useMemo(() => {
-    const points = flowQuery.data ?? [];
-    let inflow = 0;
-    let outflow = 0;
-    for (const p of points) {
-      inflow += p.inflow;
-      outflow += p.outflow;
-    }
-    return { inflow, outflow };
-  }, [flowQuery.data]);
 
   return (
     <div className="space-y-6">
@@ -214,7 +281,7 @@ export function WarehousesPage(): ReactElement {
             Depolarınızı yönetin, stok dağılımını ve hareket özetini görün.
           </p>
         </div>
-        <Button onClick={() => setWhOpen(true)}>Yeni Depo</Button>
+        <Button onClick={openCreate}>Depo ekle</Button>
       </div>
 
       {warehousesQuery.isLoading ? (
@@ -226,76 +293,124 @@ export function WarehousesPage(): ReactElement {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {warehouses.map((w) => {
-            const stats = computeWarehouseStats(overview, w.id, costMap);
-            return (
-              <Card
-                key={w.id}
-                className="cursor-pointer transition-shadow hover:shadow-md"
-                onClick={() => setDetailId(w.id)}
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Warehouse className="size-4 text-sky-500" aria-hidden />
-                      {w.name}
-                    </CardTitle>
-                    {w.isDefault ? (
-                      <Badge className="shrink-0 bg-sky-500 text-white hover:bg-sky-500">
-                        Varsayılan
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <CardDescription className="flex items-start gap-1">
-                    <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />
-                    {w.address ?? 'Konum girilmemiş'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <p className="text-muted-foreground text-xs">Ürün</p>
-                      <p className="font-medium tabular-nums">
-                        {stats.productCount.toLocaleString('tr-TR')}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs">Stok değeri</p>
-                      <p className="font-medium tabular-nums">
+        <>
+          <div className="overflow-x-auto rounded-md border md:hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Depo</TableHead>
+                  <TableHead className="text-right">Ürün</TableHead>
+                  <TableHead className="text-right">Değer</TableHead>
+                  <TableHead>Durum</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {warehouses.map((w) => {
+                  const stats = computeWarehouseStats(overview, w.id, costMap);
+                  return (
+                    <TableRow
+                      key={w.id}
+                      className="cursor-pointer"
+                      onClick={() => setDetailId(w.id)}
+                    >
+                      <TableCell className="font-medium">{w.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {stats.productCount}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
                         {stats.totalValue > 0
-                          ? `${stats.totalValue.toLocaleString('tr-TR', {
-                              maximumFractionDigits: 0,
-                            })} ₺`
+                          ? `${stats.totalValue.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} ₺`
                           : '—'}
-                      </p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={w.isActive ? 'secondary' : 'outline'}>
+                          {w.isActive ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="hidden gap-4 sm:grid sm:grid-cols-2 lg:grid-cols-3">
+            {warehouses.map((w) => {
+              const stats = computeWarehouseStats(overview, w.id, costMap);
+              return (
+                <Card
+                  key={w.id}
+                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  onClick={() => setDetailId(w.id)}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2 text-base">
+                        <Warehouse className="size-4 text-sky-500" aria-hidden />
+                        {w.name}
+                      </CardTitle>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        {w.isDefault ? (
+                          <Badge className="bg-sky-500 text-white hover:bg-sky-500">
+                            Varsayılan
+                          </Badge>
+                        ) : null}
+                        <Badge variant={w.isActive ? 'secondary' : 'outline'}>
+                          {w.isActive ? 'Aktif' : 'Pasif'}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      asChild
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Link to={`/stock?warehouse=${w.id}`}>Stok Görüntüle</Link>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDetailId(w.id);
-                      }}
-                    >
-                      Detay
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                    <CardDescription className="flex items-start gap-1">
+                      <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />
+                      {w.address ?? 'Konum girilmemiş'}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <p className="text-muted-foreground text-xs">Ürün sayısı</p>
+                        <p className="font-medium tabular-nums">
+                          {stats.productCount.toLocaleString('tr-TR')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">Toplam stok değeri</p>
+                        <p className="font-medium tabular-nums">
+                          {stats.totalValue > 0
+                            ? `${stats.totalValue.toLocaleString('tr-TR', {
+                                maximumFractionDigits: 0,
+                              })} ₺`
+                            : '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Link to={`/stock?warehouse=${w.id}`}>Stok görüntüle</Link>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEdit(w);
+                        }}
+                      >
+                        <Pencil className="mr-1 size-3.5" />
+                        Düzenle
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <Sheet open={detailId !== null} onOpenChange={(o) => !o && setDetailId(null)}>
@@ -313,7 +428,7 @@ export function WarehousesPage(): ReactElement {
                   <CardHeader className="pb-1">
                     <CardDescription className="flex items-center gap-1">
                       <Package className="size-3" aria-hidden />
-                      Toplam ürün
+                      Ürün sayısı
                     </CardDescription>
                     <CardTitle className="text-xl tabular-nums">
                       {detailStats.productCount.toLocaleString('tr-TR')}
@@ -334,63 +449,42 @@ export function WarehousesPage(): ReactElement {
                 </Card>
               </div>
 
-              <div>
-                <h3 className="mb-2 text-sm font-medium">
-                  Stok hareket özeti (son 7 gün)
-                </h3>
-                {flowQuery.isLoading ? (
-                  <p className="text-muted-foreground text-sm">Yükleniyor…</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline" className="tabular-nums">
-                      Giriş: {flowSummary.inflow.toLocaleString('tr-TR')}
-                    </Badge>
-                    <Badge variant="outline" className="tabular-nums">
-                      Çıkış: {flowSummary.outflow.toLocaleString('tr-TR')}
-                    </Badge>
-                  </div>
-                )}
-                <p className="mt-1 text-muted-foreground text-xs">
-                  Organizasyon geneli; depo bazlı ayrım yakında.
-                </p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Doluluk oranı</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    %{occupancyPercent} (org. stok payı)
+                  </span>
+                </div>
+                <Progress value={occupancyPercent} className="h-2" />
               </div>
 
               <div>
-                <h3 className="mb-2 text-sm font-medium">
-                  En değerli 10 ürün
-                </h3>
-                {detailTop.length === 0 ? (
+                <h3 className="mb-2 text-sm font-medium">Ürün listesi</h3>
+                {detailProducts.length === 0 ? (
                   <p className="text-muted-foreground text-sm">Kayıt yok.</p>
                 ) : (
-                  <div className="rounded-md border">
+                  <div className="max-h-56 overflow-y-auto rounded-md border">
                     <Table>
                       <TableHeader>
                         <TableRow>
                           <TableHead>Ürün</TableHead>
                           <TableHead className="text-right">Adet</TableHead>
-                          <TableHead className="text-right">Değer</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {detailTop.map((row) => (
+                        {detailProducts.slice(0, 20).map((row) => (
                           <TableRow key={row.barcode}>
                             <TableCell className="max-w-[160px]">
                               <div className="line-clamp-2 text-sm font-medium">
                                 {row.name}
                               </div>
                               <div className="font-mono text-xs text-muted-foreground">
-                                {row.barcode}
+                                {row.sku ?? row.barcode}
                               </div>
                             </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {row.quantity.toLocaleString('tr-TR')}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums">
-                              {row.value > 0
-                                ? `${row.value.toLocaleString('tr-TR', {
-                                    maximumFractionDigits: 0,
-                                  })} ₺`
-                                : '—'}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -398,6 +492,48 @@ export function WarehousesPage(): ReactElement {
                     </Table>
                   </div>
                 )}
+              </div>
+
+              <div>
+                <h3 className="mb-2 text-sm font-medium">Son hareketler</h3>
+                {detailMovementsQuery.isLoading ? (
+                  <p className="text-muted-foreground text-sm">Yükleniyor…</p>
+                ) : (detailMovementsQuery.data?.data.length ?? 0) === 0 ? (
+                  <p className="text-muted-foreground text-sm">Hareket yok.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {detailMovementsQuery.data?.data.map((mv) => (
+                      <li
+                        key={mv.id}
+                        className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-mono text-xs">{mv.barcode}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {format(new Date(mv.createdAt), 'dd.MM.yyyy HH:mm')}
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={movementBadgeClass(mv.movementType, mv.quantity)}
+                        >
+                          {mv.quantity > 0 ? '+' : ''}
+                          {mv.quantity.toLocaleString('tr-TR')}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Button
+                  type="button"
+                  variant="link"
+                  className="mt-2 h-auto px-0"
+                  asChild
+                >
+                  <Link to={`/stock/movements?warehouse=${detailWarehouse.id}`}>
+                    Tüm hareketleri gör
+                  </Link>
+                </Button>
               </div>
 
               <div>
@@ -433,38 +569,57 @@ export function WarehousesPage(): ReactElement {
                 )}
               </div>
 
-              <Button asChild className="w-full">
-                <Link to={`/stock?warehouse=${detailWarehouse.id}`}>
-                  Stok listesini aç
-                </Link>
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => openEdit(detailWarehouse)}
+                >
+                  Depoyu düzenle
+                </Button>
+                <Button asChild className="flex-1">
+                  <Link to={`/stock?warehouse=${detailWarehouse.id}`}>
+                    Stok listesi
+                  </Link>
+                </Button>
+              </div>
             </div>
           ) : null}
         </SheetContent>
       </Sheet>
 
-      <Dialog open={whOpen} onOpenChange={setWhOpen}>
+      <Dialog
+        open={whOpen}
+        onOpenChange={(open) => {
+          setWhOpen(open);
+          if (!open) {
+            setEditId(null);
+            setForm(EMPTY_FORM);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Yeni depo</DialogTitle>
+            <DialogTitle>{editId ? 'Depo düzenle' : 'Yeni depo'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1">
               <Label htmlFor="wh-name">İsim</Label>
               <Input
                 id="wh-name"
-                value={whName}
-                onChange={(e) => setWhName(e.target.value)}
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 placeholder="ör. Ana depo"
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="wh-addr">Adres</Label>
+              <Label htmlFor="wh-addr">Konum / adres</Label>
               <Textarea
                 id="wh-addr"
                 rows={2}
-                value={whAddress}
-                onChange={(e) => setWhAddress(e.target.value)}
+                value={form.address}
+                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
               />
             </div>
             <div className="space-y-1">
@@ -472,10 +627,31 @@ export function WarehousesPage(): ReactElement {
               <Textarea
                 id="wh-desc"
                 rows={2}
-                value={whDescription}
-                onChange={(e) => setWhDescription(e.target.value)}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, description: e.target.value }))
+                }
               />
             </div>
+            {editId ? (
+              <div className="space-y-1">
+                <Label>Durum</Label>
+                <Select
+                  value={form.isActive ? 'active' : 'inactive'}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, isActive: v === 'active' }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Aktif</SelectItem>
+                    <SelectItem value="inactive">Pasif</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWhOpen(false)}>
@@ -483,9 +659,13 @@ export function WarehousesPage(): ReactElement {
             </Button>
             <Button
               onClick={submitWarehouse}
-              disabled={createMutation.isPending || !whName.trim()}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                !form.name.trim()
+              }
             >
-              Oluştur
+              {editId ? 'Kaydet' : 'Oluştur'}
             </Button>
           </DialogFooter>
         </DialogContent>

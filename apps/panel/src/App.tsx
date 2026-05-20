@@ -275,9 +275,9 @@ const StockTransferPage = lazy(() =>
     default: m.StockTransferPage,
   })),
 );
-const StockManagementPage = lazy(() =>
-  import('@/pages/stock/StockManagementPage').then((m) => ({
-    default: m.StockManagementPage,
+const StockPage = lazy(() =>
+  import('@/pages/stock/StockPage').then((m) => ({
+    default: m.StockPage,
   })),
 );
 const WarehousesPage = lazy(() =>
@@ -446,7 +446,7 @@ export default function App(): ReactElement {
                 <Route path="/stock/transfers/:id" element={<StockTransferPage />} />
                 <Route path="/stock/transfers" element={<StockTransferPage />} />
                 <Route path="/stock/forecast" element={<StockForecastPage />} />
-                <Route path="/stock" element={<StockManagementPage />} />
+                <Route path="/stock" element={<StockPage />} />
                 <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
                 <Route path="/suppliers" element={<SuppliersPage />} />
                 <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
