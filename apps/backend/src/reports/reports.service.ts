@@ -240,6 +240,20 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.UBER_EATS]: 'Uber Eats',
   [Marketplace.ROSSMANN_TR]: 'Rossmann TR',
   [Marketplace.TRENDYOL_GROCERIES]: 'Trendyol Groceries',
+  [Marketplace.AUTOTRADER]: 'AutoTrader',
+  [Marketplace.EBAY_MOTORS]: 'eBay Motors',
+  [Marketplace.WEBMOTORS]: 'Webmotors',
+  [Marketplace.ARACIM]: 'Aracım.com',
+  [Marketplace.OTOPLAZA]: 'OtoPlaza',
+  [Marketplace.BACKMARKET]: 'Back Market',
+  [Marketplace.SWAPPA]: 'Swappa',
+  [Marketplace.DECLUTTR]: 'Decluttr',
+  [Marketplace.CATAWIKI]: 'Catawiki',
+  [Marketplace.FIRSTDIBS]: '1stDibs',
+  [Marketplace.ARSY]: 'Artsy',
+  [Marketplace.CHAIRISH]: 'Chairish',
+  [Marketplace.MODACRUZ]: 'Modacruz',
+  [Marketplace.PINKTROTTERS]: 'Pinktrotters',
 };
 
 @Injectable()

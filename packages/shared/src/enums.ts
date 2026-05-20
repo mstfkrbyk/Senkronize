@@ -259,7 +259,21 @@ export type Marketplace =
   | 'DELIVEROO'
   | 'UBER_EATS'
   | 'ROSSMANN_TR'
-  | 'TRENDYOL_GROCERIES';
+  | 'TRENDYOL_GROCERIES'
+  | 'AUTOTRADER'
+  | 'EBAY_MOTORS'
+  | 'WEBMOTORS'
+  | 'ARACIM'
+  | 'OTOPLAZA'
+  | 'BACKMARKET'
+  | 'SWAPPA'
+  | 'DECLUTTR'
+  | 'CATAWIKI'
+  | 'FIRSTDIBS'
+  | 'ARSY'
+  | 'CHAIRISH'
+  | 'MODACRUZ'
+  | 'PINKTROTTERS';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
