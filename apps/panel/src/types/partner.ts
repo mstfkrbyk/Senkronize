@@ -29,6 +29,7 @@ export interface PartnerRelationship {
   id: string;
   partnerOrgId: string;
   clientOrgId: string | null;
+  invitedEmail?: string | null;
   status: PartnerStatus;
   commissionPct: string;
   canImpersonate: boolean;

@@ -478,7 +478,7 @@ export default function App(): ReactElement {
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />
-                <Route path="/partner" element={<PartnerPage />} />
+                <Route path="/partner/*" element={<PartnerPage />} />
                 <Route
                   path="/settings/subscription"
                   element={<SettingsPage />}

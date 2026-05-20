@@ -62,43 +62,56 @@ function RequestTable({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Müşteri</TableHead>
-          <TableHead>Partner</TableHead>
+          <TableHead className="w-[42%]">Müşteri</TableHead>
+          <TableHead className="w-[42%]">Partner</TableHead>
           <TableHead>Tarih</TableHead>
-          <TableHead>Mesaj</TableHead>
-          <TableHead>Durum</TableHead>
-          {showActions ? <TableHead className="text-right">İşlem</TableHead> : null}
+          {showActions ? <TableHead className="text-right">İşlem</TableHead> : <TableHead>Durum</TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id}>
-            <TableCell className="font-medium">{row.clientOrg.name}</TableCell>
-            <TableCell>{row.partnerOrg.name}</TableCell>
-            <TableCell>
+            <TableCell className="align-top">
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="font-medium">{row.clientOrg.name}</p>
+                <p className="text-xs text-muted-foreground">@{row.clientOrg.slug}</p>
+                {row.message ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">Talep notu: </span>
+                    {row.message}
+                  </p>
+                ) : null}
+              </div>
+            </TableCell>
+            <TableCell className="align-top">
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="font-medium">{row.partnerOrg.name}</p>
+                <p className="text-xs text-muted-foreground">@{row.partnerOrg.slug}</p>
+              </div>
+            </TableCell>
+            <TableCell className="align-top whitespace-nowrap text-muted-foreground">
               {format(new Date(row.requestedAt), 'd MMM yyyy HH:mm', { locale: tr })}
-            </TableCell>
-            <TableCell className="max-w-xs truncate text-muted-foreground">
-              {row.message ?? '—'}
-            </TableCell>
-            <TableCell>
-              <Badge
-                variant={
-                  row.status === 'PENDING'
-                    ? 'secondary'
-                    : row.status === 'APPROVED'
-                      ? 'default'
-                      : 'destructive'
-                }
-              >
-                {STATUS_LABEL[row.status]}
-              </Badge>
-              {row.adminNote ? (
-                <p className="mt-1 text-xs text-muted-foreground">{row.adminNote}</p>
+              {!showActions ? (
+                <div className="mt-2">
+                  <Badge
+                    variant={
+                      row.status === 'PENDING'
+                        ? 'secondary'
+                        : row.status === 'APPROVED'
+                          ? 'default'
+                          : 'destructive'
+                    }
+                  >
+                    {STATUS_LABEL[row.status]}
+                  </Badge>
+                  {row.adminNote ? (
+                    <p className="mt-1 text-xs text-muted-foreground">{row.adminNote}</p>
+                  ) : null}
+                </div>
               ) : null}
             </TableCell>
             {showActions ? (
-              <TableCell className="space-x-2 text-right">
+              <TableCell className="space-x-2 text-right align-top">
                 <Button
                   type="button"
                   size="sm"
@@ -158,9 +171,14 @@ export function AdminPartnerLinksPage(): ReactElement {
 
   const handleRejectSubmit = (): void => {
     if (!rejectRow) return;
+    const note = rejectNote.trim();
+    if (!note) {
+      toast.error('Red notu zorunludur.');
+      return;
+    }
     setBusyId(rejectRow.id);
     reject.mutate(
-      { id: rejectRow.id, note: rejectNote.trim() || undefined },
+      { id: rejectRow.id, note },
       {
         onSuccess: () => {
           toast.success('Bağlantı talebi reddedildi');
@@ -229,13 +247,14 @@ export function AdminPartnerLinksPage(): ReactElement {
             <DialogTitle>Talebi reddet</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="reject-note">Admin notu (isteğe bağlı)</Label>
+            <Label htmlFor="reject-note">Red notu</Label>
             <Textarea
               id="reject-note"
               rows={3}
               value={rejectNote}
               onChange={(e) => setRejectNote(e.target.value)}
-              placeholder="Müşteriye iletilecek kısa açıklama"
+              placeholder="Red gerekçesini yazın (müşteriye iletilebilir)"
+              required
             />
           </div>
           <DialogFooter>
