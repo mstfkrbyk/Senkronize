@@ -8,6 +8,7 @@ import type {
 import axios, { type AxiosInstance } from 'axios';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
+import { runErpConnectionTest } from './erp-adapter.utils';
 
 const BIZIMHESAP_BASE_URL = 'https://api.bizimhesap.com/v1';
 
@@ -130,7 +131,7 @@ export class BizimHesapErpAdapter implements IErpAdapter {
   }
 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    try {
+    const result = await runErpConnectionTest(async () => {
       const client = this.getClient(credentials);
       const products = await this.request<BizimHesapProductsResponse>(
         client,
@@ -140,17 +141,17 @@ export class BizimHesapErpAdapter implements IErpAdapter {
         { page: 1, per_page: 1 },
       );
       return {
-        success: true,
         companyName: credentials.companyName,
         version: 'v1',
         productCount: products.meta?.total ?? products.data.length,
       };
-    } catch (error) {
+    });
+    if (!result.success) {
       this.logger.warn('BizimHesap bağlantı testi başarısız', {
-        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        error: result.message,
       });
-      return { success: false };
     }
+    return result;
   }
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {

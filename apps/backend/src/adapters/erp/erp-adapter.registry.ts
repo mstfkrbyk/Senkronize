@@ -34,10 +34,10 @@ import { MoneybirdErpAdapter } from './moneybird/moneybird.adapter';
 import { MedulaErpAdapter } from './medula-erp.adapter';
 import { MrpeasyErpAdapter } from './mrpeasy-erp.adapter';
 import { MuhasebeNetErpAdapter } from './muhasebe-net-erp.adapter';
-import { NetsisErpCloudAdapter } from './netsis-erp.adapter';
+import { NetsisErpAdapter } from './netsis/netsis.adapter';
 import { PoseidonPosErpAdapter } from './poseidon-pos-erp.adapter';
 import { RestmanErpAdapter } from './restman-erp.adapter';
-import { NetsuiteErpAdapter } from './netsuite-erp.adapter';
+import { NetsuiteErpAdapter } from './netsuite/netsuite.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
 import { OracleMicrosErpAdapter } from './oracle-micros-erp.adapter';
 import { ParasutPlusErpAdapter } from './parasut-plus-erp.adapter';
@@ -77,7 +77,7 @@ export class ErpAdapterRegistry {
     lightspeed: LightspeedErpAdapter,
     vendPos: VendPosErpAdapter,
     zirveBulut: ZirveBulutErpAdapter,
-    netsis: NetsisErpCloudAdapter,
+    netsis: NetsisErpAdapter,
     mikroErp: MikroErpCloudAdapter,
     isbir: IsbirErpAdapter,
     alici: AliciErpAdapter,

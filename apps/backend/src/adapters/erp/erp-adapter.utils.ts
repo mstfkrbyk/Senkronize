@@ -1,4 +1,5 @@
-import type { ErpInvoice, ErpProduct } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct } from '@senkronize/shared';
+import axios from 'axios';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
 
@@ -114,6 +115,66 @@ export function parseJsonApi<T extends object>(
     id: item.id,
     ...(item.attributes as T),
   }));
+}
+
+export function formatErpConnectionError(error: unknown): string {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    let detail = '';
+    if (typeof data === 'string' && data.length > 0) {
+      detail = data.slice(0, 180).replace(/\s+/g, ' ');
+    } else if (isRecord(data)) {
+      const msg =
+        (typeof data.message === 'string' && data.message) ||
+        (typeof data.error === 'string' && data.error) ||
+        (typeof data.title === 'string' && data.title) ||
+        '';
+      if (msg) {
+        detail = msg.slice(0, 180);
+      }
+    }
+    if (status) {
+      return detail.length > 0
+        ? `HTTP ${status}: ${detail}`
+        : `HTTP ${status}: istek başarısız`;
+    }
+    if (error.code === 'ECONNREFUSED') {
+      return 'Sunucuya bağlanılamadı (bağlantı reddedildi)';
+    }
+    if (error.code === 'ENOTFOUND') {
+      return 'Sunucu adresi çözümlenemedi';
+    }
+    return error.message || 'Bağlantı testi başarısız';
+  }
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  return 'Bağlantı testi başarısız';
+}
+
+export async function runErpConnectionTest(
+  fn: () => Promise<{
+    productCount?: number;
+    companyName?: string;
+    version?: string;
+  }>,
+): Promise<ERPConnectionResult> {
+  const started = Date.now();
+  try {
+    const meta = await fn();
+    return {
+      success: true,
+      responseTimeMs: Date.now() - started,
+      ...meta,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      responseTimeMs: Date.now() - started,
+      message: formatErpConnectionError(error),
+    };
+  }
 }
 
 export function stubInvoice(

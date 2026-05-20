@@ -8,7 +8,7 @@ import type {
 import axios, { type AxiosInstance } from 'axios';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
-import { parseJsonApi, type JsonApiResource } from './erp-adapter.utils';
+import { parseJsonApi, runErpConnectionTest, type JsonApiResource } from './erp-adapter.utils';
 
 const PARASUT_AUTH_URL = 'https://uygulama.parasut.com/oauth/token';
 const PARASUT_BASE_URL = 'https://api.parasut.com/v4';
@@ -126,7 +126,7 @@ export class ParasutErpAdapter implements IErpAdapter {
   }
 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    try {
+    const result = await runErpConnectionTest(async () => {
       const client = await this.getClient(credentials);
       const { data: meData } = await client.get<ParasutMeResponse>('/me');
       const { data: productsData } = await client.get<{
@@ -136,17 +136,17 @@ export class ParasutErpAdapter implements IErpAdapter {
         params: { 'page[size]': 1, 'page[number]': 1 },
       });
       return {
-        success: true,
         companyName: meData.data.attributes.name,
         version: 'v4',
         productCount: productsData.meta?.total_count ?? productsData.data.length,
       };
-    } catch (error) {
+    });
+    if (!result.success) {
       this.logger.warn('Paraşüt bağlantı testi başarısız', {
-        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        error: result.message,
       });
-      return { success: false };
     }
+    return result;
   }
 
   async getProducts(

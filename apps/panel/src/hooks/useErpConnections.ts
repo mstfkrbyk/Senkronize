@@ -39,6 +39,8 @@ export interface ErpTestConnectionResult {
   companyName?: string;
   version?: string;
   productCount?: number;
+  responseTimeMs?: number;
+  message?: string;
 }
 
 export function useTestErpConnection(): UseMutationResult<
@@ -55,6 +57,27 @@ export function useTestErpConnection(): UseMutationResult<
         payload,
       );
       return data;
+    },
+  });
+}
+
+export function useTestErpConnectionById(
+  connectionId: string,
+): UseMutationResult<ErpTestConnectionResult, Error, void> {
+  return useMutation({
+    mutationFn: async (): Promise<ErpTestConnectionResult> => {
+      try {
+        const { data } = await api.post<ErpTestConnectionResult>(
+          `/erp-connections/${connectionId}/test`,
+        );
+        return data;
+      } catch {
+        const { data } = await api.post<ErpTestConnectionResult>(
+          '/erp-connections/test',
+          { connectionId },
+        );
+        return data;
+      }
     },
   });
 }

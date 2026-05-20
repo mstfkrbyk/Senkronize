@@ -13,6 +13,7 @@ import {
   mapRowsToErpProducts,
   normalizeArrayPayload,
   normalizeBaseUrl,
+  runErpConnectionTest,
 } from './erp-adapter.utils';
 
 export interface OAuth2ErpAdapterConfig {
@@ -125,19 +126,19 @@ export abstract class OAuth2ErpAdapterBase implements IErpAdapter {
   }
 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    try {
-      const client = this.getClient(credentials);
-      await client.get('/organizations', {
-        params: this.config.extraParams?.(credentials),
-        timeout: 12_000,
-      });
-      return { success: true };
-    } catch (error) {
+    const result = await runErpConnectionTest(async () => {
+      const products = await this.fetchInventory(credentials);
+      return {
+        productCount: products.length,
+        version: 'oauth2',
+      };
+    });
+    if (!result.success) {
       this.logger.warn(`${this.config.label} bağlantı testi başarısız`, {
-        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        error: result.message,
       });
-      return { success: false };
     }
+    return result;
   }
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {

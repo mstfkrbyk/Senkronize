@@ -13,6 +13,7 @@ import {
   mapRowsToErpProducts,
   normalizeArrayPayload,
   normalizeBaseUrl,
+  runErpConnectionTest,
 } from './erp-adapter.utils';
 
 export interface ApiKeyErpAdapterConfig {
@@ -113,16 +114,19 @@ export abstract class ApiKeyErpAdapterBase implements IErpAdapter {
   }
 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    try {
-      const client = this.getClient(credentials);
-      await client.get('/products', { params: { limit: 1 }, timeout: 12_000 });
-      return { success: true };
-    } catch (error) {
+    const result = await runErpConnectionTest(async () => {
+      const products = await this.fetchInventory(credentials);
+      return {
+        productCount: products.length,
+        version: 'api-key',
+      };
+    });
+    if (!result.success) {
       this.logger.warn(`${this.config.label} bağlantı testi başarısız`, {
-        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        error: result.message,
       });
-      return { success: false };
     }
+    return result;
   }
 
   async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
