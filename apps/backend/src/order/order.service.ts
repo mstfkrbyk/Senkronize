@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CargoProvider,
   Marketplace,
   OrderStatus,
   Prisma,
@@ -25,6 +26,7 @@ import { resolveOrderWebhookEvents } from '../webhook/order-webhook-events.util'
 import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
+import type { BulkResult, SerializedOrderNote } from './order.types';
 
 export type SerializedOrderItem = Omit<OrderItem, 'unitPrice'> & {
   unitPrice: string;
@@ -240,6 +242,209 @@ export class OrderService {
       order.items,
     );
     return this.serializeOrder(order, thumbnails);
+  }
+
+  async bulkAssignCargo(
+    organizationId: string,
+    orderIds: string[],
+    cargoProvider: CargoProvider,
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+    const providerValue = String(cargoProvider);
+
+    for (const id of orderIds) {
+      try {
+        const row = await this.prisma.order.findFirst({
+          where: { id, organizationId, deletedAt: null },
+        });
+        if (!row) {
+          result.failed += 1;
+          result.errors.push({ id, message: 'Sipariş bulunamadı' });
+          continue;
+        }
+        await this.prisma.order.update({
+          where: { id },
+          data: { cargoProvider: providerValue },
+        });
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id, message: 'Kargo firması atanamadı' });
+      }
+    }
+
+    if (result.success > 0) {
+      await this.cache.invalidateReportsForOrg(organizationId);
+    }
+    return result;
+  }
+
+  async bulkUpdateStatus(
+    organizationId: string,
+    orderIds: string[],
+    status: OrderStatus,
+  ): Promise<BulkResult> {
+    const result: BulkResult = { success: 0, failed: 0, errors: [] };
+
+    for (const id of orderIds) {
+      try {
+        const existing = await this.prisma.order.findFirst({
+          where: { id, organizationId, deletedAt: null },
+        });
+        if (!existing) {
+          result.failed += 1;
+          result.errors.push({ id, message: 'Sipariş bulunamadı' });
+          continue;
+        }
+        await this.prisma.order.update({
+          where: { id },
+          data: { status },
+        });
+        if (existing.status !== status) {
+          this.dispatchOrderWebhooks(organizationId, {
+            isCreate: false,
+            prevStatus: existing.status,
+            newStatus: status,
+            orderId: id,
+          });
+        }
+        result.success += 1;
+      } catch {
+        result.failed += 1;
+        result.errors.push({ id, message: 'Durum güncellenemedi' });
+      }
+    }
+
+    if (result.success > 0) {
+      await this.cache.invalidateReportsForOrg(organizationId);
+    }
+    return result;
+  }
+
+  async addTrackingNumber(
+    organizationId: string,
+    orderId: string,
+    trackingNumber: string,
+    cargoProvider: CargoProvider,
+  ): Promise<SerializedOrder> {
+    const existing = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!existing) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+
+    const trimmed = trackingNumber.trim();
+    const data: Prisma.OrderUpdateInput = {
+      cargoTrackingNumber: trimmed.length > 0 ? trimmed : null,
+      cargoProvider: String(cargoProvider),
+    };
+
+    if (
+      existing.status !== OrderStatus.SHIPPED &&
+      existing.status !== OrderStatus.DELIVERED
+    ) {
+      data.status = OrderStatus.SHIPPED;
+    }
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data,
+      include: { items: true },
+    });
+
+    if (existing.status !== updated.status) {
+      this.dispatchOrderWebhooks(organizationId, {
+        isCreate: false,
+        prevStatus: existing.status,
+        newStatus: updated.status,
+        orderId,
+      });
+    }
+    await this.cache.invalidateReportsForOrg(organizationId);
+    const thumbnails = await this.loadItemThumbnails(
+      organizationId,
+      updated.platform,
+      updated.items,
+    );
+    return this.serializeOrder(updated, thumbnails);
+  }
+
+  async addOrderNote(
+    organizationId: string,
+    orderId: string,
+    userId: string,
+    note: string,
+    isInternal: boolean,
+  ): Promise<SerializedOrderNote> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+
+    const content = note.trim();
+    if (content.length === 0) {
+      throw new ConflictException('Not içeriği boş olamaz');
+    }
+
+    const row = await this.prisma.orderNote.create({
+      data: {
+        orderId,
+        userId,
+        content,
+        isInternal,
+      },
+      include: { user: { select: { name: true } } },
+    });
+
+    return this.serializeOrderNote(row);
+  }
+
+  async getOrderNotes(
+    organizationId: string,
+    orderId: string,
+  ): Promise<SerializedOrderNote[]> {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!order) {
+      throw new NotFoundException('Sipariş bulunamadı');
+    }
+
+    const rows = await this.prisma.orderNote.findMany({
+      where: { orderId },
+      include: { user: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return rows.map((row) => this.serializeOrderNote(row));
+  }
+
+  private serializeOrderNote(
+    row: {
+      id: string;
+      orderId: string;
+      userId: string;
+      content: string;
+      isInternal: boolean;
+      createdAt: Date;
+      user: { name: string };
+    },
+  ): SerializedOrderNote {
+    return {
+      id: row.id,
+      orderId: row.orderId,
+      userId: row.userId,
+      userName: row.user.name,
+      content: row.content,
+      isInternal: row.isInternal,
+      createdAt: row.createdAt.toISOString(),
+    };
   }
 
   async updateStatus(

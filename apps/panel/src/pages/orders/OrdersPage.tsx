@@ -1,10 +1,12 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Download, FileArchive, Loader2, Package, Truck } from 'lucide-react';
+import { Download, FileArchive, Loader2, Package, Tag, Truck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import type { CargoProvider } from '@senkronize/shared';
 
 import { AdvancedFilters } from '@/components/AdvancedFilters';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -20,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -35,16 +36,21 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { CARGO_PROVIDER_OPTIONS } from '@/lib/cargo-providers';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { useOrdersPageStore } from '@/store/tablePages.store';
-import type { Order, OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
+import type {
+  BulkResult,
+  Order,
+  OrderFilters as OrderFiltersState,
+  OrderStatus,
+} from '@/types/order';
 
 import {
   buildOrderFilterConfig,
   ORDER_FILTER_DEFAULTS,
   ORDER_PAGE_SIZE,
 } from './orderFilters.config';
-import { OrderDetailSheet } from './OrderDetailSheet';
 import { OrdersTable } from './OrdersTable';
 import { useOrders } from './hooks/useOrders';
 
@@ -144,6 +150,7 @@ function OrdersPageSkeleton(): ReactElement {
 
 export function OrdersPage(): ReactElement {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   usePageTitle(t('orders.title'));
   const orderFilterConfig = useMemo(() => buildOrderFilterConfig(t), [t]);
   const queryClient = useQueryClient();
@@ -170,12 +177,8 @@ export function OrdersPage(): ReactElement {
   const toggleAllOrdersOnPage = useOrdersPageStore((s) => s.toggleAllOrdersOnPage);
   const clearOrderSelection = useOrdersPageStore((s) => s.clearOrderSelection);
 
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
-
   const [cargoOpen, setCargoOpen] = useState(false);
-  const [cargoTracking, setCargoTracking] = useState('');
-  const [cargoProvider, setCargoProvider] = useState('');
+  const [bulkCargoProvider, setBulkCargoProvider] = useState<CargoProvider>('YURTICI');
 
   const [statusOpen, setStatusOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<OrderStatus>('PICKING');
@@ -208,22 +211,49 @@ export function OrdersPage(): ReactElement {
     },
   });
 
-  const patchStatusMutation = useMutation({
-    mutationFn: async (args: {
-      id: string;
-      status: OrderStatus;
-      cargoTrackingNumber?: string;
-      cargoProvider?: string;
-    }): Promise<Order> => {
-      const { data: res } = await api.patch<Order>(`/orders/${args.id}/status`, {
-        status: args.status,
-        cargoTrackingNumber: args.cargoTrackingNumber,
-        cargoProvider: args.cargoProvider,
-      });
-      return res;
+  const bulkCargoMutation = useMutation({
+    mutationFn: async (payload: {
+      orderIds: string[];
+      cargoProvider: CargoProvider;
+    }): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>('/orders/bulk/cargo', payload);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (result.failed > 0) {
+        toast.warning(
+          `${String(result.success)} başarılı, ${String(result.failed)} başarısız`,
+        );
+      } else {
+        toast.success('Kargo şirketi atandı');
+      }
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async (payload: {
+      orderIds: string[];
+      status: OrderStatus;
+    }): Promise<BulkResult> => {
+      const { data } = await api.post<BulkResult>('/orders/bulk/status', payload);
+      return data;
+    },
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+      if (result.failed > 0) {
+        toast.warning(
+          `${String(result.success)} başarılı, ${String(result.failed)} başarısız`,
+        );
+      } else {
+        toast.success('Sipariş durumları güncellendi');
+      }
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
     },
   });
 
@@ -281,15 +311,7 @@ export function OrdersPage(): ReactElement {
   }, [activeErpConnections]);
 
   const handleRowClick = (order: Order): void => {
-    setSelectedOrder(order);
-    setSheetOpen(true);
-  };
-
-  const handleSheetOpenChange = (open: boolean): void => {
-    setSheetOpen(open);
-    if (!open) {
-      setSelectedOrder(null);
-    }
+    void navigate(`/orders/${order.id}`);
   };
 
   const selectedRows = data?.items.filter((o) => selectedIdSet.has(o.id)) ?? [];
@@ -402,13 +424,27 @@ export function OrdersPage(): ReactElement {
                 className="gap-1"
                 disabled={selectedRows.length === 0}
                 onClick={() => {
-                  setCargoTracking('');
-                  setCargoProvider('');
+                  setBulkCargoProvider('YURTICI');
                   setCargoOpen(true);
                 }}
               >
                 <Truck className="h-3.5 w-3.5" aria-hidden />
-                {t('orders.bulk.addCargo')}
+                Toplu kargo ata
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={selectedRows.length === 0}
+                onClick={() => {
+                  toast.info('Hazırlanıyor', {
+                    description: 'Toplu etiket indirme yakında eklenecek.',
+                  });
+                }}
+              >
+                <Tag className="h-3.5 w-3.5" aria-hidden />
+                Toplu etiket indir
               </Button>
               <Button
                 type="button"
@@ -486,44 +522,34 @@ export function OrdersPage(): ReactElement {
         </div>
       ) : null}
 
-      <OrderDetailSheet
-        order={selectedOrder}
-        open={sheetOpen}
-        onOpenChange={handleSheetOpenChange}
-        onCargoUpdated={(o) => {
-          setSelectedOrder(o);
-        }}
-      />
-
       <Dialog open={cargoOpen} onOpenChange={setCargoOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Toplu kargo bilgisi</DialogTitle>
+            <DialogTitle>Toplu kargo şirketi ata</DialogTitle>
             <DialogDescription>
-              Seçili siparişler kargoya verildi olarak işaretlenir ve kargo alanları
-              güncellenir.
+              Seçili siparişlere aynı kargo firması atanır.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div className="grid gap-2">
-              <Label htmlFor="bulk-track">Takip numarası</Label>
-              <Input
-                id="bulk-track"
-                value={cargoTracking}
-                onChange={(e) => {
-                  setCargoTracking(e.target.value);
-                }}
-              />
-            </div>
-            <div className="grid gap-2">
               <Label htmlFor="bulk-provider">Kargo firması</Label>
-              <Input
-                id="bulk-provider"
-                value={cargoProvider}
-                onChange={(e) => {
-                  setCargoProvider(e.target.value);
+              <Select
+                value={bulkCargoProvider}
+                onValueChange={(v) => {
+                  setBulkCargoProvider(v as CargoProvider);
                 }}
-              />
+              >
+                <SelectTrigger id="bulk-provider">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CARGO_PROVIDER_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -532,28 +558,23 @@ export function OrdersPage(): ReactElement {
             </Button>
             <Button
               type="button"
-              disabled={patchStatusMutation.isPending}
+              disabled={bulkCargoMutation.isPending || selectedOrderIds.length === 0}
               onClick={() => {
-                void (async (): Promise<void> => {
-                  try {
-                    for (const o of selectedRows) {
-                      await patchStatusMutation.mutateAsync({
-                        id: o.id,
-                        status: 'SHIPPED',
-                        cargoTrackingNumber: cargoTracking.trim() || undefined,
-                        cargoProvider: cargoProvider.trim() || undefined,
-                      });
-                    }
-                    toast.success('Kargo bilgileri güncellendi');
-                    setCargoOpen(false);
-                    clearOrderSelection();
-                  } catch (err: unknown) {
-                    toast.error(getApiErrorMessage(err));
-                  }
-                })();
+                bulkCargoMutation.mutate(
+                  {
+                    orderIds: selectedOrderIds,
+                    cargoProvider: bulkCargoProvider,
+                  },
+                  {
+                    onSuccess: () => {
+                      setCargoOpen(false);
+                      clearOrderSelection();
+                    },
+                  },
+                );
               }}
             >
-              {patchStatusMutation.isPending ? (
+              {bulkCargoMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
               ) : null}
               Uygula
@@ -596,25 +617,22 @@ export function OrdersPage(): ReactElement {
             </Button>
             <Button
               type="button"
-              disabled={patchStatusMutation.isPending}
+              disabled={bulkStatusMutation.isPending || selectedOrderIds.length === 0}
               onClick={() => {
-                void (async (): Promise<void> => {
-                  try {
-                    for (const o of selectedRows) {
-                      await patchStatusMutation.mutateAsync({
-                        id: o.id,
-                        status: bulkStatus,
-                      });
-                    }
-                    toast.success('Sipariş durumları güncellendi');
-                    setStatusOpen(false);
-                    clearOrderSelection();
-                  } catch (err: unknown) {
-                    toast.error(getApiErrorMessage(err));
-                  }
-                })();
+                bulkStatusMutation.mutate(
+                  { orderIds: selectedOrderIds, status: bulkStatus },
+                  {
+                    onSuccess: () => {
+                      setStatusOpen(false);
+                      clearOrderSelection();
+                    },
+                  },
+                );
               }}
             >
+              {bulkStatusMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
               Uygula
             </Button>
           </DialogFooter>

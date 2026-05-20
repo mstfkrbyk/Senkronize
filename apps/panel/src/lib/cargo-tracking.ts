@@ -1,16 +1,41 @@
+import type { CargoProvider } from '@senkronize/shared';
+
+const CORE_TRACKING_URLS: Record<string, (trackingNo: string) => string> = {
+  YURTICI: (trackingNo) =>
+    `https://www.yurticikargo.com/tr/online-islemler/gonderi-sorgula?code=${encodeURIComponent(trackingNo)}`,
+  MNG: (trackingNo) =>
+    `https://www.mngkargo.com.tr/?barcode=${encodeURIComponent(trackingNo)}`,
+  ARAS: (trackingNo) =>
+    `https://kargotakip.araskargo.com.tr/?trackingno=${encodeURIComponent(trackingNo)}`,
+  PTT: (trackingNo) =>
+    `https://www.ptt.gov.tr/tr/anasayfa/takip?trackNo=${encodeURIComponent(trackingNo)}`,
+  PTT_KARGO: (trackingNo) =>
+    `https://www.ptt.gov.tr/tr/anasayfa/takip?trackNo=${encodeURIComponent(trackingNo)}`,
+  SURAT: (trackingNo) =>
+    `https://www.suratkargo.com.tr/kargo-takip?barcode=${encodeURIComponent(trackingNo)}`,
+  UPS: (trackingNo) =>
+    `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNo)}`,
+  DHL: (trackingNo) =>
+    `https://www.dhl.com/tr-tr/home/tracking.html?tracking-id=${encodeURIComponent(trackingNo)}`,
+  DHL_PARCEL: (trackingNo) =>
+    `https://www.dhl.com/tr-tr/home/tracking/tracking-parcel.html?submit=1&tracking-id=${encodeURIComponent(trackingNo)}`,
+  FEDEX: (trackingNo) =>
+    `https://www.fedex.com/apps/fedextrack/?tracknumbers=${encodeURIComponent(trackingNo)}`,
+};
+
 /** Prisma `CargoProvider` enum değerleri ile uyumlu şablonlar ({trackingCode} yer tutucu) */
 export const CARGO_TRACKING_URLS: Record<string, string> = {
   YURTICI:
     'https://www.yurticikargo.com/tr/online-islemler/gonderi-sorgula?code={trackingCode}',
-  ARAS: 'https://kargotakip.araskargo.com.tr/?code={trackingCode}',
-  SURAT: 'https://www.suratcargo.com/kargosorgu?barcode={trackingCode}',
-  MNG: 'https://www.mngkargo.com.tr/mngkargo/kargo-takip?barcode={trackingCode}',
+  ARAS: 'https://kargotakip.araskargo.com.tr/?trackingno={trackingCode}',
+  SURAT: 'https://www.suratkargo.com.tr/kargo-takip?barcode={trackingCode}',
+  MNG: 'https://www.mngkargo.com.tr/wps/portal/mng/kargo-takip?barcode={trackingCode}',
   UPS: 'https://www.ups.com/track?tracknum={trackingCode}',
   DHL: 'https://www.dhl.com/tr-tr/home/tracking.html?tracking-id={trackingCode}',
-  FEDEX: 'https://www.fedex.com/fedextrack/?trknbr={trackingCode}',
+  FEDEX: 'https://www.fedex.com/apps/fedextrack/?tracknumbers={trackingCode}',
   SENDEO: 'https://www.sendeo.com.tr/tr/kargo-takip?barcode={trackingCode}',
-  PTT_KARGO: 'https://www.ptt.gov.tr/KargoTakip?barcode={trackingCode}',
-  PTT: 'https://gonderitakip.ptt.gov.tr/Track/Verify?q={trackingCode}',
+  PTT_KARGO: 'https://www.ptt.gov.tr/tr/anasayfa/takip?trackNo={trackingCode}',
+  PTT: 'https://www.ptt.gov.tr/tr/anasayfa/takip?trackNo={trackingCode}',
   HEPSIJET: 'https://www.google.com/search?q={trackingCode}+hepsijet+kargo+takip',
   TRENDYOL_EXPRESS:
     'https://www.google.com/search?q={trackingCode}+trendyol+express+kargo+takip',
@@ -21,12 +46,33 @@ export const CARGO_TRACKING_URLS: Record<string, string> = {
   DPD: 'https://tracking.dpd.de/status/en_US/parcel/{trackingCode}',
   HERMES: 'https://www.myhermes.co.uk/track.html?parcelNumber={trackingCode}',
   POSTNL: 'https://jouw.postnl.nl/track-and-trace/{trackingCode}',
-  DHL_PARCEL: 'https://www.dhl.com/tr-tr/home/tracking/tracking-parcel.html?submit=1&tracking-id={trackingCode}',
+  DHL_PARCEL:
+    'https://www.dhl.com/tr-tr/home/tracking/tracking-parcel.html?submit=1&tracking-id={trackingCode}',
   BRINGO: 'https://www.bringo.com.tr/kargo-takip?code={trackingCode}',
   CEVA: 'https://www.cevalogistics.com/track/{trackingCode}',
   NART_KARGO: 'https://www.nartkargo.com/takip?kod={trackingCode}',
   KOLAY_GELSIN: 'https://www.kolaygelsin.com/takip?code={trackingCode}',
 };
+
+export function getTrackingUrl(provider: string, trackingNo: string): string {
+  const trimmed = trackingNo.trim();
+  if (trimmed.length === 0) {
+    return '#';
+  }
+  const key = provider.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const builder = CORE_TRACKING_URLS[key];
+  if (builder) {
+    return builder(trimmed);
+  }
+  return '#';
+}
+
+export function getTrackingUrlForProvider(
+  provider: CargoProvider,
+  trackingNumber: string,
+): string {
+  return getTrackingUrl(provider, trackingNumber);
+}
 
 function applyTemplate(template: string, trackingCode: string): string {
   return template.replaceAll('{trackingCode}', encodeURIComponent(trackingCode));
@@ -55,6 +101,12 @@ export function buildCargoTrackingUrl(
     return '';
   }
   const key = normalizeProviderKey(provider);
+  if (key) {
+    const direct = getTrackingUrl(key, trimmed);
+    if (direct !== '#') {
+      return direct;
+    }
+  }
   if (key && CARGO_TRACKING_URLS[key]) {
     return applyTemplate(CARGO_TRACKING_URLS[key], trimmed);
   }

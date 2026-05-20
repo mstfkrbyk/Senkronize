@@ -1,17 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Marketplace, OrderStatus } from '@prisma/client';
+import { CargoProvider, Marketplace, OrderStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsInt,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 
 export class UpdateOrderStatusDto {
@@ -43,6 +46,51 @@ export class UpdateOrderStatusDto {
   @IsString()
   @MaxLength(120)
   cargoProvider?: string;
+}
+
+export class BulkOrderIdsDto {
+  @ApiProperty({ description: 'Sipariş kimlikleri', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @MinLength(1, { each: true })
+  orderIds!: string[];
+}
+
+export class BulkAssignCargoDto extends BulkOrderIdsDto {
+  @ApiProperty({ enum: CargoProvider })
+  @IsEnum(CargoProvider)
+  cargoProvider!: CargoProvider;
+}
+
+export class BulkUpdateOrderStatusDto extends BulkOrderIdsDto {
+  @ApiProperty({ enum: OrderStatus })
+  @IsEnum(OrderStatus)
+  status!: OrderStatus;
+}
+
+export class AddTrackingNumberDto {
+  @ApiProperty({ description: 'Kargo takip numarası' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  trackingNumber!: string;
+
+  @ApiProperty({ enum: CargoProvider })
+  @IsEnum(CargoProvider)
+  cargoProvider!: CargoProvider;
+}
+
+export class AddOrderNoteDto {
+  @ApiProperty({ description: 'Not içeriği' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(4000)
+  content!: string;
+
+  @ApiPropertyOptional({ description: 'İç not (müşteriye görünmez)' })
+  @IsOptional()
+  @IsBoolean()
+  isInternal?: boolean;
 }
 
 export class OrderQueryDto {

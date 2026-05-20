@@ -1,6 +1,7 @@
 import type { TFunction } from 'i18next';
 
 import type { FilterConfig } from '@/components/AdvancedFilters';
+import { CARGO_PROVIDER_OPTIONS } from '@/lib/cargo-providers';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type { OrderStatus } from '@/types/order';
@@ -54,8 +55,11 @@ export function buildOrderFilterConfig(t: TFunction): FilterConfig[] {
     {
       key: 'cargoProvider',
       label: t('orders.filters.cargoProvider'),
-      type: 'text',
-      placeholder: t('orders.filters.cargoPlaceholder'),
+      type: 'select',
+      options: [
+        { value: '', label: 'Tümü' },
+        ...CARGO_PROVIDER_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      ],
     },
     {
       key: 'minTotal',

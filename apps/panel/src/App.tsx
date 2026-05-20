@@ -134,6 +134,16 @@ const NotificationsPage = lazy(() =>
 const OrdersPage = lazy(() =>
   import('@/pages/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })),
 );
+const OrderDetailPage = lazy(() =>
+  import('@/pages/orders/OrderDetailPage').then((m) => ({
+    default: m.OrderDetailPage,
+  })),
+);
+const OrderDetailPage = lazy(() =>
+  import('@/pages/orders/OrderDetailPage').then((m) => ({
+    default: m.OrderDetailPage,
+  })),
+);
 const ReturnsPage = lazy(() =>
   import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
 );
@@ -349,6 +359,8 @@ export default function App(): ReactElement {
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/orders/:id" element={<OrderDetailPage />} />
+                <Route path="/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customers/segments" element={<CustomerSegmentsPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />

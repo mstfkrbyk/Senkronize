@@ -23,6 +23,8 @@ export interface Order {
   platformOrderId: string;
   status: OrderStatus;
   customerName: string;
+  customerPhone?: string | null;
+  shippingAddress?: string | null;
   totalAmount: string;
   currency: string;
   cargoTrackingNumber: string | null;
@@ -32,6 +34,22 @@ export interface Order {
   items: OrderItem[];
   cancellationRequestedAt?: string | null;
   cancellationRequestNote?: string | null;
+}
+
+export interface OrderNote {
+  id: string;
+  orderId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+export interface BulkResult {
+  success: number;
+  failed: number;
+  errors: { id: string; message: string }[];
 }
 
 export interface OrdersResponse {

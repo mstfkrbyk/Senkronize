@@ -49,6 +49,11 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     parentLabel: 'Müşteriler',
   },
   {
+    pattern: /^\/orders\/[^/]+$/,
+    parentPath: '/orders',
+    parentLabel: 'Siparişler',
+  },
+  {
     pattern: /^\/suppliers\/[^/]+$/,
     parentPath: '/suppliers',
     parentLabel: 'Tedarikçiler',
@@ -57,6 +62,11 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     pattern: /^\/purchase-orders\/[^/]+$/,
     parentPath: '/purchase-orders',
     parentLabel: 'Satın Alma Siparişleri',
+  },
+  {
+    pattern: /^\/orders\/[^/]+$/,
+    parentPath: '/orders',
+    parentLabel: 'Siparişler',
   },
   {
     pattern: /^\/support\/[^/]+$/,

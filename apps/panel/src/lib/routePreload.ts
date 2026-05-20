@@ -1,6 +1,7 @@
 const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/dashboard': () => import('@/pages/dashboard/DashboardPage'),
   '/orders': () => import('@/pages/orders/OrdersPage'),
+  '/orders/:id': () => import('@/pages/orders/OrderDetailPage'),
   '/customers': () => import('@/pages/customers/CustomersPage'),
   '/customers/segments': () => import('@/pages/customers/CustomerSegmentsPage'),
   '/returns': () => import('@/pages/returns/ReturnsPage'),

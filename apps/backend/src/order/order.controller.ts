@@ -7,9 +7,15 @@ import {
 } from '@nestjs/swagger';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  AddOrderNoteDto,
+  AddTrackingNumberDto,
+  BulkAssignCargoDto,
+  BulkUpdateOrderStatusDto,
   CancellationRequestDto,
   CancelOrderDto,
   OrderQueryDto,
@@ -17,6 +23,7 @@ import {
   UpdateOrderStatusDto,
 } from './order.dto';
 import { OrderService, type SerializedOrder } from './order.service';
+import type { BulkResult, SerializedOrderNote } from './order.types';
 
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -47,6 +54,32 @@ export class OrderController {
     return this.orderService.findAll(org.id, query);
   }
 
+  @Post('bulk/cargo')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu kargo şirketi ata' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkAssignCargo(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkAssignCargoDto,
+  ): Promise<BulkResult> {
+    return this.orderService.bulkAssignCargo(
+      org.id,
+      dto.orderIds,
+      dto.cargoProvider,
+    );
+  }
+
+  @Post('bulk/status')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu durum güncelle' })
+  @ApiResponse({ status: 200, description: 'Toplu işlem sonucu' })
+  async bulkUpdateStatus(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: BulkUpdateOrderStatusDto,
+  ): Promise<BulkResult> {
+    return this.orderService.bulkUpdateStatus(org.id, dto.orderIds, dto.status);
+  }
+
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Sipariş durumu güncelle (kargo bilgisi dahil)' })
@@ -59,6 +92,54 @@ export class OrderController {
     @Body() dto: UpdateOrderStatusDto,
   ): Promise<SerializedOrder> {
     return this.orderService.updateStatus(org.id, id, dto);
+  }
+
+  @Patch(':id/tracking')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Kargo takip numarası ekle' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async addTrackingNumber(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: AddTrackingNumberDto,
+  ): Promise<SerializedOrder> {
+    return this.orderService.addTrackingNumber(
+      org.id,
+      id,
+      dto.trackingNumber,
+      dto.cargoProvider,
+    );
+  }
+
+  @Get(':id/notes')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş notları' })
+  @ApiResponse({ status: 200, description: 'Not listesi' })
+  async getOrderNotes(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<SerializedOrderNote[]> {
+    return this.orderService.getOrderNotes(org.id, id);
+  }
+
+  @Post(':id/notes')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş notu ekle' })
+  @ApiResponse({ status: 201, description: 'Not oluşturuldu' })
+  async addOrderNote(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AddOrderNoteDto,
+  ): Promise<SerializedOrderNote> {
+    return this.orderService.addOrderNote(
+      org.id,
+      id,
+      user.id,
+      dto.content,
+      dto.isInternal ?? false,
+    );
   }
 
   @Post(':id/cancellation-request')
