@@ -32,8 +32,8 @@ import { LightspeedErpAdapter } from './lightspeed-erp.adapter';
 import { LightspeedRestaurantErpAdapter } from './lightspeed-restaurant-erp.adapter';
 import { ErpRestHttpModule } from './erp-rest-http.module';
 import { LogoTigerModule } from './logo/logo.module';
+import { KolaybiErpModule } from './kolaybi/kolaybi.module';
 import { MikroErpModule } from './mikro/mikro.module';
-import { MikroErpAdapter } from './mikro/mikro.adapter';
 import { NetsisErpModule } from './netsis/netsis.module';
 import { MikroErpCloudAdapter } from './mikro-erp.adapter';
 import { MoneybirdModule } from './moneybird/moneybird.module';
@@ -72,6 +72,7 @@ const erpRound5Modules = [
   ErpRestHttpModule,
   LogoTigerModule,
   MikroErpModule,
+  KolaybiErpModule,
   NetsisErpModule,
   HoldedModule,
   DebitoorModule,
@@ -103,7 +104,6 @@ const legacyErpAdapters = [
   LightspeedErpAdapter,
   VendPosErpAdapter,
   ZirveBulutErpAdapter,
-  MikroErpAdapter,
   MikroErpCloudAdapter,
   IsbirErpAdapter,
   AliciErpAdapter,

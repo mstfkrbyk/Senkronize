@@ -194,7 +194,7 @@ import { KuklaAdapter } from './kukla/kukla.adapter';
 import { KmartAuAdapter } from './kmart-au/kmart-au.adapter';
 import { KongaAdapter } from './konga/konga.adapter';
 import { KoctasAdapter } from './koctas/koctas.adapter';
-import { KolaybiAdapter } from './kolaybi/kolaybi.adapter';
+import { KolaybiErpAdapter } from './erp/kolaybi/kolaybi.adapter';
 import { KotonAdapter } from './koton/koton.adapter';
 import { LcwaikikiAdapter } from './lcwaikiki/lcwaikiki.adapter';
 import { LookfantasticAdapter } from './lookfantastic/lookfantastic.adapter';
@@ -506,7 +506,7 @@ export class AdapterRegistry {
     private readonly njuskalo: NjuskaloAdapter,
     private readonly eta: EtaAdapter,
     private readonly isnet: IsnetAdapter,
-    private readonly kolaybi: KolaybiAdapter,
+    private readonly kolaybi: KolaybiErpAdapter,
     private readonly nebim: NebimAdapter,
     private readonly sapB1: SapB1Adapter,
     private readonly zirve: ZirveAdapter,

@@ -6,6 +6,7 @@ export interface MikroStokRow {
   name?: string;
   miktar?: number;
   stokMiktar?: number;
+  quantity?: number;
   alisFiyat?: number;
   satisFiyat?: number;
   barcode?: string;
@@ -19,6 +20,7 @@ export interface MikroStokListeResponse {
 
 export interface MikroSatisFisResponse {
   fisNo?: string;
+  faturaNo?: string;
   id?: string;
   number?: string;
   invoiceNumber?: string;

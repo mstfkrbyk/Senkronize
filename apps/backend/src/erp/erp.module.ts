@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 
+import { KolaybiErpModule } from '../adapters/erp/kolaybi/kolaybi.module';
 import { LogoTigerModule } from '../adapters/erp/logo/logo.module';
+import { MikroErpModule } from '../adapters/erp/mikro/mikro.module';
 import { NetsisErpModule } from '../adapters/erp/netsis/netsis.module';
 import { ErpRestHttpModule } from '../adapters/erp/erp-rest-http.module';
 import { EncryptionModule } from '../common/encryption/encryption.module';
@@ -17,6 +19,8 @@ import { ErpSyncSettingsService } from './erp-sync-settings.service';
     EncryptionModule,
     ErpRestHttpModule,
     LogoTigerModule,
+    MikroErpModule,
+    KolaybiErpModule,
     NetsisErpModule,
   ],
   controllers: [ErpController],
@@ -25,6 +29,8 @@ import { ErpSyncSettingsService } from './erp-sync-settings.service';
     ErpSyncSettingsService,
     ErpRestHttpModule,
     LogoTigerModule,
+    MikroErpModule,
+    KolaybiErpModule,
     NetsisErpModule,
   ],
 })
