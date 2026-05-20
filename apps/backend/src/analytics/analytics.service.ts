@@ -14,9 +14,15 @@ import {
   parsePeriodDays,
   rangeForDays,
   rangeWithPrevious,
+  rangeWithYearAgo,
 } from './analytics-period.util';
 import type {
+  AnalyticsCategoryComparisonRow,
+  AnalyticsComparisonResponse,
+  AnalyticsComparisonSummary,
+  AnalyticsPlatformComparisonRow,
   AovTrendResponse,
+  ComparisonMetricTriple,
   CustomerInsightsResponse,
   DailyRevenueTrendResponse,
   PlatformComparisonResponse,
@@ -35,6 +41,20 @@ function pctDelta(current: number, previous: number): number {
     return current > 0 ? 100 : 0;
   }
   return Math.round(((current - previous) / previous) * 100);
+}
+
+function comparisonTriple(
+  current: number,
+  previous: number,
+  yearAgo: number,
+): ComparisonMetricTriple {
+  return {
+    current: Math.round(current * 100) / 100,
+    previous: Math.round(previous * 100) / 100,
+    yearAgo: Math.round(yearAgo * 100) / 100,
+    changeVsPrevious: pctDelta(current, previous),
+    changeVsYearAgo: pctDelta(current, yearAgo),
+  };
 }
 
 function extractCityFromAddress(address: string | null | undefined): string {
@@ -546,5 +566,242 @@ export class AnalyticsService {
     });
 
     return { days: safeDays, points };
+  }
+
+  async getComparison(
+    organizationId: string,
+    period: string | undefined,
+  ): Promise<AnalyticsComparisonResponse> {
+    const periodDays = parsePeriodDays(period, 30);
+    const { current, previous, yearAgo } = rangeWithYearAgo(periodDays);
+
+    const orderWhere = (
+      from: Date,
+      to: Date,
+    ): Prisma.OrderWhereInput => ({
+      organizationId,
+      deletedAt: null,
+      platformCreatedAt: { gte: from, lte: to },
+      status: { notIn: COMPLETED_ORDER_STATUSES },
+    });
+
+    const [
+      revCurrent,
+      revPrev,
+      revYear,
+      ordCurrent,
+      ordPrev,
+      ordYear,
+      platformCurrent,
+      platformPrev,
+      platformYear,
+      categoryCurrent,
+      categoryPrev,
+      categoryYear,
+    ] = await Promise.all([
+      this.prisma.order.aggregate({
+        where: orderWhere(current.from, current.to),
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: orderWhere(previous.from, previous.to),
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.aggregate({
+        where: orderWhere(yearAgo.from, yearAgo.to),
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.count({
+        where: orderWhere(current.from, current.to),
+      }),
+      this.prisma.order.count({
+        where: orderWhere(previous.from, previous.to),
+      }),
+      this.prisma.order.count({
+        where: orderWhere(yearAgo.from, yearAgo.to),
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: orderWhere(current.from, current.to),
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: orderWhere(previous.from, previous.to),
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['platform'],
+        where: orderWhere(yearAgo.from, yearAgo.to),
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      this.fetchCategoryStats(organizationId, current.from, current.to),
+      this.fetchCategoryStats(organizationId, previous.from, previous.to),
+      this.fetchCategoryStats(organizationId, yearAgo.from, yearAgo.to),
+    ]);
+
+    const revenueCurrent = Number(revCurrent._sum.totalAmount ?? 0);
+    const revenuePrev = Number(revPrev._sum.totalAmount ?? 0);
+    const revenueYear = Number(revYear._sum.totalAmount ?? 0);
+
+    const summary: AnalyticsComparisonSummary = {
+      revenue: comparisonTriple(revenueCurrent, revenuePrev, revenueYear),
+      orders: comparisonTriple(ordCurrent, ordPrev, ordYear),
+      avgOrderValue: comparisonTriple(
+        ordCurrent > 0 ? revenueCurrent / ordCurrent : 0,
+        ordPrev > 0 ? revenuePrev / ordPrev : 0,
+        ordYear > 0 ? revenueYear / ordYear : 0,
+      ),
+    };
+
+    const platformMap = (
+      rows: typeof platformCurrent,
+    ): Map<Marketplace, { orders: number; revenue: number }> =>
+      new Map(
+        rows.map(
+          (r) =>
+            [
+              r.platform,
+              {
+                orders: r._count._all,
+                revenue: Number(r._sum.totalAmount ?? 0),
+              },
+            ] as const,
+        ),
+      );
+
+    const curP = platformMap(platformCurrent);
+    const prevP = platformMap(platformPrev);
+    const yearP = platformMap(platformYear);
+    const platformSet = new Set<Marketplace>([
+      ...curP.keys(),
+      ...prevP.keys(),
+      ...yearP.keys(),
+    ]);
+
+    const platforms: AnalyticsPlatformComparisonRow[] = Array.from(platformSet)
+      .sort((a, b) => a.localeCompare(b))
+      .map((platform) => {
+        const c = curP.get(platform);
+        const p = prevP.get(platform);
+        const y = yearP.get(platform);
+        return {
+          platform,
+          label: MARKETPLACE_LABEL_TR[platform] ?? platform,
+          revenue: comparisonTriple(
+            c?.revenue ?? 0,
+            p?.revenue ?? 0,
+            y?.revenue ?? 0,
+          ),
+          orders: comparisonTriple(
+            c?.orders ?? 0,
+            p?.orders ?? 0,
+            y?.orders ?? 0,
+          ),
+        };
+      })
+      .sort(
+        (a, b) => b.revenue.current - a.revenue.current,
+      );
+
+    const categoryKeys = new Set([
+      ...categoryCurrent.keys(),
+      ...categoryPrev.keys(),
+      ...categoryYear.keys(),
+    ]);
+
+    const categories: AnalyticsCategoryComparisonRow[] = Array.from(
+      categoryKeys,
+    )
+      .map((key) => {
+        const cur = categoryCurrent.get(key);
+        const prev = categoryPrev.get(key);
+        const year = categoryYear.get(key);
+        return {
+          categoryId: cur?.categoryId ?? prev?.categoryId ?? year?.categoryId ?? null,
+          categoryName:
+            cur?.name ?? prev?.name ?? year?.name ?? 'Kategorisiz',
+          revenue: comparisonTriple(
+            cur?.revenue ?? 0,
+            prev?.revenue ?? 0,
+            year?.revenue ?? 0,
+          ),
+          orders: comparisonTriple(
+            cur?.orders ?? 0,
+            prev?.orders ?? 0,
+            year?.orders ?? 0,
+          ),
+        };
+      })
+      .sort((a, b) => b.revenue.current - a.revenue.current)
+      .slice(0, 20);
+
+    return { periodDays, summary, platforms, categories };
+  }
+
+  private async fetchCategoryStats(
+    organizationId: string,
+    from: Date,
+    to: Date,
+  ): Promise<
+    Map<
+      string,
+      { categoryId: string | null; name: string; revenue: number; orders: number }
+    >
+  > {
+    const items = await this.prisma.orderItem.findMany({
+      where: {
+        organizationId,
+        order: {
+          organizationId,
+          deletedAt: null,
+          platformCreatedAt: { gte: from, lte: to },
+          status: { notIn: COMPLETED_ORDER_STATUSES },
+        },
+      },
+      select: { quantity: true, unitPrice: true, barcode: true },
+    });
+
+    if (items.length === 0) {
+      return new Map();
+    }
+
+    const barcodes = [...new Set(items.map((i) => i.barcode))];
+    const products = await this.prisma.product.findMany({
+      where: { organizationId, deletedAt: null, barcode: { in: barcodes } },
+      select: {
+        barcode: true,
+        categoryId: true,
+        category: true,
+        productCategory: { select: { id: true, name: true } },
+      },
+    });
+    const productMeta = new Map(products.map((p) => [p.barcode, p] as const));
+
+    const stats = new Map<
+      string,
+      { categoryId: string | null; name: string; revenue: number; orders: number }
+    >();
+
+    for (const item of items) {
+      const meta = productMeta.get(item.barcode);
+      const key = meta?.categoryId ?? meta?.category ?? 'uncategorized';
+      const name =
+        meta?.productCategory?.name ?? meta?.category ?? 'Kategorisiz';
+      const entry = stats.get(key) ?? {
+        categoryId: meta?.categoryId ?? null,
+        name,
+        revenue: 0,
+        orders: 0,
+      };
+      entry.revenue += item.quantity * Number(item.unitPrice);
+      entry.orders += 1;
+      stats.set(key, entry);
+    }
+
+    return stats;
   }
 }

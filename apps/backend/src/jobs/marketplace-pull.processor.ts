@@ -26,6 +26,7 @@ import type {
   ImageUploadFromUrlJobData,
   MarketplacePullJobData,
 } from '../queue/queue.types';
+import { DashboardGateway } from '../dashboard/dashboard.gateway';
 import { SyncLogService } from '../sync/sync-log.service';
 import { SyncStatusService } from '../sync-status/sync-status.service';
 
@@ -47,6 +48,7 @@ export class MarketplacePullProcessor {
     private readonly configService: ConfigService,
     private readonly inAppNotificationService: InAppNotificationService,
     private readonly returnService: ReturnService,
+    private readonly dashboardGateway: DashboardGateway,
     @InjectQueue(QUEUE_IMAGE)
     private readonly imageQueue: Queue<ImageUploadFromUrlJobData>,
     private readonly redisRateLimiter: RedisRateLimiter,
@@ -163,6 +165,12 @@ export class MarketplacePullProcessor {
           createdAt: order.createdAt.toISOString(),
         });
         this.notificationEmit.emitOrderNew(organizationId, {
+          orderId: order.id,
+          platform: String(platform),
+          amount: order.totalAmount.toString(),
+          customer: order.customerName,
+        });
+        this.dashboardGateway.emitOrderNew(organizationId, {
           orderId: order.id,
           platform: String(platform),
           amount: order.totalAmount.toString(),

@@ -46,3 +46,20 @@ export function rangeWithPrevious(days: number): AnalyticsPreviousRange {
     previous: { from: prevFrom, to: prevTo, days },
   };
 }
+
+export function rangeWithYearAgo(days: number): {
+  current: AnalyticsDateRange;
+  previous: AnalyticsDateRange;
+  yearAgo: AnalyticsDateRange;
+} {
+  const { current, previous } = rangeWithPrevious(days);
+  const spanMs = current.to.getTime() - current.from.getTime();
+  const yearAgoTo = new Date(current.to);
+  yearAgoTo.setFullYear(yearAgoTo.getFullYear() - 1);
+  const yearAgoFrom = new Date(yearAgoTo.getTime() - spanMs);
+  return {
+    current,
+    previous,
+    yearAgo: { from: yearAgoFrom, to: yearAgoTo, days },
+  };
+}

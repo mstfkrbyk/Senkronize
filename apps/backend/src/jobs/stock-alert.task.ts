@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { NotificationType, UserRole } from '@prisma/client';
 
+import { DashboardGateway } from '../dashboard/dashboard.gateway';
 import { EmailService } from '../notifications/email/email.service';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +17,7 @@ export class StockAlertTask {
     private readonly emailService: EmailService,
     private readonly inAppNotificationService: InAppNotificationService,
     private readonly config: ConfigService,
+    private readonly dashboardGateway: DashboardGateway,
   ) {}
 
   private panelBaseUrl(): string {
@@ -115,6 +117,16 @@ export class StockAlertTask {
           organizationId,
           message:
             notifyErr instanceof Error ? notifyErr.message : 'unknown',
+        });
+      }
+
+      const sample = lowProducts[0];
+      if (sample) {
+        this.dashboardGateway.emitStockAlert(organizationId, {
+          barcode: sample.barcode,
+          title: sample.title,
+          quantity: sample.quantity,
+          threshold: 5,
         });
       }
 

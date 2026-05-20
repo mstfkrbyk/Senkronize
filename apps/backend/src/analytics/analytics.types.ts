@@ -91,3 +91,41 @@ export interface DailyRevenueTrendResponse {
   days: number;
   points: DailyRevenuePoint[];
 }
+
+export interface ComparisonMetricTriple {
+  current: number;
+  previous: number;
+  yearAgo: number;
+  changeVsPrevious: number;
+  changeVsYearAgo: number;
+}
+
+export interface AnalyticsComparisonSummary {
+  revenue: ComparisonMetricTriple;
+  orders: ComparisonMetricTriple;
+  avgOrderValue: ComparisonMetricTriple;
+}
+
+export interface AnalyticsPlatformComparisonRow {
+  platform: Marketplace;
+  label: string;
+  revenue: ComparisonMetricTriple;
+  orders: ComparisonMetricTriple;
+}
+
+export interface AnalyticsCategoryComparisonRow {
+  categoryId: string | null;
+  categoryName: string;
+  revenue: ComparisonMetricTriple;
+  orders: ComparisonMetricTriple;
+}
+
+export interface AnalyticsComparisonResponse {
+  periodDays: number;
+  summary: AnalyticsComparisonSummary;
+  platforms: AnalyticsPlatformComparisonRow[];
+  categories: AnalyticsCategoryComparisonRow[];
+}
+
+export type AnalyticsExportType = 'revenue' | 'orders' | 'products';
+export type AnalyticsExportFormat = 'csv' | 'xlsx';

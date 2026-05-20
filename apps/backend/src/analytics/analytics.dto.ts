@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AnalyticsPeriodQueryDto {
   @IsOptional()
@@ -23,4 +23,12 @@ export class TopProductsQueryDto extends AnalyticsPeriodQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+}
+
+export class AnalyticsExportQueryDto extends AnalyticsPeriodQueryDto {
+  @IsIn(['revenue', 'orders', 'products'])
+  type!: 'revenue' | 'orders' | 'products';
+
+  @IsIn(['csv', 'xlsx'])
+  format!: 'csv' | 'xlsx';
 }

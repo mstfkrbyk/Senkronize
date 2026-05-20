@@ -25,6 +25,6 @@ import { EventService } from './event.service';
     }),
   ],
   providers: [NotificationGateway, NotificationEmitService, EventService],
-  exports: [EventService, NotificationEmitService],
+  exports: [EventService, NotificationEmitService, NotificationGateway],
 })
 export class EventModule {}

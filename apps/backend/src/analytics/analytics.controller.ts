@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, StreamableFile, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -9,13 +9,16 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+import { AnalyticsExportService } from './analytics-export.service';
 import { AnalyticsService } from './analytics.service';
 import {
   AnalyticsDaysQueryDto,
+  AnalyticsExportQueryDto,
   AnalyticsPeriodQueryDto,
   TopProductsQueryDto,
 } from './analytics.dto';
 import type {
+  AnalyticsComparisonResponse,
   AovTrendResponse,
   CustomerInsightsResponse,
   DailyRevenueTrendResponse,
@@ -30,7 +33,10 @@ import type {
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly analyticsExport: AnalyticsExportService,
+  ) {}
 
   @Get('platform-comparison')
   @ApiOperation({ summary: 'Platform bazlı sipariş ve gelir karşılaştırması' })
@@ -108,5 +114,37 @@ export class AnalyticsController {
     @Query() query: AnalyticsDaysQueryDto,
   ): Promise<DailyRevenueTrendResponse> {
     return this.analyticsService.getDailyRevenueTrend(org.id, query.days);
+  }
+
+  @Get('comparison')
+  @ApiOperation({
+    summary:
+      'Karşılaştırmalı analitik (bu dönem / önceki dönem / geçen yıl aynı dönem)',
+  })
+  @ApiResponse({ status: 200, description: 'Özet, platform ve kategori karşılaştırması' })
+  async getComparison(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: AnalyticsPeriodQueryDto,
+  ): Promise<AnalyticsComparisonResponse> {
+    return this.analyticsService.getComparison(org.id, query.period);
+  }
+
+  @Get('export')
+  @ApiOperation({ summary: 'Analitik veriyi CSV veya Excel olarak dışa aktar' })
+  @ApiResponse({ status: 200, description: 'Dosya indirme' })
+  async exportAnalytics(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: AnalyticsExportQueryDto,
+  ): Promise<StreamableFile> {
+    const { buffer, filename, mime } = await this.analyticsExport.export(
+      org.id,
+      query.type,
+      query.format,
+      query.period,
+    );
+    return new StreamableFile(buffer, {
+      type: mime,
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 }

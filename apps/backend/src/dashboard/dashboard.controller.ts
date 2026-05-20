@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -13,13 +13,23 @@ import { DashboardService } from './dashboard.service';
 import {
   DashboardActivityQueryDto,
   DashboardOrdersTrendQueryDto,
+  DashboardPeriodQueryDto,
+  DashboardRevenueTrendQueryDto,
   DashboardSummaryQueryDto,
+  DashboardTopProductsQueryDto,
+  UpdateDashboardWidgetsDto,
 } from './dashboard.dto';
 import type {
+  DashboardActivityFeedItem,
   DashboardActivityItem,
+  DashboardKpisResponse,
   DashboardOrdersTrendResponse,
   DashboardPlatformDistributionResponse,
+  DashboardPlatformPerformanceRow,
+  DashboardRevenueTrendPoint,
   DashboardSummaryResponse,
+  DashboardTopProductRow,
+  DashboardWidgetsResponse,
 } from './dashboard.types';
 
 @ApiTags('dashboard')
@@ -37,6 +47,57 @@ export class DashboardController {
     @Query() query: DashboardSummaryQueryDto,
   ): Promise<DashboardSummaryResponse> {
     return this.dashboardService.getSummary(org.id, query.period);
+  }
+
+  @Get('kpis')
+  @ApiOperation({ summary: 'Ana KPI metrikleri (dönem karşılaştırmalı)' })
+  @ApiResponse({ status: 200, description: 'Gelir, sipariş, AOV, listeleme KPI' })
+  async getKpis(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardPeriodQueryDto,
+  ): Promise<DashboardKpisResponse> {
+    return this.dashboardService.getKpis(org.id, query.resolvePeriod());
+  }
+
+  @Get('platform-performance')
+  @ApiOperation({ summary: 'Platform bazlı performans (gelir payı)' })
+  @ApiResponse({ status: 200, description: 'Platform performans satırları' })
+  async getPlatformPerformance(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardPeriodQueryDto,
+  ): Promise<DashboardPlatformPerformanceRow[]> {
+    return this.dashboardService.getPlatformPerformance(
+      org.id,
+      query.resolvePeriod(),
+    );
+  }
+
+  @Get('revenue-trend')
+  @ApiOperation({ summary: 'Gelir ve sipariş trendi' })
+  @ApiResponse({ status: 200, description: 'Zaman serisi' })
+  async getRevenueTrend(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardRevenueTrendQueryDto,
+  ): Promise<DashboardRevenueTrendPoint[]> {
+    return this.dashboardService.getRevenueTrend(
+      org.id,
+      query.resolvePeriod(),
+      query.groupBy ?? 'day',
+    );
+  }
+
+  @Get('top-products')
+  @ApiOperation({ summary: 'En iyi satan ürünler' })
+  @ApiResponse({ status: 200, description: 'Ürün sıralaması' })
+  async getTopProducts(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardTopProductsQueryDto,
+  ): Promise<DashboardTopProductRow[]> {
+    return this.dashboardService.getTopProducts(
+      org.id,
+      query.resolvePeriod(),
+      query.limit ?? 10,
+    );
   }
 
   @Get('orders-trend')
@@ -59,12 +120,41 @@ export class DashboardController {
   }
 
   @Get('activity')
-  @ApiOperation({ summary: 'Son dashboard aktiviteleri (denetim kaydı)' })
-  @ApiResponse({ status: 200, description: 'Aktivite listesi' })
+  @ApiOperation({ summary: 'Son dashboard aktiviteleri (karışık akış)' })
+  @ApiResponse({ status: 200, description: 'Sipariş, stok, sync aktiviteleri' })
   async getActivity(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: DashboardActivityQueryDto,
+  ): Promise<DashboardActivityFeedItem[]> {
+    return this.dashboardService.getMixedActivity(org.id, query.limit ?? 20);
+  }
+
+  @Get('activity/audit')
+  @ApiOperation({ summary: 'Denetim kaydı aktiviteleri' })
+  @ApiResponse({ status: 200, description: 'Audit log listesi' })
+  async getAuditActivity(
     @CurrentOrg() org: CurrentOrgPayload,
     @Query() query: DashboardActivityQueryDto,
   ): Promise<DashboardActivityItem[]> {
     return this.dashboardService.getActivity(org.id, query.limit ?? 10);
+  }
+
+  @Get('widgets')
+  @ApiOperation({ summary: 'Organizasyon widget düzeni' })
+  @ApiResponse({ status: 200, description: 'Widget config' })
+  async getWidgets(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<DashboardWidgetsResponse> {
+    return this.dashboardService.getWidgets(org.id);
+  }
+
+  @Patch('widgets')
+  @ApiOperation({ summary: 'Widget düzenini güncelle' })
+  @ApiResponse({ status: 200, description: 'Güncellenmiş widget config' })
+  async updateWidgets(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: UpdateDashboardWidgetsDto,
+  ): Promise<DashboardWidgetsResponse> {
+    return this.dashboardService.updateWidgets(org.id, dto.widgets);
   }
 }
