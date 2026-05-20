@@ -235,7 +235,21 @@ export type Marketplace =
   | 'OLX'
   | 'MUMZWORLD'
   | 'BOUTIQAAT'
-  | 'AWOK';
+  | 'AWOK'
+  | 'ALIBABA_B2B'
+  | 'GLOBAL_SOURCES'
+  | 'DHGATE'
+  | 'INDIAMART'
+  | 'TRADEINDIA'
+  | 'EC21'
+  | 'TEDARIKCI'
+  | 'BUYUK_MAGAZA'
+  | 'TOPTANEVI'
+  | 'SAHIBINDEN_B2B'
+  | 'SPOCKET'
+  | 'OBERLO'
+  | 'AUTODS'
+  | 'DOBA';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

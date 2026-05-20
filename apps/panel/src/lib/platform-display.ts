@@ -194,6 +194,20 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   MUMZWORLD: { label: 'Mumzworld', logo: '👶', color: 'pink' },
   BOUTIQAAT: { label: 'Boutiqaat', logo: '💄', color: 'violet' },
   AWOK: { label: 'Awok', logo: '🇦🇪', color: 'amber' },
+  ALIBABA_B2B: { label: 'Alibaba B2B (1688)', logo: '🏭', color: 'orange' },
+  GLOBAL_SOURCES: { label: 'Global Sources', logo: '🌐', color: 'blue' },
+  DHGATE: { label: 'DHgate', logo: '🛒', color: 'yellow' },
+  INDIAMART: { label: 'IndiaMart', logo: '🇮🇳', color: 'blue' },
+  TRADEINDIA: { label: 'TradeIndia', logo: '🇮🇳', color: 'green' },
+  EC21: { label: 'EC21', logo: '🇰🇷', color: 'sky' },
+  TEDARIKCI: { label: 'Tedarikçi.com', logo: '📦', color: 'emerald' },
+  BUYUK_MAGAZA: { label: 'Büyük Mağaza', logo: '🏬', color: 'violet' },
+  TOPTANEVI: { label: 'Toptanevi', logo: '📦', color: 'indigo' },
+  SAHIBINDEN_B2B: { label: 'Sahibinden B2B', logo: '🏢', color: 'yellow' },
+  SPOCKET: { label: 'Spocket', logo: '🚀', color: 'purple' },
+  OBERLO: { label: 'Oberlo', logo: '📦', color: 'green' },
+  AUTODS: { label: 'AutoDS', logo: '⚡', color: 'sky' },
+  DOBA: { label: 'Doba', logo: '📦', color: 'blue' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

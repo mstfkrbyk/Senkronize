@@ -216,6 +216,20 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.MUMZWORLD]: 'Mumzworld',
   [Marketplace.BOUTIQAAT]: 'Boutiqaat',
   [Marketplace.AWOK]: 'Awok',
+  [Marketplace.ALIBABA_B2B]: 'Alibaba B2B (1688)',
+  [Marketplace.GLOBAL_SOURCES]: 'Global Sources',
+  [Marketplace.DHGATE]: 'DHgate',
+  [Marketplace.INDIAMART]: 'IndiaMart',
+  [Marketplace.TRADEINDIA]: 'TradeIndia',
+  [Marketplace.EC21]: 'EC21',
+  [Marketplace.TEDARIKCI]: 'Tedarikçi.com',
+  [Marketplace.BUYUK_MAGAZA]: 'Büyük Mağaza',
+  [Marketplace.TOPTANEVI]: 'Toptanevi',
+  [Marketplace.SAHIBINDEN_B2B]: 'Sahibinden B2B',
+  [Marketplace.SPOCKET]: 'Spocket',
+  [Marketplace.OBERLO]: 'Oberlo',
+  [Marketplace.AUTODS]: 'AutoDS',
+  [Marketplace.DOBA]: 'Doba',
 };
 
 @Injectable()

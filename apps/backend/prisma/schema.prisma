@@ -286,6 +286,20 @@ enum Marketplace {
   POMELO
   BEAUTYMNL
   ZALORA_PH
+  ALIBABA_B2B
+  GLOBAL_SOURCES
+  DHGATE
+  INDIAMART
+  TRADEINDIA
+  EC21
+  TEDARIKCI
+  BUYUK_MAGAZA
+  TOPTANEVI
+  SAHIBINDEN_B2B
+  SPOCKET
+  OBERLO
+  AUTODS
+  DOBA
 }
 
 enum PricingStrategy {
@@ -649,6 +663,18 @@ model Organization {
   partnerProfile            PartnerProfile?
   clientLinkRequests        PartnerLinkRequest[]      @relation("ClientLinkRequests")
   partnerLinkRequests       PartnerLinkRequest[]      @relation("PartnerLinkRequests")
+  orgNotes                  OrgNote[]
+}
+
+model OrgNote {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  adminId   String
+  content   String
+  createdAt DateTime     @default(now())
+
+  @@index([orgId])
 }
 
 /// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
@@ -774,6 +800,8 @@ model User {
   lastLoginAt    DateTime?
   /// Başarısız giriş eşiği sonrası geçici kilit (UTC)
   lockedUntil    DateTime?
+  /// Yönetici tarafından hesap askıya alma
+  suspended      Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   deletedAt      DateTime?

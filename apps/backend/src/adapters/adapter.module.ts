@@ -13,7 +13,9 @@ import { AlisverisComModule } from './alisveris-com/alisveris-com.module';
 import { AwokModule } from './awok/awok.module';
 import { AsosModule } from './asos/asos.module';
 import { AlibabaModule } from './alibaba/alibaba.module';
+import { AlibabaB2bModule } from './alibaba-b2b/alibaba-b2b.module';
 import { AlibabaTrModule } from './alibaba-tr/alibaba-tr.module';
+import { AutodsModule } from './autods/autods.module';
 import { AkinonModule } from './akinon/akinon.module';
 import { AkulakuModule } from './akulaku/akulaku.module';
 import { AmericanasModule } from './americanas/americanas.module';
@@ -36,6 +38,7 @@ import { BimOnlineModule } from './bim-online/bim-online.module';
 import { BimakilliModule } from './bimakilli/bimakilli.module';
 import { BolcomModule } from './bolcom/bolcom.module';
 import { BonanzaModule } from './bonanza/bonanza.module';
+import { BuyukMagazaModule } from './buyuk-magaza/buyuk-magaza.module';
 import { BlibliModule } from './blibli/blibli.module';
 import { BukalapakModule } from './bukalapak/bukalapak.module';
 import { BuldumbuldumModule } from './buldumbuldum/buldumbuldum.module';
@@ -54,6 +57,8 @@ import { CimriModule } from './cimri/cimri.module';
 import { CoupangModule } from './coupang/coupang.module';
 import { CiceksepetiAdapter } from './ciceksepeti/ciceksepeti.adapter';
 import { DefactoModule } from './defacto/defacto.module';
+import { DhgateModule } from './dhgate/dhgate.module';
+import { DobaModule } from './doba/doba.module';
 import { DopingModule } from './doping/doping.module';
 import { DarazModule } from './daraz/daraz.module';
 import { DecathlonModule } from './decathlon/decathlon.module';
@@ -62,6 +67,7 @@ import { DustinModule } from './dustin/dustin.module';
 import { DolapModule } from './dolap/dolap.module';
 import { DrModule } from './dr/dr.module';
 import { EllosModule } from './ellos/ellos.module';
+import { Ec21Module } from './ec21/ec21.module';
 import { EbayModule } from './ebay/ebay.module';
 import { ElektraModule } from './elektra/elektra.module';
 import { EmagModule } from './emag/emag.module';
@@ -70,6 +76,7 @@ import { EtaAdapter } from './eta/eta.adapter';
 import { EtsyModule } from './etsy/etsy.module';
 import { EvideaModule } from './evidea/evidea.module';
 import { ExportifyModule } from './exportify/exportify.module';
+import { GlobalSourcesModule } from './global-sources/global-sources.module';
 import { FinansMuhasebeModule } from './finans-muhasebe/finans-muhasebe.module';
 import { FlipkartModule } from './flipkart/flipkart.module';
 import { FnacModule } from './fnac/fnac.module';
@@ -96,6 +103,7 @@ import { HizliresmiModule } from './hizliresmi/hizliresmi.module';
 import { HarveyNormanModule } from './harvey-norman/harvey-norman.module';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
+import { IndiamartModule } from './indiamart/indiamart.module';
 import { IdefixModule } from './idefix/idefix.module';
 import { InstacartModule } from './instacart/instacart.module';
 import { InstagramShopModule } from './instagram-shop/instagram-shop.module';
@@ -194,7 +202,10 @@ import { SendoModule } from './sendo/sendo.module';
 import { SheinModule } from './shein/shein.module';
 import { SivviModule } from './sivvi/sivvi.module';
 import { SharafDgModule } from './sharaf-dg/sharaf-dg.module';
+import { OberloModule } from './oberlo/oberlo.module';
+import { SahibindenB2bModule } from './sahibinden-b2b/sahibinden-b2b.module';
 import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
+import { SpocketModule } from './spocket/spocket.module';
 import { SahibindenModule } from './sahibinden/sahibinden.module';
 import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SefamerveModule } from './sefamerve/sefamerve.module';
@@ -219,7 +230,10 @@ import { TikladoModule } from './tiklado/tiklado.module';
 import { TrademeModule } from './trademe/trademe.module';
 import { StripeModule } from './stripe/stripe.module';
 import { SpartooModule } from './spartoo/spartoo.module';
+import { TedarikciModule } from './tedarikci/tedarikci.module';
 import { TeknosaModule } from './teknosa/teknosa.module';
+import { ToptaneviModule } from './toptanevi/toptanevi.module';
+import { TradeindiaModule } from './tradeindia/tradeindia.module';
 import { TemuModule } from './temu/temu.module';
 import { TrendyolGoModule } from './trendyol-go/trendyol-go.module';
 import { TrendyolMillaModule } from './trendyol-milla/trendyol-milla.module';
@@ -286,7 +300,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PowerDkModule,
     AsosModule,
     AlibabaModule,
+    AlibabaB2bModule,
     AlibabaTrModule,
+    AutodsModule,
     AkinonModule,
     AkulakuModule,
     AmericanasModule,
@@ -304,6 +320,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BimOnlineModule,
     BolcomModule,
     BonanzaModule,
+    BuyukMagazaModule,
     BlibliModule,
     BukalapakModule,
     BuldumbuldumModule,
@@ -323,6 +340,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     DarazModule,
     DecathlonModule,
     DepopModule,
+    DhgateModule,
+    DobaModule,
+    Ec21Module,
     DolapModule,
     DrModule,
     EbayModule,
@@ -332,6 +352,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EtsyModule,
     EvideaModule,
     ExportifyModule,
+    GlobalSourcesModule,
     FinansMuhasebeModule,
     FlipkartModule,
     FnacModule,
@@ -355,7 +376,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HizliresmiModule,
     HarveyNormanModule,
     IdealoModule,
+    IndiamartModule,
     IdefixModule,
+    OberloModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -436,7 +459,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ReverbModule,
     RobomarktModule,
     SahibindenModule,
+    SahibindenB2bModule,
     SahibindenProModule,
+    SpocketModule,
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
@@ -463,7 +488,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrademeModule,
     StripeModule,
     SpartooModule,
+    TedarikciModule,
     TeknosaModule,
+    ToptaneviModule,
+    TradeindiaModule,
     TemuModule,
     TargetPlusModule,
     TazeDirektModule,
@@ -563,7 +591,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AlisverisComModule,
     AsosModule,
     AlibabaModule,
+    AlibabaB2bModule,
     AlibabaTrModule,
+    AutodsModule,
     AkinonModule,
     AkulakuModule,
     AmericanasModule,
@@ -581,6 +611,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     BimOnlineModule,
     BolcomModule,
     BonanzaModule,
+    BuyukMagazaModule,
     BlibliModule,
     BukalapakModule,
     BuldumbuldumModule,
@@ -600,6 +631,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     DarazModule,
     DecathlonModule,
     DepopModule,
+    DhgateModule,
+    DobaModule,
+    Ec21Module,
     DolapModule,
     DrModule,
     EbayModule,
@@ -609,6 +643,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EtsyModule,
     EvideaModule,
     ExportifyModule,
+    GlobalSourcesModule,
     FinansMuhasebeModule,
     FlipkartModule,
     FnacModule,
@@ -632,7 +667,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HizliresmiModule,
     HarveyNormanModule,
     IdealoModule,
+    IndiamartModule,
     IdefixModule,
+    OberloModule,
     IkasModule,
     IkasMpModule,
     IyzicoModule,
@@ -713,7 +750,9 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ReverbModule,
     RobomarktModule,
     SahibindenModule,
+    SahibindenB2bModule,
     SahibindenProModule,
+    SpocketModule,
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
@@ -740,7 +779,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrademeModule,
     StripeModule,
     SpartooModule,
+    TedarikciModule,
     TeknosaModule,
+    ToptaneviModule,
+    TradeindiaModule,
     TemuModule,
     TargetPlusModule,
     TazeDirektModule,
