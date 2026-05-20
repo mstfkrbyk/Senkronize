@@ -35,6 +35,11 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
   readonly platform: string = 'TRENDYOL';
   private readonly logger = new Logger(TrendyolAdapter.name);
 
+  /** Uluslararası / kanal varyantları base URL override eder */
+  protected trendyolBaseUrl(): string {
+    return TRENDYOL_BASE_URL;
+  }
+
   /** Premium / kanal başlıkları (alt sınıflar override eder) */
   protected extraTrendyolHeaders(
     credentials: Record<string, string>,
@@ -50,7 +55,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
   ): AxiosInstance {
     return axios.create({
-      baseURL: TRENDYOL_BASE_URL,
+      baseURL: this.trendyolBaseUrl(),
       auth: { username: apiKey, password: apiSecret },
       headers: {
         'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
@@ -175,7 +180,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
   ): Promise<void> {
     const { sellerId, apiKey, apiSecret } = credentials;
     const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
-    const url = `${TRENDYOL_BASE_URL}${path}`;
+    const url = `${this.trendyolBaseUrl()}${path}`;
     const rpm = this.trendyolRpm();
     const batches = chunkArray(updates, 100);
 
@@ -215,7 +220,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
   ): Promise<void> {
     const { sellerId, apiKey, apiSecret } = credentials;
     const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
-    const url = `${TRENDYOL_BASE_URL}${path}`;
+    const url = `${this.trendyolBaseUrl()}${path}`;
     const rpm = this.trendyolRpm();
     const batches = chunkArray(updates, 100);
 

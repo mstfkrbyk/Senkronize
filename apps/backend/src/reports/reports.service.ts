@@ -147,6 +147,17 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.LETGO]: 'Letgo / OLX TR',
   [Marketplace.SAHIBINDEN_PRO]: 'Sahibinden Pro',
   [Marketplace.SHOPIVERSE]: 'Shopiverse',
+  [Marketplace.WALMART]: 'Walmart Marketplace',
+  [Marketplace.TARGET_PLUS]: 'Target Plus',
+  [Marketplace.BESTBUY]: 'Best Buy Marketplace',
+  [Marketplace.WAYFAIR]: 'Wayfair',
+  [Marketplace.OVERSTOCK]: 'Overstock',
+  [Marketplace.FNAC]: 'Fnac Marketplace',
+  [Marketplace.LAREDOUTE]: 'La Redoute',
+  [Marketplace.SPARTOO]: 'Spartoo',
+  [Marketplace.MANOMANO]: 'ManoMano',
+  [Marketplace.VEEPEE]: 'Veepee',
+  [Marketplace.TRENDYOL_INT]: 'Trendyol International',
 };
 
 @Injectable()

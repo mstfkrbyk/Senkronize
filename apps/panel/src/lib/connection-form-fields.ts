@@ -277,7 +277,15 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
-  NOON: [{ key: 'apiKey', label: 'Api-Key', type: 'password', required: true }],
+  NOON: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
     { key: 'clientId', label: 'LWA Client ID', type: 'text', required: true },
@@ -874,6 +882,82 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: false,
     },
   ],
+  WALMART: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  TARGET_PLUS: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  BESTBUY: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  WAYFAIR: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  OVERSTOCK: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  FNAC: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  LAREDOUTE: [
+    { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  SPARTOO: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  MANOMANO: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  VEEPEE: [
+    { key: 'clientId', label: 'OAuth2 Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'OAuth2 Client Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
+  TRENDYOL_INT: [
+    { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+    {
+      key: 'apiSecret',
+      label: 'API Secret',
+      type: 'password',
+      required: true,
+    },
+  ],
 };
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
@@ -1308,6 +1392,17 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'LAZADA_PH',
   'LETGO',
   'MERCADOLIBRE',
+  'WALMART',
+  'TARGET_PLUS',
+  'BESTBUY',
+  'WAYFAIR',
+  'OVERSTOCK',
+  'FNAC',
+  'LAREDOUTE',
+  'SPARTOO',
+  'MANOMANO',
+  'VEEPEE',
+  'TRENDYOL_INT',
   'SAHIBINDEN_PRO',
   'SHOPIVERSE',
 ];

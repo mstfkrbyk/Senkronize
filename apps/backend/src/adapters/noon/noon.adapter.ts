@@ -26,20 +26,26 @@ export class NoonAdapter implements IMarketplaceAdapter {
     return PLATFORM_RATE_LIMITS.NOON ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private headers(apiKey: string): { headers: Record<string, string> } {
-    return {
-      headers: {
-        'Api-Key': apiKey,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+  private headers(
+    apiKey: string,
+    apiSecret?: string,
+  ): { headers: Record<string, string> } {
+    const headers: Record<string, string> = {
+      'Api-Key': apiKey,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
     };
+    if (apiSecret) {
+      headers['Api-Secret'] = apiSecret;
+    }
+    return { headers };
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       const apiKey = credentials.apiKey?.trim();
-      if (!apiKey) {
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!apiKey || !apiSecret) {
         return false;
       }
       await axiosWithRetry<unknown>(
@@ -48,7 +54,7 @@ export class NoonAdapter implements IMarketplaceAdapter {
           url: `${NOON_API_BASE}/orders`,
           timeout: 12_000,
           params: { page_size: 1 },
-          ...this.headers(apiKey),
+          ...this.headers(apiKey, apiSecret),
         },
         { maxRetries: 1 },
       );
@@ -137,8 +143,9 @@ export class NoonAdapter implements IMarketplaceAdapter {
   ): Promise<MarketplaceOrder[]> {
     try {
       const apiKey = credentials.apiKey?.trim();
-      if (!apiKey) {
-        throw new Error('Noon: Api-Key zorunludur');
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!apiKey || !apiSecret) {
+        throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
       return await withRateLimit('NOON', this.rpm(), async () => {
         const data = await axiosWithRetry<unknown>(
@@ -150,7 +157,7 @@ export class NoonAdapter implements IMarketplaceAdapter {
               page_size: 50,
               ...(since !== undefined ? { updated_from: since.toISOString() } : {}),
             },
-            ...this.headers(apiKey),
+            ...this.headers(apiKey, apiSecret),
           },
           {},
         );
@@ -179,8 +186,9 @@ export class NoonAdapter implements IMarketplaceAdapter {
   ): Promise<void> {
     try {
       const apiKey = credentials.apiKey?.trim();
-      if (!apiKey) {
-        throw new Error('Noon: Api-Key zorunludur');
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!apiKey || !apiSecret) {
+        throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
       await withRateLimit('NOON', this.rpm(), async () => {
         await axiosWithRetry<unknown>(
@@ -194,7 +202,7 @@ export class NoonAdapter implements IMarketplaceAdapter {
                 stock: u.quantity,
               })),
             },
-            ...this.headers(apiKey),
+            ...this.headers(apiKey, apiSecret),
           },
           {},
         );
@@ -210,8 +218,9 @@ export class NoonAdapter implements IMarketplaceAdapter {
   ): Promise<void> {
     try {
       const apiKey = credentials.apiKey?.trim();
-      if (!apiKey) {
-        throw new Error('Noon: Api-Key zorunludur');
+      const apiSecret = credentials.apiSecret?.trim();
+      if (!apiKey || !apiSecret) {
+        throw new Error('Noon: apiKey ve apiSecret zorunludur');
       }
       await withRateLimit('NOON', this.rpm(), async () => {
         await axiosWithRetry<unknown>(
@@ -226,7 +235,7 @@ export class NoonAdapter implements IMarketplaceAdapter {
                 list_price: u.listPrice > 0 ? u.listPrice : u.salePrice,
               })),
             },
-            ...this.headers(apiKey),
+            ...this.headers(apiKey, apiSecret),
           },
           {},
         );

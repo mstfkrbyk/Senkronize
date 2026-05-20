@@ -96,6 +96,17 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   LETGO: { label: 'Letgo / OLX TR', logo: '♻️', color: 'emerald' },
   SAHIBINDEN_PRO: { label: 'Sahibinden Pro', logo: '🏢', color: 'yellow' },
   SHOPIVERSE: { label: 'Shopiverse', logo: '🛒', color: 'sky' },
+  WALMART: { label: 'Walmart Marketplace', logo: '🔵', color: 'blue' },
+  TARGET_PLUS: { label: 'Target Plus', logo: '🎯', color: 'red' },
+  BESTBUY: { label: 'Best Buy Marketplace', logo: '💛', color: 'yellow' },
+  WAYFAIR: { label: 'Wayfair', logo: '🛋️', color: 'purple' },
+  OVERSTOCK: { label: 'Overstock', logo: '🏷️', color: 'red' },
+  FNAC: { label: 'Fnac Marketplace', logo: '🇫🇷', color: 'orange' },
+  LAREDOUTE: { label: 'La Redoute', logo: '👗', color: 'rose' },
+  SPARTOO: { label: 'Spartoo', logo: '👟', color: 'blue' },
+  MANOMANO: { label: 'ManoMano', logo: '🔧', color: 'green' },
+  VEEPEE: { label: 'Veepee', logo: '💜', color: 'violet' },
+  TRENDYOL_INT: { label: 'Trendyol International', logo: '🌍', color: 'orange' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {

@@ -121,7 +121,18 @@ export type Marketplace =
   | 'GETIR_YEMEK'
   | 'LETGO'
   | 'SAHIBINDEN_PRO'
-  | 'SHOPIVERSE';
+  | 'SHOPIVERSE'
+  | 'WALMART'
+  | 'TARGET_PLUS'
+  | 'BESTBUY'
+  | 'WAYFAIR'
+  | 'OVERSTOCK'
+  | 'FNAC'
+  | 'LAREDOUTE'
+  | 'SPARTOO'
+  | 'MANOMANO'
+  | 'VEEPEE'
+  | 'TRENDYOL_INT';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
