@@ -4,16 +4,29 @@ import { CargoProvider } from '@prisma/client';
 import type { ICargoAdapter } from '../cargo-adapter.interface';
 import { ArasCargoAdapter } from './aras.cargo-adapter';
 import { BringoCargoAdapter } from './bringo.cargo-adapter';
+import { BrtCargoAdapter } from './brt.cargo-adapter';
 import { CevaCargoAdapter } from './ceva.cargo-adapter';
+import { ChronopostCargoAdapter } from './chronopost.cargo-adapter';
+import { CorreosExpressCargoAdapter } from './correos-express.cargo-adapter';
 import { DhlCargoAdapter } from './dhl.cargo-adapter';
 import { DhlParcelCargoAdapter } from './dhl-parcel.cargo-adapter';
 import { DpdCargoAdapter } from './dpd.cargo-adapter';
 import { FedexCargoAdapter } from './fedex.cargo-adapter';
 import { GlsCargoAdapter } from './gls.cargo-adapter';
 import { HermesCargoAdapter } from './hermes.cargo-adapter';
+import { DpdDeCargoAdapter } from './dpd-de.cargo-adapter';
+import { EkolCargoAdapter } from './ekol.cargo-adapter';
+import { FlashExpressCargoAdapter } from './flash-express.cargo-adapter';
+import { GelalCargoAdapter } from './gelal.cargo-adapter';
+import { HermesDeCargoAdapter } from './hermes-de.cargo-adapter';
+import { JtExpressCargoAdapter } from './jt-express.cargo-adapter';
+import { KerryExpressCargoAdapter } from './kerry-express.cargo-adapter';
 import { KolayGelsinCargoAdapter } from './kolay-gelsin.cargo-adapter';
+import { KollayCargoAdapter } from './kollay.cargo-adapter';
 import { MngCargoAdapter } from './mng.cargo-adapter';
 import { NartKargoCargoAdapter } from './nart-kargo.cargo-adapter';
+import { NinjaVanCargoAdapter } from './ninja-van.cargo-adapter';
+import { PackuppCargoAdapter } from './packupp.cargo-adapter';
 import { PostNlCargoAdapter } from './postnl.cargo-adapter';
 import { PttKargoCargoAdapter } from './ptt-kargo.cargo-adapter';
 import { HorozCargoAdapter } from './horoz.cargo-adapter';
@@ -69,6 +82,32 @@ export function createCargoAdapter(
       return new NartKargoCargoAdapter(credentials);
     case CargoProvider.KOLAY_GELSIN:
       return new KolayGelsinCargoAdapter(credentials);
+    case CargoProvider.PACKUPP:
+      return new PackuppCargoAdapter(credentials);
+    case CargoProvider.GELAL:
+      return new GelalCargoAdapter(credentials);
+    case CargoProvider.EKOL:
+      return new EkolCargoAdapter(credentials);
+    case CargoProvider.KOLLAY:
+      return new KollayCargoAdapter(credentials);
+    case CargoProvider.HERMES_DE:
+      return new HermesDeCargoAdapter(credentials);
+    case CargoProvider.DPD_DE:
+      return new DpdDeCargoAdapter(credentials);
+    case CargoProvider.CHRONOPOST:
+      return new ChronopostCargoAdapter(credentials);
+    case CargoProvider.CORREOS_EXPRESS:
+      return new CorreosExpressCargoAdapter(credentials);
+    case CargoProvider.BRT:
+      return new BrtCargoAdapter(credentials);
+    case CargoProvider.JT_EXPRESS:
+      return new JtExpressCargoAdapter(credentials);
+    case CargoProvider.NINJA_VAN:
+      return new NinjaVanCargoAdapter(credentials);
+    case CargoProvider.KERRY_EXPRESS:
+      return new KerryExpressCargoAdapter(credentials);
+    case CargoProvider.FLASH_EXPRESS:
+      return new FlashExpressCargoAdapter(credentials);
     case CargoProvider.PTT:
     case CargoProvider.PTT_KARGO:
       return new PttKargoCargoAdapter(credentials);

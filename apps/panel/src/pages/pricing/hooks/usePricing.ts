@@ -137,6 +137,27 @@ export function useUpdatePricingRuleActive() {
   });
 }
 
+export function useUpdatePricingRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      data: Partial<PricingRule>;
+    }): Promise<unknown> => {
+      const { data } = await api.patch<unknown>(`/pricing/rules/${input.id}`, input.data);
+      return data;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['pricing', 'rules'] });
+      void qc.invalidateQueries({ queryKey: ['pricing', 'buybox'] });
+      toast.success('Kural güncellendi');
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+}
+
 export function useBuyBoxWinRate(days = 7, enabled = true) {
   return useQuery({
     queryKey: ['pricing', 'win-rate', days],

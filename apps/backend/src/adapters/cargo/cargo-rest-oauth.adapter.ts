@@ -1,6 +1,7 @@
 import { BadGatewayException, Logger } from '@nestjs/common';
 import axios from 'axios';
 
+import { fetchClientCredentialsToken } from '../internal/oauth-client-credentials';
 import type {
   CargoRate,
   CreateShipmentParams,
@@ -15,40 +16,64 @@ import {
   requireStringField,
   singleEventFromText,
 } from './cargo-adapter.helpers';
+import type { RestCargoAdapterConfig } from './cargo-rest-api-key.adapter';
 
-const DEFAULT_BASE = 'https://api.sendeo.com.tr/v1';
+export interface RestOAuthCargoAdapterConfig extends RestCargoAdapterConfig {
+  tokenPath?: string;
+}
 
-export class SendeoCargoAdapter implements ICargoAdapter {
-  private readonly logger = new Logger(SendeoCargoAdapter.name);
+export class RestOAuthCargoAdapter implements ICargoAdapter {
+  private readonly logger: Logger;
+  private tokenCache: { token: string; expiresAt: number } | null = null;
 
-  constructor(private readonly creds: Record<string, unknown>) {}
+  constructor(
+    private readonly creds: Record<string, unknown>,
+    private readonly config: RestOAuthCargoAdapterConfig,
+  ) {
+    this.logger = new Logger(config.loggerName);
+  }
 
   private baseUrl(): string {
     if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
       return this.creds.baseUrl.replace(/\/$/, '');
     }
-    return DEFAULT_BASE;
+    return this.config.defaultBase.replace(/\/$/, '');
   }
 
-  private headers(): Record<string, string> {
-    const apiKey = requireStringField(this.creds, 'apiKey');
-    const headerName =
-      typeof this.creds.apiKeyHeader === 'string' && this.creds.apiKeyHeader.length > 0
-        ? this.creds.apiKeyHeader
-        : 'X-API-Key';
+  private tokenUrl(): string {
+    if (typeof this.creds.tokenUrl === 'string' && this.creds.tokenUrl.length > 0) {
+      return this.creds.tokenUrl;
+    }
+    const path = (this.config.tokenPath ?? 'oauth/token').replace(/^\//, '');
+    return `${this.baseUrl()}/${path}`;
+  }
+
+  private async getAccessToken(): Promise<string> {
+    const now = Date.now();
+    if (this.tokenCache && this.tokenCache.expiresAt > now) {
+      return this.tokenCache.token;
+    }
+    const clientId = requireStringField(this.creds, 'clientId');
+    const clientSecret = requireStringField(this.creds, 'clientSecret');
+    const token = await fetchClientCredentialsToken(
+      this.tokenUrl(),
+      clientId,
+      clientSecret,
+    );
+    this.tokenCache = { token, expiresAt: now + 3_300_000 };
+    return token;
+  }
+
+  private async headers(): Promise<Record<string, string>> {
+    const token = await this.getAccessToken();
     return {
       'Content-Type': 'application/json',
-      [headerName]: apiKey,
+      Authorization: `Bearer ${token}`,
     };
   }
 
-  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
-    const path =
-      typeof this.creds.createPath === 'string' && this.creds.createPath.length > 0
-        ? this.creds.createPath.replace(/^\//, '')
-        : 'shipment/create';
-
-    const body = {
+  private defaultCreateBody(params: CreateShipmentParams): Record<string, unknown> {
+    return {
       referenceCode: params.orderId,
       receiver: {
         name: params.receiverName,
@@ -61,19 +86,32 @@ export class SendeoCargoAdapter implements ICargoAdapter {
       desi: params.desi ?? params.weight,
       note: params.notes ?? '',
     };
+  }
+
+  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
+    const path =
+      typeof this.creds.createPath === 'string' && this.creds.createPath.length > 0
+        ? this.creds.createPath.replace(/^\//, '')
+        : (this.config.createPath ?? 'shipments').replace(/^\//, '');
+
+    const body = this.config.createBodyBuilder
+      ? this.config.createBodyBuilder(params)
+      : this.defaultCreateBody(params);
 
     const { data, status } = await axios.post<unknown>(
       `${this.baseUrl()}/${path}`,
       body,
-      { headers: this.headers(), timeout: 45_000, validateStatus: () => true },
+      { headers: await this.headers(), timeout: 45_000, validateStatus: () => true },
     );
     if (status < 200 || status >= 300) {
-      this.logger.warn('Sendeo create HTTP hata', { status });
-      throw new BadGatewayException('Sendeo gönderi oluşturma başarısız');
+      this.logger.warn('createShipment HTTP hata', { status });
+      throw new BadGatewayException(`${this.config.loggerName} gönderi oluşturma başarısız`);
     }
     const code = extractTrackingCodeFromPayload(data);
     if (!code) {
-      throw new BadGatewayException('Sendeo yanıtında takip numarası bulunamadı');
+      throw new BadGatewayException(
+        `${this.config.loggerName} yanıtında takip numarası bulunamadı`,
+      );
     }
     return { trackingCode: code };
   }
@@ -82,16 +120,16 @@ export class SendeoCargoAdapter implements ICargoAdapter {
     const pathTpl =
       typeof this.creds.trackPath === 'string' && this.creds.trackPath.length > 0
         ? this.creds.trackPath.replace(/^\//, '')
-        : 'shipment/track/{trackingNo}';
+        : (this.config.trackPath ?? 'shipments/{trackingNo}/track').replace(/^\//, '');
     const path = pathTpl.replace('{trackingNo}', encodeURIComponent(trackingCode));
 
     const { data, status } = await axios.get<unknown>(`${this.baseUrl()}/${path}`, {
-      headers: this.headers(),
+      headers: await this.headers(),
       timeout: 45_000,
       validateStatus: () => true,
     });
     if (status < 200 || status >= 300) {
-      throw new BadGatewayException('Sendeo takip sorgusu başarısız');
+      throw new BadGatewayException(`${this.config.loggerName} takip sorgusu başarısız`);
     }
     const raw = JSON.stringify(data);
     return {
@@ -106,15 +144,15 @@ export class SendeoCargoAdapter implements ICargoAdapter {
     const path =
       typeof this.creds.cancelPath === 'string' && this.creds.cancelPath.length > 0
         ? this.creds.cancelPath.replace(/^\//, '')
-        : 'shipment/cancel';
+        : (this.config.cancelPath ?? 'shipments/cancel').replace(/^\//, '');
 
     const { status } = await axios.post(
       `${this.baseUrl()}/${path}`,
-      { trackingNumber: trackingCode, barcode: trackingCode },
-      { headers: this.headers(), timeout: 45_000, validateStatus: () => true },
+      { trackingNumber: trackingCode },
+      { headers: await this.headers(), timeout: 45_000, validateStatus: () => true },
     );
     if (status < 200 || status >= 300) {
-      throw new BadGatewayException('Sendeo iptal isteği başarısız');
+      throw new BadGatewayException(`${this.config.loggerName} iptal isteği başarısız`);
     }
   }
 
@@ -123,12 +161,12 @@ export class SendeoCargoAdapter implements ICargoAdapter {
       const pathTpl =
         typeof this.creds.labelPath === 'string' && this.creds.labelPath.length > 0
           ? this.creds.labelPath.replace(/^\//, '')
-          : 'shipment/label/{trackingNo}';
+          : (this.config.labelPath ?? 'shipments/{trackingNo}/label').replace(/^\//, '');
       const path = pathTpl.replace('{trackingNo}', encodeURIComponent(trackingCode));
       const { data, status, headers } = await axios.get<ArrayBuffer>(
         `${this.baseUrl()}/${path}`,
         {
-          headers: this.headers(),
+          headers: await this.headers(),
           responseType: 'arraybuffer',
           timeout: 45_000,
           validateStatus: () => true,
@@ -141,7 +179,7 @@ export class SendeoCargoAdapter implements ICargoAdapter {
         }
       }
     } catch (error) {
-      this.logger.warn('Sendeo etiket alınamadı', {
+      this.logger.warn('Etiket alınamadı', {
         message: error instanceof Error ? error.message : 'unknown',
       });
     }
@@ -155,19 +193,10 @@ export class SendeoCargoAdapter implements ICargoAdapter {
 
   async testConnection(): Promise<boolean> {
     try {
-      await axios.get(`${this.baseUrl()}/health`, {
-        headers: this.headers(),
-        timeout: 10_000,
-        validateStatus: () => true,
-      });
+      await this.getAccessToken();
       return true;
     } catch {
-      try {
-        await this.trackShipment('0000000000');
-        return true;
-      } catch {
-        return false;
-      }
+      return false;
     }
   }
 }

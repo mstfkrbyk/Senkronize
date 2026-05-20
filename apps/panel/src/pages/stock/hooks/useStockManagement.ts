@@ -154,6 +154,44 @@ export function useCreateWarehouse() {
   });
 }
 
+export function useUpdateWarehouse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      id: string;
+      name?: string;
+      address?: string;
+      isActive?: boolean;
+    }): Promise<WarehouseDto> => {
+      const { id, ...body } = payload;
+      const { data } = await api.patch<{ data: WarehouseDto }>(
+        `/warehouses/${id}`,
+        body,
+      );
+      return data.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['warehouses'] });
+    },
+  });
+}
+
+export function useBulkStockUpdate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (updates: { barcode: string; quantity: number }[]): Promise<{ jobIds: string[] }> => {
+      const { data } = await api.post<{ jobIds: string[] }>(
+        '/stock/bulk-update',
+        { updates },
+      );
+      return data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['stock'] });
+    },
+  });
+}
+
 export function useTransferStock() {
   const qc = useQueryClient();
   return useMutation({

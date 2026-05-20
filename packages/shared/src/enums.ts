@@ -464,7 +464,20 @@ export type CargoProvider =
   | 'BRINGO'
   | 'CEVA'
   | 'NART_KARGO'
-  | 'KOLAY_GELSIN';
+  | 'KOLAY_GELSIN'
+  | 'PACKUPP'
+  | 'GELAL'
+  | 'EKOL'
+  | 'KOLLAY'
+  | 'HERMES_DE'
+  | 'DPD_DE'
+  | 'CHRONOPOST'
+  | 'CORREOS_EXPRESS'
+  | 'BRT'
+  | 'JT_EXPRESS'
+  | 'NINJA_VAN'
+  | 'KERRY_EXPRESS'
+  | 'FLASH_EXPRESS';
 
 /** Prisma `PartnerStatus` ile uyumlu */
 export type PartnerStatus = 'ACTIVE' | 'PAUSED' | 'TERMINATED';

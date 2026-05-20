@@ -526,6 +526,19 @@ enum CargoProvider {
   CEVA
   NART_KARGO
   KOLAY_GELSIN
+  PACKUPP
+  GELAL
+  EKOL
+  KOLLAY
+  HERMES_DE
+  DPD_DE
+  CHRONOPOST
+  CORREOS_EXPRESS
+  BRT
+  JT_EXPRESS
+  NINJA_VAN
+  KERRY_EXPRESS
+  FLASH_EXPRESS
 }
 
 enum PartnerStatus {
@@ -815,6 +828,7 @@ model Organization {
   savedReports              SavedReport[]
   reportSchedules           ReportSchedule[]
   suppliers                 Supplier[]
+  supplierContacts          SupplierContact[]
   purchaseOrders            PurchaseOrder[]
   returns                   Return[]
   productCategories         ProductCategory[]
@@ -2051,17 +2065,39 @@ model Supplier {
   email          String?
   phone          String?
   address        String?
+  country        String?
   taxNumber      String?
+  paymentTerms   String?
+  currency       String    @default("TRY")
+  leadTimeDays   Int?
+  rating         Decimal?  @db.Decimal(3, 2)
   notes          String?
   isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   deletedAt      DateTime?
 
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   purchaseOrders PurchaseOrder[]
+  contacts       SupplierContact[]
 
   @@index([organizationId])
+  @@index([organizationId, country])
+}
+
+model SupplierContact {
+  id             String   @id @default(cuid())
+  organizationId String
+  supplierId     String
+  subject        String?
+  notes          String
+  contactMethod  String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, supplierId])
 }
 
 model PurchaseOrder {
@@ -2073,6 +2109,8 @@ model PurchaseOrder {
   totalAmount    Decimal   @db.Decimal(12, 2)
   currency       String    @default("TRY")
   expectedDate   DateTime?
+  sentAt         DateTime?
+  confirmedAt    DateTime?
   receivedAt     DateTime?
   notes          String?
   createdAt      DateTime  @default(now())
@@ -2084,11 +2122,13 @@ model PurchaseOrder {
 
   @@unique([organizationId, orderNumber])
   @@index([organizationId, status])
+  @@index([organizationId, createdAt])
 }
 
 model PurchaseOrderItem {
   id              String  @id @default(cuid())
   purchaseOrderId String
+  productId       String?
   barcode         String
   productName     String
   quantity        Int
@@ -2098,8 +2138,10 @@ model PurchaseOrderItem {
   totalCost       Decimal @db.Decimal(12, 2)
 
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([purchaseOrderId])
+  @@index([productId])
 }
 
 enum ConflictType {

@@ -48,6 +48,19 @@ const CARGO_PROVIDER_LABEL_TR: Record<string, string> = {
   CEVA: 'CEVA Lojistik',
   NART_KARGO: 'Nart Kargo',
   KOLAY_GELSIN: 'Kolay Gelsin',
+  PACKUPP: 'Packupp',
+  GELAL: 'Gelal',
+  EKOL: 'Ekol Lojistik',
+  KOLLAY: 'Kollay',
+  HERMES_DE: 'Hermes DE',
+  DPD_DE: 'DPD DE',
+  CHRONOPOST: 'Chronopost',
+  CORREOS_EXPRESS: 'Correos Express',
+  BRT: 'BRT',
+  JT_EXPRESS: 'J&T Express',
+  NINJA_VAN: 'Ninja Van',
+  KERRY_EXPRESS: 'Kerry Express',
+  FLASH_EXPRESS: 'Flash Express',
 };
 
 @Injectable()

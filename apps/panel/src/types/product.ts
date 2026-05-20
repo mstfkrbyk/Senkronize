@@ -16,6 +16,9 @@ export interface ProductListItem {
   category: string | null;
   categoryId?: string | null;
   costPrice: unknown;
+  reorderPoint?: number | null;
+  reorderQty?: number | null;
+  leadTimeDays?: number | null;
   tags: string[];
   imageUrls: string[];
   isActive: boolean;

@@ -52,6 +52,19 @@ export const CARGO_TRACKING_URLS: Record<string, string> = {
   CEVA: 'https://www.cevalogistics.com/track/{trackingCode}',
   NART_KARGO: 'https://www.nartkargo.com/takip?kod={trackingCode}',
   KOLAY_GELSIN: 'https://www.kolaygelsin.com/takip?code={trackingCode}',
+  PACKUPP: 'https://www.packupp.com/takip?code={trackingCode}',
+  GELAL: 'https://www.gelal.com/takip?code={trackingCode}',
+  EKOL: 'https://www.ekol.com/tr/kargo-takip?code={trackingCode}',
+  KOLLAY: 'https://www.kollay.com/takip?code={trackingCode}',
+  HERMES_DE: 'https://www.myhermes.de/empfangen/sendungsverfolgung/?tracking={trackingCode}',
+  DPD_DE: 'https://tracking.dpd.de/status/de_DE/parcel/{trackingCode}',
+  CHRONOPOST: 'https://www.chronopost.fr/tracking-no-cms/suivi-page?listeNumerosLT={trackingCode}',
+  CORREOS_EXPRESS: 'https://www.correosexpress.com/web/correosexpress/envios/detalle?tracking={trackingCode}',
+  BRT: 'https://www.brt.it/it/servizio-clienti/ricerca-spedizioni?numero={trackingCode}',
+  JT_EXPRESS: 'https://www.jtexpress.com/track?billcode={trackingCode}',
+  NINJA_VAN: 'https://www.ninjavan.co/en-my/tracking?id={trackingCode}',
+  KERRY_EXPRESS: 'https://th.kerryexpress.com/en/track/?track={trackingCode}',
+  FLASH_EXPRESS: 'https://www.flashexpress.com/tracking?se={trackingCode}',
 };
 
 export function getTrackingUrl(provider: string, trackingNo: string): string {
