@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import {
@@ -39,7 +40,7 @@ interface Props {
   onEditPress: (connection: MarketplaceConnectionDto) => void;
 }
 
-type ConnectionStatusUi = 'active' | 'error' | 'inactive';
+type ConnectionStatusUi = 'active' | 'warning' | 'error' | 'inactive';
 
 function deriveConnectionStatus(connection: MarketplaceConnectionDto): ConnectionStatusUi {
   if (!connection.isActive) {
@@ -47,6 +48,9 @@ function deriveConnectionStatus(connection: MarketplaceConnectionDto): Connectio
   }
   if (connection.syncErrorCount >= 3) {
     return 'error';
+  }
+  if (connection.syncErrorCount > 0 || connection.lastErrorMessage) {
+    return 'warning';
   }
   return 'active';
 }
@@ -63,6 +67,10 @@ function ConnectionStatusBadge({
     active: {
       label: 'Aktif',
       className: 'border-green-200 bg-green-50 text-green-800',
+    },
+    warning: {
+      label: 'Uyarı',
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
     },
     error: {
       label: 'Hata',
@@ -188,11 +196,22 @@ export function ConnectionCard({ connection, onEditPress }: Props): ReactElement
           <p className="text-sm text-muted-foreground">
             Son senkron: {lastSyncLabel}
           </p>
-          {connection.syncErrorCount > 0 ? (
+          {connection.lastErrorMessage && status !== 'active' ? (
+            <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
+              {connection.lastErrorMessage}
+            </p>
+          ) : null}
+          {connection.syncErrorCount > 0 && !connection.lastErrorMessage ? (
             <p className="mt-1 text-xs text-amber-700">
               Son dönemde {connection.syncErrorCount} senkron hatası
             </p>
           ) : null}
+          <Link
+            to={`/sync/history?platform=${encodeURIComponent(connection.platform)}`}
+            className="mt-2 inline-block text-xs font-medium text-sky-600 hover:underline"
+          >
+            Sync Geçmişi
+          </Link>
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2 border-t pt-4">
           <Button
@@ -209,17 +228,31 @@ export function ConnectionCard({ connection, onEditPress }: Props): ReactElement
           >
             {triggerSyncMutation.isPending ? 'Kuyruk…' : 'Şimdi Sync Et'}
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={testMutation.isPending}
-            onClick={() => {
-              handleTest();
-            }}
-          >
-            {testMutation.isPending ? 'Test…' : 'Test Et'}
-          </Button>
+          {(status === 'error' || status === 'warning') ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={testMutation.isPending}
+              onClick={() => {
+                handleTest();
+              }}
+            >
+              {testMutation.isPending ? 'Test…' : 'Yeniden Test Et'}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={testMutation.isPending}
+              onClick={() => {
+                handleTest();
+              }}
+            >
+              {testMutation.isPending ? 'Test…' : 'Test Et'}
+            </Button>
+          )}
           <Button
             type="button"
             size="sm"

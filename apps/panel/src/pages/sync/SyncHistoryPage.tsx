@@ -1,9 +1,10 @@
 import type { ReactElement, ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -92,9 +93,19 @@ function platformCell(platform: string): ReactNode {
 }
 
 export function SyncHistoryPage(): ReactElement {
-  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
+  const [searchParams] = useSearchParams();
+  const platformFromUrl = searchParams.get('platform');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>(
+    platformFromUrl ?? 'all',
+  );
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [syncConnectionId, setSyncConnectionId] = useState<string>('');
+
+  useEffect(() => {
+    if (platformFromUrl) {
+      setPlatformFilter(platformFromUrl);
+    }
+  }, [platformFromUrl]);
 
   const { data: connections = [] } = useMarketplaceConnections();
   const triggerSync = useTriggerManualSync();

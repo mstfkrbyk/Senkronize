@@ -33,16 +33,24 @@ export function useErpConnections(): UseQueryResult<ErpConnectionDto[], Error> {
   });
 }
 
+export interface ErpTestConnectionResult {
+  connected: boolean;
+  success: boolean;
+  companyName?: string;
+  version?: string;
+  productCount?: number;
+}
+
 export function useTestErpConnection(): UseMutationResult<
-  { connected: boolean },
+  ErpTestConnectionResult,
   Error,
   TestErpConnectionPayload
 > {
   return useMutation({
     mutationFn: async (
       payload: TestErpConnectionPayload,
-    ): Promise<{ connected: boolean }> => {
-      const { data } = await api.post<{ connected: boolean }>(
+    ): Promise<ErpTestConnectionResult> => {
+      const { data } = await api.post<ErpTestConnectionResult>(
         '/erp-connections/test',
         payload,
       );

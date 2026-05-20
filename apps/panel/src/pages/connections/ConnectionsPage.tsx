@@ -19,6 +19,7 @@ import type { MarketplaceConnectionDto } from '@/types/connection';
 
 import { ConnectionCard } from './ConnectionCard';
 import { ErpConnectionCard } from './ErpConnectionCard';
+import { ErpSetupWizard } from './ErpSetupWizard';
 
 const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
@@ -27,6 +28,7 @@ export function ConnectionsPage(): ReactElement {
   const [mainTab, setMainTab] = useState<'marketplace' | 'ecommerce' | 'erp'>('marketplace');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
+  const [erpWizardOpen, setErpWizardOpen] = useState(false);
 
   const {
     data: connections,
@@ -97,9 +99,16 @@ export function ConnectionsPage(): ReactElement {
           </h1>
           <p className="text-muted-foreground">{t('connections.subtitle')}</p>
         </div>
-        <Button type="button" onClick={() => openAddModal()}>
-          {t('connections.add')}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {mainTab === 'erp' ? (
+            <Button type="button" variant="outline" onClick={() => setErpWizardOpen(true)}>
+              ERP Kurulum Sihirbazı
+            </Button>
+          ) : null}
+          <Button type="button" onClick={() => openAddModal()}>
+            {t('connections.add')}
+          </Button>
+        </div>
       </div>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
@@ -252,8 +261,7 @@ export function ConnectionsPage(): ReactElement {
               action={{
                 label: t('connections.emptyErpAction'),
                 onClick: () => {
-                  setModalConfig({ kind: 'erp', mode: 'create' });
-                  setModalOpen(true);
+                  setErpWizardOpen(true);
                 },
               }}
             />
@@ -273,6 +281,14 @@ export function ConnectionsPage(): ReactElement {
         open={modalOpen}
         onOpenChange={handleModalOpenChange}
         config={modalConfig}
+      />
+
+      <ErpSetupWizard
+        open={erpWizardOpen}
+        onOpenChange={setErpWizardOpen}
+        onCompleted={() => {
+          void refetchErp();
+        }}
       />
     </div>
   );

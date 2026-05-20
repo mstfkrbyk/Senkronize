@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
+
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -48,9 +48,12 @@ import {
   ECOMMERCE_MARKETPLACE_IDS,
   ERP_CONNECTION_FORM_FIELDS,
   ERP_TYPE_IDS,
+  getErpPlatformMeta,
+  getMarketplacePlatformMeta,
   MARKETPLACE_CONNECTION_FORM_FIELDS,
   MARKETPLACE_PLATFORM_IDS,
   type ConnectionFormFieldDef,
+  type ConnectionPlatformMeta,
 } from '@/lib/connection-form-fields';
 import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
 import { getErpDisplay, getMarketplaceDisplay } from '@/lib/platform-display';
@@ -77,6 +80,11 @@ interface Props {
 }
 
 type TestOutcome = 'idle' | 'success' | 'fail';
+
+interface TestResultState {
+  ok: boolean;
+  message: string;
+}
 
 const ECOMMERCE_PLATFORM_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
@@ -114,6 +122,7 @@ export function ConnectionFormModal({
   config,
 }: Props): ReactElement {
   const [testOutcome, setTestOutcome] = useState<TestOutcome>('idle');
+  const [testResult, setTestResult] = useState<TestResultState | null>(null);
   const [visibleSecrets, setVisibleSecrets] = useState<Record<string, boolean>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
@@ -171,6 +180,7 @@ export function ConnectionFormModal({
       form.reset(init);
       setFieldErrors({});
       setTestOutcome('idle');
+      setTestResult(null);
       setVisibleSecrets({});
     },
     [form],
@@ -181,6 +191,7 @@ export function ConnectionFormModal({
       return;
     }
     setTestOutcome('idle');
+    setTestResult(null);
     setFieldErrors({});
     if (config.kind === 'marketplace' && config.mode === 'create') {
       const first = marketplaceIds[0] ?? '';
@@ -249,6 +260,31 @@ export function ConnectionFormModal({
     return Object.keys(errs).length === 0;
   };
 
+  const platformMeta = useMemo((): ConnectionPlatformMeta | undefined => {
+    if (!config) {
+      return undefined;
+    }
+    if (config.kind === 'marketplace') {
+      const platform =
+        config.mode === 'edit' ? config.connection.platform : selectedMarketplaceId;
+      return getMarketplacePlatformMeta(platform);
+    }
+    const erpType = config.mode === 'edit' ? config.connection.erpType : selectedErpId;
+    return getErpPlatformMeta(erpType);
+  }, [config, selectedMarketplaceId, selectedErpId]);
+
+  const deriveMarketplaceTestMessage = (
+    credentials: Record<string, string>,
+  ): string => {
+    const label =
+      credentials.sellerId ??
+      credentials.merchantId ??
+      credentials.username ??
+      credentials.storeUrl ??
+      credentials.shopDomain;
+    return label ? `Mağaza: ${label}` : 'Bağlantı doğrulandı';
+  };
+
   const handleTest = (): void => {
     if (!config) {
       return;
@@ -269,14 +305,24 @@ export function ConnectionFormModal({
             onSuccess: (res) => {
               setTestOutcome(res.connected ? 'success' : 'fail');
               if (res.connected) {
+                const msg =
+                  config.connection.accountLabel ??
+                  getMarketplaceDisplay(config.connection.platform).label;
+                setTestResult({ ok: true, message: msg });
                 toast.success('Bağlantı testi başarılı.');
               } else {
+                setTestResult({
+                  ok: false,
+                  message: 'Kimlik bilgileri doğrulanamadı.',
+                });
                 toast.warning('Bağlantı testi başarısız.');
               }
             },
             onError: (error) => {
               setTestOutcome('fail');
-              toast.error(getApiErrorMessage(error));
+              const msg = getApiErrorMessage(error);
+              setTestResult({ ok: false, message: msg });
+              toast.error(msg);
             },
           },
         );
@@ -288,14 +334,24 @@ export function ConnectionFormModal({
           onSuccess: (res) => {
             setTestOutcome(res.connected ? 'success' : 'fail');
             if (res.connected) {
+              setTestResult({
+                ok: true,
+                message: deriveMarketplaceTestMessage(credentials),
+              });
               toast.success('Bağlantı testi başarılı.');
             } else {
-              toast.warning('Test başarısız görünüyor; yine de kaydedebilirsiniz.');
+              setTestResult({
+                ok: false,
+                message: 'Kimlik bilgileri doğrulanamadı. Alanları kontrol edin.',
+              });
+              toast.warning('Bağlantı testi başarısız.');
             }
           },
           onError: (error) => {
             setTestOutcome('fail');
-            toast.error(getApiErrorMessage(error));
+            const msg = getApiErrorMessage(error);
+            setTestResult({ ok: false, message: msg });
+            toast.error(msg);
           },
         },
       );
@@ -309,14 +365,25 @@ export function ConnectionFormModal({
           onSuccess: (res) => {
             setTestOutcome(res.connected ? 'success' : 'fail');
             if (res.connected) {
+              const msg =
+                res.companyName ??
+                config.connection.accountLabel ??
+                getErpDisplay(config.connection.erpType).label;
+              setTestResult({ ok: true, message: msg });
               toast.success('Bağlantı testi başarılı.');
             } else {
+              setTestResult({
+                ok: false,
+                message: 'ERP bağlantısı doğrulanamadı.',
+              });
               toast.warning('Bağlantı testi başarısız.');
             }
           },
           onError: (error) => {
             setTestOutcome('fail');
-            toast.error(getApiErrorMessage(error));
+            const msg = getApiErrorMessage(error);
+            setTestResult({ ok: false, message: msg });
+            toast.error(msg);
           },
         },
       );
@@ -328,14 +395,24 @@ export function ConnectionFormModal({
         onSuccess: (res) => {
           setTestOutcome(res.connected ? 'success' : 'fail');
           if (res.connected) {
+            setTestResult({
+              ok: true,
+              message: res.companyName ?? getErpDisplay(selectedErpId).label,
+            });
             toast.success('Bağlantı testi başarılı.');
           } else {
-            toast.warning('Test başarısız görünüyor; yine de kaydedebilirsiniz.');
+            setTestResult({
+              ok: false,
+              message: 'ERP kimlik bilgileri doğrulanamadı.',
+            });
+            toast.warning('Bağlantı testi başarısız.');
           }
         },
         onError: (error) => {
           setTestOutcome('fail');
-          toast.error(getApiErrorMessage(error));
+          const msg = getApiErrorMessage(error);
+          setTestResult({ ok: false, message: msg });
+          toast.error(msg);
         },
       },
     );
@@ -455,14 +532,28 @@ export function ConnectionFormModal({
           : updateErp.isPending
         : false;
 
+  const isCreateMode = config?.mode === 'create';
+  const saveRequiresTest = isCreateMode && testOutcome !== 'success';
+
   const testBadge =
-    testOutcome === 'idle' ? null : testOutcome === 'success' ? (
-      <Badge className="border-green-200 bg-green-50 text-green-900">Test: Başarılı</Badge>
-    ) : (
-      <Badge variant="destructive" className="bg-red-50 text-red-900">
-        Test: Başarısız
-      </Badge>
-    );
+    testPending ? (
+      <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        Bağlantı test ediliyor…
+      </div>
+    ) : testResult ? (
+      testResult.ok ? (
+        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>{testResult.message}</span>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <XCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <span>{testResult.message}</span>
+        </div>
+      )
+    ) : null;
 
   return (
     <Dialog
@@ -471,6 +562,7 @@ export function ConnectionFormModal({
         onOpenChange(next);
         if (!next) {
           setTestOutcome('idle');
+          setTestResult(null);
           setFieldErrors({});
         }
       }}
@@ -551,6 +643,25 @@ export function ConnectionFormModal({
                 </p>
               ) : null}
 
+              {platformMeta?.helpText ? (
+                <p className="rounded-md border border-sky-100 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                  {platformMeta.helpText}
+                  {platformMeta.docsUrl ? (
+                    <>
+                      {' '}
+                      <a
+                        href={platformMeta.docsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium underline underline-offset-2"
+                      >
+                        Dokümantasyon
+                      </a>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+
               {activeFieldDefs.map((field) => (
                 <FormField
                   key={field.key}
@@ -615,6 +726,7 @@ export function ConnectionFormModal({
                           onChange={(e) => {
                             rhf.onChange(e);
                             setTestOutcome('idle');
+                            setTestResult(null);
                             setFieldErrors((prev) => {
                               if (!prev[field.key]) {
                                 return prev;
@@ -672,7 +784,11 @@ export function ConnectionFormModal({
           </Button>
           <Button
             type="button"
-            disabled={savePending || activeFieldDefs.length === 0}
+            disabled={
+              savePending ||
+              activeFieldDefs.length === 0 ||
+              saveRequiresTest
+            }
             onClick={() => {
               handleSave();
             }}
