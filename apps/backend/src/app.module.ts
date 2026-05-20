@@ -7,6 +7,7 @@ import { SenkronizeThrottlerGuard } from './common/guards/throttler.guard';
 import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 import { AuditModule } from './audit/audit.module';
 import { AdminModule } from './admin/admin.module';
+import { AccountingModule } from './accounting/accounting.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PostHogModule } from './analytics/posthog.module';
 import { AdapterModule } from './adapters/adapter.module';
@@ -108,6 +109,7 @@ import { WebhookModule } from './webhook/webhook.module';
     OrganizationModule,
     OrderModule,
     InvoiceModule,
+    AccountingModule,
     ListingModule,
     MigrationModule,
     ImageModule,

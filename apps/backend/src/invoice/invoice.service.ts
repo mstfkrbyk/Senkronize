@@ -10,11 +10,14 @@ import archiver from 'archiver';
 import puppeteer from 'puppeteer';
 import { PassThrough } from 'stream';
 
+import { OrganizationService } from '../organization/organization.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { CreateInvoiceDto, InvoiceQueryDto } from './invoice.dto';
 import { formatDateTr, renderInvoiceHtml } from './invoice-html.util';
 import type {
+  AccountingOverview,
+  AccountingOverviewKpiAmount,
   InvoiceItem,
   InvoicePdfContext,
   InvoiceStats,
@@ -119,14 +122,13 @@ function safePdfFileName(invoiceNumber: string): string {
 export class InvoiceService {
   private readonly logger = new Logger(InvoiceService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly organizationService: OrganizationService,
+  ) {}
 
   async generateInvoiceNumber(organizationId: string): Promise<string> {
-    const year = new Date().getFullYear();
-    const count = await this.prisma.invoice.count({
-      where: { organizationId, invoiceYear: year, deletedAt: null },
-    });
-    return `${year}/${String(count + 1).padStart(6, '0')}`;
+    return this.organizationService.reserveInvoiceNumber(organizationId);
   }
 
   async generateSnkInvoiceNumber(): Promise<string> {
@@ -305,6 +307,7 @@ export class InvoiceService {
     const where: Prisma.InvoiceWhereInput = {
       organizationId,
       deletedAt: null,
+      ...(query.orderId && { orderId: query.orderId }),
       ...(query.status && { status: query.status }),
       ...(Object.keys(createdAt).length > 0 && { createdAt }),
       ...(query.search && {
@@ -364,6 +367,84 @@ export class InvoiceService {
       data: { status },
     });
     return this.serializeInvoice(updated);
+  }
+
+  async getAccountingOverview(organizationId: string): Promise<AccountingOverview> {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const activeWhere: Prisma.InvoiceWhereInput = {
+      organizationId,
+      deletedAt: null,
+      status: { not: InvoiceStatus.CANCELLED },
+    };
+
+    const monthWhere: Prisma.InvoiceWhereInput = {
+      ...activeWhere,
+      createdAt: { gte: startOfMonth },
+    };
+
+    const pendingWhere: Prisma.InvoiceWhereInput = {
+      ...activeWhere,
+      status: { in: [InvoiceStatus.DRAFT, InvoiceStatus.SENT, InvoiceStatus.OVERDUE] },
+    };
+
+    const [
+      issuedCount,
+      issuedAgg,
+      collectedCount,
+      collectedAgg,
+      pendingCount,
+      pendingAgg,
+      vatAgg,
+      recentRows,
+    ] = await Promise.all([
+      this.prisma.invoice.count({ where: monthWhere }),
+      this.prisma.invoice.aggregate({
+        where: monthWhere,
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.invoice.count({
+        where: { ...monthWhere, status: InvoiceStatus.PAID },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { ...monthWhere, status: InvoiceStatus.PAID },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.invoice.count({ where: pendingWhere }),
+      this.prisma.invoice.aggregate({
+        where: pendingWhere,
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: monthWhere,
+        _sum: { subtotal: true, taxAmount: true },
+      }),
+      this.prisma.invoice.findMany({
+        where: activeWhere,
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+    ]);
+
+    const toKpi = (count: number, sum: Prisma.Decimal | null): AccountingOverviewKpiAmount => ({
+      count,
+      totalAmount: sum?.toString() ?? '0',
+    });
+
+    return {
+      kpis: {
+        issuedThisMonth: toKpi(issuedCount, issuedAgg._sum.totalAmount),
+        collectedThisMonth: toKpi(collectedCount, collectedAgg._sum.totalAmount),
+        pending: toKpi(pendingCount, pendingAgg._sum.totalAmount),
+        vatThisMonth: {
+          subtotal: vatAgg._sum.subtotal?.toString() ?? '0',
+          taxAmount: vatAgg._sum.taxAmount?.toString() ?? '0',
+        },
+      },
+      recentInvoices: recentRows.map((r) => this.serializeInvoice(r)),
+    };
   }
 
   async getStats(organizationId: string): Promise<InvoiceStats> {
@@ -512,6 +593,8 @@ export class InvoiceService {
       totalAmount: row.totalAmount.toString(),
       currency: row.currency,
       status: row.status,
+      paidAt: row.paidAt?.toISOString() ?? null,
+      paymentMethod: row.paymentMethod,
       isEArchive: row.isEArchive,
       pdfUrl: row.pdfUrl,
       notes: row.notes,

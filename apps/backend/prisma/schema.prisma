@@ -902,6 +902,8 @@ model Organization {
   dashboardWidgets          Json?
   /// Aktif ürün hatları: ["INTEGRATION"], ["ACCOUNTING"] veya ikisi (BUNDLE)
   productLines              Json      @default("[\"INTEGRATION\",\"ACCOUNTING\"]")
+  /// Organizasyon ayarları (fatura numaralandırma vb.)
+  metadata                  Json      @default("{}")
   /// null = entegrasyon odaklı kayıt; aktif ERP ile EXTERNAL_ERP'ye geçer
   accountingMode            AccountingMode?
   createdAt                 DateTime  @default(now())
@@ -1808,6 +1810,8 @@ model Invoice {
   totalAmount     Decimal       @db.Decimal(14, 2)
   currency        String        @default("TRY")
   status          InvoiceStatus @default(DRAFT)
+  paidAt          DateTime?
+  paymentMethod   String?       @db.VarChar(32)
   isEArchive      Boolean       @default(false)
   pdfUrl          String?
   notes           String?

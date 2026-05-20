@@ -29,6 +29,18 @@ export function parseMonthPeriod(period: string): {
   return { year, month, start, end };
 }
 
+/** Bugünden geriye `count` ay (dahil), `YYYY-MM` */
+export function buildTrailingMonthKeys(count: number): string[] {
+  const safe = Math.min(Math.max(count, 1), 60);
+  const now = new Date();
+  const keys: string[] = [];
+  for (let i = safe - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return keys;
+}
+
 /** `2026-Q1` → çeyrek başı / sonu */
 export function parseQuarterPeriod(period: string): {
   year: number;

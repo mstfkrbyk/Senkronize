@@ -27,6 +27,8 @@ export type SerializedInvoice = {
   totalAmount: string;
   currency: string;
   status: InvoiceStatus;
+  paidAt: string | null;
+  paymentMethod: string | null;
   isEArchive: boolean;
   pdfUrl: string | null;
   notes: string | null;
@@ -39,6 +41,26 @@ export type InvoiceStats = {
   totalCount: number;
   monthRevenue: string;
   monthCount: number;
+};
+
+export type AccountingOverviewKpiAmount = {
+  count: number;
+  totalAmount: string;
+};
+
+export type AccountingOverviewVatSummary = {
+  subtotal: string;
+  taxAmount: string;
+};
+
+export type AccountingOverview = {
+  kpis: {
+    issuedThisMonth: AccountingOverviewKpiAmount;
+    collectedThisMonth: AccountingOverviewKpiAmount;
+    pending: AccountingOverviewKpiAmount;
+    vatThisMonth: AccountingOverviewVatSummary;
+  };
+  recentInvoices: SerializedInvoice[];
 };
 
 export type OrganizationForInvoicePdf = {

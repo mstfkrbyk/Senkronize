@@ -13,6 +13,10 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../common/guards/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
+import {
+  OrganizationSettingsResponseDto,
+  PatchOrganizationSettingsDto,
+} from './organization-settings.dto';
 import { UpdateOrganizationDto } from './organization.dto';
 import { OrganizationService } from './organization.service';
 
@@ -43,5 +47,27 @@ export class OrganizationController {
     @Body() dto: UpdateOrganizationDto,
   ) {
     return this.organizationService.update(org.id, dto);
+  }
+
+  @Get('settings')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Organizasyon ayarları (fatura numaralandırma)' })
+  @ApiResponse({ status: 200, type: OrganizationSettingsResponseDto })
+  async getSettings(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<OrganizationSettingsResponseDto> {
+    return this.organizationService.getSettings(org.id);
+  }
+
+  @Patch('settings')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.OWNER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Organizasyon ayarlarını güncelle' })
+  @ApiResponse({ status: 200, type: OrganizationSettingsResponseDto })
+  async patchSettings(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: PatchOrganizationSettingsDto,
+  ): Promise<OrganizationSettingsResponseDto> {
+    return this.organizationService.updateSettings(org.id, dto);
   }
 }

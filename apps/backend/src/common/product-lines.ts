@@ -90,6 +90,27 @@ export function mergeOrgProductLine(
   return LINE_ORDER.filter((line) => merged.has(line));
 }
 
+/** Admin org listesi — ürün hattı filtresi */
+export type AdminOrgProductFilter = 'INTEGRATION' | 'ACCOUNTING' | 'BUNDLE';
+
+export function adminOrgProductLineWhere(
+  filter: AdminOrgProductFilter,
+): Prisma.OrganizationWhereInput {
+  switch (filter) {
+    case 'INTEGRATION':
+      return { productLines: { equals: ['INTEGRATION'] } };
+    case 'ACCOUNTING':
+      return { productLines: { equals: ['ACCOUNTING'] } };
+    case 'BUNDLE':
+      return {
+        OR: [
+          { productLines: { equals: ['BUNDLE'] } },
+          { productLines: { equals: ['INTEGRATION', 'ACCOUNTING'] } },
+        ],
+      };
+  }
+}
+
 /** Kayıt sırasında Organization.productLines JSON alanı için */
 export function productSelectionToProductLines(
   selection?: ProductSelection,
