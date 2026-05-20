@@ -88,7 +88,12 @@ export function CampaignsPage(): ReactElement {
             Flaş indirim, sezonsal kampanyalar ve otomatik zamanlama.
           </p>
         </div>
-        <UpgradePrompt feature="Kampanya ve indirim yönetimi" />
+        <UpgradePrompt
+          feature="Kampanya ve indirim yönetimi"
+          requiredPlan="PRO"
+          currentPlan={plan}
+          description="Flaş indirim, sezonsal kampanyalar ve etki analizi PRO ve Kurumsal paketlerde açıktır."
+        />
       </div>
     );
   }
@@ -129,7 +134,7 @@ export function CampaignsPage(): ReactElement {
       </Tabs>
 
       {campaignsQuery.isLoading ? (
-        <TableSkeleton columns={6} rows={5} />
+        <TableSkeleton rows={5} cols={6} />
       ) : campaignsQuery.isError ? (
         <p className="text-sm text-destructive">
           {getApiErrorMessage(campaignsQuery.error)}
@@ -139,11 +144,10 @@ export function CampaignsPage(): ReactElement {
           icon={Megaphone}
           title="Henüz kampanya yok"
           description="İlk kampanyanızı oluşturarak platformlarda indirim uygulayın."
-          action={
-            <Button type="button" onClick={() => setWizardOpen(true)}>
-              Kampanya oluştur
-            </Button>
-          }
+          action={{
+            label: 'Kampanya oluştur',
+            onClick: () => setWizardOpen(true),
+          }}
         />
       ) : (
         <div className="rounded-md border">
