@@ -1,8 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  ArrayMaxSize,
-  ArrayMinSize,
-  IsArray,
   IsNotEmpty,
   IsString,
   Matches,
@@ -10,28 +7,24 @@ import {
   MinLength,
 } from 'class-validator';
 
-const BACKUP_CODE_PATTERN = /^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{8}$/;
-
-export class TwoFactorEnableDto {
+export class TwoFactorVerifyDto {
   @ApiProperty({ description: 'Authenticator uygulamasından 6 haneli kod' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'Doğrulama kodu 6 haneli olmalıdır' })
   token: string;
-
-  @ApiProperty({
-    description: 'Kurulumda gösterilen 10 yedek kod (aynı sıra ile)',
-    type: [String],
-  })
-  @IsArray()
-  @ArrayMinSize(10)
-  @ArrayMaxSize(10)
-  @IsString({ each: true })
-  @Matches(BACKUP_CODE_PATTERN, { each: true, message: 'Yedek kod biçimi geçersiz' })
-  backupCodes: string[];
 }
 
+/** @deprecated TwoFactorVerifyDto kullanın */
+export class TwoFactorEnableDto extends TwoFactorVerifyDto {}
+
 export class TwoFactorDisableDto {
+  @ApiProperty({ description: 'Hesap şifresi' })
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  password: string;
+
   @ApiProperty({ description: '6 haneli TOTP veya yedek kod' })
   @IsString()
   @IsNotEmpty()
@@ -61,4 +54,30 @@ export class TwoFactorRegenerateBackupDto {
   @MaxLength(32)
   @MinLength(6)
   token: string;
+}
+
+export class UpdateOrgSecurityPolicyDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  require2FA?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @MinLength(8)
+  @MaxLength(128)
+  minLength?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  requireSpecial?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  requireNumber?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @MinLength(30)
+  @MaxLength(365)
+  maxAgeDays?: number;
 }

@@ -51,6 +51,13 @@ fn minutes_ago_label(last: Option<chrono::DateTime<chrono::Utc>>) -> String {
     }
 }
 
+fn erp_name_line(app: &AppHandle<impl Runtime>) -> String {
+    app.try_state::<AutoSyncState>()
+        .and_then(|st| st.erp_display_name.lock().ok().and_then(|g| g.clone()))
+        .map(|n| format!("ERP: {n}"))
+        .unwrap_or_else(|| "ERP: bağlı değil".to_string())
+}
+
 fn tray_tooltip(last: Option<chrono::DateTime<chrono::Utc>>, mode: TrayIndicatorMode) -> String {
     let ago = minutes_ago_label(last);
     let suffix = match mode {
@@ -70,15 +77,16 @@ fn icon_for_mode(mode: TrayIndicatorMode) -> tauri::Result<Image<'static>> {
     Image::from_bytes(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
 }
 
-fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, last_line: &str) -> tauri::Result<Menu<R>> {
+fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, erp_line: &str, last_line: &str) -> tauri::Result<Menu<R>> {
+    let erp_item = MenuItem::with_id(handle, "erp_name", erp_line, false, None::<&str>)?;
     let sync_now = MenuItem::with_id(handle, "sync", "Şimdi Sync Et", true, None::<&str>)?;
-    let sync_logs = MenuItem::with_id(handle, "sync_logs", "Sync Logları", true, None::<&str>)?;
-    let settings = MenuItem::with_id(handle, "settings", "Ayarlar", true, None::<&str>)?;
-    let sep = PredefinedMenuItem::separator(handle)?;
+    let open_app = MenuItem::with_id(handle, "open_app", "Senkronize'yi Aç", true, None::<&str>)?;
+    let sep1 = PredefinedMenuItem::separator(handle)?;
     let last = MenuItem::with_id(handle, "last_sync", last_line, false, None::<&str>)?;
+    let sep2 = PredefinedMenuItem::separator(handle)?;
     let quit = MenuItem::with_id(handle, "quit", "Çıkış", true, None::<&str>)?;
 
-    Menu::with_items(handle, &[&sync_now, &sync_logs, &settings, &sep, &last, &quit])
+    Menu::with_items(handle, &[&erp_item, &sync_now, &open_app, &sep1, &last, &sep2, &quit])
 }
 
 pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
@@ -89,8 +97,9 @@ pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .try_state::<TrayIndicatorState>()
         .and_then(|st| st.mode.lock().ok().map(|g| *g))
         .unwrap_or(TrayIndicatorMode::Idle);
-    let last_line = format!("Son senkron: {}", minutes_ago_label(last));
-    let menu = build_tray_menu(app, &last_line)?;
+    let erp_line = erp_name_line(app);
+    let last_line = format!("Son sync: {}", minutes_ago_label(last));
+    let menu = build_tray_menu(app, &erp_line, &last_line)?;
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(menu))?;
         let _ = tray.set_tooltip(Some(tray_tooltip(last, mode)));
@@ -183,7 +192,12 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
     let last = app
         .try_state::<AutoSyncState>()
         .and_then(|st| st.last_sync.lock().ok().and_then(|g| *g));
-    let menu = build_tray_menu(&handle, &format!("Son senkron: {}", minutes_ago_label(last)))?;
+    let erp_line = erp_name_line(&handle);
+    let menu = build_tray_menu(
+        &handle,
+        &erp_line,
+        &format!("Son sync: {}", minutes_ago_label(last)),
+    )?;
 
     let icon = icon_for_mode(TrayIndicatorMode::Idle)?;
 
@@ -201,18 +215,10 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
                     let _ = window.emit("tray-sync-request", ());
                 }
             }
-            "sync_logs" => {
+            "open_app" => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
-                    let _ = window.emit("open-sync-logs", ());
-                }
-            }
-            "settings" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.emit("open-settings", ());
                 }
             }
             "quit" => {

@@ -190,4 +190,7 @@ export const tauriApi = {
 
   setTrayIndicator: (mode: TrayIndicatorMode): Promise<void> =>
     invoke<void>('set_tray_indicator', { mode }),
+
+  setTrayErpName: (name: string): Promise<void> =>
+    invoke<void>('set_tray_erp_name', { name }),
 };

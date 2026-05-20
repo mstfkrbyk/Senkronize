@@ -3,6 +3,7 @@ import { Activity, Link2, ScrollText, Settings } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 
 import { runFullPlatformSync } from '@/lib/run-platform-sync';
+import { loadSyncSettings } from '@/lib/sync-settings-store';
 import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
 import { ErpBridgePage } from '@/pages/ErpBridgePage';
 import { LogsPage } from '@/pages/LogsPage';
@@ -45,7 +46,7 @@ export default function App(): ReactElement {
   }, [pendingSidebarNav, setPendingSidebarNav]);
 
   useEffect(() => {
-    if (!bootReady) {
+    if (!bootReady || !token) {
       return;
     }
 
@@ -61,7 +62,23 @@ export default function App(): ReactElement {
         /* Sürüm servisi yoksa veya ağ hatası: sessiz geç */
       }
     })();
-  }, [bootReady]);
+  }, [bootReady, token]);
+
+  useEffect(() => {
+    if (!bootReady || !token) {
+      return;
+    }
+    const settings = loadSyncSettings();
+    void (async () => {
+      try {
+        if (settings.autoSyncOnStartup && settings.intervalMinutes !== null) {
+          await tauriApi.startAutoSync(settings.intervalMinutes);
+        }
+      } catch {
+        /* zamanlayıcı başlatılamazsa sessiz */
+      }
+    })();
+  }, [bootReady, token]);
 
   useEffect(() => {
     let unlistenTray: (() => void) | undefined;

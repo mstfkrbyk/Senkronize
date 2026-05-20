@@ -32,9 +32,9 @@ function frequencyToInterval(frequency: CloudErpSyncFrequency): SyncIntervalOpti
     case 'HOURLY':
       return 60;
     case 'EVERY_4_HOURS':
-      return 240;
+      return 60;
     case 'DAILY':
-      return 240;
+      return 60;
     case 'MANUAL':
       return null;
     default:
@@ -48,7 +48,9 @@ export function mapCloudSettingsToLocal(cloud: CloudErpSyncSettings): SyncSettin
     syncStock: cloud.syncStock,
     syncOrder: cloud.syncInvoices,
     syncProduct: cloud.syncProducts,
+    syncPrice: false,
     deltaOnly: false,
+    autoSyncOnStartup: false,
     notifyOnComplete: true,
     notifyOnError: true,
     dailySummaryHour: null,

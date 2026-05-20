@@ -12,7 +12,12 @@ import * as bcrypt from 'bcrypt';
 import { IpGeolocationService } from '../security/ip-geolocation.service';
 import { PrismaService } from '../prisma/prisma.service';
 
-import { parseDeviceInfo, type SessionMetaInput } from './session.utils';
+import {
+  detectDeviceType,
+  parseDeviceInfo,
+  type DeviceType,
+  type SessionMetaInput,
+} from './session.utils';
 
 const BCRYPT_ROUNDS = 10;
 const REFRESH_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
@@ -20,10 +25,13 @@ const REFRESH_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
 export interface SessionInfo {
   id: string;
   device: string | null;
+  deviceType: DeviceType;
   ipAddress: string | null;
   location: string | null;
+  userAgent: string | null;
   lastActiveAt: Date;
   createdAt: Date;
+  isActive: boolean;
   isCurrent?: boolean;
 }
 
@@ -48,24 +56,31 @@ export class SessionService {
   ): Promise<SessionInfo[]> {
     const now = new Date();
     const rows = await this.prisma.userSession.findMany({
-      where: { userId, expiresAt: { gt: now } },
+      where: {
+        userId,
+        isActive: true,
+        expiresAt: { gt: now },
+      },
       orderBy: { lastActiveAt: 'desc' },
     });
 
     return rows.map((row) => ({
       id: row.id,
       device: row.deviceInfo ?? parseDeviceInfo(row.userAgent),
+      deviceType: detectDeviceType(row.userAgent),
       ipAddress: row.ipAddress,
       location: row.location,
+      userAgent: row.userAgent,
       lastActiveAt: row.lastActiveAt,
       createdAt: row.createdAt,
+      isActive: row.isActive,
       isCurrent: currentSessionId ? row.id === currentSessionId : undefined,
     }));
   }
 
   async revokeSession(userId: string, sessionId: string): Promise<void> {
     const session = await this.prisma.userSession.findFirst({
-      where: { id: sessionId, userId },
+      where: { id: sessionId, userId, isActive: true },
     });
     if (!session) {
       throw new NotFoundException('Oturum bulunamadı.');
@@ -74,21 +89,25 @@ export class SessionService {
       this.prisma.refreshToken.deleteMany({
         where: { userId, token: session.token },
       }),
-      this.prisma.userSession.delete({ where: { id: session.id } }),
+      this.prisma.userSession.update({
+        where: { id: session.id },
+        data: { isActive: false },
+      }),
     ]);
   }
 
   async revokeAllUserSessions(userId: string): Promise<void> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { userId },
+      where: { userId, isActive: true },
     });
-    if (sessions.length === 0) {
-      await this.prisma.refreshToken.deleteMany({ where: { userId } });
-      return;
-    }
     await this.prisma.$transaction(async (tx) => {
       await tx.refreshToken.deleteMany({ where: { userId } });
-      await tx.userSession.deleteMany({ where: { userId } });
+      if (sessions.length > 0) {
+        await tx.userSession.updateMany({
+          where: { userId, isActive: true },
+          data: { isActive: false },
+        });
+      }
     });
   }
 
@@ -97,14 +116,17 @@ export class SessionService {
     currentSessionId: string,
   ): Promise<void> {
     const sessions = await this.prisma.userSession.findMany({
-      where: { userId, id: { not: currentSessionId } },
+      where: { userId, id: { not: currentSessionId }, isActive: true },
     });
     await this.prisma.$transaction(async (tx) => {
       for (const s of sessions) {
         await tx.refreshToken.deleteMany({
           where: { userId, token: s.token },
         });
-        await tx.userSession.delete({ where: { id: s.id } });
+        await tx.userSession.update({
+          where: { id: s.id },
+          data: { isActive: false },
+        });
       }
     });
   }
@@ -120,7 +142,7 @@ export class SessionService {
     }
 
     await this.touchRefreshSession(userId, oldRefreshToken);
-    await this.deleteRefreshTokenByPlain(userId, oldRefreshToken);
+    await this.deactivateSessionByPlainToken(userId, oldRefreshToken);
 
     const user = await this.prisma.user.findFirst({
       where: { id: userId, deletedAt: null },
@@ -190,7 +212,7 @@ export class SessionService {
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
-    await this.deleteRefreshTokenByPlain(userId, refreshToken);
+    await this.deactivateSessionByPlainToken(userId, refreshToken);
   }
 
   private refreshTokenExpiresAt(): Date {
@@ -226,6 +248,7 @@ export class SessionService {
           userAgent: meta?.userAgent ?? null,
           deviceInfo,
           location,
+          isActive: true,
         },
       });
       return session.id;
@@ -245,7 +268,7 @@ export class SessionService {
     for (const row of rows) {
       if (await bcrypt.compare(plain, row.token)) {
         await this.prisma.userSession.updateMany({
-          where: { userId, token: row.token },
+          where: { userId, token: row.token, isActive: true },
           data: { lastActiveAt: new Date() },
         });
         return;
@@ -253,7 +276,7 @@ export class SessionService {
     }
   }
 
-  private async deleteRefreshTokenByPlain(
+  private async deactivateSessionByPlainToken(
     userId: string,
     plain: string,
   ): Promise<void> {
@@ -264,8 +287,9 @@ export class SessionService {
       if (await bcrypt.compare(plain, row.token)) {
         await this.prisma.$transaction([
           this.prisma.refreshToken.delete({ where: { id: row.id } }),
-          this.prisma.userSession.deleteMany({
+          this.prisma.userSession.updateMany({
             where: { userId, token: row.token },
+            data: { isActive: false },
           }),
         ]);
         return;

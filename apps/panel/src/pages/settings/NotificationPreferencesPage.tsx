@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 
 import { preferenceCategoryIcon } from '@/components/notifications/notification-utils';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';

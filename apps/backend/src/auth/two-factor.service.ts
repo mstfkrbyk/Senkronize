@@ -16,7 +16,7 @@ import { SecurityNotificationService } from '../security/security-notification.s
 import type { AuthenticatedUser } from './auth.types';
 
 const BCRYPT_ROUNDS = 10;
-const BACKUP_CODE_COUNT = 10;
+const BACKUP_CODE_COUNT = 8;
 
 function normalizeBackupCodeInput(raw: string): string | null {
   const hex = raw.replace(/[^0-9a-fA-F]/g, '').toUpperCase();
@@ -65,23 +65,25 @@ export class TwoFactorService {
     const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
 
     const backupCodes = this.generateBackupCodesPlain();
+    const hashedCodes = await Promise.all(
+      backupCodes.map((code) => bcrypt.hash(code, BCRYPT_ROUNDS)),
+    );
 
     await this.prisma.user.update({
       where: { id: userId },
       data: {
         twoFactorSecret: this.encryption.encrypt(secret),
         twoFactorEnabled: false,
-        backupCodes: [],
+        backupCodes: hashedCodes,
       },
     });
 
     return { secret, qrCodeDataUrl, backupCodes };
   }
 
-  async enableTwoFactor(
+  async verifyAndEnableTwoFactor(
     actor: AuthenticatedUser,
     token: string,
-    backupCodes: string[],
   ): Promise<void> {
     const user = await this.prisma.user.findFirst({
       where: { id: actor.id, deletedAt: null },
@@ -92,6 +94,9 @@ export class TwoFactorService {
     if (user.twoFactorEnabled) {
       throw new ConflictException('İki adımlı doğrulama zaten etkin.');
     }
+    if (user.backupCodes.length !== BACKUP_CODE_COUNT) {
+      throw new BadRequestException('2FA kurulumu yeniden başlatılmalı');
+    }
 
     const decryptedSecret = this.encryption.decrypt(user.twoFactorSecret);
     const totp = normalizeTotpInput(token);
@@ -99,29 +104,10 @@ export class TwoFactorService {
       throw new UnauthorizedException('Geçersiz doğrulama kodu');
     }
 
-    const normalizedCodes = backupCodes.map((c) => {
-      const n = normalizeBackupCodeInput(c);
-      if (!n) {
-        throw new BadRequestException('Yedek kod biçimi geçersiz');
-      }
-      return n;
-    });
-    const unique = new Set(normalizedCodes);
-    if (unique.size !== BACKUP_CODE_COUNT) {
-      throw new BadRequestException('Yedek kodlar benzersiz olmalıdır');
-    }
-
-    const hashedCodes = await Promise.all(
-      normalizedCodes.map((code) => bcrypt.hash(code, BCRYPT_ROUNDS)),
-    );
-
     const updated = await this.prisma.$transaction(async (tx) => {
       const u = await tx.user.update({
         where: { id: actor.id },
-        data: {
-          twoFactorEnabled: true,
-          backupCodes: hashedCodes,
-        },
+        data: { twoFactorEnabled: true },
       });
       await tx.auditLog.create({
         data: {
@@ -139,12 +125,21 @@ export class TwoFactorService {
     void this.securityNotification.notify2FAStatusChange(updated, true);
   }
 
-  async disableTwoFactor(actor: AuthenticatedUser, token: string): Promise<void> {
+  async disableTwoFactor(
+    actor: AuthenticatedUser,
+    password: string,
+    token: string,
+  ): Promise<void> {
     const user = await this.prisma.user.findFirst({
       where: { id: actor.id, deletedAt: null },
     });
     if (!user?.twoFactorEnabled || !user.twoFactorSecret) {
       throw new BadRequestException('İki adımlı doğrulama etkin değil');
+    }
+
+    const passwordOk = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordOk) {
+      throw new UnauthorizedException('Şifre hatalı');
     }
 
     const ok = await this.verifyCodeForUser(user, token, {
@@ -177,6 +172,23 @@ export class TwoFactorService {
       return u;
     });
     void this.securityNotification.notify2FAStatusChange(updated, false);
+  }
+
+  async getBackupCodesInfo(userId: string): Promise<{
+    remainingCount: number;
+    totalCount: number;
+  }> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      select: { twoFactorEnabled: true, backupCodes: true },
+    });
+    if (!user?.twoFactorEnabled) {
+      throw new BadRequestException('İki adımlı doğrulama etkin değil');
+    }
+    return {
+      remainingCount: user.backupCodes.length,
+      totalCount: BACKUP_CODE_COUNT,
+    };
   }
 
   async regenerateBackupCodes(
@@ -267,6 +279,17 @@ export class TwoFactorService {
           await this.prisma.user.update({
             where: { id: user.id },
             data: { backupCodes: updatedCodes },
+          });
+          await this.prisma.auditLog.create({
+            data: {
+              actorUserId: user.id,
+              actorOrgId: 'system',
+              impersonatedOrgId: null,
+              action: 'auth.two_factor_backup_used',
+              resourceType: 'User',
+              resourceId: user.id,
+              metadata: { remainingCodes: updatedCodes.length },
+            },
           });
         }
         return true;

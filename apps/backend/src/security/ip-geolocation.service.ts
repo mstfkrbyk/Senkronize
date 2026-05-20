@@ -15,6 +15,51 @@ export class IpGeolocationService {
 
   constructor(private readonly cache: CacheService) {}
 
+  async resolveCountry(ip: string | undefined): Promise<string | null> {
+    if (!ip?.trim()) {
+      return null;
+    }
+    const normalized = ip.trim();
+    if (
+      normalized === '127.0.0.1' ||
+      normalized === '::1' ||
+      normalized.startsWith('192.168.') ||
+      normalized.startsWith('10.') ||
+      normalized.startsWith('172.')
+    ) {
+      return 'Local';
+    }
+
+    const cacheKey = CacheService.key('geo', 'ip_country', normalized);
+    const cached = await this.cache.get<{ country: string }>(cacheKey);
+    if (cached?.country) {
+      return cached.country;
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(
+        `http://ip-api.com/json/${encodeURIComponent(normalized)}?fields=status,country`,
+        { signal: controller.signal },
+      );
+      clearTimeout(timeout);
+      if (!res.ok) {
+        return null;
+      }
+      const data = (await res.json()) as IpApiResponse;
+      if (data.status !== 'success' || !data.country) {
+        return null;
+      }
+      await this.cache.set(cacheKey, { country: data.country }, 86_400);
+      return data.country;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.debug(`IP ülke çözümlemesi başarısız: ${message}`);
+      return null;
+    }
+  }
+
   async resolveLocation(ip: string | undefined): Promise<string | null> {
     if (!ip?.trim()) {
       return null;

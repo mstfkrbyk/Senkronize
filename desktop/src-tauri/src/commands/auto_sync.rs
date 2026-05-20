@@ -12,6 +12,7 @@ use crate::tray;
 pub struct AutoSyncState {
     pub interval_minutes: Arc<Mutex<u64>>,
     pub last_sync: Arc<Mutex<Option<DateTime<Utc>>>>,
+    pub erp_display_name: Arc<Mutex<Option<String>>>,
     pub is_running: Arc<Mutex<bool>>,
     stop_flag: Arc<AtomicBool>,
     join_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -22,6 +23,7 @@ impl Default for AutoSyncState {
         Self {
             interval_minutes: Arc::new(Mutex::new(15)),
             last_sync: Arc::new(Mutex::new(None)),
+            erp_display_name: Arc::new(Mutex::new(None)),
             is_running: Arc::new(Mutex::new(false)),
             stop_flag: Arc::new(AtomicBool::new(false)),
             join_handle: Arc::new(Mutex::new(None)),
@@ -220,5 +222,29 @@ pub async fn record_last_sync(
 
     tray::refresh_tray_menu(&app).map_err(|e| e.to_string())?;
     let _ = app.emit("sync-status-changed", ());
+    Ok(())
+}
+
+/// Tray menüsünde gösterilecek bağlı ERP adını günceller.
+#[tauri::command]
+pub async fn set_tray_erp_name(
+    app: AppHandle,
+    state: State<'_, AutoSyncState>,
+    name: String,
+) -> Result<(), String> {
+    let trimmed = name.trim();
+    let value = if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    };
+    {
+        let mut guard = state
+            .erp_display_name
+            .lock()
+            .map_err(|_| "ERP adı kilidi alınamadı".to_string())?;
+        *guard = value;
+    }
+    tray::refresh_tray_menu(&app).map_err(|e| e.to_string())?;
     Ok(())
 }

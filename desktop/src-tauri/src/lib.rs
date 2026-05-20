@@ -30,6 +30,7 @@ pub fn run() {
             auto_sync::stop_auto_sync,
             auto_sync::get_sync_status,
             auto_sync::record_last_sync,
+            auto_sync::set_tray_erp_name,
             updater::check_for_updates,
             tray::set_tray_indicator,
         ])
