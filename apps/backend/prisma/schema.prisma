@@ -252,6 +252,17 @@ enum Marketplace {
   STREET11
   BULDUMBULDUM
   ALISVERIS_COM
+  CDON
+  ELLOS
+  DUSTIN
+  KOMPLETT
+  POWER_DK
+  CENEO
+  HEUREKA
+  OLX
+  MUMZWORLD
+  BOUTIQAAT
+  AWOK
 }
 
 enum PricingStrategy {
@@ -404,6 +415,14 @@ enum OrderStatus {
   RETURNED
 }
 
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+  OVERDUE
+}
+
 enum ReturnStatus {
   REQUESTED
   APPROVED
@@ -553,6 +572,7 @@ model Organization {
   subscription              Subscription?
   marketplaceConnections    MarketplaceConnection[]
   erpConnections            ErpConnection[]
+  erpSyncSettings           ErpSyncSettings[]
   ecommerceConnections      EcommerceConnection[]
   cargoConnections          CargoConnection[]
   products                  Product[]
@@ -602,6 +622,7 @@ model Organization {
   campaigns                 Campaign[]
   priceAlerts               PriceAlert[]
   customers                 Customer[]
+  invoices                  Invoice[]
   partnerProfile            PartnerProfile?
   clientLinkRequests        PartnerLinkRequest[]      @relation("ClientLinkRequests")
   partnerLinkRequests       PartnerLinkRequest[]      @relation("PartnerLinkRequests")
@@ -945,6 +966,15 @@ model MarketplaceConnection {
   @@index([organizationId])
 }
 
+enum SyncFrequency {
+  REALTIME
+  EVERY_15_MIN
+  HOURLY
+  EVERY_4_HOURS
+  DAILY
+  MANUAL
+}
+
 model ErpConnection {
   id               String       @id @default(cuid())
   organizationId   String
@@ -960,8 +990,29 @@ model ErpConnection {
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
 
+  syncSettings ErpSyncSettings?
+
   @@unique([organizationId, erpType])
   @@index([organizationId])
+}
+
+model ErpSyncSettings {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  erpConnectionId String        @unique
+  erpConnection   ErpConnection @relation(fields: [erpConnectionId], references: [id], onDelete: Cascade)
+  syncFrequency   SyncFrequency @default(HOURLY)
+  syncStock       Boolean       @default(true)
+  syncProducts    Boolean       @default(true)
+  syncInvoices    Boolean       @default(false)
+  lastSyncAt      DateTime?
+  nextSyncAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([organizationId])
+  @@index([nextSyncAt])
 }
 
 model EcommerceConnection {
@@ -1301,6 +1352,8 @@ model Order {
   shippingAddress         String?
   totalAmount             Decimal      @db.Decimal(10, 2)
   currency                String       @default("TRY")
+  /// Teslim edildiğinde otomatik satış faturası oluştur
+  autoInvoice             Boolean      @default(true)
   cargoTrackingNumber     String?
   cargoProvider           String?
   platformCreatedAt       DateTime
@@ -1313,6 +1366,7 @@ model Order {
   items                   OrderItem[]
   notes                   OrderNote[]
   returns                 Return[]
+  invoices                Invoice[]
 
   @@unique([organizationId, platform, platformOrderId])
   @@index([organizationId])
@@ -1353,6 +1407,41 @@ model OrderItem {
 
   @@index([orderId])
   @@index([organizationId])
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orderId         String?
+  order           Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  invoiceNumber   String
+  invoiceYear     Int
+  customerName    String
+  customerEmail   String?
+  customerPhone   String?
+  customerAddress String?
+  customerTaxId   String?
+  items           Json
+  subtotal        Decimal       @db.Decimal(14, 2)
+  taxAmount       Decimal       @db.Decimal(14, 2)
+  taxRate         Int           @default(20)
+  totalAmount     Decimal       @db.Decimal(14, 2)
+  currency        String        @default("TRY")
+  status          InvoiceStatus @default(DRAFT)
+  isEArchive      Boolean       @default(false)
+  pdfUrl          String?
+  notes           String?
+  dueDate         DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([organizationId, invoiceYear])
+  @@index([organizationId, status])
+  @@index([orderId])
 }
 
 model Customer {

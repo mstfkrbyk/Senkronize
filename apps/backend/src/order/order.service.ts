@@ -554,6 +554,19 @@ export class OrderService {
         newStatus: dto.status,
         orderId: id,
       });
+      if (
+        dto.status === OrderStatus.DELIVERED &&
+        existing.status !== OrderStatus.DELIVERED &&
+        existing.autoInvoice
+      ) {
+        void this.invoiceService.createFromOrder(organizationId, id).catch((err: unknown) => {
+          this.logger.warn('Otomatik fatura oluşturulamadı', {
+            orderId: id,
+            organizationId,
+            error: err,
+          });
+        });
+      }
     }
     await this.cache.invalidateReportsForOrg(organizationId);
     const thumbnails = await this.loadItemThumbnails(
@@ -742,6 +755,26 @@ export class OrderService {
         newStatus: status,
         orderId: before.id,
       });
+      if (
+        status === OrderStatus.DELIVERED &&
+        before.status !== OrderStatus.DELIVERED
+      ) {
+        const order = await this.prisma.order.findFirst({
+          where: { id: before.id, organizationId, deletedAt: null },
+          select: { autoInvoice: true },
+        });
+        if (order?.autoInvoice) {
+          void this.invoiceService
+            .createFromOrder(organizationId, before.id)
+            .catch((err: unknown) => {
+              this.logger.warn('Otomatik fatura oluşturulamadı', {
+                orderId: before.id,
+                organizationId,
+                error: err,
+              });
+            });
+        }
+      }
     }
     await this.cache.invalidateReportsForOrg(organizationId);
   }

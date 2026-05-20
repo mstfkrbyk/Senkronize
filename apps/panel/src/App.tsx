@@ -108,6 +108,11 @@ const ConnectionsPage = lazy(() =>
     default: m.ConnectionsPage,
   })),
 );
+const ErpConnectionDetailPage = lazy(() =>
+  import('@/pages/connections/ErpConnectionDetailPage').then((m) => ({
+    default: m.ErpConnectionDetailPage,
+  })),
+);
 const DashboardPage = lazy(() =>
   import('@/pages/dashboard/DashboardPage').then((m) => ({
     default: m.DashboardPage,
@@ -141,6 +146,11 @@ const OrderDetailPage = lazy(() =>
 );
 const ReturnsPage = lazy(() =>
   import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
+);
+const InvoicesPage = lazy(() =>
+  import('@/pages/invoices/InvoicesPage').then((m) => ({
+    default: m.InvoicesPage,
+  })),
 );
 const CustomersPage = lazy(() =>
   import('@/pages/customers/CustomersPage').then((m) => ({
@@ -367,6 +377,7 @@ export default function App(): ReactElement {
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/returns" element={<ReturnsPage />} />
+                <Route path="/invoices" element={<InvoicesPage />} />
                 <Route path="/listings/:id" element={<ListingDetailPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
                 <Route path="/products/import" element={<ProductImportPage />} />
@@ -386,6 +397,10 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
+                <Route
+                  path="/connections/erp/:id"
+                  element={<ErpConnectionDetailPage />}
+                />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/sync/history" element={<SyncHistoryPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />

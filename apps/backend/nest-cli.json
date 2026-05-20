@@ -12,6 +12,10 @@
       {
         "include": "config/vat-rates.json",
         "watchAssets": true
+      },
+      {
+        "include": "invoice/templates/**/*.html",
+        "watchAssets": true
       }
     ]
   }
