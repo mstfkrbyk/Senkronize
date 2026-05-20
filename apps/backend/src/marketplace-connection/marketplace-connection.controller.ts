@@ -25,6 +25,8 @@ import {
   TestConnectionDto,
   UpdateConnectionDto,
 } from './marketplace-connection.dto';
+import { ConnectionHealthService } from '../connection-health/connection-health.service';
+
 import { MarketplaceConnectionService } from './marketplace-connection.service';
 
 @ApiTags('marketplace-connections')
@@ -33,6 +35,7 @@ import { MarketplaceConnectionService } from './marketplace-connection.service';
 export class MarketplaceConnectionController {
   constructor(
     private readonly marketplaceConnectionService: MarketplaceConnectionService,
+    private readonly connectionHealthService: ConnectionHealthService,
   ) {}
 
   @Get()
@@ -71,6 +74,23 @@ export class MarketplaceConnectionController {
     @Body() dto: TestConnectionDto,
   ) {
     return this.marketplaceConnectionService.testConnection(org.id, dto);
+  }
+
+  @Get(':id/health')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Pazaryeri bağlantı sağlık durumu' })
+  @ApiResponse({ status: 200, description: 'Sağlık özeti' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async getHealth(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ) {
+    const data = await this.connectionHealthService.getMarketplaceHealth(
+      org.id,
+      id,
+    );
+    return { data };
   }
 
   @Get(':id')

@@ -15,5 +15,47 @@ export class UpsertErpSyncSettingsDto {
 
   @IsOptional()
   @IsBoolean()
+  syncPrices?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
   syncInvoices?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  syncCustomers?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoCreateInvoice?: boolean;
+}
+
+export class PatchErpSyncSettingsDto {
+  @IsOptional()
+  @IsEnum(SyncFrequency)
+  syncFrequency?: SyncFrequency;
+
+  @IsOptional()
+  @IsBoolean()
+  syncStock?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  syncProducts?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  syncPrices?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  syncInvoices?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  syncCustomers?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  autoCreateInvoice?: boolean;
 }

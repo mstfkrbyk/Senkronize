@@ -175,6 +175,14 @@ export class ErpSyncProcessor {
     });
   }
 
+  @Process('sync-customers')
+  async handleSyncCustomers(job: Job<ErpSyncJobData>): Promise<void> {
+    await this.runSyncJob(job, 'customers', async () => ({
+      processed: 0,
+      failed: 0,
+    }));
+  }
+
   @Process('sync-stock')
   async handleSyncStock(job: Job<ErpSyncJobData>): Promise<void> {
     await this.runSyncJob(job, 'stock', async (adapter, credentials, ctx) => {

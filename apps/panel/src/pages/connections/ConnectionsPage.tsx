@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueries } from '@tanstack/react-query';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -22,11 +23,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { useErpConnections, type ErpConnectionDto } from '@/hooks/useErpConnections';
-import { getApiErrorMessage } from '@/lib/api';
+import { fromApiSyncFrequency, type ErpSyncSettingsDto } from '@/hooks/useErpSyncSettings';
+import { api, getApiErrorMessage } from '@/lib/api';
+import type { SyncLogEntry } from '@/types/sync-log';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
 import {
   computeConnectionKpis,
+  erpSyncFrequencyLabel,
   erpToRow,
   marketplaceToRow,
   type UnifiedConnectionRow,
@@ -62,7 +66,7 @@ function KpiCard({ title, value, icon: Icon, tone, loading }: KpiCardProps): Rea
 
 function filterRows(
   rows: UnifiedConnectionRow[],
-  tab: 'all' | 'marketplace' | 'ecommerce' | 'erp',
+  tab: 'all' | 'marketplace' | 'ecommerce' | 'erp' | 'cargo',
 ): UnifiedConnectionRow[] {
   if (tab === 'all') {
     return rows;
@@ -70,16 +74,48 @@ function filterRows(
   if (tab === 'erp') {
     return rows.filter((r) => r.kind === 'erp');
   }
+  if (tab === 'cargo') {
+    return rows.filter((r) => r.kind === 'cargo');
+  }
   if (tab === 'ecommerce') {
     return rows.filter((r) => r.kind === 'ecommerce');
   }
   return rows.filter((r) => r.kind === 'marketplace');
 }
 
+function aggregateErpDocuments(
+  connectionId: string,
+  logs: SyncLogEntry[],
+): string {
+  let invoices = 0;
+  let stockMoves = 0;
+  for (const log of logs) {
+    if (!log.jobType.startsWith(`erp:${connectionId}:`)) {
+      continue;
+    }
+    if (log.status !== 'SUCCESS' && log.status !== 'PARTIAL') {
+      continue;
+    }
+    const type = log.jobType.split(':')[2];
+    if (type === 'invoices') {
+      invoices += log.itemsProcessed;
+    }
+    if (type === 'stock') {
+      stockMoves += log.itemsProcessed;
+    }
+  }
+  if (invoices === 0 && stockMoves === 0) {
+    return '—';
+  }
+  return `${invoices} fatura / ${stockMoves} stok hareketi`;
+}
+
 export function ConnectionsPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [mainTab, setMainTab] = useState<'all' | 'marketplace' | 'ecommerce' | 'erp'>('all');
+  const [mainTab, setMainTab] = useState<
+    'all' | 'marketplace' | 'ecommerce' | 'erp' | 'cargo'
+  >('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
   const [erpWizardOpen, setErpWizardOpen] = useState(false);
@@ -100,11 +136,68 @@ export function ConnectionsPage(): ReactElement {
     refetch: refetchErp,
   } = useErpConnections();
 
+  const erpSettingsQueries = useQueries({
+    queries: (erpConnections ?? []).map((c) => ({
+      queryKey: ['erp-sync-settings', c.id],
+      queryFn: async (): Promise<ErpSyncSettingsDto> => {
+        const { data } = await api.get<{ data: ErpSyncSettingsDto }>(
+          `/erp-connections/${c.id}/sync-settings`,
+        );
+        return {
+          ...data.data,
+          syncFrequency: fromApiSyncFrequency(data.data.syncFrequency),
+        };
+      },
+    })),
+  });
+
+  const erpLogsQuery = useQueries({
+    queries: (erpConnections ?? []).map((c) => ({
+      queryKey: ['erp-sync-logs', c.id, 'summary'],
+      queryFn: async (): Promise<SyncLogEntry[]> => {
+        const params = new URLSearchParams({
+          jobTypeStartsWith: `erp:${c.id}:`,
+          limit: '30',
+        });
+        const { data } = await api.get<{ data: SyncLogEntry[] }>(
+          `/sync/logs?${params.toString()}`,
+        );
+        return data.data;
+      },
+    })),
+  });
+
+  const erpSettingsById = useMemo(() => {
+    const map = new Map<string, ErpSyncSettingsDto>();
+    for (const q of erpSettingsQueries) {
+      if (q.data) {
+        map.set(q.data.erpConnectionId, q.data);
+      }
+    }
+    return map;
+  }, [erpSettingsQueries]);
+
+  const erpLogsById = useMemo(() => {
+    const map = new Map<string, SyncLogEntry[]>();
+    (erpConnections ?? []).forEach((c, index) => {
+      const logs = erpLogsQuery[index]?.data ?? [];
+      map.set(c.id, logs);
+    });
+    return map;
+  }, [erpConnections, erpLogsQuery]);
+
   const allRows = useMemo((): UnifiedConnectionRow[] => {
     const mpRows = (connections ?? []).map((c) => marketplaceToRow(c));
-    const erpRows = (erpConnections ?? []).map((c) => erpToRow(c, 'Detayda'));
+    const erpRows = (erpConnections ?? []).map((c) => {
+      const settings = erpSettingsById.get(c.id);
+      const freqLabel = settings
+        ? erpSyncFrequencyLabel(settings.syncFrequency)
+        : '—';
+      const docsLabel = aggregateErpDocuments(c.id, erpLogsById.get(c.id) ?? []);
+      return erpToRow(c, freqLabel, docsLabel);
+    });
     return [...mpRows, ...erpRows];
-  }, [connections, erpConnections]);
+  }, [connections, erpConnections, erpSettingsById, erpLogsById]);
 
   const visibleRows = useMemo(
     () => filterRows(allRows, mainTab),
@@ -263,6 +356,7 @@ export function ConnectionsPage(): ReactElement {
             <TabsTrigger value="marketplace">{t('connections.marketplace')}</TabsTrigger>
             <TabsTrigger value="ecommerce">{t('connections.ecommerce')}</TabsTrigger>
             <TabsTrigger value="erp">{t('connections.erp')}</TabsTrigger>
+            <TabsTrigger value="cargo">{t('connections.cargo')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value={mainTab} className="mt-6">
@@ -272,6 +366,7 @@ export function ConnectionsPage(): ReactElement {
               erpConnections={erpConnections ?? []}
               onEditMarketplace={openEditMarketplace}
               onEditErp={openEditErp}
+              variant={mainTab === 'erp' ? 'erp' : 'default'}
             />
           </TabsContent>
         </Tabs>

@@ -272,6 +272,7 @@ export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
   PARASUT: { label: 'Paraşüt', logo: '🧾', color: 'green' },
   LOGO: { label: 'Logo', logo: '🐯', color: 'orange' },
   MIKRO: { label: 'Mikro', logo: '⚙️', color: 'slate' },
+  NETSUITE: { label: 'NetSuite', logo: '☁️', color: 'blue' },
   NETSIS: { label: 'Netsis', logo: '🏢', color: 'zinc' },
   LUCA: { label: 'Luca', logo: '☁️', color: 'sky' },
   ETA: { label: 'ETA', logo: '📒', color: 'stone' },

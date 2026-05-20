@@ -41,7 +41,12 @@ export const ERP_PLATFORM_META: Record<string, ConnectionPlatformMeta> = {
   },
   LOGO: {
     helpText:
-      'Logo Tiger/Go REST servis URL ve firma bilgilerinizi IT ekibinizden veya Logo destekten alın.',
+      'Logo Tiger REST servis IP, port ve firma bilgilerinizi IT ekibinizden veya Logo destekten alın.',
+  },
+  NETSUITE: {
+    helpText:
+      'NetSuite → Setup → Integration → Token-based Authentication ile TBA kaydı oluşturun.',
+    docsUrl: 'https://docs.oracle.com/en/cloud/saas/netsuite/ns-online-help/chapter_4247329078.html',
   },
 };
 
@@ -1884,7 +1889,7 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
     BIZIMHESAP: [
       {
         key: 'apiKey',
-        label: 'API Token',
+        label: 'API Key',
         type: 'password',
         required: true,
         hint: 'BizimHesap panelinden aldığınız x-api-token değeri.',
@@ -1908,18 +1913,25 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
     ],
     LOGO: [
       {
-        key: 'baseUrl',
-        label: 'Sunucu URL',
-        type: 'url',
-        placeholder: 'http://192.168.1.10:8080',
+        key: 'host',
+        label: 'IP',
+        type: 'text',
+        placeholder: '192.168.1.10',
         required: true,
-        hint: 'Yerel sunucu için http:// veya https:// kullanabilirsiniz.',
       },
+      {
+        key: 'port',
+        label: 'Port',
+        type: 'number',
+        required: true,
+        defaultValue: '8080',
+      },
+      { key: 'dbName', label: 'Veritabanı', type: 'text', required: true },
       { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
       {
         key: 'firmNo',
-        label: 'Firma No',
+        label: 'Firma Kodu',
         type: 'text',
         required: true,
         placeholder: '1',
@@ -1927,16 +1939,44 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
     ],
     MIKRO: [
       {
-        key: 'baseUrl',
-        label: 'Sunucu URL',
-        type: 'url',
-        placeholder: 'http://192.168.1.10',
+        key: 'host',
+        label: 'IP',
+        type: 'text',
+        placeholder: '192.168.1.10',
         required: true,
-        hint: 'http:// veya https:// ile tam adres girin.',
       },
-      { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
-      { key: 'password', label: 'Şifre', type: 'password', required: true },
-      { key: 'dbName', label: 'Veritabanı', type: 'text', required: true },
+      {
+        key: 'port',
+        label: 'Port',
+        type: 'number',
+        required: true,
+        defaultValue: '8080',
+      },
+      {
+        key: 'connectionString',
+        label: 'Bağlantı Dizesi',
+        type: 'text',
+        required: false,
+        placeholder: '192.168.1.10:8080 veya http://…',
+        hint: 'Boş bırakılırsa IP ve port kullanılır.',
+      },
+    ],
+    NETSUITE: [
+      { key: 'accountId', label: 'Account ID', type: 'text', required: true },
+      { key: 'consumerKey', label: 'Consumer Key', type: 'text', required: true },
+      {
+        key: 'consumerSecret',
+        label: 'Consumer Secret',
+        type: 'password',
+        required: true,
+      },
+      { key: 'tokenId', label: 'Token ID', type: 'text', required: true },
+      {
+        key: 'tokenSecret',
+        label: 'Token Secret',
+        type: 'password',
+        required: true,
+      },
     ],
     NETSIS: [
       {
@@ -2518,6 +2558,7 @@ export const ERP_TYPE_IDS: string[] = [
   'PARASUT',
   'LOGO',
   'MIKRO',
+  'NETSUITE',
   'NETSIS',
   'LUCA',
   'ETA',

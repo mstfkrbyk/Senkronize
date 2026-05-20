@@ -19,6 +19,8 @@ export interface UnifiedConnectionRow {
   lastErrorMessage: string | null;
   syncFrequencyLabel: string;
   status: ConnectionRowStatus;
+  serverDomain?: string | null;
+  linkedDocumentsLabel?: string | null;
 }
 
 const ECOMMERCE_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
@@ -150,6 +152,7 @@ export function marketplaceToRow(c: MarketplaceConnectionDto): UnifiedConnection
 export function erpToRow(
   c: ErpConnectionDto,
   syncFrequencyLabel = '—',
+  linkedDocumentsLabel?: string | null,
 ): UnifiedConnectionRow {
   return {
     id: c.id,
@@ -161,6 +164,8 @@ export function erpToRow(
     syncErrorCount: c.syncErrorCount,
     lastErrorMessage: c.lastErrorMessage,
     syncFrequencyLabel,
+    serverDomain: c.accountLabel ?? null,
+    linkedDocumentsLabel: linkedDocumentsLabel ?? null,
     status: deriveConnectionStatus(
       c.isActive,
       c.syncErrorCount,
@@ -168,6 +173,24 @@ export function erpToRow(
       c.lastSyncAt,
     ),
   };
+}
+
+const ERP_FREQUENCY_LABELS: Record<string, string> = {
+  MANUAL: 'Manuel',
+  REALTIME: '5 dk',
+  EVERY_5_MIN: '5 dk',
+  EVERY_15_MIN: '15 dk',
+  EVERY_30_MIN: '30 dk',
+  HOURLY: '1 saat',
+  EVERY_4_HOURS: '4 saat',
+  DAILY: 'Günlük',
+};
+
+export function erpSyncFrequencyLabel(frequency: string | undefined): string {
+  if (!frequency) {
+    return '—';
+  }
+  return ERP_FREQUENCY_LABELS[frequency] ?? frequency;
 }
 
 export function kindLabel(kind: ConnectionKind): string {

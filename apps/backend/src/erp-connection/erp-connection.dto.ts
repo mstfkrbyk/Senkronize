@@ -1,12 +1,5 @@
 import { ErpType } from '@prisma/client';
-import {
-  IsBoolean,
-  IsEnum,
-  IsObject,
-  IsOptional,
-  IsString,
-  ValidateIf,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsUUID } from 'class-validator';
 
 export class CreateErpConnectionDto {
   @IsEnum(ErpType)
@@ -16,26 +9,39 @@ export class CreateErpConnectionDto {
   credentials!: Record<string, string>;
 }
 
-export class TestErpConnectionDto {
-  @IsOptional()
-  @IsString()
-  connectionId?: string;
-
-  @ValidateIf((o: TestErpConnectionDto) => !o.connectionId)
-  @IsEnum(ErpType)
-  erpType?: ErpType;
-
-  @ValidateIf((o: TestErpConnectionDto) => !o.connectionId)
-  @IsObject()
-  credentials?: Record<string, string>;
-}
-
 export class UpdateErpConnectionDto {
   @IsOptional()
   @IsObject()
   credentials?: Record<string, string>;
 
   @IsOptional()
-  @IsBoolean()
   isActive?: boolean;
+}
+
+export class TestErpConnectionDto {
+  @IsOptional()
+  @IsUUID()
+  connectionId?: string;
+
+  @IsOptional()
+  @IsEnum(ErpType)
+  erpType?: ErpType;
+
+  @IsOptional()
+  @IsObject()
+  credentials?: Record<string, string>;
+}
+
+export enum ErpManualSyncType {
+  ALL = 'all',
+  PRODUCTS = 'products',
+  STOCK = 'stock',
+  INVOICES = 'invoices',
+  CUSTOMERS = 'customers',
+}
+
+export class ErpManualSyncDto {
+  @IsEnum(ErpManualSyncType)
+  @IsNotEmpty()
+  type!: ErpManualSyncType;
 }

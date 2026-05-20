@@ -61,6 +61,7 @@ interface Props {
   erpConnections: ErpConnectionDto[];
   onEditMarketplace: (c: MarketplaceConnectionDto) => void;
   onEditErp: (c: ErpConnectionDto) => void;
+  variant?: 'default' | 'erp';
 }
 
 function platformCell(row: UnifiedConnectionRow): ReactElement {
@@ -95,6 +96,7 @@ export function ConnectionsTable({
   erpConnections,
   onEditMarketplace,
   onEditErp,
+  variant = 'default',
 }: Props): ReactElement {
   const [deleteTarget, setDeleteTarget] = useState<UnifiedConnectionRow | null>(null);
 
@@ -199,6 +201,8 @@ export function ConnectionsTable({
     );
   }
 
+  const isErpTable = variant === 'erp';
+
   return (
     <>
       <div className="overflow-x-auto rounded-lg border">
@@ -207,10 +211,15 @@ export function ConnectionsTable({
             <TableRow>
               <TableHead>Platform</TableHead>
               <TableHead>Bağlantı adı</TableHead>
-              <TableHead>Tip</TableHead>
+              {!isErpTable ? <TableHead>Tip</TableHead> : null}
+              {isErpTable ? <TableHead>Sunucu / domain</TableHead> : null}
               <TableHead>Durum</TableHead>
               <TableHead>Son sync</TableHead>
-              <TableHead>Sync sıklığı</TableHead>
+              {isErpTable ? (
+                <TableHead>Bağlı belgeler</TableHead>
+              ) : (
+                <TableHead>Sync sıklığı</TableHead>
+              )}
               <TableHead className="text-right">Aksiyonlar</TableHead>
             </TableRow>
           </TableHeader>
@@ -236,7 +245,12 @@ export function ConnectionsTable({
                       {row.name}
                     </Link>
                   </TableCell>
-                  <TableCell>{kindLabel(row.kind)}</TableCell>
+                  {!isErpTable ? <TableCell>{kindLabel(row.kind)}</TableCell> : null}
+                  {isErpTable ? (
+                    <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                      {row.serverDomain ?? '—'}
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     {row.kind !== 'erp' && mpConn ? (
                       <ConnectionHealthBadge
@@ -250,7 +264,13 @@ export function ConnectionsTable({
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{lastSync}</TableCell>
-                  <TableCell>{row.syncFrequencyLabel}</TableCell>
+                  {isErpTable ? (
+                    <TableCell className="text-muted-foreground">
+                      {row.linkedDocumentsLabel ?? '—'}
+                    </TableCell>
+                  ) : (
+                    <TableCell>{row.syncFrequencyLabel}</TableCell>
+                  )}
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

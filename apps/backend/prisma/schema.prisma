@@ -1350,11 +1350,14 @@ model ErpSyncSettings {
   organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   erpConnectionId String        @unique
   erpConnection   ErpConnection @relation(fields: [erpConnectionId], references: [id], onDelete: Cascade)
-  syncFrequency   SyncFrequency @default(HOURLY)
-  syncStock       Boolean       @default(true)
-  syncProducts    Boolean       @default(true)
-  syncInvoices    Boolean       @default(false)
-  lastSyncAt      DateTime?
+  syncFrequency     SyncFrequency @default(HOURLY)
+  syncStock         Boolean       @default(true)
+  syncProducts      Boolean       @default(true)
+  syncPrices        Boolean       @default(false)
+  syncInvoices      Boolean       @default(false)
+  syncCustomers     Boolean       @default(false)
+  autoCreateInvoice Boolean       @default(false)
+  lastSyncAt        DateTime?
   nextSyncAt      DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

@@ -67,6 +67,7 @@ import {
 } from '@/lib/connection-form-fields';
 import { getConnectionErrorHint } from '@/lib/connection-error-hints';
 import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
+import { normalizeErpCredentials } from '@/lib/erp-credentials';
 import { getErpDisplay, getMarketplaceDisplay } from '@/lib/platform-display';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
@@ -265,6 +266,13 @@ export function ConnectionFormModal({
     const out: Record<string, string> = {};
     for (const f of activeFieldDefs) {
       out[f.key] = (raw[f.key] ?? '').trim();
+    }
+    if (config?.kind === 'erp') {
+      const erpType =
+        config.mode === 'edit' ? config.connection.erpType : selectedErpId ?? '';
+      if (erpType) {
+        return normalizeErpCredentials(erpType, out);
+      }
     }
     return out;
   };

@@ -239,6 +239,68 @@ export class ErpConnectionService {
     return this.toPublic(row);
   }
 
+  async testConnectionById(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<{
+    success: boolean;
+    responseTimeMs: number;
+    version?: string;
+    productCount?: number;
+    error?: string;
+  }> {
+    const row = await this.prisma.erpConnection.findFirst({
+      where: { id: connectionId, organizationId, deletedAt: null },
+    });
+    if (!row) {
+      throw new NotFoundException('ERP bağlantısı bulunamadı');
+    }
+    const started = Date.now();
+    if (!this.adapterRegistry.hasErpAdapter(row.erpType)) {
+      return {
+        success: false,
+        responseTimeMs: Date.now() - started,
+        error: 'Bu ERP türü için adaptör tanımlı değil.',
+      };
+    }
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
+    if (!creds) {
+      return {
+        success: false,
+        responseTimeMs: Date.now() - started,
+        error: 'Kimlik bilgileri çözülemedi.',
+      };
+    }
+    try {
+      const adapter = this.adapterRegistry.getErp(row.erpType);
+      const testResult = await adapter.testConnection(creds);
+      if (!testResult.success) {
+        return {
+          success: false,
+          responseTimeMs: Date.now() - started,
+          version: testResult.version,
+          error: testResult.message ?? 'Bağlantı testi başarısız.',
+        };
+      }
+      const products = await adapter.getProducts(creds);
+      const sampleCount = Math.min(products.length, 1);
+      return {
+        success: true,
+        responseTimeMs: Date.now() - started,
+        version: testResult.version,
+        productCount: sampleCount > 0 ? products.length : 0,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Bağlantı testi başarısız.';
+      return {
+        success: false,
+        responseTimeMs: Date.now() - started,
+        error: message.slice(0, 500),
+      };
+    }
+  }
+
   async testConnection(
     organizationId: string,
     dto: TestErpConnectionDto,

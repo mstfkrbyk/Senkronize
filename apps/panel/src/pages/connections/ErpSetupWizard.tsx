@@ -52,6 +52,7 @@ import {
   type ConnectionFormFieldDef,
 } from '@/lib/connection-form-fields';
 import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
+import { normalizeErpCredentials } from '@/lib/erp-credentials';
 import { getErpDisplay } from '@/lib/platform-display';
 import { cn } from '@/lib/utils';
 
@@ -226,7 +227,10 @@ export function ErpSetupWizardContent({
     for (const f of fieldDefs) {
       out[f.key] = (raw[f.key] ?? '').trim();
     }
-    return out;
+    if (!selectedErpId) {
+      return out;
+    }
+    return normalizeErpCredentials(selectedErpId, out);
   };
 
   const runValidation = (): boolean => {

@@ -22,7 +22,7 @@ export interface ErpSyncJobData {
   erpConnectionId: string;
   erpType: string;
   direction: 'push' | 'pull';
-  type: 'products' | 'orders' | 'stock' | 'invoices';
+  type: 'products' | 'orders' | 'stock' | 'invoices' | 'customers';
   /** push-order-invoice işi için */
   orderId?: string;
   /** push-stock-to-erp işi için */

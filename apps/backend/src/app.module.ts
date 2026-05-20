@@ -36,6 +36,7 @@ import { ImpersonationModule } from './impersonation/impersonation.module';
 import { JobsModule } from './jobs/jobs.module';
 import { ListingModule } from './listing/listing.module';
 import { MigrationModule } from './migration/migration.module';
+import { ConnectionsModule } from './connections/connections.module';
 import { MarketplaceConnectionModule } from './marketplace-connection/marketplace-connection.module';
 import { NotificationModule } from './notification/notification.module';
 import { InAppNotificationModule } from './notifications/in-app/in-app-notification.module';
@@ -94,6 +95,7 @@ import { WebhookModule } from './webhook/webhook.module';
     CacheModule,
     CargoModule,
     AdapterModule,
+    ConnectionsModule,
     MarketplaceConnectionModule,
     ErpConnectionModule,
     ErpModule,

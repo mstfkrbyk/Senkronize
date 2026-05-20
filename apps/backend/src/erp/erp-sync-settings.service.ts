@@ -13,6 +13,8 @@ import {
 } from '@prisma/client';
 import type { Queue } from 'bull';
 
+import { ErpManualSyncType } from '../erp-connection/erp-connection.dto';
+import { NotificationEmitService } from '../notifications/notification-emit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
@@ -20,12 +22,32 @@ import {
 } from '../queue/queue.constants';
 import type { ErpSyncJobData } from '../queue/queue.types';
 
-import type { UpsertErpSyncSettingsDto } from './erp-sync-settings.dto';
+import type {
+  PatchErpSyncSettingsDto,
+  UpsertErpSyncSettingsDto,
+} from './erp-sync-settings.dto';
+
+const SYNC_DURATION_ESTIMATE_MS: Record<ErpManualSyncType, number> = {
+  [ErpManualSyncType.ALL]: 120_000,
+  [ErpManualSyncType.PRODUCTS]: 60_000,
+  [ErpManualSyncType.STOCK]: 30_000,
+  [ErpManualSyncType.INVOICES]: 45_000,
+  [ErpManualSyncType.CUSTOMERS]: 45_000,
+};
+
+const JOB_TYPE_DURATION_MS: Record<ErpSyncJobData['type'], number> = {
+  products: 60_000,
+  stock: 30_000,
+  invoices: 45_000,
+  customers: 45_000,
+  orders: 45_000,
+};
 
 @Injectable()
 export class ErpSyncSettingsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly notificationEmit: NotificationEmitService,
     @InjectQueue(QUEUE_ERP_SYNC)
     private readonly erpSyncQueue: Queue<ErpSyncJobData>,
   ) {}
@@ -66,7 +88,10 @@ export class ErpSyncSettingsService {
       syncFrequency: dto.syncFrequency,
       syncStock: dto.syncStock ?? current.syncStock,
       syncProducts: dto.syncProducts ?? current.syncProducts,
+      syncPrices: dto.syncPrices ?? current.syncPrices,
       syncInvoices: dto.syncInvoices ?? current.syncInvoices,
+      syncCustomers: dto.syncCustomers ?? current.syncCustomers,
+      autoCreateInvoice: dto.autoCreateInvoice ?? current.autoCreateInvoice,
     };
     const nextSyncAt = this.getNextSyncTime({
       syncFrequency: merged.syncFrequency,
@@ -78,7 +103,46 @@ export class ErpSyncSettingsService {
         syncFrequency: merged.syncFrequency,
         syncStock: merged.syncStock,
         syncProducts: merged.syncProducts,
+        syncPrices: merged.syncPrices,
         syncInvoices: merged.syncInvoices,
+        syncCustomers: merged.syncCustomers,
+        autoCreateInvoice: merged.autoCreateInvoice,
+        nextSyncAt,
+      },
+    });
+  }
+
+  async patchSettings(
+    orgId: string,
+    erpConnectionId: string,
+    dto: PatchErpSyncSettingsDto,
+  ): Promise<ErpSyncSettings> {
+    await this.assertConnection(orgId, erpConnectionId);
+    const current = await this.getSettings(orgId, erpConnectionId);
+    const merged: ErpSyncSettings = {
+      ...current,
+      syncFrequency: dto.syncFrequency ?? current.syncFrequency,
+      syncStock: dto.syncStock ?? current.syncStock,
+      syncProducts: dto.syncProducts ?? current.syncProducts,
+      syncPrices: dto.syncPrices ?? current.syncPrices,
+      syncInvoices: dto.syncInvoices ?? current.syncInvoices,
+      syncCustomers: dto.syncCustomers ?? current.syncCustomers,
+      autoCreateInvoice: dto.autoCreateInvoice ?? current.autoCreateInvoice,
+    };
+    const nextSyncAt = this.getNextSyncTime({
+      syncFrequency: merged.syncFrequency,
+      lastSyncAt: merged.lastSyncAt,
+    });
+    return this.prisma.erpSyncSettings.update({
+      where: { erpConnectionId },
+      data: {
+        syncFrequency: merged.syncFrequency,
+        syncStock: merged.syncStock,
+        syncProducts: merged.syncProducts,
+        syncPrices: merged.syncPrices,
+        syncInvoices: merged.syncInvoices,
+        syncCustomers: merged.syncCustomers,
+        autoCreateInvoice: merged.autoCreateInvoice,
         nextSyncAt,
       },
     });
@@ -126,26 +190,112 @@ export class ErpSyncSettingsService {
     orgId: string,
     erpConnectionId: string,
   ): Promise<{ message: string }> {
+    const result = await this.triggerManualSyncWithType(
+      orgId,
+      erpConnectionId,
+      ErpManualSyncType.ALL,
+    );
+    return { message: `ERP senkron kuyruğa alındı (iş: ${result.jobId})` };
+  }
+
+  async triggerManualSyncWithType(
+    orgId: string,
+    erpConnectionId: string,
+    syncType: ErpManualSyncType,
+  ): Promise<{ jobId: string; estimatedDuration: number }> {
     const connection = await this.assertConnection(orgId, erpConnectionId);
     if (!connection.isActive) {
       throw new BadRequestException('ERP bağlantısı pasif.');
     }
     const settings = await this.getSettings(orgId, erpConnectionId);
-    const queued = await this.enqueueSyncJobs(connection, settings);
-    if (queued === 0) {
+    const payloads = this.buildSyncPayloads(connection, settings, syncType);
+    if (payloads.length === 0) {
       throw new BadRequestException(
         'Senkronize edilecek veri türü seçilmemiş.',
       );
     }
-    return { message: 'ERP senkron işleri kuyruğa alındı' };
+
+    let firstJobId = '';
+    const total = payloads.length;
+    for (let i = 0; i < payloads.length; i += 1) {
+      const payload = payloads[i];
+      const job = await this.erpSyncQueue.add(
+        this.jobNameForType(payload.type),
+        payload,
+        JOB_DEFAULT_OPTIONS,
+      );
+      if (i === 0 && job.id !== undefined) {
+        firstJobId = String(job.id);
+      }
+      this.notificationEmit.emitSyncProgress(orgId, {
+        connectionId: erpConnectionId,
+        platform: connection.erpType,
+        phase: payload.type,
+        current: i,
+        total,
+      });
+    }
+
+    this.notificationEmit.emitSyncProgress(orgId, {
+      connectionId: erpConnectionId,
+      platform: connection.erpType,
+      phase: syncType,
+      current: 0,
+      total,
+    });
+
+    const estimatedDuration =
+      syncType === ErpManualSyncType.ALL
+        ? payloads.reduce(
+            (sum, p) => sum + (JOB_TYPE_DURATION_MS[p.type] ?? 45_000),
+            0,
+          )
+        : SYNC_DURATION_ESTIMATE_MS[syncType];
+
+    return {
+      jobId: firstJobId || 'queued',
+      estimatedDuration,
+    };
   }
 
   async enqueueSyncJobs(
     connection: ErpConnection,
     settings: ErpSyncSettings,
   ): Promise<number> {
+    const payloads = this.buildSyncPayloads(
+      connection,
+      settings,
+      ErpManualSyncType.ALL,
+    );
+    for (const payload of payloads) {
+      await this.erpSyncQueue.add(
+        this.jobNameForType(payload.type),
+        payload,
+        JOB_DEFAULT_OPTIONS,
+      );
+    }
+    return payloads.length;
+  }
+
+  private buildSyncPayloads(
+    connection: ErpConnection,
+    settings: ErpSyncSettings,
+    syncType: ErpManualSyncType,
+  ): ErpSyncJobData[] {
     const jobs: ErpSyncJobData[] = [];
-    if (settings.syncProducts) {
+    const includeProducts =
+      syncType === ErpManualSyncType.ALL ||
+      syncType === ErpManualSyncType.PRODUCTS;
+    const includeStock =
+      syncType === ErpManualSyncType.ALL || syncType === ErpManualSyncType.STOCK;
+    const includeInvoices =
+      syncType === ErpManualSyncType.ALL ||
+      syncType === ErpManualSyncType.INVOICES;
+    const includeCustomers =
+      syncType === ErpManualSyncType.ALL ||
+      syncType === ErpManualSyncType.CUSTOMERS;
+
+    if (includeProducts && settings.syncProducts) {
       jobs.push({
         organizationId: connection.organizationId,
         erpConnectionId: connection.id,
@@ -154,7 +304,7 @@ export class ErpSyncSettingsService {
         type: 'products',
       });
     }
-    if (settings.syncStock) {
+    if (includeStock && settings.syncStock) {
       jobs.push({
         organizationId: connection.organizationId,
         erpConnectionId: connection.id,
@@ -163,7 +313,7 @@ export class ErpSyncSettingsService {
         type: 'stock',
       });
     }
-    if (settings.syncInvoices) {
+    if (includeInvoices && settings.syncInvoices) {
       jobs.push({
         organizationId: connection.organizationId,
         erpConnectionId: connection.id,
@@ -172,16 +322,31 @@ export class ErpSyncSettingsService {
         type: 'invoices',
       });
     }
-    for (const payload of jobs) {
-      const jobName =
-        payload.type === 'products'
-          ? 'sync-products'
-          : payload.type === 'stock'
-            ? 'sync-stock'
-            : 'sync-invoices';
-      await this.erpSyncQueue.add(jobName, payload, JOB_DEFAULT_OPTIONS);
+    if (includeCustomers && settings.syncCustomers) {
+      jobs.push({
+        organizationId: connection.organizationId,
+        erpConnectionId: connection.id,
+        erpType: connection.erpType,
+        direction: 'pull',
+        type: 'customers',
+      });
     }
-    return jobs.length;
+    return jobs;
+  }
+
+  private jobNameForType(type: ErpSyncJobData['type']): string {
+    switch (type) {
+      case 'products':
+        return 'sync-products';
+      case 'stock':
+        return 'sync-stock';
+      case 'invoices':
+        return 'sync-invoices';
+      case 'customers':
+        return 'sync-customers';
+      default:
+        return 'sync-products';
+    }
   }
 
   /** Teslim edilen sipariş için ERP fatura işi kuyruğa alır */

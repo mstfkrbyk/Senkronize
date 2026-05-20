@@ -8,13 +8,18 @@ import {
 
 import { api } from '@/lib/api';
 
+/** Backend SyncFrequency + panel etiketleri */
 export type ErpSyncFrequency =
+  | 'MANUAL'
   | 'REALTIME'
+  | 'EVERY_5_MIN'
   | 'EVERY_15_MIN'
+  | 'EVERY_30_MIN'
   | 'HOURLY'
   | 'EVERY_4_HOURS'
-  | 'DAILY'
-  | 'MANUAL';
+  | 'DAILY';
+
+export type ErpSyncScope = 'all' | 'products' | 'stock' | 'invoices';
 
 export interface ErpSyncSettingsDto {
   id: string;
@@ -24,6 +29,10 @@ export interface ErpSyncSettingsDto {
   syncStock: boolean;
   syncProducts: boolean;
   syncInvoices: boolean;
+  syncPrices?: boolean;
+  syncOrders?: boolean;
+  syncCustomers?: boolean;
+  autoInvoiceOnDelivered?: boolean;
   lastSyncAt: string | null;
   nextSyncAt: string | null;
   createdAt: string;
@@ -35,6 +44,58 @@ export interface UpsertErpSyncSettingsInput {
   syncStock: boolean;
   syncProducts: boolean;
   syncInvoices: boolean;
+  syncPrices?: boolean;
+  syncOrders?: boolean;
+  syncCustomers?: boolean;
+  autoInvoiceOnDelivered?: boolean;
+}
+
+const API_FREQUENCY_MAP: Record<ErpSyncFrequency, string> = {
+  MANUAL: 'MANUAL',
+  REALTIME: 'REALTIME',
+  EVERY_5_MIN: 'REALTIME',
+  EVERY_15_MIN: 'EVERY_15_MIN',
+  EVERY_30_MIN: 'HOURLY',
+  HOURLY: 'HOURLY',
+  EVERY_4_HOURS: 'EVERY_4_HOURS',
+  DAILY: 'DAILY',
+};
+
+const UI_FREQUENCY_FROM_API: Record<string, ErpSyncFrequency> = {
+  MANUAL: 'MANUAL',
+  REALTIME: 'EVERY_5_MIN',
+  EVERY_15_MIN: 'EVERY_15_MIN',
+  HOURLY: 'HOURLY',
+  EVERY_4_HOURS: 'EVERY_4_HOURS',
+  DAILY: 'DAILY',
+};
+
+export function toApiSyncFrequency(frequency: ErpSyncFrequency): string {
+  return API_FREQUENCY_MAP[frequency] ?? 'HOURLY';
+}
+
+export function fromApiSyncFrequency(apiValue: string): ErpSyncFrequency {
+  return UI_FREQUENCY_FROM_API[apiValue] ?? (apiValue as ErpSyncFrequency);
+}
+
+function toApiPayload(body: UpsertErpSyncSettingsInput): Record<string, unknown> {
+  return {
+    syncFrequency: toApiSyncFrequency(body.syncFrequency),
+    syncStock: body.syncStock,
+    syncProducts: body.syncProducts,
+    syncInvoices: body.syncOrders ?? body.syncInvoices,
+  };
+}
+
+function normalizeSettingsDto(raw: ErpSyncSettingsDto): ErpSyncSettingsDto {
+  return {
+    ...raw,
+    syncFrequency: fromApiSyncFrequency(raw.syncFrequency),
+    syncOrders: raw.syncOrders ?? raw.syncInvoices,
+    syncPrices: raw.syncPrices ?? raw.syncProducts,
+    syncCustomers: raw.syncCustomers ?? false,
+    autoInvoiceOnDelivered: raw.autoInvoiceOnDelivered ?? false,
+  };
 }
 
 export function useErpSyncSettings(
@@ -47,7 +108,7 @@ export function useErpSyncSettings(
       const { data } = await api.get<{ data: ErpSyncSettingsDto }>(
         `/erp-connections/${connectionId}/sync-settings`,
       );
-      return data.data;
+      return normalizeSettingsDto(data.data);
     },
   });
 }
@@ -60,11 +121,20 @@ export function useUpsertErpSyncSettings(
     mutationFn: async (
       body: UpsertErpSyncSettingsInput,
     ): Promise<ErpSyncSettingsDto> => {
-      const { data } = await api.put<{ data: ErpSyncSettingsDto }>(
-        `/erp-connections/${connectionId}/sync-settings`,
-        body,
-      );
-      return data.data;
+      const payload = toApiPayload(body);
+      try {
+        const { data } = await api.patch<{ data: ErpSyncSettingsDto }>(
+          `/erp-connections/${connectionId}/sync-settings`,
+          payload,
+        );
+        return normalizeSettingsDto(data.data);
+      } catch {
+        const { data } = await api.put<{ data: ErpSyncSettingsDto }>(
+          `/erp-connections/${connectionId}/sync-settings`,
+          payload,
+        );
+        return normalizeSettingsDto(data.data);
+      }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -76,14 +146,22 @@ export function useUpsertErpSyncSettings(
 
 export function useTriggerErpSyncNow(
   connectionId: string,
-): UseMutationResult<{ message: string }, Error, void> {
+): UseMutationResult<{ message: string }, Error, ErpSyncScope | undefined> {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (): Promise<{ message: string }> => {
-      const { data } = await api.post<{ message: string }>(
-        `/erp-connections/${connectionId}/sync-now`,
-      );
-      return data;
+    mutationFn: async (scope: ErpSyncScope | undefined = 'all'): Promise<{ message: string }> => {
+      try {
+        const { data } = await api.post<{ message: string }>(
+          `/erp-connections/${connectionId}/sync`,
+          { scope },
+        );
+        return data;
+      } catch {
+        const { data } = await api.post<{ message: string }>(
+          `/erp-connections/${connectionId}/sync-now`,
+        );
+        return data;
+      }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
