@@ -19,8 +19,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
-import { loginAndGetAccessToken } from './helpers/auth-helper';
-import { buildRegisterDto, uniqueTaxNumber } from './helpers/create-test-user';
+import {
+  buildRegisterDto,
+  loginAndGetAccessToken,
+  uniqueTaxNumber,
+} from './helpers/auth.helper';
 
 /**
  * Tam uygulama e2e. `GET /health` gerçek DB bağlantısı dener.

@@ -9,6 +9,7 @@ import { SuperAdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
 
+import { PartnerModule } from '../partner/partner.module';
 import { UsersModule } from '../users/users.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { UsersModule } from '../users/users.module';
     AuthModule,
     PrismaModule,
     UsersModule,
+    PartnerModule,
     ConfigModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

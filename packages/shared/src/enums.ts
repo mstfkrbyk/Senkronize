@@ -162,7 +162,17 @@ export type Marketplace =
   | 'SHARAF_DG'
   | 'WADI'
   | 'OPENSOOQ'
-  | 'CIMRI';
+  | 'CIMRI'
+  | 'ASOS'
+  | 'VINTED'
+  | 'SHEIN'
+  | 'ABOUT_YOU'
+  | 'MIINTO'
+  | 'JOOM'
+  | 'WISH'
+  | 'FRUUGO'
+  | 'ONBUY'
+  | 'TIKLADO';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

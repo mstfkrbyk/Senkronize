@@ -217,6 +217,31 @@ export interface AdminOrganizationDetailResponse {
   payments: AdminOrgDetailPayment[];
 }
 
+export interface AdminPartnerRow {
+  id: string;
+  name: string;
+  slug: string;
+  commissionRate: number;
+  activeClientCount: number;
+  createdAt: string;
+}
+
+export type PartnerLinkStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface AdminPartnerLinkRequest {
+  id: string;
+  clientOrgId: string;
+  partnerOrgId: string;
+  status: PartnerLinkStatus;
+  message: string | null;
+  adminNote: string | null;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+  clientOrg: { id: string; name: string; slug: string };
+  partnerOrg: { id: string; name: string; slug: string };
+}
+
 export interface AdminSubscriptionRow {
   id: string;
   organizationId: string;

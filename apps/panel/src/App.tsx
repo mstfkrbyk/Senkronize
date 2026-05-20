@@ -72,6 +72,21 @@ const AdminTicketsPage = lazy(() =>
     default: m.AdminTicketsPage,
   })),
 );
+const AdminPartnersPage = lazy(() =>
+  import('@/pages/admin/AdminPartnersPage').then((m) => ({
+    default: m.AdminPartnersPage,
+  })),
+);
+const AdminPartnerLinksPage = lazy(() =>
+  import('@/pages/admin/AdminPartnerLinksPage').then((m) => ({
+    default: m.AdminPartnerLinksPage,
+  })),
+);
+const PartnersDiscoveryPage = lazy(() =>
+  import('@/pages/settings/PartnersDiscoveryPage').then((m) => ({
+    default: m.PartnersDiscoveryPage,
+  })),
+);
 const SupportPage = lazy(() =>
   import('@/pages/support/SupportPage').then((m) => ({ default: m.SupportPage })),
 );
@@ -320,6 +335,11 @@ export default function App(): ReactElement {
                   element={<AdminSubscriptionsPage />}
                 />
                 <Route path="tickets" element={<AdminTicketsPage />} />
+                <Route path="partners" element={<AdminPartnersPage />} />
+                <Route
+                  path="partner-link-requests"
+                  element={<AdminPartnerLinksPage />}
+                />
               </Route>
               <Route element={<DashboardLayout />}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
@@ -362,6 +382,7 @@ export default function App(): ReactElement {
                   element={<SettingsPage />}
                 />
                 <Route path="/settings/profile" element={<ProfilePage />} />
+                <Route path="/settings/partners" element={<PartnersDiscoveryPage />} />
                 <Route path="/settings/webhooks/:id" element={<WebhookDetailPage />} />
                 <Route path="/settings/webhooks" element={<WebhooksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

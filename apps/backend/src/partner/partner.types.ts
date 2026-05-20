@@ -1,5 +1,25 @@
 import type { PlanTier } from '@prisma/client';
 
+export interface PartnerListItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  activeClientCount: number;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  hasPendingRequest: boolean;
+}
+
+export interface AdminPartnerRow {
+  id: string;
+  name: string;
+  slug: string;
+  commissionRate: number;
+  activeClientCount: number;
+  createdAt: Date;
+}
+
 export interface CommissionReportRow {
   clientOrgId: string;
   clientName: string;

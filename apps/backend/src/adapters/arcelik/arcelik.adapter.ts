@@ -8,7 +8,7 @@ import {
 } from '../internal/rest-stub-marketplace.adapter';
 import type { ArcelikTokenResponse } from './arcelik.types';
 
-const ARCELIK_BASE = 'https://api.arcelik.com.tr/partner/v1';
+const ARCELIK_BASE = 'https://api.arcelik.com.tr/marketplace/v1';
 const PATH_TOKEN = '/oauth/token';
 
 @Injectable()

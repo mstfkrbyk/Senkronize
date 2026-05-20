@@ -12,6 +12,7 @@ import {
   CommissionLedger,
   CommissionType,
   LedgerStatus,
+  PartnerProfile,
   PartnerRelationship,
   PartnerStatus,
   PaymentStatus,
@@ -31,7 +32,11 @@ import type {
   UpdateRelationshipDto,
   UpdateWhiteLabelDto,
 } from './partner.dto';
-import type { CommissionReport, PartnerPerformance } from './partner.types';
+import type {
+  AdminPartnerRow,
+  CommissionReport,
+  PartnerPerformance,
+} from './partner.types';
 
 @Injectable()
 export class PartnerService {
@@ -43,6 +48,66 @@ export class PartnerService {
     private readonly config: ConfigService,
     private readonly impersonationService: ImpersonationService,
   ) {}
+
+  async getPartnerProfile(partnerOrgId: string): Promise<PartnerProfile> {
+    await this.assertPartnerOrg(partnerOrgId);
+    return this.prisma.partnerProfile.upsert({
+      where: { organizationId: partnerOrgId },
+      create: {
+        organizationId: partnerOrgId,
+        commissionRate: new Prisma.Decimal(10),
+      },
+      update: {},
+    });
+  }
+
+  async updatePartnerCommissionRate(
+    partnerOrgId: string,
+    rate: number,
+  ): Promise<PartnerProfile> {
+    await this.assertPartnerOrg(partnerOrgId);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 50) {
+      throw new BadRequestException('Komisyon oranı 0–50 arasında olmalıdır.');
+    }
+    return this.prisma.partnerProfile.upsert({
+      where: { organizationId: partnerOrgId },
+      create: {
+        organizationId: partnerOrgId,
+        commissionRate: new Prisma.Decimal(rate),
+      },
+      update: { commissionRate: new Prisma.Decimal(rate) },
+    });
+  }
+
+  async listPartnersForAdmin(): Promise<AdminPartnerRow[]> {
+    const partners = await this.prisma.organization.findMany({
+      where: { type: 'PARTNER', deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        createdAt: true,
+        partnerProfile: { select: { commissionRate: true } },
+        _count: {
+          select: {
+            partnerRelationships: {
+              where: { status: PartnerStatus.ACTIVE, clientOrgId: { not: null } },
+            },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return partners.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      commissionRate: Number(p.partnerProfile?.commissionRate ?? 10),
+      activeClientCount: p._count.partnerRelationships,
+      createdAt: p.createdAt,
+    }));
+  }
 
   async assertPartnerOrg(partnerOrgId: string): Promise<void> {
     const org = await this.prisma.organization.findFirst({
@@ -96,7 +161,20 @@ export class PartnerService {
         status: { in: [PartnerStatus.PENDING, PartnerStatus.ACTIVE] },
       },
       include: {
-        partnerOrg: { select: { id: true, name: true, slug: true } },
+        partnerOrg: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            whiteLabelSettings: {
+              select: {
+                brandName: true,
+                supportEmail: true,
+                supportPhone: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -700,7 +778,8 @@ export class PartnerService {
         return;
       }
 
-      const pct = Number(rel.commissionPct);
+      const profile = await this.getPartnerProfile(rel.partnerOrgId);
+      const pct = Number(profile.commissionRate);
       if (!Number.isFinite(pct) || pct <= 0) {
         return;
       }

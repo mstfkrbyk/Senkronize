@@ -36,6 +36,8 @@ import {
   UpdateWhiteLabelDto,
   ValidatePartnerInviteDto,
 } from './partner.dto';
+import { PartnerLinkRequestDto } from './partner.dto';
+import { PartnerLinkService } from './partner-link.service';
 import { PartnerService } from './partner.service';
 
 @ApiTags('partner')
@@ -43,7 +45,10 @@ import { PartnerService } from './partner.service';
 @Controller('partner')
 @UseGuards(JwtAuthGuard)
 export class PartnerController {
-  constructor(private readonly partnerService: PartnerService) {}
+  constructor(
+    private readonly partnerService: PartnerService,
+    private readonly partnerLinkService: PartnerLinkService,
+  ) {}
 
   @Post('validate-invite')
   @Public()
@@ -303,6 +308,30 @@ export class PartnerController {
     @Param('id') id: string,
   ): Promise<{ success: true }> {
     await this.partnerService.terminateRelationship(org.id, id);
+    return { success: true };
+  }
+
+  @Get('available-partners')
+  @ApiOperation({ summary: 'Keşfedilebilir partner listesi (müşteri)' })
+  @ApiResponse({ status: 200 })
+  async getAvailablePartners(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<Awaited<ReturnType<PartnerLinkService['getAvailablePartners']>>> {
+    return this.partnerLinkService.getAvailablePartners(org.id);
+  }
+
+  @Post('link-request')
+  @ApiOperation({ summary: 'Partner bağlantı talebi gönder (müşteri)' })
+  @ApiResponse({ status: 201 })
+  async requestPartnerLink(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: PartnerLinkRequestDto,
+  ): Promise<{ success: true }> {
+    await this.partnerLinkService.requestPartnerLink(
+      org.id,
+      dto.partnerOrgId,
+      dto.message,
+    );
     return { success: true };
   }
 }

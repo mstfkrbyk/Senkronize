@@ -37,6 +37,16 @@ import {
   SuspendOrganizationDto,
 } from './admin.dto';
 import { SuperAdminGuard } from './admin.guard';
+import {
+  PartnerLinkStatus,
+  type PartnerLinkRequest,
+} from '@prisma/client';
+import {
+  RejectPartnerLinkRequestDto,
+  UpdatePartnerCommissionRateDto,
+} from '../partner/partner.dto';
+import { PartnerLinkService } from '../partner/partner-link.service';
+import { PartnerService } from '../partner/partner.service';
 import { AdminService } from './admin.service';
 import { AdminStatsService } from './admin-stats.service';
 import type {
@@ -73,6 +83,8 @@ export class AdminController {
     private readonly adminStatsService: AdminStatsService,
     private readonly usersService: UsersService,
     private readonly ipBlockService: IpBlockService,
+    private readonly partnerService: PartnerService,
+    private readonly partnerLinkService: PartnerLinkService,
   ) {}
 
   @Get('stats/platform')
@@ -254,6 +266,110 @@ export class AdminController {
   async listBlockedIps(): Promise<{ ips: string[] }> {
     const ips = await this.ipBlockService.listBlocked();
     return { ips };
+  }
+
+  @Get('partners')
+  @ApiOperation({ summary: 'Partner organizasyonları ve komisyon oranları' })
+  @ApiResponse({ status: 200 })
+  async listPartners(): Promise<
+    Awaited<ReturnType<PartnerService['listPartnersForAdmin']>>
+  > {
+    return this.partnerService.listPartnersForAdmin();
+  }
+
+  @Patch('partners/:partnerOrgId/commission-rate')
+  @ApiOperation({ summary: 'Partner komisyon oranını güncelle' })
+  @ApiResponse({ status: 200 })
+  async updatePartnerCommissionRate(
+    @Param('partnerOrgId') partnerOrgId: string,
+    @Body() body: UpdatePartnerCommissionRateDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ commissionRate: number }> {
+    const profile = await this.partnerService.updatePartnerCommissionRate(
+      partnerOrgId,
+      body.rate,
+    );
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'admin.partner_commission_rate_update',
+        resourceType: 'PartnerProfile',
+        resourceId: profile.id,
+        metadata: { partnerOrgId, rate: body.rate },
+      },
+    });
+    return { commissionRate: Number(profile.commissionRate) };
+  }
+
+  @Get('partner-link-requests')
+  @ApiOperation({ summary: 'Partner bağlantı talepleri' })
+  @ApiResponse({ status: 200 })
+  async getPartnerLinkRequests(
+    @Query('status') status?: PartnerLinkStatus,
+  ): Promise<
+    Array<
+      PartnerLinkRequest & {
+        clientOrg: { id: string; name: string; slug: string };
+        partnerOrg: { id: string; name: string; slug: string };
+      }
+    >
+  > {
+    return this.partnerLinkService.getLinkRequests(status);
+  }
+
+  @Get('partner-link-requests/pending-count')
+  @ApiOperation({ summary: 'Bekleyen partner bağlantı talebi sayısı' })
+  @ApiResponse({ status: 200 })
+  async getPendingPartnerLinkCount(): Promise<{ count: number }> {
+    const count = await this.partnerLinkService.countPendingLinkRequests();
+    return { count };
+  }
+
+  @Post('partner-link-requests/:id/approve')
+  @ApiOperation({ summary: 'Partner bağlantı talebini onayla' })
+  @ApiResponse({ status: 200 })
+  async approvePartnerLinkRequest(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.partnerLinkService.approveLinkRequest(id, actor.id);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'admin.partner_link_approve',
+        resourceType: 'PartnerLinkRequest',
+        resourceId: id,
+        metadata: {},
+      },
+    });
+    return { ok: true };
+  }
+
+  @Post('partner-link-requests/:id/reject')
+  @ApiOperation({ summary: 'Partner bağlantı talebini reddet' })
+  @ApiResponse({ status: 200 })
+  async rejectPartnerLinkRequest(
+    @Param('id') id: string,
+    @Body() body: RejectPartnerLinkRequestDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.partnerLinkService.rejectLinkRequest(id, actor.id, body.note);
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId ?? actor.currentOrgId,
+        impersonatedOrgId: actor.isImpersonating ? actor.currentOrgId : null,
+        action: 'admin.partner_link_reject',
+        resourceType: 'PartnerLinkRequest',
+        resourceId: id,
+        metadata: { note: body.note ?? null },
+      },
+    });
+    return { ok: true };
   }
 
   @Get('organizations/:organizationId/audit-logs')

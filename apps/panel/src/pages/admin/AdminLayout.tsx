@@ -4,30 +4,43 @@ import {
   BarChart3,
   Building2,
   CreditCard,
+  Handshake,
   LayoutDashboard,
   LifeBuoy,
+  Link2,
 } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { usePendingPartnerLinkCount } from '@/pages/partner/hooks/usePartnerLink';
 
 interface AdminNavItem {
   to: string;
   label: string;
   icon: LucideIcon;
   end?: boolean;
+  badgeKey?: 'partnerLinks';
 }
 
 const ADMIN_NAV: AdminNavItem[] = [
   { to: '/admin', label: 'Platform İstatistikleri', icon: LayoutDashboard, end: true },
   { to: '/admin/organizations', label: 'Organizasyonlar', icon: Building2 },
+  { to: '/admin/partners', label: 'Partnerler', icon: Handshake },
+  {
+    to: '/admin/partner-link-requests',
+    label: 'Partner Bağlantıları',
+    icon: Link2,
+    badgeKey: 'partnerLinks',
+  },
   { to: '/admin/subscriptions', label: 'Abonelikler', icon: CreditCard },
   { to: '/admin/tickets', label: 'Destek Talepleri', icon: LifeBuoy },
 ];
 
 export function AdminLayout(): ReactElement {
+  const { data: pendingLinkCount = 0 } = usePendingPartnerLinkCount();
+
   return (
     <div className="flex min-h-svh bg-slate-100">
       <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-slate-900 text-sidebar-foreground">
@@ -41,21 +54,30 @@ export function AdminLayout(): ReactElement {
           </Badge>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-2">
-          {ADMIN_NAV.map(({ to, label, icon: Icon, end }) => (
+          {ADMIN_NAV.map(({ to, label, icon: Icon, end, badgeKey }) => (
             <NavLink key={to} to={to} end={end}>
-              {({ isActive }) => (
-                <span
-                  className={cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-                    isActive
-                      ? 'bg-white/10 text-white'
-                      : 'text-slate-300 hover:bg-white/5 hover:text-white',
-                  )}
-                >
-                  <Icon className="size-4 shrink-0" aria-hidden />
-                  {label}
-                </span>
-              )}
+              {({ isActive }) => {
+                const showBadge =
+                  badgeKey === 'partnerLinks' && pendingLinkCount > 0;
+                return (
+                  <span
+                    className={cn(
+                      'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                      isActive
+                        ? 'bg-white/10 text-white'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white',
+                    )}
+                  >
+                    <Icon className="size-4 shrink-0" aria-hidden />
+                    <span className="flex-1">{label}</span>
+                    {showBadge ? (
+                      <Badge className="h-5 min-w-5 justify-center border-0 bg-sky-500 px-1.5 text-xs text-white hover:bg-sky-500">
+                        {pendingLinkCount > 99 ? '99+' : pendingLinkCount}
+                      </Badge>
+                    ) : null}
+                  </span>
+                );
+              }}
             </NavLink>
           ))}
         </nav>

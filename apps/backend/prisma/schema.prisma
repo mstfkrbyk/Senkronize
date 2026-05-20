@@ -190,6 +190,16 @@ enum Marketplace {
   WADI
   OPENSOOQ
   CIMRI
+  ASOS
+  VINTED
+  SHEIN
+  ABOUT_YOU
+  MIINTO
+  JOOM
+  WISH
+  FRUUGO
+  ONBUY
+  TIKLADO
 }
 
 enum PricingStrategy {
@@ -290,6 +300,12 @@ enum PartnerStatus {
   ACTIVE
   SUSPENDED
   TERMINATED
+}
+
+enum PartnerLinkStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum CommissionType {
@@ -517,6 +533,9 @@ model Organization {
   campaigns                 Campaign[]
   priceAlerts               PriceAlert[]
   customers                 Customer[]
+  partnerProfile            PartnerProfile?
+  clientLinkRequests        PartnerLinkRequest[]      @relation("ClientLinkRequests")
+  partnerLinkRequests       PartnerLinkRequest[]      @relation("PartnerLinkRequests")
 }
 
 /// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
@@ -1324,6 +1343,33 @@ model Reservation {
   sourceOrderId  String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+}
+
+model PartnerProfile {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  commissionRate Decimal      @default(10.00) @db.Decimal(5, 2)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model PartnerLinkRequest {
+  id           String            @id @default(cuid())
+  clientOrgId  String
+  partnerOrgId String
+  status       PartnerLinkStatus @default(PENDING)
+  message      String?
+  adminNote    String?
+  requestedAt  DateTime          @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?
+
+  clientOrg  Organization @relation("ClientLinkRequests", fields: [clientOrgId], references: [id], onDelete: Cascade)
+  partnerOrg Organization @relation("PartnerLinkRequests", fields: [partnerOrgId], references: [id], onDelete: Cascade)
+
+  @@unique([clientOrgId, partnerOrgId])
+  @@index([status])
 }
 
 model PartnerRelationship {

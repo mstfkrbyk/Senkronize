@@ -14,6 +14,17 @@ export interface ClientOnboardingRow {
   expired: boolean;
 }
 
+export interface PartnerListItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  activeClientCount: number;
+  supportEmail: string | null;
+  supportPhone: string | null;
+  hasPendingRequest: boolean;
+}
+
 export interface PartnerRelationship {
   id: string;
   partnerOrgId: string;
@@ -26,7 +37,16 @@ export interface PartnerRelationship {
   /** Bekleyen davetlerde kopyalanabilir bağlantı (API destekliyorsa) */
   inviteUrl?: string | null;
   clientOrg?: { id: string; name: string; slug: string; createdAt?: string };
-  partnerOrg?: { id: string; name: string; slug: string };
+  partnerOrg?: {
+    id: string;
+    name: string;
+    slug: string;
+    whiteLabelSettings?: {
+      brandName: string | null;
+      supportEmail: string | null;
+      supportPhone: string | null;
+    } | null;
+  };
 }
 
 export interface CommissionEntry {

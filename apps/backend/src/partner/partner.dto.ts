@@ -129,3 +129,33 @@ export class PartnerPayoutRequestDto {
   @Min(1)
   amount!: number;
 }
+
+export class PartnerLinkRequestDto {
+  @ApiProperty({ description: 'Bağlanılacak partner organizasyon kimliği' })
+  @IsString()
+  @MinLength(10)
+  partnerOrgId!: string;
+
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  message?: string;
+}
+
+export class RejectPartnerLinkRequestDto {
+  @ApiPropertyOptional({ maxLength: 2000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+}
+
+export class UpdatePartnerCommissionRateDto {
+  @ApiProperty({ description: 'Komisyon oranı (%)', minimum: 0, maximum: 50 })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(50)
+  rate!: number;
+}
