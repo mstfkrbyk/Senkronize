@@ -62,6 +62,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.campaigns', icon: Megaphone, path: '/campaigns', badge: 'PRO' },
   { labelKey: 'nav.integrations', icon: Plug, path: '/connections' },
   { labelKey: 'nav.syncLogs', icon: Activity, path: '/sync-logs' },
+  { labelKey: 'nav.syncHistory', icon: History, path: '/sync/history' },
   { labelKey: 'nav.syncConflicts', icon: AlertTriangle, path: '/sync/conflicts' },
   { labelKey: 'nav.notifications', icon: Bell, path: '/notifications' },
   { labelKey: 'nav.support', icon: LifeBuoy, path: '/support' },

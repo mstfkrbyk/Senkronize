@@ -22,6 +22,7 @@ import type {
   ImageUploadFromUrlJobData,
   MarketplacePullJobData,
 } from '../queue/queue.types';
+import { SyncLogService } from '../sync/sync-log.service';
 import { SyncStatusService } from '../sync-status/sync-status.service';
 
 @Processor(QUEUE_MARKETPLACE_PULL)
@@ -35,6 +36,7 @@ export class MarketplacePullProcessor {
     private readonly customerService: CustomerService,
     private readonly listingService: ListingService,
     private readonly syncStatusService: SyncStatusService,
+    private readonly syncLogService: SyncLogService,
     private readonly eventService: EventService,
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
@@ -56,7 +58,13 @@ export class MarketplacePullProcessor {
         },
       },
       async () => {
-    const { organizationId, platform, since } = job.data;
+    const { organizationId, platform, since, type } = job.data;
+    const marketplace = platform as Marketplace;
+    const syncLog = await this.syncLogService.startLog(
+      organizationId,
+      marketplace,
+      type,
+    );
     this.logger.log('Pazaryeri sipariş çekme işi başladı', {
       organizationId,
       platform,
@@ -84,6 +92,7 @@ export class MarketplacePullProcessor {
           organizationId,
           platform,
         });
+        await this.syncLogService.completeLog(syncLog.id, 0);
         return;
       }
       const adapter = this.adapterRegistry.get(platform);
@@ -141,9 +150,15 @@ export class MarketplacePullProcessor {
           count: createdOrders.length,
         });
       }
+      const failedCount = Math.max(0, orders.length - createdOrders.length);
+      await this.syncLogService.completeLog(
+        syncLog.id,
+        orders.length,
+        failedCount,
+      );
       await this.syncStatusService.recordSuccess(
         organizationId,
-        platform as Marketplace,
+        marketplace,
         { ordersProcessed: orders.length },
       );
       this.eventService.emit(organizationId, WS_EVENTS.SYNC_COMPLETED, {
@@ -160,6 +175,7 @@ export class MarketplacePullProcessor {
         platform,
         error: message,
       });
+      await this.syncLogService.failLog(syncLog.id, message);
       this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
         platform,
         connectionId: connectionId ?? undefined,
@@ -168,7 +184,7 @@ export class MarketplacePullProcessor {
       });
       await this.syncStatusService.recordError(
         organizationId,
-        platform as Marketplace,
+        marketplace,
         message,
       );
       throw error;
@@ -189,7 +205,13 @@ export class MarketplacePullProcessor {
         },
       },
       async () => {
-    const { organizationId, platform } = job.data;
+    const { organizationId, platform, type } = job.data;
+    const marketplace = platform as Marketplace;
+    const syncLog = await this.syncLogService.startLog(
+      organizationId,
+      marketplace,
+      type,
+    );
     this.logger.log('Pazaryeri listeleme çekme işi başladı', {
       organizationId,
       platform,
@@ -199,7 +221,7 @@ export class MarketplacePullProcessor {
       const connectionRow = await this.prisma.marketplaceConnection.findFirst({
         where: {
           organizationId,
-          platform: platform as Marketplace,
+          platform: marketplace,
           deletedAt: null,
           isActive: true,
         },
@@ -210,13 +232,14 @@ export class MarketplacePullProcessor {
       const credentials =
         await this.marketplaceConnectionService.getDecryptedCredentialsForJob(
           organizationId,
-          platform as Marketplace,
+          marketplace,
         );
       if (!credentials) {
         this.logger.warn('Aktif pazaryeri bağlantısı bulunamadı', {
           organizationId,
           platform,
         });
+        await this.syncLogService.completeLog(syncLog.id, 0);
         return;
       }
       const adapter = this.adapterRegistry.get(platform);
@@ -326,9 +349,10 @@ export class MarketplacePullProcessor {
           );
         }
       }
+      await this.syncLogService.completeLog(syncLog.id, all.length);
       await this.syncStatusService.recordSuccess(
         organizationId,
-        platform as Marketplace,
+        marketplace,
         { listingsProcessed: all.length },
       );
       this.eventService.emit(organizationId, WS_EVENTS.LISTING_SYNCED, {
@@ -348,6 +372,7 @@ export class MarketplacePullProcessor {
         platform,
         error: message,
       });
+      await this.syncLogService.failLog(syncLog.id, message);
       this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
         platform,
         connectionId: connectionId ?? undefined,
@@ -356,7 +381,7 @@ export class MarketplacePullProcessor {
       });
       await this.syncStatusService.recordError(
         organizationId,
-        platform as Marketplace,
+        marketplace,
         message,
       );
       throw error;
@@ -377,7 +402,13 @@ export class MarketplacePullProcessor {
         },
       },
       async () => {
-        const { organizationId, platform, since, connectionId } = job.data;
+        const { organizationId, platform, since, connectionId, type } = job.data;
+        const marketplace = platform as Marketplace;
+        const syncLog = await this.syncLogService.startLog(
+          organizationId,
+          marketplace,
+          type,
+        );
         this.logger.log('Pazaryeri iade çekme işi başladı', {
           organizationId,
           platform,
@@ -416,6 +447,7 @@ export class MarketplacePullProcessor {
               organizationId,
               platform,
             });
+            await this.syncLogService.completeLog(syncLog.id, 0);
             return;
           }
           const adapter = this.adapterRegistry.get(platform);
@@ -424,6 +456,7 @@ export class MarketplacePullProcessor {
               organizationId,
               platform,
             });
+            await this.syncLogService.completeLog(syncLog.id, 0);
             return;
           }
           const sinceDate = since ? new Date(since) : undefined;
@@ -438,9 +471,15 @@ export class MarketplacePullProcessor {
             platform,
             upserted,
           });
+          const failedCount = Math.max(0, returns.length - upserted);
+          await this.syncLogService.completeLog(
+            syncLog.id,
+            returns.length,
+            failedCount,
+          );
           await this.syncStatusService.recordSuccess(
             organizationId,
-            platform as Marketplace,
+            marketplace,
             { returnsProcessed: returns.length },
           );
           this.eventService.emit(organizationId, WS_EVENTS.SYNC_COMPLETED, {
@@ -457,6 +496,7 @@ export class MarketplacePullProcessor {
             platform,
             error: message,
           });
+          await this.syncLogService.failLog(syncLog.id, message);
           this.eventService.emit(organizationId, WS_EVENTS.SYNC_ERROR, {
             platform,
             connectionId: connectionRowId ?? undefined,
@@ -465,7 +505,7 @@ export class MarketplacePullProcessor {
           });
           await this.syncStatusService.recordError(
             organizationId,
-            platform as Marketplace,
+            marketplace,
             message,
           );
           throw error;

@@ -19,6 +19,7 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
   '/campaigns': 'Kampanyalar',
   '/connections': 'Bağlantılar',
   '/sync-logs': 'Sync Durumu',
+  '/sync/history': 'Sync Geçmişi',
   '/sync/conflicts': 'Çakışmalar',
   '/notifications': 'Bildirimler',
   '/support': 'Destek',

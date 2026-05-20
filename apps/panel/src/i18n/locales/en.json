@@ -17,6 +17,7 @@
     "connections": "Connections",
     "integrations": "Integrations",
     "syncLogs": "Sync status",
+    "syncHistory": "Sync history",
     "syncConflicts": "Conflicts",
     "notifications": "Notifications",
     "support": "Support",

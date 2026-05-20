@@ -127,6 +127,8 @@ export function useTriggerManualSync(): ReturnType<
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+      void queryClient.invalidateQueries({ queryKey: ['sync-logs'] });
+      void queryClient.invalidateQueries({ queryKey: ['sync-stats'] });
       void queryClient.invalidateQueries({ queryKey: ['marketplace-connections'] });
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['listings'] });

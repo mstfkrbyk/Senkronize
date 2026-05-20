@@ -18,6 +18,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/campaigns': () => import('@/pages/campaigns/CampaignsPage'),
   '/connections': () => import('@/pages/connections/ConnectionsPage'),
   '/sync-logs': () => import('@/pages/sync-logs/SyncLogsPage'),
+  '/sync/history': () => import('@/pages/sync/SyncHistoryPage'),
   '/sync/conflicts': () => import('@/pages/sync/ConflictsPage'),
   '/notifications': () => import('@/pages/notifications/NotificationsPage'),
   '/support': () => import('@/pages/support/SupportPage'),

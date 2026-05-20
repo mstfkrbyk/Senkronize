@@ -215,6 +215,17 @@ enum Marketplace {
   UZUM
   JIOMART
   NOON_SA
+  AMERICANAS
+  MAGALU
+  LINIO
+  FALABELLA
+  GRAB_MART
+  GOTO_BUSINESS
+  CENTRAL_ONLINE
+  AKULAKU
+  HIZLIRESMI
+  TICIMAX_MP
+  IKAS_MP
 }
 
 enum PricingStrategy {
@@ -1103,6 +1114,7 @@ model Listing {
   @@index([organizationId])
   @@index([organizationId, platform])
   @@index([barcode, organizationId])
+  @@index([barcode, organizationId, deletedAt])
 }
 
 // Stok takibi (platform bazlı veya merkezi)
@@ -1276,6 +1288,8 @@ model Order {
   @@index([organizationId, status])
   @@index([organizationId, platform])
   @@index([organizationId, createdAt])
+  @@index([organizationId, status, createdAt(sort: Desc)])
+  @@index([organizationId, platform, status])
   @@index([platformOrderId, organizationId])
 }
 
@@ -1774,6 +1788,31 @@ model SyncConflict {
   @@index([organizationId, resolution])
   @@index([organizationId, entityType])
   @@index([organizationId, conflictType])
+}
+
+enum SyncLogStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model SyncLog {
+  id             String        @id @default(cuid())
+  organizationId String
+  platform       Marketplace
+  jobType        String
+  status         SyncLogStatus @default(RUNNING)
+  itemsProcessed Int           @default(0)
+  itemsFailed    Int           @default(0)
+  errorMessage   String?
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, platform])
+  @@index([organizationId, startedAt(sort: Desc)])
 }
 
 enum TicketStatus {

@@ -1,5 +1,18 @@
-import { ConflictResolution, ConflictType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  ConflictResolution,
+  ConflictType,
+  Marketplace,
+  SyncLogStatus,
+} from '@prisma/client';
+import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export class ConflictListQueryDto {
   @IsOptional()
@@ -23,4 +36,21 @@ export class ResolveConflictDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+export class SyncLogListQueryDto {
+  @IsOptional()
+  @IsEnum(Marketplace)
+  platform?: Marketplace;
+
+  @IsOptional()
+  @IsEnum(SyncLogStatus)
+  status?: SyncLogStatus;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number;
 }

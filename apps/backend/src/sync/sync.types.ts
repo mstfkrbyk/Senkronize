@@ -3,6 +3,8 @@ import type {
   ConflictType,
   Marketplace,
   SyncConflict,
+  SyncLog,
+  SyncLogStatus,
 } from '@prisma/client';
 
 export interface AutoResolveResult {
@@ -33,6 +35,41 @@ export interface SerializedSyncConflict {
   resolvedBy: string | null;
   notes: string | null;
   createdAt: string;
+}
+
+export interface SerializedSyncLog {
+  id: string;
+  organizationId: string;
+  platform: Marketplace;
+  jobType: string;
+  status: SyncLogStatus;
+  itemsProcessed: number;
+  itemsFailed: number;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+}
+
+export function serializeSyncLog(row: SyncLog): SerializedSyncLog {
+  const completedAt = row.completedAt?.toISOString() ?? null;
+  const durationMs =
+    row.completedAt !== null
+      ? row.completedAt.getTime() - row.startedAt.getTime()
+      : null;
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    platform: row.platform,
+    jobType: row.jobType,
+    status: row.status,
+    itemsProcessed: row.itemsProcessed,
+    itemsFailed: row.itemsFailed,
+    errorMessage: row.errorMessage,
+    startedAt: row.startedAt.toISOString(),
+    completedAt,
+    durationMs,
+  };
 }
 
 export function serializeConflict(row: SyncConflict): SerializedSyncConflict {

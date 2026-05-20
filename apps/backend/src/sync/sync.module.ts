@@ -7,6 +7,7 @@ import { StockModule } from '../stock/stock.module';
 
 import { ConflictService } from './conflict.service';
 import { SyncController } from './sync.controller';
+import { SyncLogService } from './sync-log.service';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { SyncController } from './sync.controller';
     BullModule.registerQueue({ name: QUEUE_MARKETPLACE_PUSH }),
   ],
   controllers: [SyncController],
-  providers: [ConflictService],
-  exports: [ConflictService],
+  providers: [ConflictService, SyncLogService],
+  exports: [ConflictService, SyncLogService],
 })
 export class SyncModule {}

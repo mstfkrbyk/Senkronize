@@ -20,19 +20,57 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import { ConflictService } from './conflict.service';
-import { ConflictListQueryDto, ResolveConflictDto } from './sync.dto';
+import { SyncLogService } from './sync-log.service';
+import {
+  ConflictListQueryDto,
+  ResolveConflictDto,
+  SyncLogListQueryDto,
+} from './sync.dto';
 import {
   serializeConflict,
+  serializeSyncLog,
   type AutoResolveResult,
   type ConflictStats,
   type SerializedSyncConflict,
+  type SerializedSyncLog,
 } from './sync.types';
+import type { PlatformSyncStat } from './sync-log.service';
 
 @ApiTags('sync')
 @ApiBearerAuth()
 @Controller('sync')
 export class SyncController {
-  constructor(private readonly conflictService: ConflictService) {}
+  constructor(
+    private readonly conflictService: ConflictService,
+    private readonly syncLogService: SyncLogService,
+  ) {}
+
+  @Get('logs')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Senkronizasyon geçmişi' })
+  @ApiResponse({ status: 200 })
+  async listSyncLogs(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: SyncLogListQueryDto,
+  ): Promise<{ data: SerializedSyncLog[] }> {
+    const rows = await this.syncLogService.getRecentLogs(org.id, {
+      platform: query.platform,
+      status: query.status,
+      limit: query.limit,
+    });
+    return { data: rows.map(serializeSyncLog) };
+  }
+
+  @Get('stats')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Platform bazlı senkron başarı oranı' })
+  @ApiResponse({ status: 200 })
+  async syncStats(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: PlatformSyncStat[] }> {
+    const data = await this.syncLogService.getPlatformSyncStats(org.id);
+    return { data };
+  }
 
   @Get('conflicts')
   @UseGuards(JwtAuthGuard)

@@ -14,6 +14,7 @@ import { ProductModule } from '../product/product.module';
 import { ReturnModule } from '../return/return.module';
 import { StockModule } from '../stock/stock.module';
 import { SyncStatusModule } from '../sync-status/sync-status.module';
+import { SyncModule } from '../sync/sync.module';
 
 import { BuyBoxFetchTask } from './buybox-fetch.task';
 import { CompetitorPriceTask } from '../pricing/competitor-price.task';
@@ -33,6 +34,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
 @Module({
   imports: [
     PrismaModule,
+    SyncModule,
     SyncStatusModule,
     MarketplaceConnectionModule,
     OrderModule,

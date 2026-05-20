@@ -249,6 +249,11 @@ const SyncLogsPage = lazy(() =>
 const ConflictsPage = lazy(() =>
   import('@/pages/sync/ConflictsPage').then((m) => ({ default: m.ConflictsPage })),
 );
+const SyncHistoryPage = lazy(() =>
+  import('@/pages/sync/SyncHistoryPage').then((m) => ({
+    default: m.SyncHistoryPage,
+  })),
+);
 const SuppliersPage = lazy(() =>
   import('@/pages/suppliers/SuppliersPage').then((m) => ({ default: m.SuppliersPage })),
 );
@@ -381,6 +386,7 @@ export default function App(): ReactElement {
                 <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
+                <Route path="/sync/history" element={<SyncHistoryPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/support/:id" element={<SupportTicketPage />} />
