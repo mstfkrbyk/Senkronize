@@ -1,5 +1,8 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { tr } from 'date-fns/locale';
+import { Bell } from 'lucide-react';
 import {
   CartesianGrid,
   Legend,
@@ -11,9 +14,17 @@ import {
   YAxis,
 } from 'recharts';
 
+import { SearchableCombobox } from '@/components/SearchableCombobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import {
   Table,
   TableBody,
@@ -32,38 +44,46 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
-import type { CompetitorPriceRow, PriceGapPlatformRow } from '@/types/pricing';
+import { useListings } from '@/pages/listings/hooks/useListings';
+import type { OrgPlanTier } from '@/types/auth';
+import type { CompetitorPriceRow } from '@/types/pricing';
 
 import {
   useCompetitorPrices,
-  useManualPricingUpdate,
+  useCreatePriceAlert,
+  useListingPriceHistory,
   usePriceGap,
   usePriceTrend,
 } from './hooks/usePricing';
-
-const money = (n: number | null | undefined): string =>
-  n == null || Number.isNaN(n)
-    ? '—'
-    : new Intl.NumberFormat('tr-TR', {
-        style: 'currency',
-        currency: 'TRY',
-        maximumFractionDigits: 2,
-      }).format(n);
+import { formatTry } from './pricing-utils';
 
 interface Props {
   proAccess: boolean;
+  plan: OrgPlanTier | undefined;
 }
 
-export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
-  const [input, setInput] = useState('');
-  const [active, setActive] = useState<string | null>(null);
+export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement {
+  const listingsQuery = useListings({ page: 1, limit: 200 }, proAccess);
+  const [listingId, setListingId] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertThreshold, setAlertThreshold] = useState('');
+  const [alertEmail, setAlertEmail] = useState(true);
+  const [alertInApp, setAlertInApp] = useState(true);
 
-  const compQuery = useCompetitorPrices(active, proAccess);
-  const gapQuery = usePriceGap(active, proAccess);
-  const trendQuery = usePriceTrend(active, platform, proAccess);
-  const manualMutation = useManualPricingUpdate();
+  const selectedListing = useMemo(
+    () => listingsQuery.data?.items.find((l) => l.id === listingId),
+    [listingsQuery.data?.items, listingId],
+  );
+
+  const barcode = selectedListing?.barcode ?? null;
+  const compQuery = useCompetitorPrices(barcode, proAccess);
+  const gapQuery = usePriceGap(barcode, proAccess);
+  const trendQuery = usePriceTrend(barcode, platform, proAccess);
+  const historyQuery = useListingPriceHistory(listingId, 30, proAccess);
+  const createAlert = useCreatePriceAlert();
 
   useEffect(() => {
     const p = gapQuery.data?.platforms?.[0]?.platform;
@@ -71,6 +91,54 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
       setPlatform(p);
     }
   }, [gapQuery.data, platform]);
+
+  useEffect(() => {
+    setPlatform(null);
+  }, [listingId]);
+
+  const comboboxOptions = useMemo(
+    () =>
+      (listingsQuery.data?.items ?? []).map((l) => ({
+        value: l.id,
+        label: `${l.title.slice(0, 48)}${l.title.length > 48 ? '…' : ''} — ${l.barcode}`,
+      })),
+    [listingsQuery.data?.items],
+  );
+
+  const topCompetitors = useMemo(() => {
+    const rows = compQuery.data ?? [];
+    const byId = new Map<string, CompetitorPriceRow>();
+    for (const row of rows) {
+      if (row.isBuyBox) {
+        continue;
+      }
+      const existing = byId.get(row.competitorId);
+      if (!existing || Number(row.price) < Number(existing.price)) {
+        byId.set(row.competitorId, row);
+      }
+    }
+    return Array.from(byId.values())
+      .sort((a, b) => Number(a.price) - Number(b.price))
+      .slice(0, 2);
+  }, [compQuery.data]);
+
+  const chartData = useMemo(() => {
+    const history = historyQuery.data?.chart ?? [];
+    if (history.length > 0) {
+      return history.map((p) => ({
+        label: format(new Date(p.date), 'd MMM', { locale: tr }),
+        ourPrice: p.ourPrice,
+        rakip1: p.lowestCompetitor,
+        rakip2: p.avgCompetitor,
+      }));
+    }
+    return (trendQuery.data ?? []).map((d) => ({
+      label: d.date,
+      ourPrice: d.ourPrice,
+      rakip1: d.buyBoxPrice,
+      rakip2: d.avgCompetitorPrice,
+    }));
+  }, [historyQuery.data?.chart, trendQuery.data]);
 
   const byPlatform = useMemo(() => {
     const map = new Map<string, CompetitorPriceRow[]>();
@@ -82,141 +150,120 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
     return map;
   }, [compQuery.data]);
 
-  const chartData = useMemo(() => {
-    return (trendQuery.data ?? []).map((d) => ({
-      ...d,
-      label: d.date,
-    }));
-  }, [trendQuery.data]);
-
-  const onSearch = (): void => {
-    const b = input.trim();
-    if (!b) {
+  const handleCreateAlert = (): void => {
+    const threshold = Number(alertThreshold.replace(',', '.'));
+    if (listingId == null || Number.isNaN(threshold) || threshold <= 0) {
       return;
     }
-    setActive(b);
-    setPlatform(null);
+    createAlert.mutate(
+      {
+        listingId,
+        thresholdPrice: threshold,
+        notifyEmail: alertEmail,
+        notifyInApp: alertInApp,
+      },
+      {
+        onSuccess: () => {
+          setAlertOpen(false);
+          setAlertThreshold('');
+        },
+      },
+    );
   };
 
-  const equalize = (row: PriceGapPlatformRow): void => {
-    if (active == null || row.buyBoxPrice == null || row.ourSalePrice == null) {
-      return;
-    }
-    const list =
-      row.ourListPrice != null
-        ? Math.max(row.ourListPrice, row.buyBoxPrice)
-        : row.buyBoxPrice;
-    manualMutation.mutate({
-      barcode: active,
-      platform: row.platform,
-      salePrice: row.buyBoxPrice,
-      listPrice: list,
-    });
-  };
+  if (!proAccess) {
+    return (
+      <UpgradePrompt
+        feature="Rakip analizi"
+        requiredPlan="PRO"
+        currentPlan={plan}
+        description="Rakip fiyat tablosu, trend grafiği ve uyarılar PRO pakette açıktır."
+      />
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-medium text-primary">Rakip fiyat analizi</h2>
-        <p className="text-sm text-muted-foreground">
-          Barkod girerek rakip fiyatlarını, BuyBox farkını ve son 7 gün trendini görüntüleyin.
-        </p>
-      </div>
-
-      <div className="flex max-w-xl flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="flex-1 space-y-2">
-          <Label htmlFor="barcode-search">Barkod</Label>
-          <Input
-            id="barcode-search"
-            placeholder="8680000000001"
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-            }}
+    <div className="space-y-6">
+      <div className="max-w-xl space-y-2">
+        <Label>Ürün seçin</Label>
+        {listingsQuery.isLoading ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <SearchableCombobox
+            options={comboboxOptions}
+            value={listingId}
+            onChange={setListingId}
+            placeholder="Listeleme seçin…"
+            searchPlaceholder="Barkod veya ürün adı…"
           />
-        </div>
-        <Button type="button" onClick={onSearch}>
-          Sorgula
-        </Button>
+        )}
       </div>
 
-      {active ? (
+      {listingId == null ? (
+        <p className="text-sm text-muted-foreground">
+          Rakip fiyatları ve trend için bir ürün seçin.
+        </p>
+      ) : (
         <>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Platform özeti</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {gapQuery.isLoading ? <Skeleton className="h-28 w-full" /> : null}
-              {gapQuery.isError ? (
-                <p className="text-sm text-destructive">{getApiErrorMessage(gapQuery.error)}</p>
-              ) : null}
-              {gapQuery.data && gapQuery.data.platforms.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Bu barkod için listeleme bulunamadı.</p>
-              ) : null}
-              {gapQuery.data && gapQuery.data.platforms.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Platform</TableHead>
-                      <TableHead className="text-right">Bizim</TableHead>
-                      <TableHead className="text-right">BuyBox</TableHead>
-                      <TableHead className="text-right">Fark (₺)</TableHead>
-                      <TableHead className="text-right">Fark (%)</TableHead>
-                      <TableHead className="text-right">İşlem</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {gapQuery.data.platforms.map((row) => (
-                      <TableRow key={row.platform}>
-                        <TableCell className="font-medium">{row.platform}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {money(row.ourSalePrice)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {money(row.buyBoxPrice)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.gapTry != null ? money(row.gapTry) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.gapPct != null ? `%${row.gapPct.toFixed(1)}` : '—'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            disabled={
-                              row.buyBoxPrice == null ||
-                              manualMutation.isPending ||
-                              row.ourSalePrice == null
-                            }
-                            onClick={() => {
-                              equalize(row);
-                            }}
-                          >
-                            BuyBox&apos;a eşitle
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : null}
-            </CardContent>
-          </Card>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              onClick={() => setAlertOpen(true)}
+            >
+              <Bell className="h-4 w-4" aria-hidden />
+              Fiyat uyarısı ekle
+            </Button>
+          </div>
+
+          {gapQuery.data && gapQuery.data.platforms.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {gapQuery.data.platforms.map((row) => {
+                const cheapest =
+                  row.buyBoxPrice != null
+                    ? formatTry(row.buyBoxPrice)
+                    : row.ourSalePrice != null
+                      ? formatTry(row.ourSalePrice)
+                      : '—';
+                return (
+                  <Card key={row.platform}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">{row.platform}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">En ucuz</span>
+                        <span className="font-semibold tabular-nums">{cheapest}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Bizim fiyat</span>
+                        <span className="tabular-nums">{formatTry(row.ourSalePrice)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Rakip sayısı</span>
+                        <span>{row.competitorCount}</span>
+                      </div>
+                      {row.gapPct != null ? (
+                        <Badge variant={row.gapPct > 0 ? 'outline' : 'default'}>
+                          Fark %{row.gapPct.toFixed(1)}
+                        </Badge>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : null}
 
           <div className="max-w-xs space-y-2">
             <Label>Trend platformu</Label>
             <Select
               value={platform ?? undefined}
-              onValueChange={(v) => {
-                setPlatform(v);
-              }}
+              onValueChange={(v) => setPlatform(v)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Platform seçin" />
+                <SelectValue placeholder="Platform" />
               </SelectTrigger>
               <SelectContent>
                 {(gapQuery.data?.platforms ?? []).map((p) => (
@@ -230,50 +277,57 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Son 7 gün fiyat trendi</CardTitle>
+              <CardTitle className="text-base">Fiyat trendi</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Son 30 gün (ürün geçmişi) veya API&apos;deki son 7 gün anlık görüntüleri
+              </p>
             </CardHeader>
             <CardContent>
-              {trendQuery.isLoading ? <Skeleton className="h-72 w-full" /> : null}
-              {trendQuery.isError ? (
-                <p className="text-sm text-destructive">{getApiErrorMessage(trendQuery.error)}</p>
+              {historyQuery.isLoading || trendQuery.isLoading ? (
+                <Skeleton className="h-72 w-full" />
               ) : null}
-              {trendQuery.data && trendQuery.data.length > 0 && platform ? (
+              {chartData.length > 0 ? (
                 <div className="h-72 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                      <Tooltip
-                        formatter={(value) =>
-                          typeof value === 'number'
-                            ? money(value)
-                            : String(value ?? '')
-                        }
-                      />
+                      <Tooltip formatter={(v) => formatTry(typeof v === 'number' ? v : null)} />
                       <Legend />
-                      <Line type="monotone" dataKey="ourPrice" name="Bizim" stroke="#0ea5e9" dot={false} />
                       <Line
                         type="monotone"
-                        dataKey="buyBoxPrice"
-                        name="BuyBox"
-                        stroke="#64748b"
+                        dataKey="ourPrice"
+                        name="Bizim"
+                        stroke="#0ea5e9"
+                        strokeWidth={2}
                         dot={false}
+                        connectNulls
                       />
                       <Line
                         type="monotone"
-                        dataKey="avgCompetitorPrice"
-                        name="Rakip ort."
+                        dataKey="rakip1"
+                        name={topCompetitors[0]?.competitorName ?? 'Rakip 1'}
                         stroke="#f97316"
+                        strokeWidth={2}
                         dot={false}
+                        connectNulls
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="rakip2"
+                        name={topCompetitors[1]?.competitorName ?? 'Rakip 2'}
+                        stroke="#64748b"
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
                       />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              ) : null}
-              {platform && !trendQuery.isLoading && (trendQuery.data?.length ?? 0) === 0 ? (
+              ) : (
                 <p className="text-sm text-muted-foreground">Trend verisi yok.</p>
-              ) : null}
+              )}
             </CardContent>
           </Card>
 
@@ -286,11 +340,9 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
               {compQuery.isError ? (
                 <p className="text-sm text-destructive">{getApiErrorMessage(compQuery.error)}</p>
               ) : null}
-              {!compQuery.isLoading &&
-              !compQuery.isError &&
-              (compQuery.data?.length ?? 0) === 0 ? (
+              {(compQuery.data?.length ?? 0) === 0 && !compQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">
-                  Henüz rakip fiyat kaydı yok. Pazaryeri senkronu sonrası burada görünecek.
+                  Henüz rakip fiyat kaydı yok.
                 </p>
               ) : null}
               {Array.from(byPlatform.entries()).map(([plat, rows]) => (
@@ -317,10 +369,10 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
                             ) : null}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {money(Number(r.price))}
+                            {formatTry(Number(r.price))}
                           </TableCell>
                           <TableCell>{r.isBuyBox ? 'Evet' : 'Hayır'}</TableCell>
-                          <TableCell className="text-muted-foreground text-xs">
+                          <TableCell className="text-xs text-muted-foreground">
                             {new Date(r.capturedAt).toLocaleString('tr-TR')}
                           </TableCell>
                         </TableRow>
@@ -332,9 +384,55 @@ export function CompetitorAnalysisTab({ proAccess }: Props): ReactElement {
             </CardContent>
           </Card>
         </>
-      ) : (
-        <p className="text-sm text-muted-foreground">Analiz için barkod sorgulayın.</p>
       )}
+
+      <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Fiyat uyarısı</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="alert-threshold">Eşik fiyat (₺)</Label>
+              <Input
+                id="alert-threshold"
+                inputMode="decimal"
+                placeholder="Örn. 299,90"
+                value={alertThreshold}
+                onChange={(e) => setAlertThreshold(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <Label htmlFor="alert-email">E-posta</Label>
+              <Switch
+                id="alert-email"
+                checked={alertEmail}
+                onCheckedChange={setAlertEmail}
+              />
+            </div>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <Label htmlFor="alert-inapp">Panel bildirimi</Label>
+              <Switch
+                id="alert-inapp"
+                checked={alertInApp}
+                onCheckedChange={setAlertInApp}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAlertOpen(false)}>
+              İptal
+            </Button>
+            <Button
+              type="button"
+              disabled={createAlert.isPending}
+              onClick={handleCreateAlert}
+            >
+              Kaydet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

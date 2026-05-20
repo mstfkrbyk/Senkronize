@@ -28,6 +28,7 @@ import {
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
 import { useBulkListingPrice } from '@/pages/listings/hooks/useListings';
+import type { OrgPlanTier } from '@/types/auth';
 import type { BuyBoxReportTopLoser } from '@/types/pricing';
 
 import {
@@ -70,7 +71,7 @@ function recommendation(row: BuyBoxReportTopLoser): string {
 
 interface Props {
   proAccess: boolean;
-  plan: string | undefined;
+  plan: OrgPlanTier | undefined;
 }
 
 export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {

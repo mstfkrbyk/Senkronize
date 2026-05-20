@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   DndContext,
   type DragEndEvent,
@@ -31,6 +31,7 @@ import {
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { getApiErrorMessage } from '@/lib/api';
+import type { OrgPlanTier } from '@/types/auth';
 import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
 import { PriceRuleDialog } from './PriceRuleDialog';
@@ -123,7 +124,7 @@ function SortableRuleRow({
 
 interface Props {
   proAccess: boolean;
-  plan: string | undefined;
+  plan: OrgPlanTier | undefined;
 }
 
 export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
@@ -149,18 +150,20 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
     return [...ordered, ...rest];
   }, [rules, orderedIds]);
 
-  const syncOrderedIds = useCallback(() => {
+  useEffect(() => {
+    if (rules.length === 0) {
+      return;
+    }
     const ids = [...rules]
       .sort((a, b) => a.targetPosition - b.targetPosition)
       .map((r) => r.id);
-    setOrderedIds(ids);
-  }, [rules]);
-
-  useMemo(() => {
-    if (rules.length > 0 && orderedIds.length === 0) {
-      syncOrderedIds();
-    }
-  }, [rules.length, orderedIds.length, syncOrderedIds]);
+    setOrderedIds((prev) => {
+      if (prev.length === ids.length && prev.every((id, i) => id === ids[i])) {
+        return prev;
+      }
+      return ids;
+    });
+  }, [rulesQuery.data]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),

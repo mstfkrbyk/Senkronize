@@ -58,7 +58,6 @@ const SCHEDULE_OPTIONS = [
 
 type RuleType = (typeof RULE_TYPE_OPTIONS)[number]['value'];
 type BasePrice = (typeof BASE_PRICE_OPTIONS)[number]['value'];
-type ScheduleMode = (typeof SCHEDULE_OPTIONS)[number]['value'];
 
 function ruleTypeToStrategy(
   ruleType: RuleType,
