@@ -157,3 +157,31 @@ export function requireStringField(
   }
   throw new Error(`Kimlik bilgisinde "${field}" eksik veya geçersiz`);
 }
+
+export function optionalStringField(
+  creds: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  const v = creds[field];
+  if (typeof v === 'string' && v.trim().length > 0) {
+    return v.trim();
+  }
+  return undefined;
+}
+
+export function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+export function asArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value !== undefined && value !== null) {
+    return [value];
+  }
+  return [];
+}

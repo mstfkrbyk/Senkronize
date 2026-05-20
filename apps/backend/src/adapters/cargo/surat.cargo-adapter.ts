@@ -19,8 +19,7 @@ import {
   soap11Envelope,
 } from './cargo-adapter.helpers';
 
-const DEFAULT_SVC =
-  'https://svc.suratcargo.com/ServiceManager/SuratCargoService.svc';
+const DEFAULT_SVC = 'https://ws.suratkargo.com.tr';
 
 export class SuratCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(SuratCargoAdapter.name);

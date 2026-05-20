@@ -34,3 +34,24 @@ export class OptimalCarrierQueryDto {
   @IsNotEmpty()
   orderId!: string;
 }
+
+export class CompareCargoPricesQueryDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  weight!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  desi?: number;
+
+  @IsString()
+  @IsNotEmpty()
+  fromCity!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  toCity!: string;
+}

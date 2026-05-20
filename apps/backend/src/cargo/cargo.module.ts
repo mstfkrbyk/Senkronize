@@ -5,13 +5,14 @@ import { PrismaModule } from '../prisma/prisma.module';
 
 import { CargoController } from './cargo.controller';
 import { CargoOptimizerService } from './cargo-optimizer.service';
+import { CargoPriceService } from './cargo-price.service';
 import { CargoRateService } from './cargo-rate.service';
 import { CargoService } from './cargo.service';
 
 @Module({
   imports: [PrismaModule, CommonModule],
   controllers: [CargoController],
-  providers: [CargoService, CargoRateService, CargoOptimizerService],
-  exports: [CargoService, CargoOptimizerService],
+  providers: [CargoService, CargoRateService, CargoPriceService, CargoOptimizerService],
+  exports: [CargoService, CargoOptimizerService, CargoPriceService],
 })
 export class CargoModule {}

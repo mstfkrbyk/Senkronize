@@ -7,77 +7,141 @@ import type {
   ICargoAdapter,
   RateParams,
   ShipmentResult,
+  TrackingEvent,
   TrackingResult,
 } from '../cargo-adapter.interface';
 import {
+  asArray,
+  asRecord,
   escapeXml,
   extractTrackingCodeFromPayload,
   getDeepString,
   normalizeTrackingStatus,
+  optionalStringField,
   parseXml,
   requireStringField,
   singleEventFromText,
   soap11Envelope,
 } from './cargo-adapter.helpers';
 
-const DEFAULT_KOPS_URL =
-  'https://ws.yurticikargo.com/KOPSWebServices/ShippingOrderDispatcherServices';
-const DEFAULT_TRACKING_URL =
-  'https://webservices.yurticikargo.com.tr/KargoTakipService/KargoTakipServisi.svc';
+const DEFAULT_BASE =
+  'https://customerapi.yurticikargo.com:8443/KurumosalMusteriEntegrasyonu';
 
 export class YurticiCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(YurticiCargoAdapter.name);
 
   constructor(private readonly creds: Record<string, unknown>) {}
 
-  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
+  private baseUrl(): string {
+    if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
+      return this.creds.baseUrl.replace(/\/$/, '');
+    }
+    return DEFAULT_BASE;
+  }
+
+  private authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const apiKey = optionalStringField(this.creds, 'apiKey');
+    if (apiKey) {
+      headers['X-API-Key'] = apiKey;
+    }
+    return headers;
+  }
+
+  private async soapRequest(action: string, innerBody: string): Promise<unknown> {
     const username = requireStringField(this.creds, 'username');
     const password = requireStringField(this.creds, 'password');
-    const endpoint =
-      typeof this.creds.shippingWsUrl === 'string' && this.creds.shippingWsUrl.length > 0
-        ? this.creds.shippingWsUrl
-        : DEFAULT_KOPS_URL;
+    const apiKey = optionalStringField(this.creds, 'apiKey');
 
-    const inner = `
-<SaveCustomerShippingOrder xmlns="http://yurticikargo.com.tr/ShippingOrderDispatcherServices">
+    const authBlock = `
   <userName>${escapeXml(username)}</userName>
   <password>${escapeXml(password)}</password>
-  <ShippingOrderVO>
-    <cargoKey>${escapeXml(params.orderId)}</cargoKey>
-    <receiverCustName>${escapeXml(params.receiverName)}</receiverCustName>
-    <receiverAddress>${escapeXml(params.receiverAddress)}</receiverAddress>
-    <cityName>${escapeXml(params.receiverCity)}</cityName>
-    <townName>${escapeXml(params.receiverDistrict)}</townName>
-    <receiverPhone1>${escapeXml(params.receiverPhone)}</receiverPhone1>
-    <desi>${String(params.desi ?? Math.max(1, params.weight))}</desi>
-    <kg>${String(params.weight)}</kg>
-    ${params.notes ? `<description>${escapeXml(params.notes)}</description>` : ''}
-  </ShippingOrderVO>
-</SaveCustomerShippingOrder>`;
+  ${apiKey ? `<apiKey>${escapeXml(apiKey)}</apiKey>` : ''}`;
+
+    const inner = innerBody.includes('<userName>')
+      ? innerBody
+      : innerBody.replace(/^(\s*<[^>]+>)/, `$1${authBlock}`);
+
+    const { data, status } = await axios.post<string>(
+      this.baseUrl(),
+      soap11Envelope(inner),
+      {
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          SOAPAction: `"${action}"`,
+          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+        },
+        timeout: 45_000,
+        responseType: 'text',
+        validateStatus: () => true,
+      },
+    );
+    if (status < 200 || status >= 300) {
+      throw new Error(`HTTP ${String(status)}`);
+    }
+    if (String(data).toLowerCase().includes('fault')) {
+      throw new Error('SOAP fault');
+    }
+    return parseXml(data) as unknown;
+  }
+
+  private async request<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<T> {
+    const username = requireStringField(this.creds, 'username');
+    const password = requireStringField(this.creds, 'password');
+    const apiKey = optionalStringField(this.creds, 'apiKey');
+    const url = `${this.baseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+
+    const { data, status } = await axios.request<T>({
+      url,
+      method,
+      data: body,
+      headers: {
+        ...this.authHeaders(),
+        ...(apiKey ? {} : {}),
+        Authorization: `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`,
+      },
+      timeout: 45_000,
+      validateStatus: () => true,
+    });
+    if (status < 200 || status >= 300) {
+      throw new Error(`HTTP ${String(status)}`);
+    }
+    return data;
+  }
+
+  async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
+    const inner = `
+<SendShipment xmlns="http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu">
+  <userName>${escapeXml(requireStringField(this.creds, 'username'))}</userName>
+  <password>${escapeXml(requireStringField(this.creds, 'password'))}</password>
+  <ShipmentAddRequest>
+    <ShipmentRequest>
+      <payer>1</payer>
+      <serviceType>1</serviceType>
+      <shipmentCount>1</shipmentCount>
+      <receiverName>${escapeXml(params.receiverName)}</receiverName>
+      <receiverPhone1>${escapeXml(params.receiverPhone)}</receiverPhone1>
+      <receiverCityName>${escapeXml(params.receiverCity)}</receiverCityName>
+      <receiverTownName>${escapeXml(params.receiverDistrict)}</receiverTownName>
+      <receiverAddress>${escapeXml(params.receiverAddress)}</receiverAddress>
+      <waybillNo></waybillNo>
+      <cargoKey>${escapeXml(params.orderId)}</cargoKey>
+      <kg>${String(params.weight)}</kg>
+      <desi>${String(params.desi ?? Math.max(1, params.weight))}</desi>
+    </ShipmentRequest>
+  </ShipmentAddRequest>
+</SendShipment>`;
 
     try {
-      const { data, status } = await axios.post<string>(
-        endpoint,
-        soap11Envelope(inner),
-        {
-          headers: {
-            'Content-Type': 'text/xml; charset=utf-8',
-            SOAPAction:
-              '"http://yurticikargo.com.tr/ShippingOrderDispatcherServices/SaveCustomerShippingOrder"',
-          },
-          timeout: 45_000,
-          responseType: 'text',
-          validateStatus: () => true,
-        },
+      const parsed = await this.soapRequest(
+        'http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu/SendShipment',
+        inner,
       );
-      if (status < 200 || status >= 300) {
-        throw new Error(`HTTP ${String(status)}`);
-      }
-      const parsed = parseXml(data) as unknown;
       const code =
-        extractTrackingCodeFromPayload(parsed) ??
-        extractWaybillFromSoapFault(data) ??
-        extractBetweenTags(data, 'docNumber', 'cargoKey');
+        getDeepString(parsed, ['waybillNo', 'waybillNumber', 'cargoKey']) ??
+        extractTrackingCodeFromPayload(parsed);
       if (!code) {
         this.logger.warn('Yurtiçi gönderi yanıtı ayrıştırılamadı');
         throw new BadGatewayException('Yurtiçi Kargo yanıtı işlenemedi');
@@ -95,46 +159,18 @@ export class YurticiCargoAdapter implements ICargoAdapter {
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
-    const username = requireStringField(this.creds, 'username');
-    const password = requireStringField(this.creds, 'password');
-    const endpoint =
-      typeof this.creds.trackingWsUrl === 'string' && this.creds.trackingWsUrl.length > 0
-        ? this.creds.trackingWsUrl
-        : DEFAULT_TRACKING_URL;
-
-    const inner = `
-<ListInvDocumentInterfaceByTrackingNumber xmlns="http://yurticikargo.com.tr/TrackingWS">
-  <userName>${escapeXml(username)}</userName>
-  <password>${escapeXml(password)}</password>
-  <language>TR</language>
-  <documentNumber>${escapeXml(trackingCode)}</documentNumber>
-</ListInvDocumentInterfaceByTrackingNumber>`;
-
     try {
-      const { data, status } = await axios.post<string>(
-        endpoint,
-        soap11Envelope(inner),
-        {
-          headers: {
-            'Content-Type': 'text/xml; charset=utf-8',
-            SOAPAction:
-              '"http://yurticikargo.com.tr/TrackingWS/ListInvDocumentInterfaceByTrackingNumber"',
-          },
-          timeout: 45_000,
-          responseType: 'text',
-          validateStatus: () => true,
-        },
-      );
-      if (status < 200 || status >= 300) {
-        throw new Error(`HTTP ${String(status)}`);
-      }
-      const text = stripHtml(getDeepString(parseXml(data) as unknown, ['status']) ?? data);
-      const statusNorm = normalizeTrackingStatus(text || trackingCode);
+      const response = await this.request<unknown>(`/tracking/${encodeURIComponent(trackingCode)}`);
+      const record = asRecord(response);
+      const statusRaw =
+        getDeepString(response, ['Status', 'status', 'durum']) ??
+        (record ? String(record.Status ?? record.status ?? '') : '');
+      const events = parseYurticiTrackingEvents(response, trackingCode);
       return {
         trackingCode,
-        status: statusNorm,
-        lastUpdate: new Date(),
-        events: singleEventFromText(trackingCode, text || 'Takip yanıtı alındı'),
+        status: this.mapStatus(statusRaw),
+        lastUpdate: events[0]?.timestamp ?? new Date(),
+        events: events.length > 0 ? events : singleEventFromText(trackingCode, statusRaw || 'Takip yanıtı alındı'),
       };
     } catch (error) {
       this.logger.warn('Yurtiçi trackShipment başarısız', {
@@ -144,39 +180,24 @@ export class YurticiCargoAdapter implements ICargoAdapter {
     }
   }
 
-  async cancelShipment(trackingCode: string): Promise<void> {
-    const username = requireStringField(this.creds, 'username');
-    const password = requireStringField(this.creds, 'password');
-    const endpoint =
-      typeof this.creds.shippingWsUrl === 'string' && this.creds.shippingWsUrl.length > 0
-        ? this.creds.shippingWsUrl
-        : DEFAULT_KOPS_URL;
+  private mapStatus(raw: string): TrackingResult['status'] {
+    return normalizeTrackingStatus(raw);
+  }
 
+  async cancelShipment(trackingCode: string): Promise<void> {
     const inner = `
-<CancelShipment xmlns="http://yurticikargo.com.tr/ShippingOrderDispatcherServices">
-  <userName>${escapeXml(username)}</userName>
-  <password>${escapeXml(password)}</password>
+<CancelShipment xmlns="http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu">
+  <userName>${escapeXml(requireStringField(this.creds, 'username'))}</userName>
+  <password>${escapeXml(requireStringField(this.creds, 'password'))}</password>
   <cargoKey>${escapeXml(trackingCode)}</cargoKey>
 </CancelShipment>`;
 
-    const { status, data } = await axios.post<string>(
-      endpoint,
-      soap11Envelope(inner),
-      {
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction:
-            '"http://yurticikargo.com.tr/ShippingOrderDispatcherServices/CancelShipment"',
-        },
-        timeout: 45_000,
-        responseType: 'text',
-        validateStatus: () => true,
-      },
-    );
-    if (status < 200 || status >= 300) {
-      throw new BadGatewayException('Yurtiçi Kargo iptal isteği reddedildi');
-    }
-    if (String(data).toLowerCase().includes('fault')) {
+    try {
+      await this.soapRequest(
+        'http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu/CancelShipment',
+        inner,
+      );
+    } catch {
       throw new BadGatewayException('Yurtiçi Kargo iptal işlemi tamamlanamadı');
     }
   }
@@ -185,7 +206,7 @@ export class YurticiCargoAdapter implements ICargoAdapter {
     const base =
       typeof this.creds.labelBaseUrl === 'string' && this.creds.labelBaseUrl.length > 0
         ? this.creds.labelBaseUrl.replace(/\/$/, '')
-        : 'https://ws.yurticikargo.com/KOPSWebServices/LabelPrintService';
+        : `${this.baseUrl()}/label`;
     return `${base}?documentId=${encodeURIComponent(trackingCode)}`;
   }
 
@@ -196,6 +217,7 @@ export class YurticiCargoAdapter implements ICargoAdapter {
         responseType: 'arraybuffer',
         timeout: 30_000,
         validateStatus: () => true,
+        headers: this.authHeaders(),
       });
       if (status >= 200 && status < 300 && data) {
         const ct = String(headers['content-type'] ?? '');
@@ -226,22 +248,37 @@ export class YurticiCargoAdapter implements ICargoAdapter {
   }
 }
 
-function stripHtml(s: string): string {
-  return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function extractBetweenTags(xml: string, ...tags: string[]): string | undefined {
-  for (const tag of tags) {
-    const re = new RegExp(`<${tag}[^>]*>([^<]*)</${tag}>`, 'i');
-    const m = re.exec(xml);
-    if (m?.[1] && m[1].trim().length > 0) {
-      return m[1].trim();
-    }
+function parseYurticiTrackingEvents(data: unknown, trackingCode: string): TrackingEvent[] {
+  const record = asRecord(data);
+  if (!record) {
+    return [];
   }
-  return undefined;
-}
-
-function extractWaybillFromSoapFault(xml: string): string | undefined {
-  const m = /waybill[^>]*>([^<]+)</i.exec(xml);
-  return m?.[1]?.trim();
+  const list =
+    record.trackingList ??
+    record.TrackingList ??
+    record.events ??
+    record.Events;
+  const items = asArray(list);
+  const events: TrackingEvent[] = [];
+  for (const item of items) {
+    const row = asRecord(item);
+    if (!row) {
+      continue;
+    }
+    const description =
+      getDeepString(row, ['description', 'Description', 'aciklama', 'Aciklama']) ??
+      getDeepString(row, ['status', 'Status']) ??
+      '';
+    const ts =
+      getDeepString(row, ['date', 'Date', 'timestamp', 'Timestamp']) ??
+      new Date().toISOString();
+    const parsedDate = new Date(ts);
+    events.push({
+      timestamp: Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate,
+      status: description.slice(0, 80),
+      description: description || trackingCode,
+      location: getDeepString(row, ['location', 'Location', 'sube', 'Sube']),
+    });
+  }
+  return events;
 }

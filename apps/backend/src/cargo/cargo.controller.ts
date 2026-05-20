@@ -21,11 +21,13 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
   CargoShipmentQueryDto,
+  CompareCargoPricesQueryDto,
   CompareCargoRatesDto,
   CreateCargoShipmentDto,
   OptimalCarrierQueryDto,
 } from './cargo.dto';
 import { CargoOptimizerService } from './cargo-optimizer.service';
+import { CargoPriceService } from './cargo-price.service';
 import { CargoRateService } from './cargo-rate.service';
 import { CargoService } from './cargo.service';
 
@@ -36,6 +38,7 @@ export class CargoController {
   constructor(
     private readonly cargoService: CargoService,
     private readonly cargoRateService: CargoRateService,
+    private readonly cargoPriceService: CargoPriceService,
     private readonly cargoOptimizerService: CargoOptimizerService,
   ) {}
 
@@ -50,6 +53,24 @@ export class CargoController {
     @Query() query: OptimalCarrierQueryDto,
   ) {
     return this.cargoOptimizerService.getOptimalCarrierForOrder(org.id, query.orderId);
+  }
+
+  @Get('compare-prices')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Aktif kargo bağlantılarından fiyat karşılaştır (GET)' })
+  @ApiResponse({ status: 200, description: 'Fiyat karşılaştırması' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Aktif kargo bağlantısı bulunamadı' })
+  async comparePrices(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: CompareCargoPricesQueryDto,
+  ) {
+    return this.cargoPriceService.compareAllPrices(org.id, {
+      weight: query.weight,
+      desi: query.desi,
+      fromCity: query.fromCity,
+      toCity: query.toCity,
+    });
   }
 
   @Post('rates/compare')

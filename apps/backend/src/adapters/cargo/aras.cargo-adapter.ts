@@ -12,80 +12,65 @@ import type {
 import {
   extractTrackingCodeFromPayload,
   normalizeTrackingStatus,
+  optionalStringField,
   requireStringField,
   singleEventFromText,
 } from './cargo-adapter.helpers';
 
-const BASE =
-  'https://customerservice.araskargo.com.tr/ArasCargoCustomerService/';
+const DEFAULT_BASE = 'https://customerapi.araskargo.com.tr';
 
 export class ArasCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(ArasCargoAdapter.name);
-  private sessionToken: string | null = null;
 
   constructor(private readonly creds: Record<string, unknown>) {}
 
-  private async ensureSession(): Promise<string> {
-    if (this.sessionToken) {
-      return this.sessionToken;
+  private baseUrl(): string {
+    if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
+      return this.creds.baseUrl.replace(/\/$/, '');
     }
-    const username = requireStringField(this.creds, 'username');
-    const password = requireStringField(this.creds, 'password');
-    const loginPath =
-      typeof this.creds.loginPath === 'string' && this.creds.loginPath.length > 0
-        ? this.creds.loginPath
-        : 'api/ArasLogin/Login';
+    return DEFAULT_BASE;
+  }
 
-    const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${loginPath.replace(/^\//, '')}`,
-      { UserName: username, Password: password },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 30_000,
-        validateStatus: () => true,
-      },
+  private customerCode(): string {
+    return (
+      optionalStringField(this.creds, 'customerCode') ??
+      requireStringField(this.creds, 'username')
     );
-    if (status < 200 || status >= 300) {
-      throw new BadGatewayException('Aras Kargo oturum açma başarısız');
-    }
-    const token =
-      extractTrackingCodeFromPayload(data) ??
-      getTokenFromArasLogin(data);
-    if (!token) {
-      throw new BadGatewayException('Aras Kargo oturum anahtarı alınamadı');
-    }
-    this.sessionToken = token;
-    return token;
+  }
+
+  private authBody(): { customerCode: string; password: string } {
+    return {
+      customerCode: this.customerCode(),
+      password: requireStringField(this.creds, 'password'),
+    };
   }
 
   async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
-    const token = await this.ensureSession();
-    const path =
-      typeof this.creds.createShipmentPath === 'string' &&
-      this.creds.createShipmentPath.length > 0
-        ? this.creds.createShipmentPath
-        : 'api/Shipment/Save';
+    const auth = this.authBody();
+    const senderName =
+      optionalStringField(this.creds, 'senderName') ?? 'Senkronize';
 
     const body = {
-      OrderId: params.orderId,
-      ReceiverName: params.receiverName,
-      ReceiverPhone: params.receiverPhone,
-      ReceiverAddress: params.receiverAddress,
-      ReceiverCityName: params.receiverCity,
-      ReceiverTownName: params.receiverDistrict,
-      Weight: params.weight,
-      Desi: params.desi ?? params.weight,
-      Description: params.notes ?? '',
+      customerCode: auth.customerCode,
+      password: auth.password,
+      senderName,
+      receiverName: params.receiverName,
+      receiverAddress: params.receiverAddress,
+      receiverCity: params.receiverCity,
+      receiverDistrict: params.receiverDistrict,
+      receiverPhone: params.receiverPhone,
+      weight: params.weight,
+      pieces: 1,
+      desi: params.desi ?? params.weight,
+      orderId: params.orderId,
+      description: params.notes ?? '',
     };
 
     const { data, status } = await axios.post<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
+      `${this.baseUrl()}/api/shipment/create`,
       body,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
         timeout: 45_000,
         validateStatus: () => true,
       },
@@ -102,18 +87,15 @@ export class ArasCargoAdapter implements ICargoAdapter {
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
-    const token = await this.ensureSession();
-    const path =
-      typeof this.creds.trackShipmentPath === 'string' &&
-      this.creds.trackShipmentPath.length > 0
-        ? this.creds.trackShipmentPath
-        : 'api/Shipment/Tracking';
-
+    const auth = this.authBody();
     const { data, status } = await axios.get<unknown>(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
+      `${this.baseUrl()}/api/shipment/track`,
       {
-        params: { barcode: trackingCode, Barcode: trackingCode },
-        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          barcode: trackingCode,
+          customerCode: auth.customerCode,
+          password: auth.password,
+        },
         timeout: 45_000,
         validateStatus: () => true,
       },
@@ -134,21 +116,16 @@ export class ArasCargoAdapter implements ICargoAdapter {
   }
 
   async cancelShipment(trackingCode: string): Promise<void> {
-    const token = await this.ensureSession();
-    const path =
-      typeof this.creds.cancelShipmentPath === 'string' &&
-      this.creds.cancelShipmentPath.length > 0
-        ? this.creds.cancelShipmentPath
-        : 'api/Shipment/Cancel';
-
+    const auth = this.authBody();
     const { status } = await axios.post(
-      `${BASE.replace(/\/$/, '')}/${path.replace(/^\//, '')}`,
-      { Barcode: trackingCode, barcode: trackingCode },
+      `${this.baseUrl()}/api/shipment/cancel`,
       {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        barcode: trackingCode,
+        customerCode: auth.customerCode,
+        password: auth.password,
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
         timeout: 45_000,
         validateStatus: () => true,
       },
@@ -170,36 +147,10 @@ export class ArasCargoAdapter implements ICargoAdapter {
 
   async testConnection(): Promise<boolean> {
     try {
-      await this.ensureSession();
+      await this.trackShipment('0000000000000');
       return true;
     } catch {
       return false;
     }
   }
-}
-
-function getTokenFromArasLogin(data: unknown): string | undefined {
-  if (typeof data !== 'object' || data === null) {
-    return undefined;
-  }
-  const r = data as Record<string, unknown>;
-  const candidates = [
-    r.Token,
-    r.token,
-    r.SessionToken,
-    r.sessionToken,
-    r.Data,
-  ];
-  for (const c of candidates) {
-    if (typeof c === 'string' && c.length > 8) {
-      return c;
-    }
-    if (typeof c === 'object' && c !== null && 'Token' in c) {
-      const t = (c as { Token?: unknown }).Token;
-      if (typeof t === 'string' && t.length > 8) {
-        return t;
-      }
-    }
-  }
-  return undefined;
 }
