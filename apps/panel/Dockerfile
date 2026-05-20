@@ -11,6 +11,10 @@ COPY desktop/package.json ./desktop/
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
+ARG VITE_API_URL=http://localhost:3001/api/v1
+ARG VITE_DEMO_MODE=
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_DEMO_MODE=$VITE_DEMO_MODE
 COPY packages/shared ./packages/shared
 RUN pnpm --filter @senkronize/shared build
 COPY apps/panel ./apps/panel

@@ -6,6 +6,7 @@ import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
 import { QuickStockSearch } from '@/components/QuickStockSearch';
 import { ShortcutsModal } from '@/components/ShortcutsModal';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
+import { DemoBanner } from '@/components/DemoBanner';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
 import { CurrencyWidget } from '@/components/CurrencyWidget';
 import { OnboardingTour } from '@/components/OnboardingTour';
@@ -64,6 +65,7 @@ export function DashboardLayout(): ReactElement {
       >
         <AppSidebar />
         <SidebarInset className="flex max-h-svh flex-col overflow-hidden">
+          <DemoBanner />
           <ImpersonationBanner />
           <TopBar />
           <main

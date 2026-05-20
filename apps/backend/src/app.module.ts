@@ -12,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
 import { CacheModule } from './common/cache/cache.module';
 import { CommonModule } from './common/common.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { DemoModeGuard } from './common/guards/demo-mode.guard';
 import { IpBlockGuard } from './common/guards/ip-block.guard';
 import { CategoryModule } from './category/category.module';
 import { CargoModule } from './cargo/cargo.module';
@@ -113,6 +114,7 @@ import { WebhookModule } from './webhook/webhook.module';
   ],
   providers: [
     { provide: APP_GUARD, useClass: IpBlockGuard },
+    { provide: APP_GUARD, useClass: DemoModeGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: SecurityRequestInterceptor },

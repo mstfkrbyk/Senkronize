@@ -1,0 +1,64 @@
+# Demo ortamı — gerçekçi seed data ile
+version: '3.8'
+
+services:
+  demo-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: senkronize_demo
+      POSTGRES_USER: senkronize
+      POSTGRES_PASSWORD: demo_password_2024
+    volumes:
+      - demo_db_data:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U senkronize -d senkronize_demo']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  demo-redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass demo_redis_pass
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', 'demo_redis_pass', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  demo-backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    environment:
+      NODE_ENV: demo
+      DATABASE_URL: postgresql://senkronize:demo_password_2024@demo-db:5432/senkronize_demo
+      REDIS_URL: redis://:demo_redis_pass@demo-redis:6379
+      JWT_SECRET: demo-jwt-secret-not-for-production
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      SEED_DEMO: 'true'
+      DEMO_MODE: 'true'
+      PORT: 3001
+    depends_on:
+      demo-db:
+        condition: service_healthy
+      demo-redis:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+
+  demo-panel:
+    build:
+      context: .
+      dockerfile: apps/panel/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3001/api/v1
+        VITE_DEMO_MODE: 'true'
+    ports:
+      - '3002:80'
+
+volumes:
+  demo_db_data:
