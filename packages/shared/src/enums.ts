@@ -224,7 +224,18 @@ export type Marketplace =
   | 'COUPANG'
   | 'STREET11'
   | 'BULDUMBULDUM'
-  | 'ALISVERIS_COM';
+  | 'ALISVERIS_COM'
+  | 'CDON'
+  | 'ELLOS'
+  | 'DUSTIN'
+  | 'KOMPLETT'
+  | 'POWER_DK'
+  | 'CENEO'
+  | 'HEUREKA'
+  | 'OLX'
+  | 'MUMZWORLD'
+  | 'BOUTIQAAT'
+  | 'AWOK';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

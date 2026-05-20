@@ -263,6 +263,18 @@ enum Marketplace {
   MUMZWORLD
   BOUTIQAAT
   AWOK
+  POSHMARK
+  DEPOP
+  THREDUP
+  REVERB
+  BONANZA
+  NEWEGG
+  JET
+  HARVEY_NORMAN
+  BIGW
+  KMART_AU
+  GMARKET
+  JDCOM
 }
 
 enum PricingStrategy {

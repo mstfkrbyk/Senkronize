@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -82,6 +83,42 @@ export class ReorderProductImagesDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   imageUrls!: string[];
+}
+
+export class BulkVariantStockDeltaDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  variantIds!: string[];
+
+  @ApiProperty({
+    description: 'Stok değişimi (negatif = çıkar, pozitif = ekle)',
+    example: 5,
+  })
+  @Type(() => Number)
+  @IsInt()
+  delta!: number;
+}
+
+export class BulkVariantActiveDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  variantIds!: string[];
+
+  @ApiProperty()
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+export class BulkVariantBarcodeDto {
+  @ApiProperty({ type: [String] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  variantIds!: string[];
 }
 
 export class BulkVariantPriceUpdateDto {

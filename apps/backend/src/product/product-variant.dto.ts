@@ -143,3 +143,46 @@ export class BulkUpsertVariantsDto {
   @Type(() => BulkVariantItemDto)
   variants!: BulkVariantItemDto[];
 }
+
+export class CreateBulkVariantItemDto {
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsObject()
+  customAttributes?: Record<string, string>;
+
+  @IsOptional()
+  @IsString()
+  sku?: string;
+
+  @IsOptional()
+  @IsString()
+  barcode?: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  stock!: number;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null && v !== undefined)
+  @IsNumber()
+  price?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreateBulkVariantsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateBulkVariantItemDto)
+  variants!: CreateBulkVariantItemDto[];
+}

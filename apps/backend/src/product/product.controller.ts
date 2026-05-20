@@ -25,7 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Product } from '@prisma/client';
+import type { Product, ProductVariant } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -38,7 +38,10 @@ import {
   BulkPriceUpdateDto,
   BulkProductIdsDto,
   BulkStockUpdateDto,
+  BulkVariantActiveDto,
+  BulkVariantBarcodeDto,
   BulkVariantPriceUpdateDto,
+  BulkVariantStockDeltaDto,
   ReorderProductImagesDto,
 } from './product-bulk.dto';
 import { ProductBulkService } from './product-bulk.service';
@@ -48,6 +51,7 @@ import type { ImportResult } from './product-import.types';
 import { ProductImportService } from './product-import.service';
 import {
   BulkUpsertVariantsDto,
+  CreateBulkVariantsDto,
   CreateVariantDto,
   UpdateVariantDto,
 } from './product-variant.dto';
@@ -376,9 +380,25 @@ export class ProductController {
 
   @Post(':id/variants/bulk')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toplu varyant oluştur (sihirbaz)' })
+  @ApiResponse({ status: 201, description: 'Oluşturulan varyantlar' })
+  async createBulkVariants(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateBulkVariantsDto,
+  ): Promise<ProductVariant[]> {
+    return this.productVariantService.createBulkVariants(
+      org.id,
+      id,
+      dto.variants,
+    );
+  }
+
+  @Post(':id/variants/bulk-upsert')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Varyant toplu upsert (CSV senkronu)' })
   @ApiResponse({ status: 200, description: 'Özet' })
-  async bulkVariants(
+  async bulkUpsertVariants(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: BulkUpsertVariantsDto,
@@ -459,6 +479,53 @@ export class ProductController {
       org.id,
       id,
       dto,
+    );
+  }
+
+  @Patch(':id/variants/bulk-stock')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili varyantlara stok ekle/çıkar' })
+  async bulkVariantStock(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: BulkVariantStockDeltaDto,
+  ): Promise<{ updated: number }> {
+    return this.productVariantService.bulkAdjustVariantStock(
+      org.id,
+      id,
+      dto.variantIds,
+      dto.delta,
+    );
+  }
+
+  @Patch(':id/variants/bulk-active')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili varyantları aktif/pasif yap' })
+  async bulkVariantActive(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: BulkVariantActiveDto,
+  ): Promise<{ updated: number }> {
+    return this.productVariantService.bulkSetVariantActive(
+      org.id,
+      id,
+      dto.variantIds,
+      dto.isActive,
+    );
+  }
+
+  @Post(':id/variants/bulk-barcode')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Seçili varyantlara otomatik barkod ata' })
+  async bulkVariantBarcode(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: BulkVariantBarcodeDto,
+  ): Promise<{ updated: number; barcodes: Record<string, string> }> {
+    return this.barcodeService.generateVariantBarcodes(
+      org.id,
+      id,
+      dto.variantIds,
     );
   }
 

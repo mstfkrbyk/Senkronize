@@ -9,7 +9,12 @@ import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { BulkVariantPriceUpdateDto } from './product-bulk.dto';
-import type { BulkVariantItemDto, CreateVariantDto, UpdateVariantDto } from './product-variant.dto';
+import type {
+  BulkVariantItemDto,
+  CreateBulkVariantItemDto,
+  CreateVariantDto,
+  UpdateVariantDto,
+} from './product-variant.dto';
 
 function toDecimal(value: number | null | undefined): Prisma.Decimal | null {
   if (value === undefined || value === null || Number.isNaN(value)) {
@@ -248,6 +253,139 @@ export class ProductVariantService {
     }
     await this.cache.invalidateProductsForOrg(organizationId);
     return { updated };
+  }
+
+  async createBulkVariants(
+    organizationId: string,
+    productId: string,
+    items: CreateBulkVariantItemDto[],
+  ): Promise<ProductVariant[]> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId, deletedAt: null },
+      select: { id: true, sku: true, barcode: true, name: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Ürün bulunamadı');
+    }
+
+    const baseSku = (product.sku ?? product.barcode).trim();
+    const existingCount = await this.prisma.productVariant.count({
+      where: { organizationId, productId, deletedAt: null },
+    });
+
+    const created: ProductVariant[] = [];
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        for (let i = 0; i < items.length; i += 1) {
+          const item = items[i];
+          if (!item) {
+            continue;
+          }
+          const attributes: Record<string, string> = {
+            ...(item.customAttributes ?? {}),
+          };
+          if (item.color?.trim()) {
+            attributes.Renk = item.color.trim();
+          }
+          if (item.size?.trim()) {
+            attributes.Beden = item.size.trim();
+          }
+          const attrParts = Object.values(attributes).filter(Boolean);
+          const title =
+            attrParts.length > 0 ? attrParts.join(' / ') : product.name;
+          const slug = attrParts
+            .map((v) =>
+              v
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/gi, '-')
+                .replace(/^-|-$/g, ''),
+            )
+            .filter(Boolean)
+            .join('-');
+          const sku =
+            item.sku?.trim() ||
+            `${baseSku}-${slug || String(existingCount + i + 1)}`;
+
+          const variant = await tx.productVariant.create({
+            data: {
+              organizationId,
+              productId,
+              sku,
+              barcode: item.barcode?.trim() || null,
+              title,
+              attributes: toJsonAttributes(attributes),
+              price: toDecimal(item.price ?? null),
+              stock: item.stock ?? 0,
+              isActive: item.isActive ?? true,
+            },
+          });
+          created.push(variant);
+        }
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Bir veya daha fazla SKU bu organizasyonda zaten kullanılıyor.',
+        );
+      }
+      throw error;
+    }
+
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return created;
+  }
+
+  async bulkAdjustVariantStock(
+    organizationId: string,
+    productId: string,
+    variantIds: string[],
+    delta: number,
+  ): Promise<{ updated: number }> {
+    await this.assertProductInOrg(organizationId, productId);
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        organizationId,
+        productId,
+        deletedAt: null,
+        id: { in: variantIds },
+      },
+      select: { id: true, stock: true },
+    });
+
+    let updated = 0;
+    for (const row of variants) {
+      const next = Math.max(0, row.stock + delta);
+      await this.prisma.productVariant.update({
+        where: { id: row.id },
+        data: { stock: next },
+      });
+      updated += 1;
+    }
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { updated };
+  }
+
+  async bulkSetVariantActive(
+    organizationId: string,
+    productId: string,
+    variantIds: string[],
+    isActive: boolean,
+  ): Promise<{ updated: number }> {
+    await this.assertProductInOrg(organizationId, productId);
+    const result = await this.prisma.productVariant.updateMany({
+      where: {
+        organizationId,
+        productId,
+        deletedAt: null,
+        id: { in: variantIds },
+      },
+      data: { isActive },
+    });
+    await this.cache.invalidateProductsForOrg(organizationId);
+    return { updated: result.count };
   }
 
   private async assertProductInOrg(

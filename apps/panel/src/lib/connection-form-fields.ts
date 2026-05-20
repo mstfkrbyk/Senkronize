@@ -524,6 +524,24 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   STREET11: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   BULDUMBULDUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   ALISVERIS_COM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  CDON: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  ELLOS: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  DUSTIN: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  KOMPLETT: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  POWER_DK: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  CENEO: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  HEUREKA: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  OLX: [
+    {
+      key: 'accessToken',
+      label: 'Access Token (OAuth2 Bearer)',
+      type: 'password',
+      required: true,
+    },
+  ],
+  MUMZWORLD: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  BOUTIQAAT: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  AWOK: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
@@ -2094,6 +2112,17 @@ export const MARKETPLACE_PLATFORM_IDS: string[] = [
   'STREET11',
   'BULDUMBULDUM',
   'ALISVERIS_COM',
+  'CDON',
+  'ELLOS',
+  'DUSTIN',
+  'KOMPLETT',
+  'POWER_DK',
+  'CENEO',
+  'HEUREKA',
+  'OLX',
+  'MUMZWORLD',
+  'BOUTIQAAT',
+  'AWOK',
 ];
 
 export const ECOMMERCE_MARKETPLACE_IDS: string[] = [

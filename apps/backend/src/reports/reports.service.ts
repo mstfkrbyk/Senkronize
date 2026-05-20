@@ -205,6 +205,17 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.STREET11]: '11Street KR',
   [Marketplace.BULDUMBULDUM]: 'Buldumbuldum',
   [Marketplace.ALISVERIS_COM]: 'Alışveriş.com',
+  [Marketplace.CDON]: 'CDON',
+  [Marketplace.ELLOS]: 'Ellos',
+  [Marketplace.DUSTIN]: 'Dustin',
+  [Marketplace.KOMPLETT]: 'Komplett',
+  [Marketplace.POWER_DK]: 'Power.dk',
+  [Marketplace.CENEO]: 'Ceneo',
+  [Marketplace.HEUREKA]: 'Heureka',
+  [Marketplace.OLX]: 'OLX',
+  [Marketplace.MUMZWORLD]: 'Mumzworld',
+  [Marketplace.BOUTIQAAT]: 'Boutiqaat',
+  [Marketplace.AWOK]: 'Awok',
 };
 
 @Injectable()

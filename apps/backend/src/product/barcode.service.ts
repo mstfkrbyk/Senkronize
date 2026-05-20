@@ -153,4 +153,77 @@ export class BarcodeService {
 
     return { data: null };
   }
+
+  async generateVariantBarcodes(
+    organizationId: string,
+    productId: string,
+    variantIds: string[],
+  ): Promise<{ updated: number; barcodes: Record<string, string> }> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!product) {
+      throw new NotFoundException('Ürün bulunamadı.');
+    }
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: {
+        organizationId,
+        productId,
+        deletedAt: null,
+        id: { in: variantIds },
+      },
+      select: { id: true, barcode: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const variantCount = await this.prisma.productVariant.count({
+      where: { organizationId, deletedAt: null },
+    });
+    const productCount = await this.prisma.product.count({
+      where: { organizationId, deletedAt: null },
+    });
+    let sequence = productCount + variantCount;
+
+    const barcodes: Record<string, string> = {};
+    let updated = 0;
+
+    for (const variant of variants) {
+      if (variant.barcode?.trim()) {
+        barcodes[variant.id] = variant.barcode;
+        continue;
+      }
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        sequence += 1;
+        const candidate = this.buildEan13(organizationId, sequence);
+        const productClash = await this.prisma.product.findFirst({
+          where: { organizationId, barcode: candidate, deletedAt: null },
+          select: { id: true },
+        });
+        const variantClash = await this.prisma.productVariant.findFirst({
+          where: {
+            organizationId,
+            barcode: candidate,
+            deletedAt: null,
+            id: { not: variant.id },
+          },
+          select: { id: true },
+        });
+        if (productClash || variantClash) {
+          continue;
+        }
+        await this.prisma.productVariant.update({
+          where: { id: variant.id },
+          data: { barcode: candidate },
+        });
+        barcodes[variant.id] = candidate;
+        updated += 1;
+        break;
+      }
+    }
+
+    return { updated, barcodes };
+  }
 }

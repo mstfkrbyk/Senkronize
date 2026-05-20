@@ -183,6 +183,17 @@ export const MARKETPLACE_DISPLAY: Record<string, PlatformDisplayMeta> = {
   STREET11: { label: '11Street KR', logo: '1️⃣1️⃣', color: 'red' },
   BULDUMBULDUM: { label: 'Buldumbuldum', logo: '🏷️', color: 'amber' },
   ALISVERIS_COM: { label: 'Alışveriş.com', logo: '🔍', color: 'sky' },
+  CDON: { label: 'CDON', logo: '🇸🇪', color: 'blue' },
+  ELLOS: { label: 'Ellos', logo: '👗', color: 'rose' },
+  DUSTIN: { label: 'Dustin', logo: '💻', color: 'slate' },
+  KOMPLETT: { label: 'Komplett', logo: '🇳🇴', color: 'orange' },
+  POWER_DK: { label: 'Power.dk', logo: '🇩🇰', color: 'red' },
+  CENEO: { label: 'Ceneo', logo: '🇵🇱', color: 'orange' },
+  HEUREKA: { label: 'Heureka', logo: '🇨🇿', color: 'blue' },
+  OLX: { label: 'OLX', logo: '♻️', color: 'emerald' },
+  MUMZWORLD: { label: 'Mumzworld', logo: '👶', color: 'pink' },
+  BOUTIQAAT: { label: 'Boutiqaat', logo: '💄', color: 'violet' },
+  AWOK: { label: 'Awok', logo: '🇦🇪', color: 'amber' },
 };
 
 export const ERP_DISPLAY: Record<string, PlatformDisplayMeta> = {
