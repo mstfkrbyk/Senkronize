@@ -143,6 +143,11 @@ const ProductMatchingPage = lazy(() =>
 const ProductsPage = lazy(() =>
   import('@/pages/products/ProductsPage').then((m) => ({ default: m.ProductsPage })),
 );
+const AnalyticsPage = lazy(() =>
+  import('@/pages/analytics/AnalyticsPage').then((m) => ({
+    default: m.AnalyticsPage,
+  })),
+);
 const ReportsPage = lazy(() =>
   import('@/pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 );
@@ -290,6 +295,7 @@ export default function App(): ReactElement {
                 <Route path="/support/:id" element={<SupportTicketPage />} />
                 <Route path="/support" element={<SupportPage />} />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
+                <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/migration" element={<MigrationPage />} />
                 <Route path="/partner" element={<PartnerPage />} />

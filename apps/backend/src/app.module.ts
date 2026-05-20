@@ -6,6 +6,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 import { AuditModule } from './audit/audit.module';
 import { AdminModule } from './admin/admin.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
@@ -118,6 +119,7 @@ import { WebhookModule } from './webhook/webhook.module';
     ImpersonationModule,
     WebhookModule,
     ReportsModule,
+    AnalyticsModule,
     DashboardModule,
     ReturnModule,
     SearchModule,

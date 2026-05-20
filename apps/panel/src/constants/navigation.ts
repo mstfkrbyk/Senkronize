@@ -12,6 +12,7 @@ import {
   LifeBuoy,
   LayoutDashboard,
   LineChart,
+  PieChart,
   Link2,
   Megaphone,
   Package,
@@ -62,6 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.notifications', icon: Bell, path: '/notifications' },
   { labelKey: 'nav.support', icon: LifeBuoy, path: '/support' },
   { labelKey: 'nav.auditLogs', icon: History, path: '/audit-logs' },
+  { labelKey: 'nav.analytics', icon: PieChart, path: '/analytics' },
   { labelKey: 'nav.reports', icon: BarChart2, path: '/reports' },
   { labelKey: 'nav.migration', icon: ArrowRightLeft, path: '/migration' },
   {
