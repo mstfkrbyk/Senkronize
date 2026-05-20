@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -19,7 +20,7 @@ export class CreateSupplierDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  contactName?: string;
+  contactPerson?: string;
 
   @IsOptional()
   @IsEmail()
@@ -38,8 +39,30 @@ export class CreateSupplierDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  country?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(20)
-  taxNumber?: string;
+  taxId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  paymentTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  currency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  leadTimeDays?: number;
 
   @IsOptional()
   @IsString()
@@ -61,7 +84,7 @@ export class UpdateSupplierDto {
   @IsOptional()
   @IsString()
   @MaxLength(120)
-  contactName?: string;
+  contactPerson?: string;
 
   @IsOptional()
   @IsEmail()
@@ -80,8 +103,30 @@ export class UpdateSupplierDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  country?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(20)
-  taxNumber?: string;
+  taxId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  paymentTerms?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  currency?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  leadTimeDays?: number;
 
   @IsOptional()
   @IsString()
@@ -110,4 +155,31 @@ export class SupplierQueryDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  country?: string;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class CreateSupplierContactDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  subject?: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2000)
+  notes!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  contactMethod?: string;
 }

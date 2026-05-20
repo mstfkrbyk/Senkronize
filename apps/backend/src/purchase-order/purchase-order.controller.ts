@@ -6,18 +6,22 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
+  ApiProduces,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PrismaService } from '../prisma/prisma.service';
 
+import { PurchaseOrderPdfService } from './purchase-order-pdf.service';
 import {
   CreatePurchaseOrderDto,
   PurchaseOrderQueryDto,
@@ -26,6 +30,7 @@ import {
   UpdatePurchaseOrderDto,
 } from './purchase-order.dto';
 import type {
+  PurchaseOrderAnalytics,
   PurchaseOrderDetail,
   ReplenishmentSuggestion,
 } from './purchase-order.service';
@@ -35,7 +40,11 @@ import { PurchaseOrderService } from './purchase-order.service';
 @ApiBearerAuth()
 @Controller('purchase-orders')
 export class PurchaseOrderController {
-  constructor(private readonly purchaseOrderService: PurchaseOrderService) {}
+  constructor(
+    private readonly purchaseOrderService: PurchaseOrderService,
+    private readonly purchaseOrderPdfService: PurchaseOrderPdfService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -59,6 +68,16 @@ export class PurchaseOrderController {
     return this.purchaseOrderService.findAll(org.id, query);
   }
 
+  @Get('analytics')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Satın alma analitiği' })
+  async analytics(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: PurchaseOrderAnalytics }> {
+    const data = await this.purchaseOrderService.getAnalytics(org.id);
+    return { data };
+  }
+
   @Get('open')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Açık / bekleyen siparişler' })
@@ -80,6 +99,30 @@ export class PurchaseOrderController {
     return { data };
   }
 
+  @Get(':id/pdf')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Satın alma siparişi PDF indir' })
+  @ApiProduces('application/pdf')
+  @ApiResponse({ status: 200, description: 'PDF dosyası' })
+  async downloadPdf(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<StreamableFile> {
+    const po = await this.purchaseOrderService.findOne(org.id, id);
+    const organization = await this.prisma.organization.findUnique({
+      where: { id: org.id },
+      select: { name: true },
+    });
+    const buffer = await this.purchaseOrderPdfService.generatePurchaseOrderPdf(
+      organization?.name ?? 'Senkronize',
+      po,
+    );
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="satinalma-${po.orderNumber}.pdf"`,
+    });
+  }
+
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Sipariş detayı' })
@@ -93,7 +136,7 @@ export class PurchaseOrderController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Sipariş güncelle (not / beklenen tarih)' })
+  @ApiOperation({ summary: 'Sipariş güncelle (yalnızca taslak)' })
   async patch(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
@@ -111,6 +154,17 @@ export class PurchaseOrderController {
     @Param('id') id: string,
   ): Promise<{ data: PurchaseOrderDetail }> {
     const data = await this.purchaseOrderService.sendPO(org.id, id);
+    return { data };
+  }
+
+  @Post(':id/confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Tedarikçi onayını kaydet (SENT → CONFIRMED)' })
+  async confirm(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: PurchaseOrderDetail }> {
+    const data = await this.purchaseOrderService.confirmPO(org.id, id);
     return { data };
   }
 

@@ -15,17 +15,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Supplier } from '@prisma/client';
+import type { Supplier, SupplierContact } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import {
+  CreateSupplierContactDto,
   CreateSupplierDto,
   SupplierQueryDto,
   UpdateSupplierDto,
 } from './supplier.dto';
-import type { SupplierListRow, SupplierStats } from './supplier.service';
+import type { SupplierListRow, SupplierPerformance } from './supplier.service';
 import { SupplierService } from './supplier.service';
 
 @ApiTags('suppliers')
@@ -56,14 +57,27 @@ export class SupplierController {
     return this.supplierService.findAll(org.id, query);
   }
 
-  @Get(':id/stats')
+  @Get(':id/performance')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Tedarikçi sipariş istatistikleri' })
-  async stats(
+  @ApiOperation({ summary: 'Tedarikçi performansı (teslimat süresi, sipariş geçmişi)' })
+  async performance(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
-  ): Promise<{ data: SupplierStats }> {
-    const data = await this.supplierService.getSupplierStats(org.id, id);
+  ): Promise<{ data: SupplierPerformance }> {
+    const data = await this.supplierService.getPerformance(org.id, id);
+    return { data };
+  }
+
+  @Post(':id/contact')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Tedarikçi iletişim kaydı ekle' })
+  @ApiResponse({ status: 201, description: 'Kayıt eklendi' })
+  async addContact(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: CreateSupplierContactDto,
+  ): Promise<{ data: SupplierContact }> {
+    const data = await this.supplierService.addContact(org.id, id, dto);
     return { data };
   }
 

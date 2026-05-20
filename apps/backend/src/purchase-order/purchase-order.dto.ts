@@ -16,6 +16,10 @@ import {
 import { POStatus } from '@prisma/client';
 
 export class CreatePurchaseOrderItemDto {
+  @IsOptional()
+  @IsString()
+  productId?: string;
+
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
@@ -74,15 +78,19 @@ export class UpdatePurchaseOrderDto {
 }
 
 export class ReceivePurchaseOrderItemDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
+  productId?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(64)
-  barcode!: string;
+  barcode?: string;
 
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  quantity!: number;
+  receivedQty!: number;
 }
 
 export class ReceivePurchaseOrderDto {
@@ -90,6 +98,11 @@ export class ReceivePurchaseOrderDto {
   @ValidateNested({ each: true })
   @Type(() => ReceivePurchaseOrderItemDto)
   items!: ReceivePurchaseOrderItemDto[];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  notes?: string;
 }
 
 export class PurchaseOrderQueryDto {
@@ -112,6 +125,14 @@ export class PurchaseOrderQueryDto {
   @IsOptional()
   @IsString()
   supplierId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  fromDate?: string;
+
+  @IsOptional()
+  @IsDateString()
+  toDate?: string;
 }
 
 export class PurchaseSuggestionsQueryDto {
