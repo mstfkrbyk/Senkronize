@@ -12,6 +12,7 @@ import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
 import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
 import { AllegroModule } from './allegro/allegro.module';
 import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
+import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
 import { BanabiModule } from './banabi/banabi.module';
 import { BestbuyModule } from './bestbuy/bestbuy.module';
 import { BimOnlineModule } from './bim-online/bim-online.module';
@@ -36,6 +37,7 @@ import { EtaAdapter } from './eta/eta.adapter';
 import { EtsyModule } from './etsy/etsy.module';
 import { EvideaModule } from './evidea/evidea.module';
 import { ExportifyModule } from './exportify/exportify.module';
+import { FinansMuhasebeModule } from './finans-muhasebe/finans-muhasebe.module';
 import { FlipkartModule } from './flipkart/flipkart.module';
 import { FnacModule } from './fnac/fnac.module';
 import { FaprikaModule } from './faprika/faprika.module';
@@ -54,6 +56,7 @@ import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoModule } from './idealo/idealo.module';
 import { InstacartModule } from './instacart/instacart.module';
 import { IkasModule } from './ikas/ikas.module';
+import { IyzicoModule } from './iyzico/iyzico.module';
 import { IsnetAdapter } from './isnet/isnet.adapter';
 import { JumiaModule } from './jumia/jumia.module';
 import { KauflandModule } from './kaufland/kaufland.module';
@@ -67,16 +70,19 @@ import { LcwaikikiModule } from './lcwaikiki/lcwaikiki.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
+import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
 import { LogoAdapter } from './logo/logo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
 import { MagentoModule } from './magento/magento.module';
+import { MedusaModule } from './medusa/medusa.module';
 import { ManomanoModule } from './manomano/manomano.module';
 import { MaviModule } from './mavi/mavi.module';
 import { MediamarktModule } from './mediamarkt/mediamarkt.module';
 import { MeeshoModule } from './meesho/meesho.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MikroAdapter } from './mikro/mikro.adapter';
+import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
 import { MigrosSanalModule } from './migros-sanal/migros-sanal.module';
 import { MigroshemenModule } from './migroshemen/migroshemen.module';
@@ -99,6 +105,7 @@ import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { PorlandModule } from './porland/porland.module';
 import { PrestashopModule } from './prestashop/prestashop.module';
+import { SaleorModule } from './saleor/saleor.module';
 import { ProtelModule } from './protel/protel.module';
 import { PttavmAdapter } from './pttavm/pttavm.adapter';
 import { Qoo10Module } from './qoo10/qoo10.module';
@@ -112,12 +119,14 @@ import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SefamerveModule } from './sefamerve/sefamerve.module';
 import { ShopeeModule } from './shopee/shopee.module';
 import { ShopifyAdapter } from './shopify/shopify.adapter';
+import { ShopirollModule } from './shopiroll/shopiroll.module';
 import { ShopiverseModule } from './shopiverse/shopiverse.module';
 import { ShopigoModule } from './shopigo/shopigo.module';
 import { SimpraModule } from './simpra/simpra.module';
 import { SokMarketModule } from './sok-market/sok-market.module';
 import { SnapdealModule } from './snapdeal/snapdeal.module';
 import { SportiveModule } from './sportive/sportive.module';
+import { StripeModule } from './stripe/stripe.module';
 import { SpartooModule } from './spartoo/spartoo.module';
 import { TeknosaModule } from './teknosa/teknosa.module';
 import { TemuModule } from './temu/temu.module';
@@ -134,6 +143,7 @@ import { TsoftAdapter } from './tsoft/tsoft.adapter';
 import { TokopediaModule } from './tokopedia/tokopedia.module';
 import { UniposModule } from './unipos/unipos.module';
 import { VatanModule } from './vatan/vatan.module';
+import { VendureModule } from './vendure/vendure.module';
 import { VeepeeModule } from './veepee/veepee.module';
 import { VestelModule } from './vestel/vestel.module';
 import { VivenseModule } from './vivense/vivense.module';
@@ -160,6 +170,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ArcelikModule,
     BanabiModule,
     BestbuyModule,
+    BizimMuhasebeModule,
     BimakilliModule,
     BimOnlineModule,
     BolcomModule,
@@ -180,6 +191,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EtsyModule,
     EvideaModule,
     ExportifyModule,
+    FinansMuhasebeModule,
     FlipkartModule,
     FnacModule,
     FaprikaModule,
@@ -195,6 +207,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HepsiexpressModule,
     IdealoModule,
     IkasModule,
+    IyzicoModule,
     InstacartModule,
     JumiaModule,
     KauflandModule,
@@ -207,13 +220,16 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LcwaikikiModule,
     LidyanaModule,
     LogoCommerceModule,
+    LogoCloudModule,
     MadeinchinaModule,
     MagentoModule,
+    MedusaModule,
     ManomanoModule,
     MaviModule,
     MediamarktModule,
     MeeshoModule,
     MercadolibreModule,
+    MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
     MigrosSanalModule,
@@ -231,6 +247,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaPremiumModule,
     PorlandModule,
     PrestashopModule,
+    SaleorModule,
     ProtelModule,
     Qoo10Module,
     RakutenModule,
@@ -242,11 +259,13 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopirollModule,
     ShopiverseModule,
     SimpraModule,
     SnapdealModule,
     SokMarketModule,
     SportiveModule,
+    StripeModule,
     SpartooModule,
     TeknosaModule,
     TemuModule,
@@ -260,6 +279,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolYemekModule,
     UniposModule,
     VatanModule,
+    VendureModule,
     VeepeeModule,
     VestelModule,
     VivenseModule,
@@ -334,6 +354,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ArcelikModule,
     BanabiModule,
     BestbuyModule,
+    BizimMuhasebeModule,
     BimakilliModule,
     BimOnlineModule,
     BolcomModule,
@@ -354,6 +375,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     EtsyModule,
     EvideaModule,
     ExportifyModule,
+    FinansMuhasebeModule,
     FlipkartModule,
     FnacModule,
     FaprikaModule,
@@ -369,6 +391,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     HepsiexpressModule,
     IdealoModule,
     IkasModule,
+    IyzicoModule,
     InstacartModule,
     JumiaModule,
     KauflandModule,
@@ -381,13 +404,16 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     LcwaikikiModule,
     LidyanaModule,
     LogoCommerceModule,
+    LogoCloudModule,
     MadeinchinaModule,
     MagentoModule,
+    MedusaModule,
     ManomanoModule,
     MaviModule,
     MediamarktModule,
     MeeshoModule,
     MercadolibreModule,
+    MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
     MigrosSanalModule,
@@ -405,6 +431,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaPremiumModule,
     PorlandModule,
     PrestashopModule,
+    SaleorModule,
     ProtelModule,
     Qoo10Module,
     RakutenModule,
@@ -416,11 +443,13 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SefamerveModule,
     ShopeeModule,
     ShopigoModule,
+    ShopirollModule,
     ShopiverseModule,
     SimpraModule,
     SnapdealModule,
     SokMarketModule,
     SportiveModule,
+    StripeModule,
     SpartooModule,
     TeknosaModule,
     TemuModule,
@@ -434,6 +463,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TrendyolYemekModule,
     UniposModule,
     VatanModule,
+    VendureModule,
     VeepeeModule,
     VestelModule,
     VivenseModule,

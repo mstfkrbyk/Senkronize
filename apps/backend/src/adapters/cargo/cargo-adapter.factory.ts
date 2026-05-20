@@ -7,6 +7,8 @@ import { DhlCargoAdapter } from './dhl.cargo-adapter';
 import { FedexCargoAdapter } from './fedex.cargo-adapter';
 import { MngCargoAdapter } from './mng.cargo-adapter';
 import { PttKargoCargoAdapter } from './ptt-kargo.cargo-adapter';
+import { HorozCargoAdapter } from './horoz.cargo-adapter';
+import { NetlogCargoAdapter } from './netlog.cargo-adapter';
 import { SendeoCargoAdapter } from './sendeo.cargo-adapter';
 import { SuratCargoAdapter } from './surat.cargo-adapter';
 import { UpsCargoAdapter } from './ups.cargo-adapter';
@@ -33,6 +35,10 @@ export function createCargoAdapter(
       return new FedexCargoAdapter(credentials);
     case CargoProvider.SENDEO:
       return new SendeoCargoAdapter(credentials);
+    case CargoProvider.NETLOG:
+      return new NetlogCargoAdapter(credentials);
+    case CargoProvider.HOROZ:
+      return new HorozCargoAdapter(credentials);
     case CargoProvider.PTT:
     case CargoProvider.PTT_KARGO:
       return new PttKargoCargoAdapter(credentials);

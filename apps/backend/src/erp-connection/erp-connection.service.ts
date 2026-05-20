@@ -105,6 +105,18 @@ export class ErpConnectionService {
     if (erpType === ErpType.LOGO_COMMERCE) {
       return creds.baseUrl ?? creds.firmNo ?? null;
     }
+    if (erpType === ErpType.BIZIM_MUHASEBE) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (erpType === ErpType.LOGO_CLOUD) {
+      return creds.clientId ?? creds.baseUrl ?? null;
+    }
+    if (erpType === ErpType.FINANS_MUHASEBE) {
+      return creds.companyId ?? null;
+    }
+    if (erpType === ErpType.MIKRO_BULUT) {
+      return creds.company ?? creds.companyId ?? creds.username ?? null;
+    }
     return null;
   }
 

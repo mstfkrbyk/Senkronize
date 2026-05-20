@@ -164,7 +164,11 @@ export type ErpType =
   | 'MYSOFT'
   | 'PROTEL'
   | 'SIMPRA'
-  | 'LOGO_COMMERCE';
+  | 'LOGO_COMMERCE'
+  | 'BIZIM_MUHASEBE'
+  | 'LOGO_CLOUD'
+  | 'FINANS_MUHASEBE'
+  | 'MIKRO_BULUT';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =
@@ -177,7 +181,13 @@ export type EcommerceType =
   | 'UNIPOS'
   | 'AKINON'
   | 'IKAS'
-  | 'SHOPIVERSE';
+  | 'SHOPIVERSE'
+  | 'SHOPIROLL'
+  | 'MEDUSA'
+  | 'VENDURE'
+  | 'SALEOR'
+  | 'IYZICO'
+  | 'STRIPE';
 
 /** Prisma `CargoProvider` ile uyumlu */
 export type CargoProvider =
@@ -192,7 +202,9 @@ export type CargoProvider =
   | 'FEDEX'
   | 'SENDEO'
   | 'HEPSIJET'
-  | 'TRENDYOL_EXPRESS';
+  | 'TRENDYOL_EXPRESS'
+  | 'NETLOG'
+  | 'HOROZ';
 
 /** Prisma `PartnerStatus` ile uyumlu */
 export type PartnerStatus = 'ACTIVE' | 'PAUSED' | 'TERMINATED';

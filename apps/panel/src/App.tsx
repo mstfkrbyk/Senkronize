@@ -117,6 +117,11 @@ const ReturnsPage = lazy(() =>
 const PartnerPage = lazy(() =>
   import('@/pages/partner/PartnerPage').then((m) => ({ default: m.PartnerPage })),
 );
+const CampaignsPage = lazy(() =>
+  import('@/pages/campaigns/CampaignsPage').then((m) => ({
+    default: m.CampaignsPage,
+  })),
+);
 const PricingPage = lazy(() =>
   import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })),
 );
@@ -277,6 +282,7 @@ export default function App(): ReactElement {
                 <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
                 <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
                 <Route path="/pricing" element={<PricingPage />} />
+                <Route path="/campaigns" element={<CampaignsPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />
