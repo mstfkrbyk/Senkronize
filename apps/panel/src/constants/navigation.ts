@@ -13,11 +13,10 @@ import {
   LifeBuoy,
   LayoutDashboard,
   LineChart,
-  PieChart,
-  Link2,
   Megaphone,
   Package,
   PackageSearch,
+  PieChart,
   ScanLine,
   Plug,
   Settings,
@@ -28,6 +27,7 @@ import {
   UserCircle,
   Users2,
   Warehouse,
+  Link2,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -38,7 +38,8 @@ export interface NavItem {
   partnerOnly?: boolean;
 }
 
-export const NAV_ITEMS: NavItem[] = [
+/** E-ticaret entegrasyonu */
+export const ECOMMERCE_NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.dashboard', icon: LayoutDashboard, path: '/dashboard' },
   {
     labelKey: 'nav.orders',
@@ -48,7 +49,6 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { labelKey: 'nav.returns', icon: Undo2, path: '/returns' },
   { labelKey: 'nav.shipping', icon: Truck, path: '/shipping' },
-  { labelKey: 'nav.invoices', icon: FileText, path: '/invoices' },
   { labelKey: 'nav.customers', icon: UserCircle, path: '/customers' },
   { labelKey: 'nav.listings', icon: Package, path: '/listings' },
   { labelKey: 'nav.products', icon: PackageSearch, path: '/products' },
@@ -72,12 +72,27 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.syncLogs', icon: Activity, path: '/sync-logs' },
   { labelKey: 'nav.syncHistory', icon: History, path: '/sync/history' },
   { labelKey: 'nav.syncConflicts', icon: AlertTriangle, path: '/sync/conflicts' },
+  { labelKey: 'nav.migration', icon: ArrowRightLeft, path: '/migration' },
+];
+
+/** Ön muhasebe ve tedarik */
+export const ACCOUNTING_NAV_ITEMS: NavItem[] = [
+  { labelKey: 'nav.invoices', icon: FileText, path: '/invoices' },
+  { labelKey: 'nav.reports', icon: BarChart2, path: '/reports' },
+  { labelKey: 'nav.analytics', icon: PieChart, path: '/analytics' },
+  { labelKey: 'nav.suppliers', icon: Building2, path: '/suppliers' },
+  {
+    labelKey: 'nav.purchaseOrders',
+    icon: ClipboardList,
+    path: '/purchase-orders',
+  },
+];
+
+/** Ortak — ayarlar, bildirimler, destek */
+export const COMMON_NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.notifications', icon: Bell, path: '/notifications' },
   { labelKey: 'nav.support', icon: LifeBuoy, path: '/support' },
   { labelKey: 'nav.auditLogs', icon: History, path: '/audit-logs' },
-  { labelKey: 'nav.analytics', icon: PieChart, path: '/analytics' },
-  { labelKey: 'nav.reports', icon: BarChart2, path: '/reports' },
-  { labelKey: 'nav.migration', icon: ArrowRightLeft, path: '/migration' },
   {
     labelKey: 'nav.partner',
     icon: Users2,
@@ -87,17 +102,9 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.settings', icon: Settings, path: '/settings' },
 ];
 
-export const SUPPLY_NAV_ITEMS: NavItem[] = [
-  { labelKey: 'nav.suppliers', icon: Building2, path: '/suppliers' },
-  {
-    labelKey: 'nav.purchaseOrders',
-    icon: ClipboardList,
-    path: '/purchase-orders',
-  },
-];
-
 /** Üst çubuk başlığı için tüm rotalar */
 export const ALL_NAV_ITEMS_FOR_TITLE: NavItem[] = [
-  ...NAV_ITEMS,
-  ...SUPPLY_NAV_ITEMS,
+  ...ECOMMERCE_NAV_ITEMS,
+  ...ACCOUNTING_NAV_ITEMS,
+  ...COMMON_NAV_ITEMS,
 ];
