@@ -9,6 +9,7 @@ import {
   InjectThrottlerStorage,
   ThrottlerGuard,
   type ThrottlerModuleOptions,
+  type ThrottlerOptions,
   type ThrottlerStorage,
 } from '@nestjs/throttler';
 import { PlanTier, SubStatus } from '@prisma/client';
@@ -57,10 +58,7 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     super(options, storageService, reflector);
   }
 
-  protected async getTracker(
-    req: Record<string, unknown>,
-    _context: ExecutionContext,
-  ): Promise<string> {
+  protected async getTracker(req: Record<string, unknown>): Promise<string> {
     const user = req.user as AuthenticatedUser | undefined;
     if (user?.currentOrgId) {
       return `org:${user.currentOrgId}`;
@@ -74,7 +72,7 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     return `ip:${ip}`;
   }
 
-  protected getThrottlers(context: ExecutionContext) {
+  protected getThrottlers(context: ExecutionContext): ThrottlerOptions[] {
     const request = context.switchToHttp().getRequest<{
       originalUrl?: string;
       url?: string;
@@ -86,7 +84,7 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     const { ttl, limit } = matchRouteLimit(path);
     const orgId = request.user?.currentOrgId;
 
-    const throttlers = [
+    const throttlers: ThrottlerOptions[] = [
       {
         name: 'route',
         ttl: ttl * 1000,
@@ -111,13 +109,22 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     const result = await super.handleRequest(requestProps);
     const { context, throttler } = requestProps;
     const { res } = this.getRequestResponse(context);
-    const ttl = await this.resolveValue(context, requestProps.ttl);
-    const resetUnix = Math.ceil(Date.now() / 1000) + Math.ceil(ttl / 1000);
+    const ttlMs =
+      typeof requestProps.ttl === 'number' ? requestProps.ttl : DAY_MS;
+    const resetUnix = Math.ceil(Date.now() / 1000) + Math.ceil(ttlMs / 1000);
     const suffix = throttler.name === 'default' ? '' : `-${throttler.name}`;
     res.header(`X-RateLimit-Reset${suffix}`, resetUnix);
 
     if (throttler.name === 'daily') {
-      const limit = await this.resolveValue(context, requestProps.limit);
+      const limit =
+        typeof requestProps.limit === 'number'
+          ? requestProps.limit
+          : await this.resolveDailyApiLimit(
+              (
+                context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>()
+                  .user
+              )?.currentOrgId ?? '',
+            );
       const remaining = res.getHeader('X-RateLimit-Remaining-daily');
       res.header('X-RateLimit-Limit', limit);
       if (remaining !== undefined) {
