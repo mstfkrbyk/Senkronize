@@ -3,7 +3,10 @@ import { BullModule } from '@nestjs/bull';
 
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
-import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
+import {
+  QUEUE_LISTING_SYNC,
+  QUEUE_MARKETPLACE_PUSH,
+} from '../queue/queue.constants';
 import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 import { WarehouseModule } from '../warehouse/warehouse.module';
 
@@ -23,7 +26,10 @@ import { StockService } from './stock.service';
     WarehouseModule,
     InAppNotificationModule,
     OutboundWebhookModule,
-    BullModule.registerQueue({ name: QUEUE_MARKETPLACE_PUSH }),
+    BullModule.registerQueue(
+      { name: QUEUE_MARKETPLACE_PUSH },
+      { name: QUEUE_LISTING_SYNC },
+    ),
   ],
   controllers: [StockController],
   providers: [

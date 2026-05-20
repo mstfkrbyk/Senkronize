@@ -33,6 +33,7 @@ import {
   UpdatePriceDto,
   UpdateStockDto,
 } from './listing.dto';
+import { ListingSyncService } from '../sync/listing-sync.service';
 import {
   ListingService,
   type ListingDetailResponse,
@@ -45,7 +46,10 @@ import type { BulkResult } from './listing.types';
 @ApiBearerAuth()
 @Controller('listings')
 export class ListingController {
-  constructor(private readonly listingService: ListingService) {}
+  constructor(
+    private readonly listingService: ListingService,
+    private readonly listingSyncService: ListingSyncService,
+  ) {}
 
   @Get()
   @UseGuards(JwtOrApiKeyGuard)
@@ -94,6 +98,26 @@ export class ListingController {
     @Param('id') id: string,
   ): Promise<SerializedListing> {
     return this.listingService.findOne(org.id, id);
+  }
+
+  @Post('sync-all')
+  @Throttle({ default: { limit: 5 } })
+  @UseGuards(JwtOrApiKeyGuard)
+  @ApiOperation({ summary: 'Tüm ürünleri bağlı platformlara gönder' })
+  @ApiResponse({ status: 201, description: 'İşler kuyruğa eklendi' })
+  async syncAll(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ jobIds: string[]; message: string }> {
+    const { jobIds } = await this.listingSyncService.syncAllProductsToPlatforms(
+      org.id,
+    );
+    return {
+      jobIds,
+      message:
+        jobIds.length === 0
+          ? 'Kuyruğa eklenecek iş bulunamadı.'
+          : `${jobIds.length} senkronizasyon işi kuyruğa eklendi.`,
+    };
   }
 
   @Post('sync')
@@ -205,10 +229,10 @@ export class ListingController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
   ): Promise<{ jobIds: string[]; message: string }> {
-    const { jobIds } = await this.listingService.syncListing(org.id, id);
+    const { jobId } = await this.listingSyncService.syncListing(org.id, id);
     return {
-      jobIds,
-      message: 'Senkronizasyon işleri kuyruğa eklendi.',
+      jobIds: [jobId],
+      message: 'Listeleme platforma gönderim işi kuyruğa eklendi.',
     };
   }
 

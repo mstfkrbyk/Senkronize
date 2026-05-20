@@ -9,6 +9,7 @@ import {
   QUEUE_ERP_SYNC,
   QUEUE_IMAGE,
   QUEUE_IMAGE_SYNC,
+  QUEUE_LISTING_SYNC,
   QUEUE_MARKETPLACE_PULL,
   QUEUE_MARKETPLACE_PUSH,
   QUEUE_NOTIFICATION,
@@ -65,6 +66,8 @@ export class HealthService {
     private readonly marketplacePullQueue: Queue,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue,
+    @InjectQueue(QUEUE_LISTING_SYNC)
+    private readonly listingSyncQueue: Queue,
     @InjectQueue(QUEUE_ERP_SYNC) private readonly erpSyncQueue: Queue,
     @InjectQueue(QUEUE_NOTIFICATION)
     private readonly notificationQueue: Queue,
@@ -114,6 +117,7 @@ export class HealthService {
     const queues: { name: string; queue: Queue }[] = [
       { name: QUEUE_MARKETPLACE_PULL, queue: this.marketplacePullQueue },
       { name: QUEUE_MARKETPLACE_PUSH, queue: this.marketplacePushQueue },
+      { name: QUEUE_LISTING_SYNC, queue: this.listingSyncQueue },
       { name: QUEUE_ERP_SYNC, queue: this.erpSyncQueue },
       { name: QUEUE_NOTIFICATION, queue: this.notificationQueue },
       { name: QUEUE_PRICING, queue: this.pricingQueue },

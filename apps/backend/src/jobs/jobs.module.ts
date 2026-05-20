@@ -19,6 +19,7 @@ import { SyncStatusModule } from '../sync-status/sync-status.module';
 import { SyncModule } from '../sync/sync.module';
 
 import { BuyBoxFetchTask } from './buybox-fetch.task';
+import { ListingSyncProcessor } from './listing-sync.processor';
 import { CompetitorPriceTask } from '../pricing/competitor-price.task';
 import {
   MarketplaceJobFailureHandler,
@@ -59,6 +60,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     MarketplacePushDlqHooks,
     MarketplacePullProcessor,
     MarketplacePushProcessor,
+    ListingSyncProcessor,
     ErpSyncProcessor,
     ErpSyncTask,
     PricingProcessor,

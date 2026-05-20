@@ -1,13 +1,18 @@
 import { InjectQueue } from '@nestjs/bull';
 import { Injectable } from '@nestjs/common';
-import { type Marketplace, Prisma } from '@prisma/client';
+import { type Marketplace, Prisma, StockMovementType } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
+  LISTING_SYNC_STOCK_JOB_OPTIONS,
+  QUEUE_LISTING_SYNC,
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
+import type { ListingSyncStockJobData } from '../queue/queue.types';
+import { StockMovementService } from './stock-movement.service';
+import { WarehouseService } from '../warehouse/warehouse.service';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
@@ -69,9 +74,85 @@ export class StockService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outboundWebhookService: OutboundWebhookService,
+    private readonly warehouseService: WarehouseService,
+    private readonly stockMovementService: StockMovementService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
+    @InjectQueue(QUEUE_LISTING_SYNC)
+    private readonly listingSyncQueue: Queue<ListingSyncStockJobData>,
   ) {}
+
+  async updateStock(
+    organizationId: string,
+    barcode: string,
+    newStock: number,
+  ): Promise<void> {
+    const trimmed = barcode.trim();
+    const mainWh = await this.warehouseService.getOrCreateMainWarehouse(
+      organizationId,
+    );
+    const product = await this.prisma.product.findFirst({
+      where: {
+        organizationId,
+        barcode: trimmed,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.stockEntry.findFirst({
+        where: {
+          organizationId,
+          barcode: trimmed,
+          platform: null,
+          warehouseId: mainWh.id,
+        },
+      });
+      const before = existing?.quantity ?? 0;
+      if (existing) {
+        await tx.stockEntry.update({
+          where: { id: existing.id },
+          data: {
+            quantity: newStock,
+            ...(product ? { productId: product.id } : {}),
+          },
+        });
+      } else {
+        await tx.stockEntry.create({
+          data: {
+            organizationId,
+            warehouseId: mainWh.id,
+            barcode: trimmed,
+            platform: null,
+            quantity: newStock,
+            productId: product?.id ?? null,
+          },
+        });
+      }
+      const after = newStock;
+      if (before !== after) {
+        await this.stockMovementService.record({
+          organizationId,
+          barcode: trimmed,
+          warehouseId: mainWh.id,
+          platform: null,
+          movementType: StockMovementType.ADJUSTMENT,
+          quantity: after - before,
+          beforeQuantity: before,
+          afterQuantity: after,
+          note: 'Stok güncellemesi',
+          tx,
+        });
+      }
+    });
+
+    await this.listingSyncQueue.add(
+      'sync-stock',
+      { orgId: organizationId, barcode: trimmed, stock: newStock },
+      LISTING_SYNC_STOCK_JOB_OPTIONS,
+    );
+  }
 
   async findAll(
     organizationId: string,

@@ -63,6 +63,8 @@ import {
   UpdateProductDto,
   UpdateProductReorderDto,
 } from './product.dto';
+import { ListingSyncService } from '../sync/listing-sync.service';
+import type { SyncResult } from '../sync/listing-sync.types';
 import {
   type ProductDetailPayload,
   type ProductListItem,
@@ -92,6 +94,7 @@ export class ProductController {
     private readonly productBulkService: ProductBulkService,
     private readonly imageService: ImageService,
     private readonly barcodeService: BarcodeService,
+    private readonly listingSyncService: ListingSyncService,
   ) {}
 
   @Get('reorder-alerts')
@@ -319,6 +322,22 @@ export class ProductController {
     @Query() query: ProductQueryDto,
   ): Promise<{ items: ProductListItem[]; total: number }> {
     return this.productService.findAll(org.id, query);
+  }
+
+  @Post(':id/push')
+  @Throttle({ default: { limit: 10 } })
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürünü tüm bağlı platformlara gönder' })
+  @ApiResponse({ status: 201, description: 'Kuyruk sonuçları' })
+  async pushProduct(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: SyncResult[] }> {
+    const data = await this.listingSyncService.pushProductToAllPlatforms(
+      org.id,
+      id,
+    );
+    return { data };
   }
 
   @Get(':id/detail')

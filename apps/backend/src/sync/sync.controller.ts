@@ -20,6 +20,8 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import { ConflictService } from './conflict.service';
+import { ListingSyncService } from './listing-sync.service';
+import type { QueueDepthStatus } from './listing-sync.types';
 import { SyncLogService } from './sync-log.service';
 import {
   ConflictListQueryDto,
@@ -43,7 +45,17 @@ export class SyncController {
   constructor(
     private readonly conflictService: ConflictService,
     private readonly syncLogService: SyncLogService,
+    private readonly listingSyncService: ListingSyncService,
   ) {}
+
+  @Get('queues')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Senkronizasyon kuyruk derinlikleri' })
+  @ApiResponse({ status: 200 })
+  async getQueueStatus(): Promise<{ data: QueueDepthStatus[] }> {
+    const data = await this.listingSyncService.getQueueDepths();
+    return { data };
+  }
 
   @Get('logs')
   @UseGuards(JwtAuthGuard)

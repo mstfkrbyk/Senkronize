@@ -68,6 +68,26 @@ export interface ImageSyncJobData {
   imageUrl: string;
 }
 
+/** listing-sync — tek ürün platform push */
+export interface ListingSyncPushProductJobData {
+  orgId: string;
+  productId: string;
+  platform: string;
+}
+
+/** listing-sync — barkod bazlı stok push */
+export interface ListingSyncStockJobData {
+  orgId: string;
+  barcode: string;
+  stock: number;
+}
+
+/** listing-sync — seçili listing fiyat/stok push */
+export interface ListingSyncPriceJobData {
+  orgId: string;
+  listingIds: string[];
+}
+
 /** Giden webhook teslimatı — webhook-delivery kuyruğu */
 export interface WebhookDeliveryJobData {
   endpointId: string;
