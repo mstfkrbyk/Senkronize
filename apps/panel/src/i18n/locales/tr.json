@@ -151,10 +151,126 @@
     "bulk": {
       "selected": "{{count}} seçili",
       "addCargo": "Kargo bilgisi ekle",
-      "bulkInvoice": "Toplu fatura (ZIP)",
+      "bulkInvoice": "Fatura ZIP indir",
+      "createInvoices": "Fatura oluştur",
+      "createInvoiceSuccess": "{{count}} sipariş için fatura oluşturuldu",
+      "createInvoiceFailed": "Fatura oluşturulamadı",
+      "invoiceZipSuccess": "Toplu fatura ZIP indirildi",
       "updateStatus": "Durumu güncelle",
       "exportCsv": "CSV dışa aktar",
-      "exportToErp": "ERP'ye aktar"
+      "exportCsvSuccess": "CSV dosyası indirildi",
+      "exportToErp": "ERP'ye aktar",
+      "ship": "Kargoya ver",
+      "addNote": "Not ekle",
+      "noteTitle": "Toplu not ekle",
+      "noteDescription": "{{count}} siparişe aynı not yazılacak.",
+      "notePlaceholder": "Not metni…",
+      "noteSubmit": "Notları kaydet",
+      "noteSuccess": "Notlar eklendi",
+      "partialSuccess": "{{success}} başarılı, {{failed}} başarısız"
+    },
+    "detail": {
+      "title": "Sipariş detayı",
+      "pageTitle": "Sipariş {{orderNo}}",
+      "heading": "Sipariş {{orderNo}}",
+      "back": "Siparişler",
+      "cancelQueued": "İptal işlemi kuyruğa alındı",
+      "cancelTitle": "Siparişi iptal et",
+      "cancelDescription": "İptal işlemi platforma iletilir ve stok güncellenir.",
+      "cancelReason": "İptal nedeni (opsiyonel)",
+      "cancelReasonPlaceholder": "Müşteri talebi…",
+      "tabs": {
+        "general": "Genel Bilgiler",
+        "shipping": "Kargo Takip",
+        "notes": "Sipariş Notları",
+        "documents": "Fatura & Belgeler"
+      },
+      "summary": { "title": "Sipariş özeti" },
+      "customer": {
+        "title": "Müşteri bilgileri",
+        "name": "Ad",
+        "email": "E-posta",
+        "phone": "Telefon",
+        "address": "Adres"
+      },
+      "products": {
+        "title": "Ürünler",
+        "product": "Ürün",
+        "qty": "Adet",
+        "unitPrice": "Birim fiyat",
+        "lineTotal": "Toplam"
+      },
+      "totals": {
+        "subtotal": "Ara toplam",
+        "shipping": "Kargo",
+        "tax": "KDV (%20, tahmini)",
+        "grand": "Genel toplam"
+      },
+      "shipping": {
+        "info": "Kargo bilgileri",
+        "provider": "Kargo firması",
+        "trackingNo": "Takip numarası",
+        "shipButton": "Kargoya ver",
+        "externalTrack": "Kargo firmasında takip et",
+        "timeline": "Kargo durumu"
+      },
+      "tracking": {
+        "received": "Sipariş Alındı",
+        "preparing": "Hazırlanıyor",
+        "shipped": "Kargoya Verildi",
+        "delivered": "Teslim Edildi",
+        "cancelled": "İptal edildi",
+        "returned": "İade edildi"
+      },
+      "notes": {
+        "title": "Sipariş notları",
+        "empty": "Henüz not yok",
+        "internal": "İç not",
+        "customer": "Müşteri",
+        "placeholder": "Yeni not yazın…",
+        "add": "Not ekle",
+        "added": "Not eklendi"
+      },
+      "documents": {
+        "title": "Fatura ve belgeler",
+        "status": "Fatura durumu",
+        "created": "Oluşturuldu",
+        "notCreated": "Henüz oluşturulmadı",
+        "invoiceNo": "Fatura no: {{no}}",
+        "createInvoice": "Fatura oluştur",
+        "invoiceCreated": "Fatura oluşturuldu",
+        "downloadPdf": "Fatura PDF indir",
+        "pdfDownloaded": "Fatura PDF indirildi",
+        "downloadLabel": "Kargo etiketi indir",
+        "labelDownloaded": "Kargo etiketi indirildi"
+      },
+      "actions": {
+        "ship": "Kargoya ver",
+        "return": "İade oluştur",
+        "cancel": "İptal et"
+      }
+    },
+    "return": {
+      "title": "Sipariş iadesi",
+      "description": "Sipariş no: {{orderNo}} — iade edilecek ürünleri seçin.",
+      "products": "Ürünler",
+      "quantity": "Adet",
+      "reason": "İade sebebi",
+      "descriptionLabel": "Açıklama",
+      "descriptionPlaceholder": "İade ile ilgili ek bilgi…",
+      "submit": "İade oluştur",
+      "success": "İade kaydı oluşturuldu",
+      "selectProduct": "En az bir ürün seçin",
+      "orderMissing": "Sipariş bulunamadı",
+      "selectItem": "{{name}} seç",
+      "reasons": {
+        "defective": "Hatalı ürün",
+        "wrongItem": "Yanlış ürün",
+        "exchange": "Değişim",
+        "changedMind": "Vazgeçme",
+        "damaged": "Hasarlı",
+        "other": "Diğer"
+      }
     }
   },
   "settings": {
@@ -245,7 +361,28 @@
     "syncStatus": "Senkron durumu",
     "syncStatusDesc": "Canlı entegrasyon sağlığı",
     "stockForecastCriticalTitle": "Kritik stok (tahmin)",
-    "stockForecastCriticalHint": "Satış hızına göre 7 günden az ömür — tahmine gitmek için tıklayın"
+    "stockForecastCriticalHint": "Satış hızına göre 7 günden az ömür — tahmine gitmek için tıklayın",
+    "activeProducts": "Aktif ürün",
+    "stockAlerts": "Stok uyarısı",
+    "salesTrend": "Satış trendi",
+    "salesTrendDesc": "Son {{days}} gün · günlük gelir (TRY)",
+    "platformBreakdown": "Platform dağılımı",
+    "platformBreakdownDesc": "Son 30 gün sipariş payı",
+    "criticalStock": "Kritik stok",
+    "criticalStockDesc": "Stok seviyesi düşük ürünler",
+    "noSalesData": "Henüz satış verisi yok.",
+    "noPlatformData": "Henüz sipariş verisi yok.",
+    "changeVsLastWeek": "geçen haftaya göre",
+    "changeVsLastMonth": "geçen aya göre",
+    "periodToday": "Bugün",
+    "period7d": "7 gün",
+    "period30d": "30 gün",
+    "periodMonth": "Bu ay",
+    "periodSelectorLabel": "Dashboard dönem seçici",
+    "selectDateRange": "Tarih aralığı seçin",
+    "noConnectionsTitle": "Henüz bağlantı yok",
+    "noConnectionsDesc": "Pazaryeri veya e-ticaret mağazanızı bağlayarak başlayın.",
+    "addFirstConnection": "İlk Bağlantıyı Ekle"
   },
   "theme": {
     "light": "Açık",

@@ -19,11 +19,15 @@ import type { Listing } from '@/types/listing';
 interface Props {
   showChart?: boolean;
   limit?: number;
+  title?: string;
+  description?: string;
 }
 
 export function LowStockWidget({
   showChart = true,
   limit = 5,
+  title = 'Stok uyarıları',
+  description = 'Kritik stok seviyesindeki ürünler',
 }: Props): ReactElement {
   const navigate = useNavigate();
 
@@ -50,8 +54,8 @@ export function LowStockWidget({
       }}
     >
       <CardHeader>
-        <CardTitle>Stok uyarıları</CardTitle>
-        <CardDescription>Kritik stok seviyesindeki ürünler</CardDescription>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>
         {query.isPending ? <Skeleton className="h-32 w-full" /> : null}

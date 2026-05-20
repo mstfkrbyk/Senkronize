@@ -3,6 +3,12 @@ import type { WidgetSize, WidgetType } from '@/types/dashboard-widgets';
 export const ALL_WIDGET_TYPES: WidgetType[] = [
   'kpi-revenue',
   'kpi-orders',
+  'kpi-products',
+  'kpi-stock-alerts',
+  'chart-sales',
+  'chart-platforms',
+  'table-orders',
+  'table-stock',
   'kpi-listings',
   'kpi-buybox',
   'revenue-chart',
@@ -15,8 +21,14 @@ export const ALL_WIDGET_TYPES: WidgetType[] = [
 ];
 
 export const WIDGET_LABELS: Record<WidgetType, string> = {
-  'kpi-revenue': 'Bugünkü gelir',
+  'kpi-revenue': 'Toplam gelir',
   'kpi-orders': 'Toplam sipariş',
+  'kpi-products': 'Aktif ürün',
+  'kpi-stock-alerts': 'Stok uyarısı',
+  'chart-sales': 'Satış trendi',
+  'chart-platforms': 'Platform dağılımı',
+  'table-orders': 'Son siparişler',
+  'table-stock': 'Kritik stok',
   'kpi-listings': 'Aktif listeleme',
   'kpi-buybox': 'BuyBox kazanma oranı',
   'revenue-chart': 'Gelir trendi',
@@ -32,6 +44,12 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
 export const WIDGET_DEFAULT_SIZE: Record<WidgetType, WidgetSize> = {
   'kpi-revenue': '1x1',
   'kpi-orders': '1x1',
+  'kpi-products': '1x1',
+  'kpi-stock-alerts': '1x1',
+  'chart-sales': '2x1',
+  'chart-platforms': '1x1',
+  'table-orders': '1x1',
+  'table-stock': '1x1',
   'kpi-listings': '1x1',
   'kpi-buybox': '1x1',
   'revenue-chart': '2x1',

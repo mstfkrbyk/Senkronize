@@ -149,10 +149,126 @@
     "bulk": {
       "selected": "{{count}} selected",
       "addCargo": "Add shipping info",
-      "bulkInvoice": "Bulk invoice (ZIP)",
+      "bulkInvoice": "Download invoice ZIP",
+      "createInvoices": "Create invoices",
+      "createInvoiceSuccess": "Invoices created for {{count}} orders",
+      "createInvoiceFailed": "Could not create invoices",
+      "invoiceZipSuccess": "Invoice ZIP downloaded",
       "updateStatus": "Update status",
       "exportCsv": "Export CSV",
-      "exportToErp": "Export to ERP"
+      "exportCsvSuccess": "CSV file downloaded",
+      "exportToErp": "Export to ERP",
+      "ship": "Mark as shipped",
+      "addNote": "Add note",
+      "noteTitle": "Bulk add note",
+      "noteDescription": "The same note will be added to {{count}} orders.",
+      "notePlaceholder": "Note text…",
+      "noteSubmit": "Save notes",
+      "noteSuccess": "Notes added",
+      "partialSuccess": "{{success}} succeeded, {{failed}} failed"
+    },
+    "detail": {
+      "title": "Order details",
+      "pageTitle": "Order {{orderNo}}",
+      "heading": "Order {{orderNo}}",
+      "back": "Orders",
+      "cancelQueued": "Cancellation queued",
+      "cancelTitle": "Cancel order",
+      "cancelDescription": "Cancellation is sent to the marketplace and stock is updated.",
+      "cancelReason": "Cancellation reason (optional)",
+      "cancelReasonPlaceholder": "Customer request…",
+      "tabs": {
+        "general": "Overview",
+        "shipping": "Shipping",
+        "notes": "Notes",
+        "documents": "Invoice & documents"
+      },
+      "summary": { "title": "Order summary" },
+      "customer": {
+        "title": "Customer",
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "address": "Address"
+      },
+      "products": {
+        "title": "Line items",
+        "product": "Product",
+        "qty": "Qty",
+        "unitPrice": "Unit price",
+        "lineTotal": "Total"
+      },
+      "totals": {
+        "subtotal": "Subtotal",
+        "shipping": "Shipping",
+        "tax": "VAT (20%, estimated)",
+        "grand": "Grand total"
+      },
+      "shipping": {
+        "info": "Shipping details",
+        "provider": "Carrier",
+        "trackingNo": "Tracking number",
+        "shipButton": "Mark as shipped",
+        "externalTrack": "Track on carrier site",
+        "timeline": "Shipment timeline"
+      },
+      "tracking": {
+        "received": "Order received",
+        "preparing": "Preparing",
+        "shipped": "Shipped",
+        "delivered": "Delivered",
+        "cancelled": "Cancelled",
+        "returned": "Returned"
+      },
+      "notes": {
+        "title": "Order notes",
+        "empty": "No notes yet",
+        "internal": "Internal note",
+        "customer": "Customer",
+        "placeholder": "Write a note…",
+        "add": "Add note",
+        "added": "Note added"
+      },
+      "documents": {
+        "title": "Invoice & documents",
+        "status": "Invoice status",
+        "created": "Created",
+        "notCreated": "Not created yet",
+        "invoiceNo": "Invoice no: {{no}}",
+        "createInvoice": "Create invoice",
+        "invoiceCreated": "Invoice created",
+        "downloadPdf": "Download invoice PDF",
+        "pdfDownloaded": "Invoice PDF downloaded",
+        "downloadLabel": "Download shipping label",
+        "labelDownloaded": "Shipping label downloaded"
+      },
+      "actions": {
+        "ship": "Ship",
+        "return": "Create return",
+        "cancel": "Cancel"
+      }
+    },
+    "return": {
+      "title": "Order return",
+      "description": "Order {{orderNo}} — select items to return.",
+      "products": "Products",
+      "quantity": "Qty",
+      "reason": "Return reason",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "Additional details…",
+      "submit": "Create return",
+      "success": "Return created",
+      "selectProduct": "Select at least one product",
+      "orderMissing": "Order not found",
+      "selectItem": "Select {{name}}",
+      "reasons": {
+        "defective": "Defective product",
+        "wrongItem": "Wrong item",
+        "exchange": "Exchange",
+        "changedMind": "Changed mind",
+        "damaged": "Damaged",
+        "other": "Other"
+      }
     }
   },
   "settings": {
@@ -243,7 +359,28 @@
     "syncStatus": "Sync status",
     "syncStatusDesc": "Live integration health",
     "stockForecastCriticalTitle": "Critical stock (forecast)",
-    "stockForecastCriticalHint": "Fewer than 7 days of cover at current sales velocity — click to open the forecast"
+    "stockForecastCriticalHint": "Fewer than 7 days of cover at current sales velocity — click to open the forecast",
+    "activeProducts": "Active products",
+    "stockAlerts": "Stock alerts",
+    "salesTrend": "Sales trend",
+    "salesTrendDesc": "Last {{days}} days · daily revenue (TRY)",
+    "platformBreakdown": "Platform breakdown",
+    "platformBreakdownDesc": "Order share over the last 30 days",
+    "criticalStock": "Critical stock",
+    "criticalStockDesc": "Products with low stock levels",
+    "noSalesData": "No sales data yet.",
+    "noPlatformData": "No order data yet.",
+    "changeVsLastWeek": "vs last week",
+    "changeVsLastMonth": "vs last month",
+    "periodToday": "Today",
+    "period7d": "7 days",
+    "period30d": "30 days",
+    "periodMonth": "This month",
+    "periodSelectorLabel": "Dashboard period selector",
+    "selectDateRange": "Select date range",
+    "noConnectionsTitle": "No connections yet",
+    "noConnectionsDesc": "Connect a marketplace or store to get started.",
+    "addFirstConnection": "Add first connection"
   },
   "theme": {
     "light": "Light",

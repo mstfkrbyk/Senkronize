@@ -2,87 +2,85 @@ import { PlugZap } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 
 import { DashboardPeriodSelector } from '@/components/dashboard/DashboardPeriodSelector';
 import { WidgetCustomizer } from '@/components/dashboard/WidgetCustomizer';
-import { LowStockWidget } from '@/components/widgets/LowStockWidget';
-import { PlatformDistributionWidget } from '@/components/widgets/PlatformDistributionWidget';
 import { RecentOrdersWidget } from '@/components/widgets/RecentOrdersWidget';
-import { RevenueChartWidget } from '@/components/widgets/RevenueChartWidget';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DashboardPeriodProvider,
-  useDashboardPeriod,
-} from '@/hooks/useDashboardPeriod';
+import { DashboardPeriodProvider } from '@/hooks/useDashboardPeriod';
+import { useDashboardLayout } from '@/hooks/useDashboardLayout';
 import { useDashboardRealtime } from '@/hooks/useDashboardRealtime';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 import { useDashboardWidgets } from '@/hooks/useDashboardWidgets';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { api } from '@/lib/api';
 import { saveOfflineSnapshot } from '@/lib/offline-cache';
-import type { DashboardApiSummary } from '@/types/dashboard-widgets';
 import type { WidgetType } from '@/types/dashboard-widgets';
 
+import { DashboardGrid } from './DashboardGrid';
 import { DashboardKpiRow } from './DashboardKpiRow';
-import { BuyboxRateWidget } from './widgets/BuyboxRateWidget';
-import { SyncStatusWidget } from './widgets/SyncStatusWidget';
-import { TopProductsWidget } from './widgets/TopProductsWidget';
+import { CriticalStockWidget } from './widgets/CriticalStockWidget';
+import { PlatformBreakdownChart } from './widgets/PlatformBreakdownChart';
+import { SalesTrendChart } from './widgets/SalesTrendChart';
 
-const KPI_TYPES: WidgetType[] = [
-  'kpi-revenue',
-  'kpi-orders',
-  'kpi-listings',
-  'kpi-buybox',
-];
+const CHART_ROW_TYPES: WidgetType[] = ['chart-sales', 'table-orders'];
+const BOTTOM_ROW_TYPES: WidgetType[] = ['chart-platforms', 'table-stock'];
+
+function mergeLayoutOrder(
+  stored: WidgetType[],
+  defaults: WidgetType[],
+): WidgetType[] {
+  const ordered = stored.filter((type) => defaults.includes(type));
+  for (const type of defaults) {
+    if (!ordered.includes(type)) {
+      ordered.push(type);
+    }
+  }
+  return ordered;
+}
+
+function renderWidget(type: WidgetType): ReactElement | null {
+  switch (type) {
+    case 'chart-sales':
+      return <SalesTrendChart />;
+    case 'table-orders':
+      return <RecentOrdersWidget limit={5} variant="table" />;
+    case 'chart-platforms':
+      return <PlatformBreakdownChart />;
+    case 'table-stock':
+      return <CriticalStockWidget />;
+    default:
+      return null;
+  }
+}
 
 function DashboardPageContent(): ReactElement {
   const { t } = useTranslation();
   usePageTitle(t('dashboard.title'));
   const navigate = useNavigate();
-  const { api: periodApi } = useDashboardPeriod();
-  const { isVisible, isLoading: widgetsLoading } = useDashboardWidgets();
+  const { isLoading: widgetsLoading } = useDashboardWidgets();
+  const { data: stats, isLoading: statsLoading } = useDashboardStats();
+  const { layout, setLayout } = useDashboardLayout();
 
   useDashboardRealtime();
 
-  const summaryQuery = useQuery({
-    queryKey: ['dashboard', 'summary', periodApi.queryKey],
-    queryFn: async (): Promise<DashboardApiSummary> => {
-      const { data } = await api.get<DashboardApiSummary>('/dashboard/summary', {
-        params: { period: periodApi.summaryPeriod },
-      });
-      return data;
-    },
-    staleTime: 60_000,
-  });
-
-  const dash = summaryQuery.data;
-  const kpiLoading = summaryQuery.isPending;
-
   useEffect(() => {
-    if (!dash) {
+    if (!stats?.summary) {
       return;
     }
     saveOfflineSnapshot({
-      ordersToday: dash.todayOrders,
-      revenueToday: dash.revenueTry,
-      pendingOrders: dash.pendingOrders,
-      lowStockCount: dash.lowStockCount,
+      ordersToday: stats.summary.todayOrders,
+      revenueToday: stats.summary.revenueTry,
+      pendingOrders: stats.summary.pendingOrders,
+      lowStockCount: stats.summary.lowStockCount,
     });
-  }, [dash]);
+  }, [stats]);
 
-  const visibleKpis = KPI_TYPES.filter((type) => isVisible(type));
-
-  const showRow2 =
-    isVisible('revenue-chart') || isVisible('platform-breakdown');
-  const showRow3 = isVisible('recent-orders') || isVisible('stock-alerts');
-  const showRow4 =
-    isVisible('top-products') ||
-    isVisible('sync-status') ||
-    isVisible('buybox-rate');
+  const chartRow = mergeLayoutOrder(layout, CHART_ROW_TYPES);
+  const bottomRow = mergeLayoutOrder(layout, BOTTOM_ROW_TYPES);
 
   if (widgetsLoading) {
     return (
@@ -99,6 +97,10 @@ function DashboardPageContent(): ReactElement {
     );
   }
 
+  const dash = stats?.summary;
+  const showEmptyConnections =
+    !statsLoading && dash && dash.totalConnections === 0;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -114,19 +116,17 @@ function DashboardPageContent(): ReactElement {
         </div>
       </div>
 
-      {visibleKpis.length > 0 ? (
-        <DashboardKpiRow visibleKpis={visibleKpis} />
-      ) : null}
+      <DashboardKpiRow />
 
-      {!kpiLoading && dash && dash.totalConnections === 0 ? (
+      {showEmptyConnections ? (
         <Card className="border-dashed bg-muted/20">
           <CardContent className="pt-8 pb-8">
             <EmptyState
               iconNode={
                 <PlugZap className="h-16 w-16 text-muted-foreground" aria-hidden />
               }
-              title="Henüz bağlantı yok"
-              description="Pazaryeri veya e-ticaret mağazanızı bağlayarak başlayın."
+              title={t('dashboard.noConnectionsTitle')}
+              description={t('dashboard.noConnectionsDesc')}
               actionSlot={
                 <Button
                   type="button"
@@ -134,7 +134,7 @@ function DashboardPageContent(): ReactElement {
                     navigate('/connections');
                   }}
                 >
-                  İlk Bağlantıyı Ekle
+                  {t('dashboard.addFirstConnection')}
                 </Button>
               }
             />
@@ -142,58 +142,26 @@ function DashboardPageContent(): ReactElement {
         </Card>
       ) : null}
 
-      {showRow2 ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          {isVisible('revenue-chart') ? (
-            <div className="lg:col-span-8">
-              <RevenueChartWidget />
-            </div>
-          ) : null}
-          {isVisible('platform-breakdown') ? (
-            <div className="lg:col-span-4">
-              <PlatformDistributionWidget />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <DashboardGrid
+        layout={chartRow}
+        gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-3"
+        getItemClassName={(type) =>
+          type === 'chart-sales' ? 'lg:col-span-2' : 'lg:col-span-1'
+        }
+        onReorder={(next) => {
+          setLayout([...next, ...bottomRow]);
+        }}
+        renderWidget={renderWidget}
+      />
 
-      {showRow3 ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          {isVisible('recent-orders') ? (
-            <div className="lg:col-span-8">
-              <RecentOrdersWidget limit={10} variant="table" />
-            </div>
-          ) : null}
-          {isVisible('stock-alerts') ? (
-            <div className="lg:col-span-4">
-              <LowStockWidget showChart={false} limit={8} />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {showRow4 ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          {isVisible('top-products') ? (
-            <div className="lg:col-span-6">
-              <TopProductsWidget />
-            </div>
-          ) : null}
-          {isVisible('sync-status') ? (
-            <div className="lg:col-span-6">
-              <SyncStatusWidget />
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {isVisible('buybox-rate') ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-          <div className="lg:col-span-6">
-            <BuyboxRateWidget />
-          </div>
-        </div>
-      ) : null}
+      <DashboardGrid
+        layout={bottomRow}
+        gridClassName="grid grid-cols-1 gap-4 lg:grid-cols-2"
+        onReorder={(next) => {
+          setLayout([...chartRow, ...next]);
+        }}
+        renderWidget={renderWidget}
+      />
     </div>
   );
 }

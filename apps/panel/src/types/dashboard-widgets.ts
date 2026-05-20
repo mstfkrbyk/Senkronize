@@ -1,6 +1,12 @@
 export type WidgetType =
-  | 'kpi-revenue'
   | 'kpi-orders'
+  | 'kpi-revenue'
+  | 'kpi-products'
+  | 'kpi-stock-alerts'
+  | 'chart-sales'
+  | 'chart-platforms'
+  | 'table-orders'
+  | 'table-stock'
   | 'kpi-listings'
   | 'kpi-buybox'
   | 'revenue-chart'
@@ -25,34 +31,44 @@ export interface Widget {
 export const DEFAULT_WIDGETS: Widget[] = [
   { id: 'w-kpi-revenue', type: 'kpi-revenue', size: '1x1', position: 0, visible: true },
   { id: 'w-kpi-orders', type: 'kpi-orders', size: '1x1', position: 1, visible: true },
-  { id: 'w-kpi-listings', type: 'kpi-listings', size: '1x1', position: 2, visible: true },
-  { id: 'w-kpi-buybox', type: 'kpi-buybox', size: '1x1', position: 3, visible: true },
-  { id: 'w-revenue', type: 'revenue-chart', size: '2x1', position: 4, visible: true },
-  { id: 'w-platform', type: 'platform-breakdown', size: '1x1', position: 5, visible: true },
-  { id: 'w-recent', type: 'recent-orders', size: '2x1', position: 6, visible: true },
-  { id: 'w-stock', type: 'stock-alerts', size: '1x1', position: 7, visible: true },
-  { id: 'w-top', type: 'top-products', size: '2x1', position: 8, visible: true },
-  { id: 'w-sync', type: 'sync-status', size: '1x1', position: 9, visible: true },
+  { id: 'w-kpi-products', type: 'kpi-products', size: '1x1', position: 2, visible: true },
+  { id: 'w-kpi-stock', type: 'kpi-stock-alerts', size: '1x1', position: 3, visible: true },
+  { id: 'w-chart-sales', type: 'chart-sales', size: '2x1', position: 4, visible: true },
+  { id: 'w-table-orders', type: 'table-orders', size: '1x1', position: 5, visible: true },
+  { id: 'w-chart-platforms', type: 'chart-platforms', size: '1x1', position: 6, visible: true },
+  { id: 'w-table-stock', type: 'table-stock', size: '1x1', position: 7, visible: true },
+  { id: 'w-top', type: 'top-products', size: '2x1', position: 8, visible: false },
+  { id: 'w-sync', type: 'sync-status', size: '1x1', position: 9, visible: false },
   { id: 'w-buybox', type: 'buybox-rate', size: '1x1', position: 10, visible: false },
 ];
 
 export const WIDGET_STORAGE_KEY = 'senkronize-dashboard-widgets';
 
 const LEGACY_WIDGET_TYPE_MAP: Record<string, WidgetType> = {
-  chart_revenue: 'revenue-chart',
+  chart_revenue: 'chart-sales',
   chart_orders: 'orders-summary',
-  chart_platform: 'platform-breakdown',
-  table_low_stock: 'stock-alerts',
+  chart_platform: 'chart-platforms',
+  chart_sales: 'chart-sales',
+  chart_platforms: 'chart-platforms',
+  table_low_stock: 'table-stock',
+  table_orders: 'table-orders',
+  table_stock: 'table-stock',
   sync_status: 'sync-status',
-  table_recent_orders: 'recent-orders',
+  table_recent_orders: 'table-orders',
   kpi_buybox_rate: 'kpi-buybox',
   kpi_orders: 'kpi-orders',
   kpi_revenue: 'kpi-revenue',
-  kpi_stock_alerts: 'stock-alerts',
-  kpi_listings: 'kpi-listings',
-  forecast_critical: 'stock-alerts',
-  activity_feed: 'recent-orders',
+  kpi_stock_alerts: 'kpi-stock-alerts',
+  kpi_products: 'kpi-products',
+  kpi_listings: 'kpi-products',
+  forecast_critical: 'table-stock',
+  activity_feed: 'table-orders',
   'orders-summary': 'kpi-orders',
+  'revenue-chart': 'chart-sales',
+  'platform-breakdown': 'chart-platforms',
+  'recent-orders': 'table-orders',
+  'stock-alerts': 'table-stock',
+  'kpi-listings': 'kpi-products',
 };
 
 const KPI_LEGACY_TYPES = new Set([
@@ -78,6 +94,12 @@ function normalizeWidget(raw: unknown): Widget | null {
   const validTypes: WidgetType[] = [
     'kpi-revenue',
     'kpi-orders',
+    'kpi-products',
+    'kpi-stock-alerts',
+    'chart-sales',
+    'chart-platforms',
+    'table-orders',
+    'table-stock',
     'kpi-listings',
     'kpi-buybox',
     'revenue-chart',

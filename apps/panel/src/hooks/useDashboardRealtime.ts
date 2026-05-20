@@ -40,6 +40,9 @@ export function useDashboardRealtime(): void {
 
     const invalidateDashboard = (): void => {
       void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'stats'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'sales-trend'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'platform-breakdown'] });
       void queryClient.invalidateQueries({ queryKey: ['orders', 'recent'] });
     };
 

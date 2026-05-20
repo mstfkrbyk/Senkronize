@@ -1,147 +1,89 @@
-import { Package, ShoppingCart, TrendingUp, Trophy } from 'lucide-react';
+import { AlertTriangle, Package, ShoppingCart, TrendingUp } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
-import { AnimatedKpiCard } from '@/components/dashboard/AnimatedKpiCard';
+import { KpiCard } from '@/components/widgets/KpiCard';
 import { useDashboardPeriod } from '@/hooks/useDashboardPeriod';
-import { api } from '@/lib/api';
-import type {
-  DashboardApiSummary,
-  DashboardKpisResponse,
-} from '@/types/dashboard-widgets';
-import type { WidgetType } from '@/types/dashboard-widgets';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
 
-interface Props {
-  visibleKpis: WidgetType[];
+function formatTry(amount: number): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
-export function DashboardKpiRow({ visibleKpis }: Props): ReactElement | null {
+export function DashboardKpiRow(): ReactElement {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const { api: periodApi } = useDashboardPeriod();
+  const { data, isLoading } = useDashboardStats();
 
-  const summaryQuery = useQuery({
-    queryKey: ['dashboard', 'summary', periodApi.queryKey],
-    queryFn: async (): Promise<DashboardApiSummary> => {
-      const { data } = await api.get<DashboardApiSummary>('/dashboard/summary', {
-        params: { period: periodApi.summaryPeriod },
-      });
-      return data;
-    },
-    staleTime: 60_000,
-  });
+  const dash = data?.summary;
+  const kpis = data?.kpis;
 
-  const kpisQuery = useQuery({
-    queryKey: ['dashboard', 'kpis', periodApi.queryKey],
-    queryFn: async (): Promise<DashboardKpisResponse> => {
-      const { data } = await api.get<DashboardKpisResponse>('/dashboard/kpis', {
-        params: { period: periodApi.kpiPeriod },
-      });
-      return data;
-    },
-    staleTime: 60_000,
-  });
+  const ordersValue =
+    periodApi.summaryPeriod === 'month'
+      ? (dash?.windowOrders ?? kpis?.orders.current ?? 0)
+      : (kpis?.orders.current ?? dash?.todayOrders ?? 0);
 
-  const loading = summaryQuery.isPending || kpisQuery.isPending;
-  const dash = summaryQuery.data;
-  const kpis = kpisQuery.data;
+  const ordersChange =
+    periodApi.summaryPeriod === 'month'
+      ? (dash?.windowOrdersDeltaPct ?? kpis?.orders.change ?? 0)
+      : (kpis?.orders.change ?? dash?.todayOrdersDelta ?? 0);
 
-  const kpiSet = new Set(visibleKpis);
-  const cards: ReactElement[] = [];
-
-  if (kpiSet.has('kpi-revenue')) {
-    cards.push(
-      <AnimatedKpiCard
-        key="kpi-revenue"
-        title="Bugünkü gelir"
-        numericValue={dash?.revenueTry ?? 0}
-        format="currency"
-        change={dash?.revenueDeltaPct ?? 0}
-        changeCaption="düne göre"
-        icon={TrendingUp}
-        color="green"
-        loading={loading}
-      />,
-    );
-  }
-
-  if (kpiSet.has('kpi-orders')) {
-    const ordersValue =
-      periodApi.summaryPeriod === 'month'
-        ? (dash?.windowOrders ?? kpis?.orders.current ?? 0)
-        : (kpis?.orders.current ?? dash?.todayOrders ?? 0);
-    const ordersChange =
-      periodApi.summaryPeriod === 'month'
-        ? (dash?.windowOrdersDeltaPct ?? kpis?.orders.change ?? 0)
-        : (kpis?.orders.change ?? dash?.todayOrdersDelta ?? 0);
-
-    cards.push(
-      <AnimatedKpiCard
-        key="kpi-orders"
-        title="Toplam sipariş"
-        numericValue={ordersValue}
-        format="integer"
-        change={ordersChange}
-        changeCaption={
-          periodApi.summaryPeriod === 'month' ? 'geçen aya göre' : 'önceki döneme göre'
-        }
-        icon={ShoppingCart}
-        color="blue"
-        href="/orders"
-        loading={loading}
-      />,
-    );
-  }
-
-  if (kpiSet.has('kpi-listings')) {
-    cards.push(
-      <AnimatedKpiCard
-        key="kpi-listings"
-        title="Aktif listeleme"
-        numericValue={kpis?.activeListings.current ?? 0}
-        format="integer"
-        change={kpis?.activeListings.change ?? 0}
-        changeCaption="önceki döneme göre"
-        icon={Package}
-        color="yellow"
-        href="/listings"
-        loading={loading}
-      />,
-    );
-  }
-
-  if (kpiSet.has('kpi-buybox')) {
-    cards.push(
-      <AnimatedKpiCard
-        key="kpi-buybox"
-        title="BuyBox kazanma oranı"
-        numericValue={dash?.buyboxWinRatePct ?? kpis?.buyboxWinRate ?? 0}
-        format="percent"
-        change={dash?.buyboxWinRateDeltaPct ?? 0}
-        changeCaption="önceki döneme göre"
-        icon={Trophy}
-        color="purple"
-        href="/pricing"
-        loading={loading}
-      />,
-    );
-  }
-
-  if (cards.length === 0) {
-    return null;
-  }
+  const changeLabel =
+    periodApi.summaryPeriod === 'month'
+      ? t('dashboard.changeVsLastMonth')
+      : t('dashboard.changeVsLastWeek');
 
   return (
-    <div
-      className={`grid gap-4 ${
-        cards.length === 1
-          ? 'grid-cols-1'
-          : cards.length === 2
-            ? 'grid-cols-2'
-            : cards.length === 3
-              ? 'grid-cols-2 lg:grid-cols-3'
-              : 'grid-cols-2 lg:grid-cols-4'
-      }`}
-    >
-      {cards}
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <KpiCard
+        title={t('dashboard.totalOrders')}
+        value={ordersValue}
+        change={ordersChange}
+        changeLabel={changeLabel}
+        icon={ShoppingCart}
+        color="blue"
+        loading={isLoading}
+        onClick={() => {
+          navigate('/orders');
+        }}
+      />
+      <KpiCard
+        title={t('dashboard.totalRevenue')}
+        value={formatTry(dash?.revenueTry ?? kpis?.revenue.current ?? 0)}
+        change={dash?.revenueDeltaPct ?? kpis?.revenue.change ?? 0}
+        changeLabel={changeLabel}
+        icon={TrendingUp}
+        color="green"
+        loading={isLoading}
+      />
+      <KpiCard
+        title={t('dashboard.activeProducts')}
+        value={kpis?.activeListings.current ?? 0}
+        change={kpis?.activeListings.change ?? 0}
+        changeLabel={changeLabel}
+        icon={Package}
+        color="yellow"
+        loading={isLoading}
+        onClick={() => {
+          navigate('/listings');
+        }}
+      />
+      <KpiCard
+        title={t('dashboard.stockAlerts')}
+        value={dash?.lowStockCount ?? kpis?.lowStockProducts ?? 0}
+        icon={AlertTriangle}
+        color="red"
+        loading={isLoading}
+        onClick={() => {
+          navigate('/listings?stockTier=LOW');
+        }}
+      />
     </div>
   );
 }

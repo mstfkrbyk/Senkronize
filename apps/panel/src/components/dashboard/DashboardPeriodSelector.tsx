@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import type { DateRange } from 'react-day-picker';
 
 import { Button } from '@/components/ui/button';
@@ -18,16 +19,17 @@ import {
   type DashboardPeriodPreset,
 } from '@/hooks/useDashboardPeriod';
 
-const PRESETS: { id: DashboardPeriodPreset; label: string }[] = [
-  { id: 'today', label: 'Bugün' },
-  { id: 'week', label: 'Bu Hafta' },
-  { id: 'month', label: 'Bu Ay' },
-  { id: 'custom', label: 'Özel' },
-];
-
 export function DashboardPeriodSelector(): ReactElement {
+  const { t } = useTranslation();
   const { state, setPreset, setCustomRange } = useDashboardPeriod();
   const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const PRESETS: { id: DashboardPeriodPreset; label: string }[] = [
+    { id: 'today', label: t('dashboard.periodToday') },
+    { id: '7d', label: t('dashboard.period7d') },
+    { id: '30d', label: t('dashboard.period30d') },
+    { id: 'month', label: t('dashboard.periodMonth') },
+  ];
 
   const range: DateRange | undefined =
     state.customFrom && state.customTo
@@ -39,7 +41,7 @@ export function DashboardPeriodSelector(): ReactElement {
       <div
         className="inline-flex rounded-lg border bg-muted/40 p-0.5"
         role="group"
-        aria-label="Dashboard dönem seçici"
+        aria-label={t('dashboard.periodSelectorLabel')}
       >
         {PRESETS.map((p) => (
           <Button
@@ -52,12 +54,7 @@ export function DashboardPeriodSelector(): ReactElement {
               state.preset === p.id && 'shadow-sm',
             )}
             onClick={() => {
-              if (p.id === 'custom') {
-                setPreset('custom');
-                setCalendarOpen(true);
-              } else {
-                setPreset(p.id);
-              }
+              setPreset(p.id);
             }}
           >
             {p.label}
@@ -72,7 +69,7 @@ export function DashboardPeriodSelector(): ReactElement {
               <CalendarIcon className="h-4 w-4" aria-hidden />
               {range?.from && range.to
                 ? `${format(range.from, 'd MMM', { locale: tr })} – ${format(range.to, 'd MMM yyyy', { locale: tr })}`
-                : 'Tarih aralığı seçin'}
+                : t('dashboard.selectDateRange')}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">

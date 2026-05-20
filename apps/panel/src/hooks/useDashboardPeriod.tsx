@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 
-export type DashboardPeriodPreset = 'today' | 'week' | 'month' | 'custom';
+export type DashboardPeriodPreset = 'today' | '7d' | '30d' | 'month' | 'week' | 'custom';
 
 export interface DashboardPeriodState {
   preset: DashboardPeriodPreset;
@@ -35,17 +35,26 @@ export function resolveDashboardPeriodApi(
     return {
       summaryPeriod: 'default',
       kpiPeriod: '7d',
-      trendDays: 30,
+      trendDays: 1,
       queryKey: 'today',
     };
   }
 
-  if (state.preset === 'week') {
+  if (state.preset === '7d' || state.preset === 'week') {
     return {
       summaryPeriod: '7d',
       kpiPeriod: '7d',
       trendDays: 7,
-      queryKey: 'week',
+      queryKey: '7d',
+    };
+  }
+
+  if (state.preset === '30d') {
+    return {
+      summaryPeriod: 'month',
+      kpiPeriod: '30d',
+      trendDays: 30,
+      queryKey: '30d',
     };
   }
 
