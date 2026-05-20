@@ -14,6 +14,12 @@ import {
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { ImageManager } from '@/components/products/ImageManager';
+import { ProductGeneralInfoTab } from '@/components/products/ProductGeneralInfoTab';
+import { ProductListingsTab } from '@/components/products/ProductListingsTab';
+import { ProductPerformanceTab } from '@/components/products/ProductPerformanceTab';
+import { VariantMatrix } from '@/components/products/VariantMatrix';
+import { parseAttributes } from '@/components/products/variant-utils';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -47,12 +53,8 @@ import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { recordRecentView } from '@/lib/recent-views';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
-import { ProductImagesTab } from '@/pages/products/components/ProductImagesTab';
-import { ProductPerformanceTab } from '@/pages/products/components/ProductPerformanceTab';
 import { CreateVariantsWizard } from '@/pages/products/components/CreateVariantsWizard';
 import { VariantBulkActions } from '@/pages/products/components/VariantBulkActions';
-import { VariantMatrix } from '@/pages/products/components/VariantMatrix';
-import { formatMoney, parseAttributes } from '@/pages/products/components/variant-utils';
 import type {
   ImportResult,
   ProductDetailPayload,
@@ -236,19 +238,11 @@ function AddVariantDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="v-renk">Renk</Label>
-            <Input
-              id="v-renk"
-              value={renk}
-              onChange={(e) => { setRenk(e.target.value); }}
-            />
+            <Input id="v-renk" value={renk} onChange={(e) => { setRenk(e.target.value); }} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="v-beden">Beden</Label>
-            <Input
-              id="v-beden"
-              value={beden}
-              onChange={(e) => { setBeden(e.target.value); }}
-            />
+            <Input id="v-beden" value={beden} onChange={(e) => { setBeden(e.target.value); }} />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="v-stok">Stok</Label>
@@ -390,7 +384,14 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
               Kataloga dön
             </Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
+            {!product.isActive ? (
+              <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
+                Taslak
+              </span>
+            ) : null}
+          </div>
           <p className="text-muted-foreground text-sm">
             SKU: {product.sku ?? '—'} · Barkod:{' '}
             <span className="font-mono">{product.barcode}</span>
@@ -400,14 +401,19 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
         </div>
       </div>
 
-      <Tabs defaultValue="variants">
-        <TabsList>
+      <Tabs defaultValue="general">
+        <TabsList className="flex h-auto flex-wrap">
+          <TabsTrigger value="general">Genel bilgiler</TabsTrigger>
           <TabsTrigger value="variants">Varyantlar</TabsTrigger>
+          <TabsTrigger value="listings">Listingler</TabsTrigger>
           <TabsTrigger value="images">Görseller</TabsTrigger>
           <TabsTrigger value="performance">Performans</TabsTrigger>
-          <TabsTrigger value="listings">Listingler</TabsTrigger>
-          <TabsTrigger value="stock">Stok hareketi</TabsTrigger>
+          <TabsTrigger value="stock">Stok geçmişi</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="general" className="mt-4">
+          <ProductGeneralInfoTab product={product} onSaved={invalidate} />
+        </TabsContent>
 
         <TabsContent value="variants" className="mt-4">
           <Card>
@@ -467,8 +473,6 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
                   variants={variants}
                   selectedIds={selectedVariantIds}
                   onSelectionChange={setSelectedVariantIds}
-                  onStockChange={() => {}}
-                  onPriceChange={() => {}}
                   onRefresh={invalidate}
                   renderActions={(v) => (
                     <div className="flex items-center gap-0">
@@ -502,8 +506,16 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
           </Card>
         </TabsContent>
 
+        <TabsContent value="listings" className="mt-4">
+          <ProductListingsTab
+            productId={productId}
+            listings={listings}
+            onChanged={invalidate}
+          />
+        </TabsContent>
+
         <TabsContent value="images" className="mt-4">
-          <ProductImagesTab
+          <ImageManager
             productId={productId}
             imageUrls={product.imageUrls ?? []}
             onChanged={invalidate}
@@ -511,65 +523,19 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
         </TabsContent>
 
         <TabsContent value="performance" className="mt-4">
-          <ProductPerformanceTab productId={productId} />
-        </TabsContent>
-
-        <TabsContent value="listings" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Listingler</CardTitle>
-              <CardDescription>Pazaryeri listeleri</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {listings.length === 0 ? (
-                <p className="text-muted-foreground text-sm">Henüz listing yok.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Platform</TableHead>
-                      <TableHead>Başlık</TableHead>
-                      <TableHead className="text-right">Satış</TableHead>
-                      <TableHead className="text-right">Liste</TableHead>
-                      <TableHead className="text-right">Adet</TableHead>
-                      <TableHead>Onay</TableHead>
-                      <TableHead>Son sync</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {listings.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{marketplaceLabel(row.platform)}</TableCell>
-                        <TableCell className="max-w-[240px]">
-                          <div className="truncate font-medium">{row.title}</div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(row.salePrice)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(row.listPrice)}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {row.quantity.toLocaleString('tr-TR')}
-                        </TableCell>
-                        <TableCell>{row.approved ? 'Evet' : 'Hayır'}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">
-                          {row.lastSyncAt ? formatDate(row.lastSyncAt) : '—'}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <ProductPerformanceTab
+            productId={productId}
+            productBarcode={product.barcode}
+            variants={variants}
+            listings={listings}
+          />
         </TabsContent>
 
         <TabsContent value="stock" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Stok hareketi</CardTitle>
-              <CardDescription>Stok kayıtları</CardDescription>
+              <CardTitle className="text-base">Stok geçmişi</CardTitle>
+              <CardDescription>Stok hareket kayıtları</CardDescription>
             </CardHeader>
             <CardContent>
               {stockMovements.length === 0 ? (

@@ -31,7 +31,7 @@ import {
 import { api, getApiErrorMessage } from '@/lib/api';
 import type { ProductVariantDto } from '@/types/product';
 
-import { cartesianProduct } from './variant-utils';
+import { cartesianProduct } from '@/components/products/variant-utils';
 
 interface Props {
   productId: string;
