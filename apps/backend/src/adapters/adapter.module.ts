@@ -65,8 +65,6 @@ import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
 import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
 import { AmazonGlobalModule } from './amazon-global/amazon-global.module';
 import { AllegroModule } from './allegro/allegro.module';
-import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
-import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
 import { BoutiqaatModule } from './boutiqaat/boutiqaat.module';
 import { BackmarketModule } from './backmarket/backmarket.module';
@@ -877,8 +875,6 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11Adapter,
     CiceksepetiAdapter,
     IdeasoftAdapter,
-    BizimHesapErpAdapter,
-    ParasutErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,
@@ -903,8 +899,6 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11Adapter,
     CiceksepetiAdapter,
     IdeasoftAdapter,
-    BizimHesapErpAdapter,
-    ParasutErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,

@@ -6,7 +6,7 @@ import { AfasOnlineModule } from './afas-online/afas-online.module';
 import { BimeksErpAdapter } from './bimeks-erp.adapter';
 import { BrightpearlErpAdapter } from './brightpearl-erp.adapter';
 import { BillomatModule } from './billomat/billomat.module';
-import { BizimHesapErpAdapter } from './bizimhesap-erp.adapter';
+import { BizimHesapErpModule } from './bizimhesap/bizimhesap.module';
 import { Cin7Module } from './cin7/cin7.module';
 import { DebitoorModule } from './debitoor/debitoor.module';
 import { Dynamics365ErpAdapter } from './dynamics365-erp.adapter';
@@ -43,7 +43,7 @@ import { MuhasebeNetErpAdapter } from './muhasebe-net-erp.adapter';
 import { NetsuiteErpAdapter } from './netsuite/netsuite.adapter';
 import { OdooErpAdapter } from './odoo-erp.adapter';
 import { OracleMicrosErpAdapter } from './oracle-micros-erp.adapter';
-import { ParasutErpAdapter } from './parasut-erp.adapter';
+import { ParasutErpModule } from './parasut/parasut.module';
 import { ParasutPlusErpAdapter } from './parasut-plus-erp.adapter';
 import { PoseidonPosErpAdapter } from './poseidon-pos-erp.adapter';
 import { ProbilErpAdapter } from './probil-erp.adapter';
@@ -74,6 +74,8 @@ const erpRound5Modules = [
   MikroErpModule,
   KolaybiErpModule,
   NetsisErpModule,
+  ParasutErpModule,
+  BizimHesapErpModule,
   HoldedModule,
   DebitoorModule,
   BillomatModule,
@@ -89,8 +91,6 @@ const erpRound5Modules = [
 ] as const;
 
 const legacyErpAdapters = [
-  BizimHesapErpAdapter,
-  ParasutErpAdapter,
   TsoftErpAdapter,
   TicimaxErpAdapter,
   NetsuiteErpAdapter,
