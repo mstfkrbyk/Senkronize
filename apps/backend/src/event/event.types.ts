@@ -10,6 +10,7 @@ export const WS_EVENTS = {
   SYNC_ERROR: 'sync:error',
   NOTIFICATION_NEW: 'notification:new',
   SYNC_TRIGGER: 'sync:trigger',
+  DASHBOARD_UPDATE: 'dashboard:update',
 } as const;
 
 export type WsEventName = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];

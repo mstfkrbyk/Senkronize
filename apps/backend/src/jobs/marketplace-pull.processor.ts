@@ -123,6 +123,12 @@ export class MarketplacePullProcessor {
           });
         }
       }
+      if (createdOrders.length > 0) {
+        this.eventService.emit(organizationId, WS_EVENTS.DASHBOARD_UPDATE, {
+          reason: 'order:new',
+          count: createdOrders.length,
+        });
+      }
       await this.syncStatusService.recordSuccess(
         organizationId,
         platform as Marketplace,

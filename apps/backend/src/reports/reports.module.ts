@@ -19,5 +19,6 @@ import { TaxReportService } from './tax-report.service';
     ScheduledReportTask,
     TaxReportService,
   ],
+  exports: [ReportsService],
 })
 export class ReportsModule {}

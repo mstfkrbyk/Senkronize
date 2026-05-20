@@ -48,6 +48,7 @@ import { SecurityModule } from './security/security.module';
 import { SecurityRequestInterceptor } from './security/security-request.interceptor';
 import { ReturnModule } from './return/return.module';
 import { SearchModule } from './search/search.module';
+import { SupportModule } from './support/support.module';
 import { StockModule } from './stock/stock.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { SubscriptionModule } from './subscription/subscription.module';
@@ -117,6 +118,7 @@ import { WebhookModule } from './webhook/webhook.module';
     ReturnModule,
     SearchModule,
     CurrencyModule,
+    SupportModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: IpBlockGuard },
