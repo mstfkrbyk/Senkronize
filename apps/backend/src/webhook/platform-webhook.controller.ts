@@ -63,6 +63,19 @@ export class PlatformWebhookController {
   }
 
   @Public()
+  @Post('etsy/:connectionId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Etsy webhook ping / olay (bağlantı kimliği)' })
+  @ApiResponse({ status: 200, description: 'Alındı' })
+  async etsy(
+    @Param('connectionId') connectionId: string,
+    @Headers() headers: Record<string, string>,
+    @Req() req: RawBodyRequest<Request>,
+  ): Promise<{ received: true }> {
+    return this.handleByConnection(Marketplace.ETSY, connectionId, headers, req);
+  }
+
+  @Public()
   @Post('platform/trendyol/:orgId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Trendyol platform webhook (org bazlı, eski)' })

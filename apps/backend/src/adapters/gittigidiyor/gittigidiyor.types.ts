@@ -8,10 +8,12 @@ export interface GittigidiyorApiEnvelope<T = unknown> {
 export interface GittigidiyorProductRow {
   productId?: string | number;
   productCode?: string;
+  itemId?: string;
   title?: string;
   price?: number;
   stockAmount?: number;
   stock?: number;
+  quantity?: number;
   active?: boolean | number;
   images?: Array<{ imageUrl?: string; url?: string }>;
 }
@@ -19,6 +21,7 @@ export interface GittigidiyorProductRow {
 export interface GittigidiyorProductsPayload {
   products?: GittigidiyorProductRow[];
   product?: GittigidiyorProductRow | GittigidiyorProductRow[];
+  items?: GittigidiyorProductRow[];
   totalCount?: number;
 }
 

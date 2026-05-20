@@ -21,6 +21,7 @@ import type {
   TestConnectionDto,
   UpdateConnectionDto,
 } from './marketplace-connection.dto';
+import { TokenRefreshService } from './token-refresh.service';
 
 export type PublicMarketplaceConnection = Omit<
   MarketplaceConnection,
@@ -35,6 +36,7 @@ export class MarketplaceConnectionService {
     private readonly adapterRegistry: AdapterRegistry,
     private readonly subscriptionService: SubscriptionService,
     private readonly posthog: PostHogService,
+    private readonly tokenRefreshService: TokenRefreshService,
   ) {}
 
   private parseCredentialsRecord(
@@ -710,7 +712,16 @@ export class MarketplaceConnectionService {
     if (!row) {
       return null;
     }
-    return this.parseCredentialsRecord(row.credentialsEnc);
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
+    if (!creds) {
+      return null;
+    }
+    return this.tokenRefreshService.ensureFreshCredentials(
+      organizationId,
+      platform,
+      creds,
+      row.id,
+    );
   }
 
   /**
@@ -731,6 +742,15 @@ export class MarketplaceConnectionService {
     if (!row) {
       return null;
     }
-    return this.parseCredentialsRecord(row.credentialsEnc);
+    const creds = this.parseCredentialsRecord(row.credentialsEnc);
+    if (!creds) {
+      return null;
+    }
+    return this.tokenRefreshService.ensureFreshCredentials(
+      organizationId,
+      row.platform,
+      creds,
+      row.id,
+    );
   }
 }

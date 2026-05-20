@@ -10,6 +10,7 @@ import { SubscriptionService } from '../subscription/subscription.service';
 
 import type { CreateConnectionDto } from './marketplace-connection.dto';
 import { MarketplaceConnectionService } from './marketplace-connection.service';
+import { TokenRefreshService } from './token-refresh.service';
 
 describe('MarketplaceConnectionService', () => {
   let service: MarketplaceConnectionService;
@@ -77,6 +78,15 @@ describe('MarketplaceConnectionService', () => {
         },
         { provide: SubscriptionService, useValue: subscriptionService },
         { provide: PostHogService, useValue: { capture: jest.fn(), groupCapture: jest.fn() } },
+        {
+          provide: TokenRefreshService,
+          useValue: {
+            ensureFreshCredentials: jest.fn(
+              (_orgId: string, _platform: Marketplace, creds: Record<string, string>) =>
+                Promise.resolve(creds),
+            ),
+          },
+        },
       ],
     }).compile();
 

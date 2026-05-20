@@ -1,7 +1,7 @@
-import { createHash, createHmac } from 'crypto';
+import { createHash } from 'crypto';
 
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { isAxiosError, type AxiosInstance } from 'axios';
+import axios, { isAxiosError } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -14,9 +14,11 @@ import type {
 import { axiosWithRetry, PLATFORM_RATE_LIMITS, withRateLimit } from '../../common/utils/http-retry';
 import { isRecord, throwSyncFailed } from '../stub-helpers';
 import {
-  GITTIGIDIYOR_BASE_URL,
   GITTIGIDIYOR_CURRENCY_TRY,
+  GITTIGIDIYOR_DEVAPI_BASE,
+  GITTIGIDIYOR_ORDER_STATUSES,
 } from './gittigidiyor.constants';
+import { buildLegacyGgSign, signGittigidiyorOAuthRequest } from './gittigidiyor.oauth';
 import type {
   GittigidiyorApiEnvelope,
   GittigidiyorOrderRow,
@@ -25,48 +27,64 @@ import type {
   GittigidiyorProductsPayload,
 } from './gittigidiyor.types';
 
-function formatGgDate(d: Date): string {
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+export interface GittigidiyorTrackingPayload {
+  orderId: string;
+  trackingNumber: string;
+  cargoCompany?: string;
 }
 
 function hashRolePassword(password: string): string {
   return createHash('md5').update(password, 'utf8').digest('hex');
 }
 
-function buildGgSign(apiKey: string, apiSecret: string): { sign: string; time: string } {
-  const time = String(Date.now());
-  const sign = createHmac('sha1', apiSecret).update(apiKey + time, 'utf8').digest('base64');
-  return { sign, time };
-}
-
 function resolveGgCredentials(credentials: Record<string, string>): {
   apiKey: string;
   apiSecret: string;
-  roleUsername: string;
-  rolePasswordHash: string;
+  oauthToken?: string;
+  oauthTokenSecret?: string;
+  roleUsername?: string;
+  rolePasswordHash?: string;
 } {
   const apiKey = credentials.apiKey?.trim() ?? '';
   const apiSecret = credentials.apiSecret?.trim() ?? '';
+  const oauthToken =
+    credentials.oauthToken?.trim() ||
+    credentials.accessToken?.trim() ||
+    undefined;
+  const oauthTokenSecret =
+    credentials.oauthTokenSecret?.trim() ||
+    credentials.accessTokenSecret?.trim() ||
+    undefined;
   const roleUsername =
     credentials.roleUsername?.trim() ||
     credentials.username?.trim() ||
-    '';
+    undefined;
   const rolePasswordPlain =
     credentials.rolePassword?.trim() ||
     credentials.password?.trim() ||
     '';
   const rolePasswordHash =
     credentials.rolePasswordHash?.trim() ||
-    (rolePasswordPlain.length > 0 ? hashRolePassword(rolePasswordPlain) : '');
-  if (!apiKey || !apiSecret || !roleUsername || !rolePasswordHash) {
+    (rolePasswordPlain.length > 0 ? hashRolePassword(rolePasswordPlain) : undefined);
+
+  if (!apiKey || !apiSecret) {
+    throw new Error('GittiGidiyor: apiKey ve apiSecret zorunludur');
+  }
+  const hasOAuth = Boolean(oauthToken && oauthTokenSecret);
+  const hasRole = Boolean(roleUsername && rolePasswordHash);
+  if (!hasOAuth && !hasRole) {
     throw new Error(
-      'GittiGidiyor: apiKey, apiSecret, roleUsername ve rolePassword zorunludur',
+      'GittiGidiyor: OAuth token çifti veya roleUsername + rolePassword zorunludur',
     );
   }
-  return { apiKey, apiSecret, roleUsername, rolePasswordHash };
+  return {
+    apiKey,
+    apiSecret,
+    oauthToken,
+    oauthTokenSecret,
+    roleUsername,
+    rolePasswordHash,
+  };
 }
 
 function ggToApiError(context: string, error: unknown): Error {
@@ -117,6 +135,9 @@ function normalizeProductRows(payload: unknown): GittigidiyorProductRow[] {
   if (Array.isArray(body.product)) {
     return body.product;
   }
+  if (Array.isArray(body.items)) {
+    return body.items;
+  }
   if (isRecord(body.product)) {
     return [body.product];
   }
@@ -149,48 +170,125 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     return PLATFORM_RATE_LIMITS.GITTIGIDIYOR ?? PLATFORM_RATE_LIMITS.DEFAULT;
   }
 
-  private getClient(credentials: Record<string, string>): AxiosInstance {
-    const { apiKey, apiSecret } = resolveGgCredentials(credentials);
-    const basic = Buffer.from(`${apiKey}:${apiSecret}`, 'utf8').toString('base64');
-    return axios.create({
-      baseURL: GITTIGIDIYOR_BASE_URL,
-      headers: {
-        Authorization: `Basic ${basic}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      timeout: 25_000,
-    });
-  }
-
-  private authParams(credentials: Record<string, string>): Record<string, string> {
+  private legacyAuthParams(credentials: Record<string, string>): Record<string, string> {
     const { apiKey, apiSecret, roleUsername, rolePasswordHash } =
       resolveGgCredentials(credentials);
-    const { sign, time } = buildGgSign(apiKey, apiSecret);
+    const { sign, time } = buildLegacyGgSign(apiKey, apiSecret);
     return {
       apiKey,
       sign,
       time,
-      roleUsername,
-      rolePassword: rolePasswordHash,
+      roleUsername: roleUsername ?? '',
+      rolePassword: rolePasswordHash ?? '',
     };
+  }
+
+  private async oauthRequest<T>(
+    method: 'GET' | 'POST' | 'PUT',
+    path: string,
+    credentials: Record<string, string>,
+    params: Record<string, string> = {},
+    body?: Record<string, unknown>,
+  ): Promise<T> {
+    const { apiKey, apiSecret, oauthToken, oauthTokenSecret } =
+      resolveGgCredentials(credentials);
+    if (!oauthToken || !oauthTokenSecret) {
+      throw new Error('GittiGidiyor: OAuth token çifti zorunludur');
+    }
+    const signed = signGittigidiyorOAuthRequest(
+      method,
+      path,
+      apiKey,
+      apiSecret,
+      oauthToken,
+      oauthTokenSecret,
+      params,
+    );
+    const { data } = await axios.request<T>({
+      method,
+      url: signed.url,
+      headers: {
+        ...signed.headers,
+        'Content-Type': 'application/json',
+      },
+      ...(body !== undefined ? { data: body } : {}),
+      timeout: 25_000,
+    });
+    return data;
+  }
+
+  private async legacyRequest<T>(
+    method: 'GET' | 'POST' | 'PUT',
+    path: string,
+    credentials: Record<string, string>,
+    params: Record<string, string | number> = {},
+    body?: Record<string, unknown>,
+  ): Promise<T> {
+    const url = `${GITTIGIDIYOR_DEVAPI_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+    const { apiKey, apiSecret } = resolveGgCredentials(credentials);
+    const basic = Buffer.from(`${apiKey}:${apiSecret}`, 'utf8').toString('base64');
+    const { data } = await axios.request<T>({
+      method,
+      url,
+      params: { ...this.legacyAuthParams(credentials), ...params },
+      headers: {
+        Authorization: `Basic ${basic}`,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      ...(body !== undefined ? { data: body } : {}),
+      timeout: 25_000,
+    });
+    return data;
+  }
+
+  private usesOAuth(credentials: Record<string, string>): boolean {
+    const creds = resolveGgCredentials(credentials);
+    return Boolean(creds.oauthToken && creds.oauthTokenSecret);
+  }
+
+  private async apiGet<T>(
+    path: string,
+    credentials: Record<string, string>,
+    params: Record<string, string> = {},
+  ): Promise<T> {
+    if (this.usesOAuth(credentials)) {
+      return this.oauthRequest<T>('GET', path, credentials, params);
+    }
+    return this.legacyRequest<T>('GET', path, credentials, params);
+  }
+
+  private async apiPut<T>(
+    path: string,
+    credentials: Record<string, string>,
+    body: Record<string, unknown>,
+    params: Record<string, string> = {},
+  ): Promise<T> {
+    if (this.usesOAuth(credentials)) {
+      return this.oauthRequest<T>('PUT', path, credentials, params, body);
+    }
+    return this.legacyRequest<T>('PUT', path, credentials, params, body);
+  }
+
+  private async apiPost<T>(
+    path: string,
+    credentials: Record<string, string>,
+    body: Record<string, unknown>,
+    params: Record<string, string> = {},
+  ): Promise<T> {
+    if (this.usesOAuth(credentials)) {
+      return this.oauthRequest<T>('POST', path, credentials, params, body);
+    }
+    return this.legacyRequest<T>('POST', path, credentials, params, body);
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const client = this.getClient(credentials);
       await withRateLimit(this.platform, this.rpm(), async () => {
-        const { data } = await client.get<GittigidiyorApiEnvelope<GittigidiyorProductsPayload>>(
-          '/product/getProducts/json',
-          {
-            params: {
-              ...this.authParams(credentials),
-              category: 0,
-              active: 1,
-              pageSize: 1,
-              pageNumber: 1,
-            },
-          },
+        const data = await this.apiGet<GittigidiyorApiEnvelope<GittigidiyorProductsPayload>>(
+          '/item/getItemList',
+          credentials,
+          { page: '1', size: '1' },
         );
         assertGgSuccess(data, 'bağlantı testi');
       });
@@ -206,12 +304,13 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
   private mapProduct(row: GittigidiyorProductRow): MarketplaceListing | null {
     const code =
       (typeof row.productCode === 'string' && row.productCode) ||
+      (typeof row.itemId === 'string' && row.itemId) ||
       (row.productId !== undefined ? String(row.productId) : '');
     if (!code) {
       return null;
     }
     const title = typeof row.title === 'string' ? row.title : code;
-    const qtyRaw = row.stockAmount ?? row.stock ?? 0;
+    const qtyRaw = row.stockAmount ?? row.stock ?? row.quantity ?? 0;
     const qty =
       typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
         ? Math.max(0, Math.round(qtyRaw))
@@ -283,7 +382,7 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     }
     return {
       platformOrderId: String(id),
-      status: row.status !== undefined ? String(row.status) : '1',
+      status: row.status !== undefined ? String(row.status) : 'WaitingforShipment',
       customerName: customer,
       items,
       totalAmount: total,
@@ -301,24 +400,33 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const client = this.getClient(credentials);
-      const end = new Date();
-      const start = since ?? new Date(end.getTime() - 7 * 86400000);
-      const rows = await withRateLimit(this.platform, this.rpm(), async () => {
-        const { data } = await client.get<
-          GittigidiyorApiEnvelope<GittigidiyorOrdersPayload>
-        >('/order/getOrderList/json', {
-          params: {
-            ...this.authParams(credentials),
-            startDate: formatGgDate(start),
-            endDate: formatGgDate(end),
-            status: 1,
-          },
-        });
-        const payload = assertGgSuccess(data, 'sipariş listesi');
-        return normalizeOrderRows(payload);
+      void since;
+      const allRows: GittigidiyorOrderRow[] = [];
+      await withRateLimit(this.platform, this.rpm(), async () => {
+        for (const status of GITTIGIDIYOR_ORDER_STATUSES) {
+          const data = await this.apiGet<GittigidiyorApiEnvelope<GittigidiyorOrdersPayload>>(
+            '/trade/getOrders',
+            credentials,
+            { role: 'seller', status },
+          );
+          const payload = assertGgSuccess(data, `sipariş listesi (${status})`);
+          allRows.push(...normalizeOrderRows(payload));
+        }
       });
-      return rows
+      const seen = new Set<string>();
+      const unique = allRows.filter((row) => {
+        const id = row.orderId ?? row.saleCode;
+        if (id === undefined || id === null) {
+          return false;
+        }
+        const key = String(id);
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+      return unique
         .map((r) => this.mapOrder(r))
         .filter((x): x is MarketplaceOrder => x !== null);
     } catch (error) {
@@ -331,21 +439,17 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     try {
-      const client = this.getClient(credentials);
       const pageNumber = page + 1;
       const pageSize = 20;
       const result = await withRateLimit(this.platform, this.rpm(), async () => {
-        const { data } = await client.get<
-          GittigidiyorApiEnvelope<GittigidiyorProductsPayload>
-        >('/product/getProducts/json', {
-          params: {
-            ...this.authParams(credentials),
-            category: 0,
-            active: 1,
-            pageSize,
-            pageNumber,
+        const data = await this.apiGet<GittigidiyorApiEnvelope<GittigidiyorProductsPayload>>(
+          '/item/getItemList',
+          credentials,
+          {
+            page: String(pageNumber),
+            size: String(pageSize),
           },
-        });
+        );
         const payload = assertGgSuccess(data, 'ürün listesi');
         const products = normalizeProductRows(payload);
         const total =
@@ -371,13 +475,12 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const client = this.getClient(credentials);
       await withRateLimit(this.platform, this.rpm(), async () => {
         for (const u of updates) {
-          const { data } = await client.post<GittigidiyorApiEnvelope>(
-            '/product/updateProductStock/json',
+          const data = await this.apiPut<GittigidiyorApiEnvelope>(
+            '/item/editItem',
+            credentials,
             {
-              ...this.authParams(credentials),
               productCode: u.barcode,
               stockAmount: Math.max(0, Math.round(u.quantity)),
             },
@@ -395,13 +498,12 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     try {
-      const client = this.getClient(credentials);
       await withRateLimit(this.platform, this.rpm(), async () => {
         for (const u of updates) {
-          const { data } = await client.post<GittigidiyorApiEnvelope>(
-            '/product/updateProductPrice/json',
+          const data = await this.apiPut<GittigidiyorApiEnvelope>(
+            '/item/editItem',
+            credentials,
             {
-              ...this.authParams(credentials),
               productCode: u.barcode,
               price: u.salePrice,
               currencyId: GITTIGIDIYOR_CURRENCY_TRY,
@@ -412,6 +514,33 @@ export class GittigidiyorAdapter implements IMarketplaceAdapter {
       });
     } catch (error) {
       throwSyncFailed(this.platform, 'updatePrice', ggToApiError('fiyat güncelleme', error));
+    }
+  }
+
+  /** Kargo takip numarası — POST trade/setTrackingNumber */
+  async setTrackingNumber(
+    credentials: Record<string, string>,
+    payload: GittigidiyorTrackingPayload,
+  ): Promise<void> {
+    try {
+      await withRateLimit(this.platform, this.rpm(), async () => {
+        const data = await this.apiPost<GittigidiyorApiEnvelope>(
+          '/trade/setTrackingNumber',
+          credentials,
+          {
+            orderId: payload.orderId,
+            trackingNumber: payload.trackingNumber,
+            ...(payload.cargoCompany ? { cargoCompany: payload.cargoCompany } : {}),
+          },
+        );
+        assertGgSuccess(data, 'kargo takip numarası');
+      });
+    } catch (error) {
+      throwSyncFailed(
+        this.platform,
+        'setTrackingNumber',
+        ggToApiError('kargo takip numarası', error),
+      );
     }
   }
 }

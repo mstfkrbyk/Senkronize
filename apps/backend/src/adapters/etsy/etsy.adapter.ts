@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { AxiosRequestConfig } from 'axios';
-import axios from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -10,7 +9,6 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { EncryptionService } from '../../common/encryption/encryption.service';
 import {
   axiosWithRetry,
   PLATFORM_RATE_LIMITS,
@@ -21,6 +19,8 @@ import {
   normalizeProductRows,
   throwSyncFailed,
 } from '../stub-helpers';
+import { ETSY_API_BASE } from './etsy.constants';
+import { refreshEtsyAccessToken } from './etsy.oauth';
 import type {
   EtsyListing,
   EtsyReceipt,
@@ -28,17 +28,17 @@ import type {
   EtsyTransaction,
 } from './etsy.types';
 
-const ETSY_BASE = 'https://openapi.etsy.com/v3/application';
-const ETSY_TOKEN_URL = 'https://api.etsy.com/v3/public/oauth/token';
+export interface EtsyTrackingPayload {
+  receiptId: string;
+  trackingCode: string;
+  carrierName: string;
+  sendBcc?: boolean;
+}
 
 @Injectable()
 export class EtsyAdapter implements IMarketplaceAdapter {
   readonly platform = 'ETSY';
   private readonly logger = new Logger(EtsyAdapter.name);
-
-  constructor(private readonly encryptionService: EncryptionService) {
-    void this.encryptionService;
-  }
 
   private rpm(): number {
     return PLATFORM_RATE_LIMITS.ETSY ?? PLATFORM_RATE_LIMITS.DEFAULT;
@@ -46,39 +46,29 @@ export class EtsyAdapter implements IMarketplaceAdapter {
 
   private async getAccessToken(credentials: Record<string, string>): Promise<string> {
     const direct = credentials.accessToken?.trim();
-    if (direct) {
+    const expiresRaw = credentials.tokenExpiresAt?.trim();
+    if (direct && expiresRaw) {
+      const expiresAt = Number.parseInt(expiresRaw, 10);
+      if (Number.isFinite(expiresAt) && Date.now() < expiresAt - 5 * 60 * 1000) {
+        return direct;
+      }
+    } else if (direct && !credentials.refreshToken?.trim()) {
       return direct;
     }
+
     const clientId = credentials.apiKey?.trim();
     const clientSecret = credentials.apiSecret?.trim();
     const refreshToken = credentials.refreshToken?.trim();
     if (!clientId || !clientSecret || !refreshToken) {
       throw new Error(
-        'Etsy: apiKey, apiSecret ve refreshToken (veya accessToken) zorunludur',
+        'Etsy: apiKey, apiSecret ve refreshToken (veya geçerli accessToken) zorunludur',
       );
     }
-    const body = new URLSearchParams({
-      grant_type: 'refresh_token',
-      client_id: clientId,
-      refresh_token: refreshToken,
-    });
-    const { data } = await axios.post<{ access_token?: string }>(
-      ETSY_TOKEN_URL,
-      body,
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'x-api-key': clientId,
-        },
-        auth: { username: clientId, password: clientSecret },
-        timeout: 20_000,
-      },
-    );
-    const token = typeof data.access_token === 'string' ? data.access_token : '';
-    if (!token) {
-      throw new Error('Etsy: access_token alınamadı');
-    }
-    return token;
+    const tokens = await refreshEtsyAccessToken(clientId, clientSecret, refreshToken);
+    credentials.accessToken = tokens.accessToken;
+    credentials.refreshToken = tokens.refreshToken;
+    credentials.tokenExpiresAt = String(tokens.tokenExpiresAt);
+    return tokens.accessToken;
   }
 
   private headers(
@@ -94,18 +84,23 @@ export class EtsyAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private resolveCredentials(credentials: Record<string, string>): {
+    apiKey: string;
+    shopId: string;
+  } {
+    const apiKey = credentials.apiKey?.trim() ?? '';
+    const shopId = credentials.shopId?.trim() ?? '';
+    if (!apiKey || !shopId) {
+      throw new Error('Etsy: apiKey ve shopId zorunludur');
+    }
+    return { apiKey, shopId };
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const apiKey = credentials.apiKey?.trim();
-      if (!apiKey) {
-        return false;
-      }
+      const { apiKey, shopId } = this.resolveCredentials(credentials);
       const token = await this.getAccessToken(credentials);
-      const shopId = credentials.shopId?.trim();
-      if (!shopId) {
-        return false;
-      }
-      const url = `${ETSY_BASE}/shops/${shopId}/listings/active`;
+      const url = `${ETSY_API_BASE}/shops/${shopId}/listings/active`;
       await axiosWithRetry<unknown>(
         {
           method: 'GET',
@@ -211,37 +206,45 @@ export class EtsyAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const apiKey = credentials.apiKey?.trim();
-      const shopId = credentials.shopId?.trim();
-      if (!apiKey || !shopId) {
-        throw new Error('Etsy: apiKey ve shopId zorunludur');
-      }
+      const { apiKey, shopId } = this.resolveCredentials(credentials);
       const token = await this.getAccessToken(credentials);
-      const url = `${ETSY_BASE}/shops/${shopId}/receipts`;
-      const sinceMs = since ? since.getTime() : undefined;
-      let rows: MarketplaceOrder[] = [];
+      const url = `${ETSY_API_BASE}/shops/${shopId}/receipts`;
+      const sinceSec = since ? Math.floor(since.getTime() / 1000) : undefined;
+      const maxCreated = Math.floor(Date.now() / 1000);
+      const rows: MarketplaceOrder[] = [];
+      let offset = 0;
+      const limit = 100;
+
       await withRateLimit('ETSY', this.rpm(), async () => {
-        const data = await axiosWithRetry<EtsyReceiptsResponse>(
-          {
-            method: 'GET',
-            url,
-            timeout: 25_000,
-            params: {
-              limit: 100,
-              was_paid: true,
-              was_shipped: false,
-              ...(sinceMs !== undefined
-                ? { min_created: Math.floor(sinceMs / 1000) }
-                : {}),
+        for (;;) {
+          const data = await axiosWithRetry<EtsyReceiptsResponse>(
+            {
+              method: 'GET',
+              url,
+              timeout: 25_000,
+              params: {
+                limit,
+                offset,
+                was_paid: true,
+                ...(sinceSec !== undefined ? { min_created: sinceSec } : {}),
+                max_created: maxCreated,
+              },
+              ...this.headers(apiKey, token),
             },
-            ...this.headers(apiKey, token),
-          },
-          {},
-        );
-        const results = Array.isArray(data.results) ? data.results : [];
-        rows = results
-          .map((r) => this.receiptToOrder(r))
-          .filter((x): x is MarketplaceOrder => x !== null);
+            {},
+          );
+          const results = Array.isArray(data.results) ? data.results : [];
+          for (const r of results) {
+            const mapped = this.receiptToOrder(r);
+            if (mapped) {
+              rows.push(mapped);
+            }
+          }
+          if (results.length < limit) {
+            break;
+          }
+          offset += limit;
+        }
       });
       return rows;
     } catch (error) {
@@ -249,18 +252,34 @@ export class EtsyAdapter implements IMarketplaceAdapter {
     }
   }
 
+  async getListing(
+    credentials: Record<string, string>,
+    listingId: string,
+  ): Promise<EtsyListing | null> {
+    const { apiKey } = this.resolveCredentials(credentials);
+    const token = await this.getAccessToken(credentials);
+    const url = `${ETSY_API_BASE}/listings/${listingId}`;
+    const data = await axiosWithRetry<EtsyListing>(
+      {
+        method: 'GET',
+        url,
+        timeout: 20_000,
+        params: { includes: 'MainImage,Inventory' },
+        ...this.headers(apiKey, token),
+      },
+      {},
+    );
+    return isRecord(data) ? data : null;
+  }
+
   async getListings(
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     try {
-      const apiKey = credentials.apiKey?.trim();
-      const shopId = credentials.shopId?.trim();
-      if (!apiKey || !shopId) {
-        throw new Error('Etsy: apiKey ve shopId zorunludur');
-      }
+      const { apiKey, shopId } = this.resolveCredentials(credentials);
       const token = await this.getAccessToken(credentials);
-      const url = `${ETSY_BASE}/shops/${shopId}/listings/active`;
+      const url = `${ETSY_API_BASE}/shops/${shopId}/listings/active`;
       const offset = page * 100;
       const { rows, total } = await withRateLimit('ETSY', this.rpm(), async () => {
         const data = await axiosWithRetry<unknown>(
@@ -287,8 +306,7 @@ export class EtsyAdapter implements IMarketplaceAdapter {
         const skuArr = Array.isArray(p.sku) ? p.sku : [];
         const barcode =
           skuArr.length > 0 && typeof skuArr[0] === 'string' ? skuArr[0] : id;
-        const title =
-          typeof p.title === 'string' ? p.title : barcode;
+        const title = typeof p.title === 'string' ? p.title : barcode;
         const price = p.price;
         let sale = 0;
         if (isRecord(price)) {
@@ -341,16 +359,12 @@ export class EtsyAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const apiKey = credentials.apiKey?.trim();
-      const shopId = credentials.shopId?.trim();
-      if (!apiKey || !shopId) {
-        throw new Error('Etsy: apiKey ve shopId zorunludur');
-      }
+      const { apiKey } = this.resolveCredentials(credentials);
       const token = await this.getAccessToken(credentials);
       await withRateLimit('ETSY', this.rpm(), async () => {
         for (const u of updates) {
           const listingId = u.barcode;
-          const url = `${ETSY_BASE}/listings/${listingId}/inventory`;
+          const url = `${ETSY_API_BASE}/listings/${listingId}/inventory`;
           await axiosWithRetry<unknown>(
             {
               method: 'PUT',
@@ -385,19 +399,15 @@ export class EtsyAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     try {
-      const apiKey = credentials.apiKey?.trim();
-      const shopId = credentials.shopId?.trim();
-      if (!apiKey || !shopId) {
-        throw new Error('Etsy: apiKey ve shopId zorunludur');
-      }
+      const { apiKey } = this.resolveCredentials(credentials);
       const token = await this.getAccessToken(credentials);
       await withRateLimit('ETSY', this.rpm(), async () => {
         for (const u of updates) {
           const listingId = u.barcode;
-          const url = `${ETSY_BASE}/shops/${shopId}/listings/${listingId}`;
+          const url = `${ETSY_API_BASE}/listings/${listingId}`;
           await axiosWithRetry<unknown>(
             {
-              method: 'PATCH',
+              method: 'PUT',
               url,
               timeout: 20_000,
               data: { price: u.salePrice },
@@ -409,6 +419,36 @@ export class EtsyAdapter implements IMarketplaceAdapter {
       });
     } catch (error) {
       throwSyncFailed('ETSY', 'updatePrice', error);
+    }
+  }
+
+  /** Kargo takip numarası bildirimi — POST receipts/{receiptId}/tracking */
+  async submitTracking(
+    credentials: Record<string, string>,
+    payload: EtsyTrackingPayload,
+  ): Promise<void> {
+    try {
+      const { apiKey, shopId } = this.resolveCredentials(credentials);
+      const token = await this.getAccessToken(credentials);
+      const url = `${ETSY_API_BASE}/shops/${shopId}/receipts/${payload.receiptId}/tracking`;
+      await withRateLimit('ETSY', this.rpm(), async () => {
+        await axiosWithRetry<unknown>(
+          {
+            method: 'POST',
+            url,
+            timeout: 20_000,
+            data: {
+              tracking_code: payload.trackingCode,
+              carrier_name: payload.carrierName,
+              send_bcc: payload.sendBcc ?? false,
+            },
+            ...this.headers(apiKey, token),
+          },
+          { maxRetries: 2 },
+        );
+      });
+    } catch (error) {
+      throwSyncFailed('ETSY', 'submitTracking', error);
     }
   }
 }

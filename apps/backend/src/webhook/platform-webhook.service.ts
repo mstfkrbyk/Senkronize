@@ -134,6 +134,8 @@ export class PlatformWebhookService {
       if (!snsOk) {
         throw new ForbiddenException('Geçersiz SNS imzası');
       }
+    } else if (platform === Marketplace.ETSY && this.isEtsyPing(rawBody)) {
+      // Etsy kurulum ping'i — imza doğrulaması atlanır
     } else {
       const plainSecret = resolvePlainWebhookSecret(
         this.encryptionService,
@@ -195,6 +197,13 @@ export class PlatformWebhookService {
           '';
         return this.webhookSignature.verifyN11(rawBody, auth, secret);
       }
+      case Marketplace.ETSY: {
+        const sig =
+          getHeader(headers, 'x-etsy-signature') ??
+          getHeader(headers, 'X-Etsy-Signature') ??
+          '';
+        return this.webhookSignature.verifyHmacSha256(rawBody, sig, secret, 'hex');
+      }
       default:
         return false;
     }
@@ -210,6 +219,8 @@ export class PlatformWebhookService {
         return this.detectN11Event(body);
       case Marketplace.AMAZON_TR:
         return this.detectAmazonEvent(body);
+      case Marketplace.ETSY:
+        return this.detectEtsyEvent(body);
       default:
         return 'unknown';
     }
@@ -317,6 +328,52 @@ export class PlatformWebhookService {
       }
     }
     return 'unknown';
+  }
+
+  private detectEtsyEvent(body: unknown): PlatformWebhookEvent {
+    if (typeof body !== 'object' || body === null) {
+      return 'unknown';
+    }
+    const rec = body as Record<string, unknown>;
+    const action =
+      (typeof rec.action === 'string' && rec.action) ||
+      (typeof rec.event_type === 'string' && rec.event_type) ||
+      '';
+    const n = normalizeKey(action);
+    if (n === 'PING' || n === 'CHALLENGE') {
+      return 'unknown';
+    }
+    if (n.includes('RECEIPT') || n.includes('ORDER')) {
+      if (n.includes('CREATE')) {
+        return 'order.created';
+      }
+      if (n.includes('CANCEL')) {
+        return 'order.cancelled';
+      }
+      return 'order.updated';
+    }
+    if (n.includes('LISTING') || n.includes('INVENTORY')) {
+      return n.includes('STOCK') ? 'stock.updated' : 'listing.updated';
+    }
+    return 'unknown';
+  }
+
+  private isEtsyPing(rawBody: Buffer): boolean {
+    try {
+      const body = JSON.parse(rawBody.toString('utf8')) as unknown;
+      if (typeof body !== 'object' || body === null) {
+        return false;
+      }
+      const rec = body as Record<string, unknown>;
+      const action =
+        (typeof rec.action === 'string' && rec.action) ||
+        (typeof rec.event_type === 'string' && rec.event_type) ||
+        '';
+      const n = normalizeKey(action);
+      return n === 'PING' || n === 'CHALLENGE';
+    } catch {
+      return false;
+    }
   }
 
   private async dispatchEvent(

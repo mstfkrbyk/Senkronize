@@ -4,11 +4,12 @@ import { SubscriptionModule } from '../subscription/subscription.module';
 
 import { MarketplaceConnectionController } from './marketplace-connection.controller';
 import { MarketplaceConnectionService } from './marketplace-connection.service';
+import { TokenRefreshService } from './token-refresh.service';
 
 @Module({
   imports: [SubscriptionModule],
   controllers: [MarketplaceConnectionController],
-  providers: [MarketplaceConnectionService],
-  exports: [MarketplaceConnectionService],
+  providers: [MarketplaceConnectionService, TokenRefreshService],
+  exports: [MarketplaceConnectionService, TokenRefreshService],
 })
 export class MarketplaceConnectionModule {}
