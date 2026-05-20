@@ -14,6 +14,8 @@ import {
   asArray,
   asRecord,
   escapeXml,
+  estimateDomesticCargoPrice,
+  extractBase64PdfFromPayload,
   extractTrackingCodeFromPayload,
   getDeepString,
   normalizeTrackingStatus,
@@ -23,55 +25,54 @@ import {
   singleEventFromText,
   soap11Envelope,
 } from './cargo-adapter.helpers';
+import { resolveTurkishCityCode } from './turkish-city-codes';
 
-const DEFAULT_BASE =
-  'https://customerapi.yurticikargo.com:8443/KurumosalMusteriEntegrasyonu';
+const DEFAULT_SERVICE_URL =
+  'https://services.yurticikargo.com:8085/KargoTakipService/KargoOperasyonlariService';
+const CUS_NS = 'http://yurticikargo.com.tr/ws/cargooperations';
 
 export class YurticiCargoAdapter implements ICargoAdapter {
   private readonly logger = new Logger(YurticiCargoAdapter.name);
 
   constructor(private readonly creds: Record<string, unknown>) {}
 
-  private baseUrl(): string {
+  private serviceUrl(): string {
     if (typeof this.creds.baseUrl === 'string' && this.creds.baseUrl.length > 0) {
-      return this.creds.baseUrl.replace(/\/$/, '');
+      return this.creds.baseUrl.replace(/\?wsdl$/i, '').replace(/\/$/, '');
     }
-    return DEFAULT_BASE;
+    return DEFAULT_SERVICE_URL;
   }
 
-  private authHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    const apiKey = optionalStringField(this.creds, 'apiKey');
-    if (apiKey) {
-      headers['X-API-Key'] = apiKey;
-    }
-    return headers;
+  private customerNumber(): string {
+    return (
+      optionalStringField(this.creds, 'customerNumber') ??
+      optionalStringField(this.creds, 'customerNo') ??
+      optionalStringField(this.creds, 'cusNo') ??
+      requireStringField(this.creds, 'username')
+    );
   }
 
-  private async soapRequest(action: string, innerBody: string): Promise<unknown> {
-    const username = requireStringField(this.creds, 'username');
-    const password = requireStringField(this.creds, 'password');
-    const apiKey = optionalStringField(this.creds, 'apiKey');
+  private password(): string {
+    return requireStringField(this.creds, 'password');
+  }
 
-    const authBlock = `
-  <userName>${escapeXml(username)}</userName>
-  <password>${escapeXml(password)}</password>
-  ${apiKey ? `<apiKey>${escapeXml(apiKey)}</apiKey>` : ''}`;
+  private senderName(): string {
+    return optionalStringField(this.creds, 'senderName') ?? 'Senkronize';
+  }
 
-    const inner = innerBody.includes('<userName>')
-      ? innerBody
-      : innerBody.replace(/^(\s*<[^>]+>)/, `$1${authBlock}`);
+  private async soapOperation(operation: string, innerXml: string): Promise<unknown> {
+    const body = `
+<cus:${operation} xmlns:cus="${CUS_NS}">
+${innerXml}
+</cus:${operation}>`;
 
     const { data, status } = await axios.post<string>(
-      this.baseUrl(),
-      soap11Envelope(inner),
+      this.serviceUrl(),
+      soap11Envelope(body),
       {
         headers: {
           'Content-Type': 'text/xml; charset=utf-8',
-          SOAPAction: `"${action}"`,
-          ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+          SOAPAction: `"${CUS_NS}/${operation}"`,
         },
         timeout: 45_000,
         responseType: 'text',
@@ -81,72 +82,48 @@ export class YurticiCargoAdapter implements ICargoAdapter {
     if (status < 200 || status >= 300) {
       throw new Error(`HTTP ${String(status)}`);
     }
-    if (String(data).toLowerCase().includes('fault')) {
+    const text = String(data);
+    if (text.toLowerCase().includes('fault')) {
       throw new Error('SOAP fault');
     }
-    return parseXml(data) as unknown;
+    return parseXml(text) as unknown;
   }
 
-  private async request<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: unknown): Promise<T> {
-    const username = requireStringField(this.creds, 'username');
-    const password = requireStringField(this.creds, 'password');
-    const apiKey = optionalStringField(this.creds, 'apiKey');
-    const url = `${this.baseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
-
-    const { data, status } = await axios.request<T>({
-      url,
-      method,
-      data: body,
-      headers: {
-        ...this.authHeaders(),
-        ...(apiKey ? {} : {}),
-        Authorization: `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`,
-      },
-      timeout: 45_000,
-      validateStatus: () => true,
-    });
-    if (status < 200 || status >= 300) {
-      throw new Error(`HTTP ${String(status)}`);
-    }
-    return data;
+  private authBlock(): string {
+    const customerNo = this.customerNumber();
+    const password = this.password();
+    return `
+  <CUSTOMER_NUMBER>${escapeXml(customerNo)}</CUSTOMER_NUMBER>
+  <PASSWORD>${escapeXml(password)}</PASSWORD>`;
   }
 
   async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
+    const cargoKey = params.orderId;
+    const cityCode =
+      optionalStringField(this.creds, 'receiverCityCode') ??
+      resolveTurkishCityCode(params.receiverCity);
+    const desi = params.desi ?? Math.max(1, params.weight);
+    const piece = optionalStringField(this.creds, 'piece') ?? '1';
+
     const inner = `
-<SendShipment xmlns="http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu">
-  <userName>${escapeXml(requireStringField(this.creds, 'username'))}</userName>
-  <password>${escapeXml(requireStringField(this.creds, 'password'))}</password>
-  <ShipmentAddRequest>
-    <ShipmentRequest>
-      <payer>1</payer>
-      <serviceType>1</serviceType>
-      <shipmentCount>1</shipmentCount>
-      <receiverName>${escapeXml(params.receiverName)}</receiverName>
-      <receiverPhone1>${escapeXml(params.receiverPhone)}</receiverPhone1>
-      <receiverCityName>${escapeXml(params.receiverCity)}</receiverCityName>
-      <receiverTownName>${escapeXml(params.receiverDistrict)}</receiverTownName>
-      <receiverAddress>${escapeXml(params.receiverAddress)}</receiverAddress>
-      <waybillNo></waybillNo>
-      <cargoKey>${escapeXml(params.orderId)}</cargoKey>
-      <kg>${String(params.weight)}</kg>
-      <desi>${String(params.desi ?? Math.max(1, params.weight))}</desi>
-    </ShipmentRequest>
-  </ShipmentAddRequest>
-</SendShipment>`;
+  <request>${this.authBlock()}
+    <CARGO_KEY>${escapeXml(cargoKey)}</CARGO_KEY>
+    <SENDER_NAME>${escapeXml(this.senderName())}</SENDER_NAME>
+    <RECEIVER_NAME>${escapeXml(params.receiverName)}</RECEIVER_NAME>
+    <RECEIVER_ADDRESS>${escapeXml(params.receiverAddress)}</RECEIVER_ADDRESS>
+    <RECEIVER_PHONE>${escapeXml(params.receiverPhone)}</RECEIVER_PHONE>
+    <RECEIVER_CITY_CODE>${escapeXml(cityCode)}</RECEIVER_CITY_CODE>
+    <DESI>${String(desi)}</DESI>
+    <PIECE>${escapeXml(piece)}</PIECE>
+  </request>`;
 
     try {
-      const parsed = await this.soapRequest(
-        'http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu/SendShipment',
-        inner,
-      );
+      const parsed = await this.soapOperation('addShipment', inner);
       const code =
-        getDeepString(parsed, ['waybillNo', 'waybillNumber', 'cargoKey']) ??
-        extractTrackingCodeFromPayload(parsed);
-      if (!code) {
-        this.logger.warn('Yurtiçi gönderi yanıtı ayrıştırılamadı');
-        throw new BadGatewayException('Yurtiçi Kargo yanıtı işlenemedi');
-      }
-      return { trackingCode: code, labelUrl: this.buildLabelUrl(code) };
+        extractTrackingCodeFromPayload(parsed) ??
+        getDeepString(parsed, ['CARGO_KEY', 'cargoKey', 'waybillNo']) ??
+        cargoKey;
+      return { trackingCode: code };
     } catch (error) {
       this.logger.warn('Yurtiçi createShipment başarısız', {
         message: error instanceof Error ? error.message : 'unknown',
@@ -159,18 +136,22 @@ export class YurticiCargoAdapter implements ICargoAdapter {
   }
 
   async trackShipment(trackingCode: string): Promise<TrackingResult> {
+    const inner = `${this.authBlock()}
+  <CARGO_KEY>${escapeXml(trackingCode)}</CARGO_KEY>`;
+
     try {
-      const response = await this.request<unknown>(`/tracking/${encodeURIComponent(trackingCode)}`);
-      const record = asRecord(response);
+      const parsed = await this.soapOperation('queryShipment', inner);
       const statusRaw =
-        getDeepString(response, ['Status', 'status', 'durum']) ??
-        (record ? String(record.Status ?? record.status ?? '') : '');
-      const events = parseYurticiTrackingEvents(response, trackingCode);
+        getDeepString(parsed, ['status', 'Status', 'operationStatus', 'durum']) ?? '';
+      const events = parseYurticiTrackingEvents(parsed, trackingCode);
       return {
         trackingCode,
-        status: this.mapStatus(statusRaw),
+        status: normalizeTrackingStatus(statusRaw),
         lastUpdate: events[0]?.timestamp ?? new Date(),
-        events: events.length > 0 ? events : singleEventFromText(trackingCode, statusRaw || 'Takip yanıtı alındı'),
+        events:
+          events.length > 0
+            ? events
+            : singleEventFromText(trackingCode, statusRaw || 'Takip yanıtı alındı'),
       };
     } catch (error) {
       this.logger.warn('Yurtiçi trackShipment başarısız', {
@@ -180,62 +161,38 @@ export class YurticiCargoAdapter implements ICargoAdapter {
     }
   }
 
-  private mapStatus(raw: string): TrackingResult['status'] {
-    return normalizeTrackingStatus(raw);
-  }
-
   async cancelShipment(trackingCode: string): Promise<void> {
-    const inner = `
-<CancelShipment xmlns="http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu">
-  <userName>${escapeXml(requireStringField(this.creds, 'username'))}</userName>
-  <password>${escapeXml(requireStringField(this.creds, 'password'))}</password>
-  <cargoKey>${escapeXml(trackingCode)}</cargoKey>
-</CancelShipment>`;
+    const inner = `${this.authBlock()}
+  <CARGO_KEY>${escapeXml(trackingCode)}</CARGO_KEY>`;
 
     try {
-      await this.soapRequest(
-        'http://yurticikargo.com.tr/KurumsalMusteriEntegrasyonu/CancelShipment',
-        inner,
-      );
+      await this.soapOperation('cancelShipment', inner);
     } catch {
       throw new BadGatewayException('Yurtiçi Kargo iptal işlemi tamamlanamadı');
     }
   }
 
-  private buildLabelUrl(trackingCode: string): string {
-    const base =
-      typeof this.creds.labelBaseUrl === 'string' && this.creds.labelBaseUrl.length > 0
-        ? this.creds.labelBaseUrl.replace(/\/$/, '')
-        : `${this.baseUrl()}/label`;
-    return `${base}?documentId=${encodeURIComponent(trackingCode)}`;
-  }
-
   async getLabel(trackingCode: string): Promise<Buffer | null> {
+    const inner = `${this.authBlock()}
+  <CARGO_KEY_LIST>${escapeXml(trackingCode)}</CARGO_KEY_LIST>`;
+
     try {
-      const url = this.buildLabelUrl(trackingCode);
-      const { data, status, headers } = await axios.get<ArrayBuffer>(url, {
-        responseType: 'arraybuffer',
-        timeout: 30_000,
-        validateStatus: () => true,
-        headers: this.authHeaders(),
-      });
-      if (status >= 200 && status < 300 && data) {
-        const ct = String(headers['content-type'] ?? '');
-        if (ct.includes('pdf') || ct.includes('octet-stream')) {
-          return Buffer.from(new Uint8Array(data));
-        }
+      const parsed = await this.soapOperation('getCargoLabel', inner);
+      const pdf = extractBase64PdfFromPayload(parsed);
+      if (pdf) {
+        return pdf;
       }
     } catch (error) {
-      this.logger.warn('Yurtiçi etiket indirilemedi', {
+      this.logger.warn('Yurtiçi etiket alınamadı', {
         message: error instanceof Error ? error.message : 'unknown',
       });
     }
     return null;
   }
 
-  async getRates(_params: RateParams): Promise<CargoRate[]> {
-    void _params;
-    return [];
+  async getRates(params: RateParams): Promise<CargoRate[]> {
+    const estimate = estimateDomesticCargoPrice(params.weightKg, params.desi, 28, 2.8);
+    return [estimate];
   }
 
   async testConnection(): Promise<boolean> {
@@ -257,7 +214,9 @@ function parseYurticiTrackingEvents(data: unknown, trackingCode: string): Tracki
     record.trackingList ??
     record.TrackingList ??
     record.events ??
-    record.Events;
+    record.Events ??
+    record.movements ??
+    record.Movements;
   const items = asArray(list);
   const events: TrackingEvent[] = [];
   for (const item of items) {

@@ -185,3 +185,59 @@ export function asArray(value: unknown): unknown[] {
   }
   return [];
 }
+
+const BASE64_PDF_HINTS = [
+  'labelData',
+  'LabelData',
+  'labelPdf',
+  'LabelPdf',
+  'pdfContent',
+  'PdfContent',
+  'base64',
+  'Base64',
+  'cargoLabel',
+  'CargoLabel',
+];
+
+export function extractBase64PdfFromPayload(data: unknown): Buffer | null {
+  for (const key of BASE64_PDF_HINTS) {
+    const raw = getDeepString(data, [key]);
+    if (raw && raw.length > 100) {
+      try {
+        const buf = Buffer.from(raw, 'base64');
+        if (buf.length > 50) {
+          return buf;
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+  return null;
+}
+
+/** Desi ağırlığına göre yurt içi tahmini kargo ücreti (TRY) */
+export function estimateDomesticCargoPrice(
+  weightKg: number,
+  desi: number | undefined,
+  baseFee: number,
+  perDesi: number,
+): CargoRateEstimate {
+  const chargeDesi = Math.max(1, desi ?? weightKg);
+  const price = Math.round((baseFee + chargeDesi * perDesi) * 100) / 100;
+  return {
+    serviceName: 'Standart Gönderi',
+    price,
+    currency: 'TRY',
+    transitDaysMin: 2,
+    transitDaysMax: 4,
+  };
+}
+
+export interface CargoRateEstimate {
+  serviceName: string;
+  price: number;
+  currency: string;
+  transitDaysMin?: number;
+  transitDaysMax?: number;
+}

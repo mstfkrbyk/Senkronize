@@ -13,6 +13,6 @@ import { CargoService } from './cargo.service';
   imports: [PrismaModule, CommonModule],
   controllers: [CargoController],
   providers: [CargoService, CargoRateService, CargoPriceService, CargoOptimizerService],
-  exports: [CargoService, CargoOptimizerService, CargoPriceService],
+  exports: [CargoService, CargoOptimizerService, CargoPriceService, CargoRateService],
 })
 export class CargoModule {}

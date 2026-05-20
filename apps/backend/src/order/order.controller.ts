@@ -131,6 +131,27 @@ export class OrderController {
     });
   }
 
+  @Get('shipping-labels/zip')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş kargo etiketlerini ZIP olarak indir (GET)' })
+  @ApiProduces('application/zip')
+  @ApiResponse({ status: 200, description: 'ZIP arşivi' })
+  @ApiResponse({ status: 404, description: 'Sipariş bulunamadı' })
+  async downloadShippingLabelsZip(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('orderIds') orderIdsRaw: string,
+  ): Promise<StreamableFile> {
+    const orderIds = orderIdsRaw
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    const buffer = await this.shippingLabelService.generateBulkLabels(orderIds, org.id);
+    return new StreamableFile(buffer, {
+      type: 'application/zip',
+      disposition: `attachment; filename="etiketler-${org.id.slice(-6)}.zip"`,
+    });
+  }
+
   @Post('bulk/shipping-labels')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Seçili siparişler için toplu kargo etiketi ZIP indir' })

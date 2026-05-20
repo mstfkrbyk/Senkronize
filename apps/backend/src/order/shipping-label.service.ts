@@ -1,8 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { CargoProvider } from '@prisma/client';
 import archiver from 'archiver';
 import puppeteer from 'puppeteer';
 import { PassThrough } from 'stream';
 
+import { createCargoAdapter } from '../adapters/cargo/cargo-adapter.factory';
+import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface LabelData {
@@ -51,13 +54,53 @@ async function zipPdfBuffers(files: { name: string; buffer: Buffer }[]): Promise
   });
 }
 
+function parseCargoProvider(raw: string | null): CargoProvider | null {
+  if (!raw || raw.trim().length === 0) {
+    return null;
+  }
+  const key = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  const values = Object.values(CargoProvider) as string[];
+  if (values.includes(key)) {
+    return key as CargoProvider;
+  }
+  return null;
+}
+
 @Injectable()
 export class ShippingLabelService {
   private readonly logger = new Logger(ShippingLabelService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly encryption: EncryptionService,
+  ) {}
 
   async generateLabel(orderId: string, orgId: string): Promise<Buffer> {
+    const order = await this.loadOrder(orderId, orgId);
+    const providerLabel = await this.fetchProviderLabel(order, orgId);
+    if (providerLabel) {
+      return providerLabel;
+    }
+    return this.renderHtmlToPdf(this.buildLabelHtmlFromOrder(order));
+  }
+
+  async generateBulkLabels(orderIds: string[], orgId: string): Promise<Buffer> {
+    return this.buildLabelsZip(orderIds, orgId);
+  }
+
+  private async loadOrder(
+    orderId: string,
+    orgId: string,
+  ): Promise<{
+    id: string;
+    customerName: string;
+    shippingAddress: string | null;
+    customerPhone: string | null;
+    cargoTrackingNumber: string | null;
+    cargoProvider: string | null;
+    platformOrderId: string;
+    organization: { name: string };
+  }> {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, organizationId: orgId, deletedAt: null },
       include: { organization: { select: { name: true } } },
@@ -65,8 +108,19 @@ export class ShippingLabelService {
     if (!order) {
       throw new NotFoundException('Sipariş bulunamadı');
     }
+    return order;
+  }
 
-    const html = this.buildLabelHtml({
+  private buildLabelHtmlFromOrder(order: {
+    customerName: string;
+    shippingAddress: string | null;
+    customerPhone: string | null;
+    cargoTrackingNumber: string | null;
+    cargoProvider: string | null;
+    platformOrderId: string;
+    organization: { name: string };
+  }): string {
+    return this.buildLabelHtml({
       recipientName: order.customerName,
       recipientAddress: order.shippingAddress,
       recipientCity: null,
@@ -77,59 +131,87 @@ export class ShippingLabelService {
       cargoProvider: order.cargoProvider,
       date: new Date().toLocaleDateString('tr-TR'),
     });
-
-    return this.renderHtmlToPdf(html);
   }
 
-  async generateBulkLabels(orderIds: string[], orgId: string): Promise<Buffer> {
+  private async buildLabelsZip(orderIds: string[], orgId: string): Promise<Buffer> {
     const uniqueIds = [...new Set(orderIds)];
-    const browser = await this.launchBrowser();
-    try {
-      const page = await browser.newPage();
-      const files: { name: string; buffer: Buffer }[] = [];
+    const files: { name: string; buffer: Buffer }[] = [];
 
-      for (const id of uniqueIds) {
-        const order = await this.prisma.order.findFirst({
-          where: { id, organizationId: orgId, deletedAt: null },
-          include: { organization: { select: { name: true } } },
-        });
-        if (!order) {
-          continue;
-        }
-        const html = this.buildLabelHtml({
-          recipientName: order.customerName,
-          recipientAddress: order.shippingAddress,
-          recipientCity: null,
-          recipientPhone: order.customerPhone,
-          barcode: order.cargoTrackingNumber ?? order.platformOrderId,
-          orderNumber: order.platformOrderId,
-          senderName: order.organization.name,
-          cargoProvider: order.cargoProvider,
-          date: new Date().toLocaleDateString('tr-TR'),
-        });
-        await page.setContent(html, { waitUntil: 'load', timeout: 60_000 });
-        const pdf = await page.pdf({
-          width: '100mm',
-          height: '150mm',
-          printBackground: true,
-          margin: { top: '4mm', bottom: '4mm', left: '4mm', right: '4mm' },
-        });
-        files.push({
-          name: safeLabelFileName(order.platformOrderId),
-          buffer: Buffer.from(pdf),
-        });
+    for (const id of uniqueIds) {
+      const order = await this.prisma.order.findFirst({
+        where: { id, organizationId: orgId, deletedAt: null },
+        include: { organization: { select: { name: true } } },
+      });
+      if (!order) {
+        continue;
       }
 
-      if (files.length === 0) {
-        throw new NotFoundException('Etiket oluşturulacak sipariş bulunamadı');
-      }
+      const providerLabel = await this.fetchProviderLabel(order, orgId);
+      const buffer =
+        providerLabel ?? (await this.renderHtmlToPdf(this.buildLabelHtmlFromOrder(order)));
 
-      return await zipPdfBuffers(files);
-    } finally {
-      await browser.close().catch((err: unknown) => {
-        this.logger.warn('Tarayıcı kapatılamadı', { error: err });
+      files.push({
+        name: safeLabelFileName(order.platformOrderId),
+        buffer,
       });
     }
+
+    if (files.length === 0) {
+      throw new NotFoundException('Etiket oluşturulacak sipariş bulunamadı');
+    }
+
+    return await zipPdfBuffers(files);
+  }
+
+  private async fetchProviderLabel(
+    order: {
+      cargoProvider: string | null;
+      cargoTrackingNumber: string | null;
+    },
+    orgId: string,
+  ): Promise<Buffer | null> {
+    const provider = parseCargoProvider(order.cargoProvider);
+    const tracking = order.cargoTrackingNumber?.trim();
+    if (!provider || !tracking) {
+      return null;
+    }
+
+    const connection = await this.prisma.cargoConnection.findUnique({
+      where: {
+        organizationId_provider: { organizationId: orgId, provider },
+      },
+    });
+    if (!connection?.isActive || !connection.credentialsEnc) {
+      return null;
+    }
+
+    try {
+      const creds = this.parseCredentials(connection.credentialsEnc);
+      if (Object.keys(creds).length === 0) {
+        return null;
+      }
+      const adapter = createCargoAdapter(provider, creds);
+      return await adapter.getLabel(tracking);
+    } catch (error) {
+      this.logger.warn('Kargo firması etiketi alınamadı', {
+        provider,
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+      return null;
+    }
+  }
+
+  private parseCredentials(enc: string): Record<string, unknown> {
+    try {
+      const plain = this.encryption.decrypt(enc);
+      const parsed: unknown = JSON.parse(plain);
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+    return {};
   }
 
   private buildLabelHtml(data: LabelData): string {

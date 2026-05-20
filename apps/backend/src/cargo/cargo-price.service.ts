@@ -23,6 +23,16 @@ export interface CargoPrice {
   estimatedTransitDays?: number;
 }
 
+/** Kargo firması bazlı fiyat karşılaştırma satırı */
+export interface CargoRateQuote {
+  provider: string;
+  price: number;
+  currency: string;
+  estimatedDays?: number;
+  serviceName?: string;
+  connectionId?: string;
+}
+
 const CARGO_PROVIDER_LABEL_TR: Record<string, string> = {
   YURTICI: 'Yurtiçi Kargo',
   ARAS: 'Aras Kargo',
@@ -98,6 +108,29 @@ export class CargoPriceService {
       return null;
     }
     return prices.reduce((a, b) => (a.price <= b.price ? a : b));
+  }
+
+  async compareCargoRates(params: {
+    weight: number;
+    fromCity: string;
+    toCity: string;
+    orgId: string;
+    desi?: number;
+  }): Promise<CargoRateQuote[]> {
+    const rows = await this.compareAllPrices(params.orgId, {
+      weight: params.weight,
+      desi: params.desi,
+      fromCity: params.fromCity,
+      toCity: params.toCity,
+    });
+    return rows.map((row) => ({
+      provider: String(row.provider),
+      price: row.price,
+      currency: row.currency,
+      estimatedDays: row.estimatedTransitDays,
+      serviceName: row.serviceName,
+      connectionId: row.connectionId,
+    }));
   }
 
   async compareAllPrices(orgId: string, params: PriceParams): Promise<CargoPrice[]> {
