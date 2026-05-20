@@ -327,6 +327,17 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.VENTE_EXCLUSIVE]: 'Vente-Exclusive',
   [Marketplace.GRAILED]: 'Grailed',
   [Marketplace.TISE]: 'Tise',
+  [Marketplace.BAYMIO]: 'Baymio',
+  [Marketplace.OTTOPLUS]: 'Ottoplus',
+  [Marketplace.KADIN_CLUB]: 'Kadın Club',
+  [Marketplace.VAKKO]: 'Vakko',
+  [Marketplace.BEYMEN]: 'Beymen',
+  [Marketplace.NETWORK]: 'Network',
+  [Marketplace.COLINS]: "Colin's",
+  [Marketplace.US_POLO_TR]: 'US Polo ASSN TR',
+  [Marketplace.TWIST]: 'Twist',
+  [Marketplace.CEPTE_SOK]: 'Cepte Şok',
+  [Marketplace.ROSSMANN_ONLINE]: 'Rossmann Online',
 };
 
 @Injectable()
