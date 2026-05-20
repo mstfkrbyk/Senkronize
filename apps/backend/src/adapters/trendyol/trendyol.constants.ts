@@ -6,7 +6,20 @@ export const TRENDYOL_BASE_URL = 'https://apigw.trendyol.com/integration';
 
 export const TRENDYOL_ORDERS = '/orders';
 export const TRENDYOL_PRODUCTS = '/products';
+export const TRENDYOL_PRODUCTS_V2 = '/v2/products';
 export const TRENDYOL_PRICE_INVENTORY = '/products/price-and-inventory';
+
+export function trendyolShipmentPackagePath(shipmentPackageId: string): string {
+  return `/shipment-packages/${encodeURIComponent(shipmentPackageId)}`;
+}
+
+export function trendyolOrderPackagePath(orderId: string): string {
+  return `/orders/${encodeURIComponent(orderId)}/package`;
+}
+
+/** Trendyol kargo sağlayıcı kodları */
+export const TRENDYOL_CARGO_PROVIDERS = ['YURTICI', 'ARAS', 'MNG'] as const;
+export type TrendyolCargoProvider = (typeof TRENDYOL_CARGO_PROVIDERS)[number];
 
 export const TRENDYOL_SELLER_ORDERS = '/order/sellers/{sellerId}/orders';
 export const TRENDYOL_V2_PRODUCTS = '/product/sellers/{sellerId}/products';

@@ -54,7 +54,9 @@ import { AkulakuModule } from './akulaku/akulaku.module';
 import { AmericanasModule } from './americanas/americanas.module';
 import { ArcelikModule } from './arcelik/arcelik.module';
 import { AracimModule } from './aracim/aracim.module';
+import { ArbuzKzModule } from './arbuz-kz/arbuz-kz.module';
 import { ArticleModule } from './article/article.module';
+import { AuchanModule } from './auchan/auchan.module';
 import { ArtsyModule } from './artsy/artsy.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
 import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
@@ -85,6 +87,7 @@ import { BukalapakModule } from './bukalapak/bukalapak.module';
 import { BuldumbuldumModule } from './buldumbuldum/buldumbuldum.module';
 import { BoynerModule } from './boyner/boyner.module';
 import { CepteSokModule } from './cepte-sok/cepte-sok.module';
+import { CashiModule } from './cashi/cashi.module';
 import { CatchAuModule } from './catch-au/catch-au.module';
 import { CatawikiModule } from './catawiki/catawiki.module';
 import { CentralOnlineModule } from './central-online/central-online.module';
@@ -189,9 +192,11 @@ import { JiomartModule } from './jiomart/jiomart.module';
 import { JossMainModule } from './joss-main/joss-main.module';
 import { JoomModule } from './joom/joom.module';
 import { JumiaModule } from './jumia/jumia.module';
+import { JumiaEtModule } from './jumia-et/jumia-et.module';
 import { JuspayModule } from './juspay/juspay.module';
 import { KadinClubModule } from './kadin-club/kadin-club.module';
 import { LamodaModule } from './lamoda/lamoda.module';
+import { LeroyMerlinModule } from './leroy-merlin/leroy-merlin.module';
 import { KauflandModule } from './kaufland/kaufland.module';
 import { KaracaModule } from './karaca/karaca.module';
 import { KaspiModule } from './kaspi/kaspi.module';
@@ -227,6 +232,7 @@ import { MadeinchinaModule } from './madeinchina/madeinchina.module';
 import { MadameCocoModule } from './madame-coco/madame-coco.module';
 import { MagaluModule } from './magalu/magalu.module';
 import { MallCzModule } from './mall-cz/mall-cz.module';
+import { MarketKzModule } from './market-kz/market-kz.module';
 import { MagentoModule } from './magento/magento.module';
 import { MedusaModule } from './medusa/medusa.module';
 import { ManomanoModule } from './manomano/manomano.module';
@@ -234,6 +240,7 @@ import { MaviModule } from './mavi/mavi.module';
 import { MediamarktModule } from './mediamarkt/mediamarkt.module';
 import { MediamarktTrModule } from './mediamarkt-tr/mediamarkt-tr.module';
 import { MeeshoModule } from './meesho/meesho.module';
+import { MegatradeModule } from './megatrade/megatrade.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MercariModule } from './mercari/mercari.module';
 import { MeqasaModule } from './meqasa/meqasa.module';
@@ -335,6 +342,9 @@ import { SubmarinoModule } from './submarino/submarino.module';
 import { StockxModule } from './stockx/stockx.module';
 import { SwappaModule } from './swappa/swappa.module';
 import { Street11Module } from './street11/street11.module';
+import { TamaraModule } from './tamara/tamara.module';
+import { TabbyModule } from './tabby/tabby.module';
+import { TamtamModule } from './tamtam/tamtam.module';
 import { TakealotModule } from './takealot/takealot.module';
 import { TataCliqModule } from './tata-cliq/tata-cliq.module';
 import { TikiModule } from './tiki/tiki.module';
@@ -394,6 +404,7 @@ import { YoutubeShopModule } from './youtube-shop/youtube-shop.module';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
 import { ZalandoModule } from './zalando/zalando.module';
 import { YandexMarketModule } from './yandex-market/yandex-market.module';
+import { ZoodModule } from './zood/zood.module';
 import { ZandoModule } from './zando/zando.module';
 import { KakaoCommerceModule } from './kakao-commerce/kakao-commerce.module';
 import { KoganModule } from './kogan/kogan.module';
@@ -457,6 +468,17 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     TweakersModule,
     TweeDehandsModule,
     WillhabenModule,
+    ArbuzKzModule,
+    AuchanModule,
+    CashiModule,
+    JumiaEtModule,
+    LeroyMerlinModule,
+    MarketKzModule,
+    MegatradeModule,
+    TamaraModule,
+    TabbyModule,
+    TamtamModule,
+    ZoodModule,
     ErpAdaptersModule,
     EcommerceAdaptersModule,
     A101Module,

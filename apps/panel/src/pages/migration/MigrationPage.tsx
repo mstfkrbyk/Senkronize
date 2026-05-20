@@ -1,414 +1,384 @@
 import type { ReactElement } from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { useMutation } from '@tanstack/react-query';
-import {
-  ArrowRightLeft,
-  Building2,
-  CheckCircle2,
-  FileSpreadsheet,
-  Loader2,
-  PenLine,
-  ShoppingBag,
-  Upload,
-} from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronLeft, ChevronRight, History, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { usePageTitle } from '@/hooks/usePageTitle';
+import { useSocket } from '@/hooks/useSocket';
+import { getApiErrorMessage } from '@/lib/api';
+import type {
+  MigrationDataType,
+  MigrationProgressEvent,
+  MigrationSessionProgress,
+  MigrationValidationResult,
+} from '@/types/migration';
+
+import { ColumnMappingStep } from './components/ColumnMappingStep';
+import { FileUploadStep } from './components/FileUploadStep';
+import { ImportStep } from './components/ImportStep';
+import { SourceSelectionStep } from './components/SourceSelectionStep';
+import { ValidationStep } from './components/ValidationStep';
+import { WizardStepIndicator } from './components/WizardStepIndicator';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  DATA_TYPE_LABELS,
+  MIGRATION_PLATFORMS,
+  REQUIRED_FIELDS,
+  buildErrorsCsv,
+  downloadCsv,
+  resolvePrimaryDataType,
+  suggestColumnMapping,
+  type MigrationPlatformId,
+} from './migration.constants';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { api, getApiErrorMessage } from '@/lib/api';
+  downloadMigrationErrors,
+  useMigrationExecute,
+  useMigrationMapColumns,
+  useMigrationPreview,
+  useMigrationStatus,
+  useMigrationUpload,
+  useMigrationValidate,
+} from './hooks/useMigration';
 
-import {
-  MIGRATION_CSV_TEMPLATE,
-  parseMigrationCsv,
-  type MigrationCsvRow,
-  type MigrationImportResult,
-} from './parseMigrationCsv';
-
-type PlatformChoice = 'ENTEGRA' | 'SOPYO' | 'CSV' | 'MANUAL';
-
-const PLATFORMS: {
-  id: PlatformChoice;
-  title: string;
-  description: string;
-  icon: typeof Building2;
-}[] = [
-  {
-    id: 'ENTEGRA',
-    title: 'Entegra',
-    description: 'Entegra dışa aktarım CSV dosyanızı yükleyin.',
-    icon: Building2,
-  },
-  {
-    id: 'SOPYO',
-    title: 'Sopyo',
-    description: 'Sopyo dışa aktarım CSV dosyanızı yükleyin.',
-    icon: ShoppingBag,
-  },
-  {
-    id: 'CSV',
-    title: 'Diğer (CSV)',
-    description: 'Şablona uygun herhangi bir CSV dosyası kullanın.',
-    icon: FileSpreadsheet,
-  },
-  {
-    id: 'MANUAL',
-    title: 'Manuel',
-    description: 'Ürünleri kendiniz düzenleyerek CSV hazırlayın.',
-    icon: PenLine,
-  },
-];
-
-function downloadTemplate(): void {
-  const blob = new Blob([`\ufeff${MIGRATION_CSV_TEMPLATE}`], {
-    type: 'text/csv;charset=utf-8;',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'senkronize-urun-sablonu.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
+const INITIAL_PROGRESS: MigrationSessionProgress = {
+  processed: 0,
+  total: 0,
+  imported: 0,
+  updated: 0,
+  skipped: 0,
+  failed: 0,
+};
 
 export function MigrationPage(): ReactElement {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [platform, setPlatform] = useState<PlatformChoice | null>(null);
+  usePageTitle('Geçiş Sihirbazı');
+  const queryClient = useQueryClient();
+  const { on } = useSocket();
+
+  const [step, setStep] = useState(1);
+  const [platform, setPlatform] = useState<MigrationPlatformId | null>(null);
+  const [selectedDataTypes, setSelectedDataTypes] = useState<MigrationDataType[]>(['products']);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [previewRows, setPreviewRows] = useState<MigrationCsvRow[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const [importResult, setImportResult] = useState<MigrationImportResult | null>(
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [allowWarnings, setAllowWarnings] = useState(false);
+  const [validationResult, setValidationResult] = useState<MigrationValidationResult | null>(
     null,
   );
+  const [importStatus, setImportStatus] = useState<
+    'idle' | 'running' | 'completed' | 'failed'
+  >('idle');
+  const [liveProgress, setLiveProgress] = useState<MigrationSessionProgress>(INITIAL_PROGRESS);
 
-  const readFilePreview = useCallback((f: File) => {
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = typeof reader.result === 'string' ? reader.result : '';
-      setPreviewRows(parseMigrationCsv(text));
-    };
-    reader.readAsText(f, 'UTF-8');
+  const primaryDataType = useMemo(
+    () => resolvePrimaryDataType(selectedDataTypes),
+    [selectedDataTypes],
+  );
+
+  const platformOption = MIGRATION_PLATFORMS.find((p) => p.id === platform);
+
+  const uploadMutation = useMigrationUpload();
+  const mapMutation = useMigrationMapColumns();
+  const validateMutation = useMigrationValidate();
+  const executeMutation = useMigrationExecute();
+
+  const previewQuery = useMigrationPreview(sessionId);
+  const statusQuery = useMigrationStatus(
+    sessionId,
+    importStatus === 'running' || importStatus === 'idle',
+  );
+
+  useEffect(() => {
+    if (!sessionId) {
+      return undefined;
+    }
+    return on('migration:progress', (payload) => {
+      const data = payload as MigrationProgressEvent;
+      if (data.sessionId !== sessionId) {
+        return;
+      }
+      setLiveProgress((prev) => ({
+        ...prev,
+        processed: data.processed,
+        total: data.total,
+        imported: data.imported,
+        failed: data.failed,
+      }));
+      if (data.total > 0 && data.processed >= data.total) {
+        setImportStatus('completed');
+        void queryClient.invalidateQueries({ queryKey: ['migration'] });
+      } else if (data.processed > 0) {
+        setImportStatus('running');
+      }
+    });
+  }, [on, sessionId, queryClient]);
+
+  useEffect(() => {
+    const status = statusQuery.data?.status;
+    if (!status) {
+      return;
+    }
+    if (status === 'processing' || status === 'queued') {
+      setImportStatus('running');
+    }
+    if (status === 'completed') {
+      setImportStatus('completed');
+    }
+    if (status === 'failed') {
+      setImportStatus('failed');
+    }
+    if (statusQuery.data?.progress) {
+      setLiveProgress(statusQuery.data.progress);
+    }
+  }, [statusQuery.data]);
+
+  const handleToggleDataType = useCallback((id: MigrationDataType, checked: boolean) => {
+    setSelectedDataTypes((prev) => {
+      if (checked) {
+        return prev.includes(id) ? prev : [...prev, id];
+      }
+      return prev.filter((t) => t !== id);
+    });
   }, []);
 
-  const importMutation = useMutation({
-    mutationFn: async (upload: File) => {
-      const body = new FormData();
-      body.append('file', upload);
-      const { data } = await api.post<MigrationImportResult>(
-        '/migration/import-products',
-        body,
-      );
-      return data;
+  const handleFileAccepted = useCallback(
+    async (acceptedFile: File) => {
+      if (!platformOption) {
+        toast.error('Önce kaynak platform seçin');
+        return;
+      }
+      setFile(acceptedFile);
+      try {
+        const upload = await uploadMutation.mutateAsync({
+          file: acceptedFile,
+          dataType: primaryDataType,
+          sourceFormat: platformOption.sourceFormatHint,
+        });
+        setSessionId(upload.sessionId);
+        const suggested = suggestColumnMapping(upload.headers, primaryDataType);
+        setColumnMapping(suggested);
+        toast.success('Dosya yüklendi');
+      } catch (err) {
+        toast.error(getApiErrorMessage(err));
+        setFile(null);
+      }
     },
-    onSuccess: (data) => {
-      setImportResult(data);
-      setStep(3);
-      toast.success('İçe aktarma tamamlandı');
-    },
-    onError: (err) => {
+    [platformOption, primaryDataType, uploadMutation],
+  );
+
+  const canProceedStep1 =
+    platform !== null && selectedDataTypes.length > 0;
+
+  const canProceedStep2 =
+    Boolean(sessionId) &&
+    Boolean(file) &&
+    (previewQuery.data?.rows.length ?? 0) > 0 &&
+    !uploadMutation.isPending;
+
+  const requiredFields = REQUIRED_FIELDS[primaryDataType] ?? [];
+  const canProceedStep3 = requiredFields.every((field) =>
+    Boolean(columnMapping[field]?.trim()),
+  );
+
+  const canProceedStep4 = useMemo(() => {
+    if (!validationResult) {
+      return false;
+    }
+    if (validationResult.errors.length > 0) {
+      return false;
+    }
+    if (validationResult.warnings.length > 0 && !allowWarnings) {
+      return false;
+    }
+    return validationResult.valid > 0;
+  }, [validationResult, allowWarnings]);
+
+  const goNext = async (): Promise<void> => {
+    if (step === 3) {
+      if (!sessionId) {
+        return;
+      }
+      try {
+        await mapMutation.mutateAsync({ sessionId, columnMapping });
+        setStep(4);
+      } catch (err) {
+        toast.error(getApiErrorMessage(err));
+      }
+      return;
+    }
+    if (step === 4 && canProceedStep4) {
+      setStep(5);
+      return;
+    }
+    setStep((s) => Math.min(5, s + 1));
+  };
+
+  const goBack = (): void => {
+    setStep((s) => Math.max(1, s - 1));
+  };
+
+  const handleValidate = async (): Promise<void> => {
+    if (!sessionId) {
+      return;
+    }
+    try {
+      const result = await validateMutation.mutateAsync(sessionId);
+      setValidationResult(result);
+      if (result.errors.length === 0) {
+        toast.success('Doğrulama tamamlandı');
+      } else {
+        toast.warning(`${result.errors.length} hata bulundu`);
+      }
+    } catch (err) {
       toast.error(getApiErrorMessage(err));
-    },
-  });
+    }
+  };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragActive(false);
-      const f = e.dataTransfer.files[0];
-      if (f) {
-        readFilePreview(f);
+  const handleStartImport = async (): Promise<void> => {
+    if (!sessionId) {
+      return;
+    }
+    try {
+      await executeMutation.mutateAsync(sessionId);
+      setImportStatus('running');
+      toast.success('İçe aktarma başlatıldı');
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+    }
+  };
+
+  const handleDownloadReport = async (): Promise<void> => {
+    if (!sessionId) {
+      return;
+    }
+    try {
+      await downloadMigrationErrors(sessionId);
+    } catch {
+      if (validationResult?.errors.length) {
+        downloadCsv(buildErrorsCsv(validationResult.errors), 'migration-rapor.csv');
+      } else {
+        toast.error('Rapor indirilemedi');
       }
-    },
-    [readFilePreview],
-  );
+    }
+  };
 
-  const handleFileInput = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      if (f) {
-        readFilePreview(f);
-      }
-    },
-    [readFilePreview],
-  );
-
-  const previewSlice = previewRows.slice(0, 5);
+  const previewRows = previewQuery.data?.rows ?? [];
+  const previewHeaders = previewQuery.data?.headers ?? uploadMutation.data?.headers ?? [];
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Geçiş sihirbazı
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Rakip platformdan CSV ile ürün ve stok bilgilerinizi Senkronize&apos;a
-          taşıyın.
-        </p>
+    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Geçiş sihirbazı
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Rakip platformdan verilerinizi adım adım Senkronize&apos;a taşıyın.
+          </p>
+        </div>
+        <Button type="button" variant="outline" size="sm" asChild>
+          <Link to="/migration/history">
+            <History className="mr-2 size-4" />
+            Geçmiş
+          </Link>
+        </Button>
       </div>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className={step >= 1 ? 'font-medium text-foreground' : ''}>
-          1. Platform
-        </span>
-        <span aria-hidden>→</span>
-        <span className={step >= 2 ? 'font-medium text-foreground' : ''}>
-          2. Dosya
-        </span>
-        <span aria-hidden>→</span>
-        <span className={step >= 3 ? 'font-medium text-foreground' : ''}>
-          3. Sonuç
-        </span>
-      </div>
+      <WizardStepIndicator currentStep={step} />
+
+      {selectedDataTypes.length > 1 && step > 1 ? (
+        <p className="rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-sm text-muted-foreground">
+          Bu oturumda öncelikli veri tipi:{' '}
+          <strong className="text-foreground">{DATA_TYPE_LABELS[primaryDataType]}</strong>.
+          Diğer tipler için işlem sonrası sihirbazı tekrar çalıştırın.
+        </p>
+      ) : null}
 
       {step === 1 ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {PLATFORMS.map((p) => {
-            const Icon = p.icon;
-            return (
-              <Card
-                key={p.id}
-                className="cursor-pointer transition-shadow hover:shadow-md"
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  setPlatform(p.id);
-                  setStep(2);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setPlatform(p.id);
-                    setStep(2);
-                  }
-                }}
-              >
-                <CardHeader className="flex flex-row items-start gap-3 space-y-0">
-                  <div className="rounded-lg bg-accent/15 p-2 text-accent">
-                    <Icon className="size-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{p.title}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {p.description}
-                    </CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
-            );
-          })}
-        </div>
+        <SourceSelectionStep
+          selectedPlatform={platform}
+          selectedDataTypes={selectedDataTypes}
+          onSelectPlatform={setPlatform}
+          onToggleDataType={handleToggleDataType}
+        />
       ) : null}
 
       {step === 2 ? (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button type="button" variant="outline" onClick={() => setStep(1)}>
-              Geri
-            </Button>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <ArrowRightLeft className="size-4 shrink-0" />
-              {platform
-                ? PLATFORMS.find((p) => p.id === platform)?.title
-                : null}
-            </div>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>CSV yükleme</CardTitle>
-              <CardDescription>
-                Sütunlar: barkod, ad, fiyat, stok (virgül veya noktalı virgül
-                ayırıcı). İsteğe bağlı: kategori, marka, liste fiyat, açıklama,
-                görsel URL.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" onClick={downloadTemplate}>
-                  Örnek şablonu indir
-                </Button>
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,text/csv"
-                className="hidden"
-                onChange={handleFileInput}
-              />
-
-              <div
-                className={`flex min-h-[160px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors ${
-                  dragActive
-                    ? 'border-accent bg-accent/5'
-                    : 'border-muted-foreground/25 bg-muted/30'
-                }`}
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={() => setDragActive(false)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    fileInputRef.current?.click();
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-              >
-                <Upload className="size-8 text-muted-foreground" />
-                <p className="text-center text-sm text-muted-foreground">
-                  Dosyayı sürükleyip bırakın veya bu alana tıklayın
-                </p>
-                {file ? (
-                  <p className="text-xs text-muted-foreground">{file.name}</p>
-                ) : null}
-              </div>
-
-              {previewSlice.length > 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Önizleme (ilk 5 satır)</p>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Barkod</TableHead>
-                          <TableHead>Ad</TableHead>
-                          <TableHead className="text-right">Fiyat</TableHead>
-                          <TableHead className="text-right">Stok</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {previewSlice.map((r, i) => (
-                          <TableRow key={`${r.barcode}-${i}`}>
-                            <TableCell className="font-mono text-xs">
-                              {r.barcode}
-                            </TableCell>
-                            <TableCell>{r.name}</TableCell>
-                            <TableCell className="text-right">
-                              {r.salePrice.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-right">{r.stock}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ) : file ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Önizlenecek veri bulunamadı. Başlık satırı ve en az bir veri
-                  satırı olduğundan emin olun.
-                </p>
-              ) : null}
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  disabled={!file || importMutation.isPending}
-                  onClick={() => {
-                    if (file) {
-                      importMutation.mutate(file);
-                    }
-                  }}
-                >
-                  {importMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                      İçe aktarılıyor…
-                    </>
-                  ) : (
-                    'Devam et'
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <FileUploadStep
+          file={file}
+          headers={previewHeaders}
+          previewRows={previewRows}
+          totalRows={previewQuery.data?.totalRows ?? uploadMutation.data?.totalRows ?? 0}
+          isUploading={uploadMutation.isPending}
+          onFileAccepted={handleFileAccepted}
+        />
       ) : null}
 
-      {step === 3 && importResult ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="size-5 text-emerald-600" />
-              İçe aktarma sonucu
-            </CardTitle>
-            <CardDescription>
-              Ürün kartları ve merkezi stok kayıtları güncellendi. Liste fiyatları
-              pazaryeri listelemelerinde ayrı yönetilir.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <ul className="space-y-2 text-sm">
-              <li>
-                <span className="text-emerald-600">✅</span>{' '}
-                <strong>{importResult.imported}</strong> yeni ürün içe aktarıldı
-              </li>
-              <li>
-                <span className="text-sky-600">🔄</span>{' '}
-                <strong>{importResult.updated}</strong> ürün güncellendi
-              </li>
-              <li>
-                <span className="text-muted-foreground">⏭️</span>{' '}
-                <strong>{importResult.skipped}</strong> satır atlandı
-              </li>
-            </ul>
+      {step === 3 && sessionId ? (
+        <ColumnMappingStep
+          dataType={primaryDataType}
+          sourceHeaders={previewHeaders}
+          columnMapping={columnMapping}
+          onMappingChange={(target, source) =>
+            setColumnMapping((prev) => ({ ...prev, [target]: source }))
+          }
+        />
+      ) : null}
 
-            {importResult.errors.length > 0 ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                <p className="text-sm font-medium text-destructive">
-                  Hatalar ({importResult.errors.length})
-                </p>
-                <ul className="mt-2 max-h-40 list-inside list-disc overflow-y-auto text-xs text-destructive">
-                  {importResult.errors.map((err, idx) => (
-                    <li key={`${idx}-${err.slice(0, 40)}`}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+      {step === 4 ? (
+        <ValidationStep
+          validationResult={validationResult}
+          isValidating={validateMutation.isPending}
+          allowWarnings={allowWarnings}
+          onAllowWarningsChange={setAllowWarnings}
+          onValidate={handleValidate}
+          onDownloadErrors={() => undefined}
+        />
+      ) : null}
 
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" asChild>
-                <Link to="/listings">Ürün listesine git</Link>
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  setStep(1);
-                  setPlatform(null);
-                  setFile(null);
-                  setPreviewRows([]);
-                  setImportResult(null);
-                }}
-              >
-                Yeni içe aktarma
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {step === 5 ? (
+        <ImportStep
+          dataType={primaryDataType}
+          progress={liveProgress.total > 0 ? liveProgress : statusQuery.data?.progress ?? INITIAL_PROGRESS}
+          status={importStatus}
+          isStarting={executeMutation.isPending}
+          onStartImport={handleStartImport}
+          onDownloadReport={() => void handleDownloadReport()}
+        />
+      ) : null}
+
+      {step < 5 ? (
+        <div className="flex items-center justify-between gap-3 border-t pt-4">
+          <Button type="button" variant="outline" onClick={goBack} disabled={step === 1}>
+            <ChevronLeft className="mr-1 size-4" />
+            Geri
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void goNext()}
+            disabled={
+              (step === 1 && !canProceedStep1) ||
+              (step === 2 && !canProceedStep2) ||
+              (step === 3 && (!canProceedStep3 || mapMutation.isPending)) ||
+              (step === 4 && !canProceedStep4) ||
+              mapMutation.isPending
+            }
+          >
+            {mapMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 size-4 animate-spin" />
+                Kaydediliyor…
+              </>
+            ) : (
+              <>
+                İleri
+                <ChevronRight className="ml-1 size-4" />
+              </>
+            )}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

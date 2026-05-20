@@ -73,3 +73,21 @@ export interface TrendyolPriceInventoryItem {
   salePrice?: number;
   listPrice?: number;
 }
+
+export type TrendyolShipmentPackageStatus =
+  | 'Picking'
+  | 'Invoiced'
+  | 'Shipped'
+  | 'Delivered'
+  | 'Returned';
+
+export interface TrendyolPackageLine {
+  lineId: number;
+  quantity: number;
+}
+
+export interface TrendyolCreatePackageBody {
+  lines: TrendyolPackageLine[];
+  cargoProvider: string;
+  shipmentTrackingNumber?: string;
+}

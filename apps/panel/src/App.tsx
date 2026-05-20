@@ -163,6 +163,11 @@ const MigrationPage = lazy(() =>
     default: m.MigrationPage,
   })),
 );
+const MigrationHistoryPage = lazy(() =>
+  import('@/pages/migration/MigrationHistoryPage').then((m) => ({
+    default: m.MigrationHistoryPage,
+  })),
+);
 const NotificationsPage = lazy(() =>
   import('@/pages/notifications/NotificationsPage').then((m) => ({
     default: m.NotificationsPage,
@@ -477,6 +482,7 @@ export default function App(): ReactElement {
                 <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/migration/history" element={<MigrationHistoryPage />} />
                 <Route path="/migration" element={<MigrationPage />} />
                 <Route path="/partner/*" element={<PartnerPage />} />
                 <Route

@@ -18,13 +18,21 @@ import { RedisRateLimiter } from '../common/redis-rate-limiter';
 import {
   HEPSIBURADA_INTEGRATION_ID,
   HEPSIBURADA_LISTING_BASE_URL,
+  HEPSIBURADA_MERCHANT_PRODUCTS_PATH,
   HEPSIBURADA_OMS_BASE_URL,
+  hepsiburadaBatchRequestsPath,
+  hepsiburadaOrderShippingPath,
+  hepsiburadaOrderSummariesPath,
 } from './hepsiburada.constants';
 import type {
-  HepsiburadaInventoryUploadItem,
+  HepsiburadaBatchListingItem,
   HepsiburadaListingsResponse,
+  HepsiburadaMerchantProduct,
+  HepsiburadaMerchantProductsResponse,
   HepsiburadaOrderListItem,
   HepsiburadaOrderListResponse,
+  HepsiburadaOrderSummary,
+  HepsiburadaOrderSummariesResponse,
   HepsiburadaPackageDetail,
 } from './hepsiburada.types';
 
@@ -90,6 +98,27 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
       },
       timeout: 30_000,
     });
+  }
+
+  private async mpopRequest<T>(
+    client: AxiosInstance,
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST',
+    path: string,
+    options?: { params?: Record<string, string | number>; data?: unknown },
+  ): Promise<T> {
+    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    try {
+      const { data } = await client.request<T>({
+        method,
+        url: path,
+        params: options?.params,
+        data: options?.data,
+      });
+      return data;
+    } catch (error) {
+      throw this.toApiError('Hepsiburada MPOP', error);
+    }
   }
 
   private async omsRequest<T>(
@@ -188,6 +217,41 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     if (!merchantId) {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
+
+    const listingClient = this.getListingClient(username, password, credentials);
+    const sinceMs = since?.getTime() ?? 0;
+
+    try {
+      const data = await this.listingRequest<HepsiburadaOrderSummariesResponse>(
+        listingClient,
+        credentials,
+        'GET',
+        hepsiburadaOrderSummariesPath(merchantId),
+        {
+          params: {
+            offset: 0,
+            limit: 200,
+          },
+        },
+      );
+      const rows = data.summaries ?? data.orders ?? data.content ?? [];
+      return rows
+        .map((row) => this.normalizeOrderSummary(row))
+        .filter((o) => o.platformCreatedAt.getTime() >= sinceMs);
+    } catch (error) {
+      this.logger.warn('Hepsiburada summaries API başarısız, OMS orderlist deneniyor', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return this.fetchOrdersFromOms(credentials, merchantId, since);
+    }
+  }
+
+  private async fetchOrdersFromOms(
+    credentials: Record<string, string>,
+    merchantId: string,
+    since?: Date,
+  ): Promise<NormalizedOrder[]> {
+    const { username, password } = credentials;
     const client = this.getOmsClient(username, password, credentials);
     const end = new Date();
     const start = since ?? new Date(end.getTime() - 7 * 24 * 3600 * 1000);
@@ -234,6 +298,10 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
   ): Promise<MarketplaceOrder[]> {
     const normalized = await this.fetchOrders(credentials, since);
     return normalized.map(toMarketplaceOrder);
+  }
+
+  private normalizeOrderSummary(raw: HepsiburadaOrderSummary): NormalizedOrder {
+    return this.normalizeOrderListItem(raw);
   }
 
   private normalizeOrderListItem(raw: HepsiburadaOrderListItem): NormalizedOrder {
@@ -357,29 +425,50 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
 
   async reportShipping(
     credentials: Record<string, string>,
-    packageId: string,
+    orderNumber: string,
     cargoCompanyName: string,
     trackingNumber: string,
   ): Promise<void> {
     const { username, password } = credentials;
-    const merchantId = this.resolveMerchantId(credentials);
-    if (!merchantId) {
-      throw new Error('Hepsiburada merchantId veya username zorunlu');
-    }
     const client = this.getOmsClient(username, password, credentials);
-    await this.omsRequest(
-      client,
-      credentials,
-      'POST',
-      `/packages/merchantid/${encodeURIComponent(merchantId)}/packagelist/${encodeURIComponent(packageId)}/shippinginfo`,
-      {
-        data: {
-          cargoCompanyName,
-          trackingNumber,
-          isCancelled: false,
+    try {
+      await this.mpopRequest(
+        client,
+        credentials,
+        'POST',
+        hepsiburadaOrderShippingPath(orderNumber),
+        {
+          data: {
+            cargoCompany: cargoCompanyName,
+            cargoCompanyName,
+            trackingNumber,
+            shipmentTrackingNumber: trackingNumber,
+          },
         },
-      },
-    );
+      );
+    } catch (error) {
+      const merchantId = this.resolveMerchantId(credentials);
+      if (!merchantId) {
+        throw error;
+      }
+      this.logger.warn('Hepsiburada MPOP shipping başarısız, OMS shippinginfo deneniyor', {
+        orderNumber,
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      await this.omsRequest(
+        client,
+        credentials,
+        'POST',
+        `/packages/merchantid/${encodeURIComponent(merchantId)}/packagelist/${encodeURIComponent(orderNumber)}/shippinginfo`,
+        {
+          data: {
+            cargoCompanyName,
+            trackingNumber,
+            isCancelled: false,
+          },
+        },
+      );
+    }
   }
 
   async getListings(
@@ -388,6 +477,38 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const { username, password } = credentials;
     const merchantId = this.resolveMerchantId(credentials);
+    const mpopClient = this.getOmsClient(username, password, credentials);
+
+    try {
+      const data = await this.mpopRequest<HepsiburadaMerchantProductsResponse>(
+        mpopClient,
+        credentials,
+        'GET',
+        HEPSIBURADA_MERCHANT_PRODUCTS_PATH,
+        {
+          params: {
+            merchantId: merchantId || undefined,
+            page,
+            size: 50,
+          },
+        },
+      );
+      const products =
+        data.merchantProducts ?? data.products ?? data.content ?? [];
+      const total =
+        data.totalCount ?? data.totalElements ?? products.length;
+      return {
+        items: products.map((p) => this.mapMerchantProduct(p)),
+        total,
+        page,
+        pageSize: 50,
+      };
+    } catch (error) {
+      this.logger.warn('Hepsiburada merchantProducts başarısız, listing API deneniyor', {
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+    }
+
     const client = this.getListingClient(username, password, credentials);
     const path =
       merchantId.length > 0
@@ -422,32 +543,49 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private mapMerchantProduct(p: HepsiburadaMerchantProduct): MarketplaceListing {
+    const sku =
+      p.hepsiburadaSku ?? p.merchantSku ?? p.barcode ?? '';
+    const qty = Number(p.availableStock ?? p.quantity ?? 0);
+    const sale = Number(p.salePrice ?? p.price ?? 0);
+    const list = Number(p.listPrice ?? p.price ?? sale);
+    return {
+      platformProductId: sku,
+      barcode: p.barcode ?? sku,
+      title: String(p.productName ?? p.name ?? sku),
+      quantity: Number.isFinite(qty) ? qty : 0,
+      salePrice: Number.isFinite(sale) ? sale : 0,
+      listPrice: Number.isFinite(list) ? list : sale,
+      approved: p.isSalable !== false,
+      images: p.images ?? [],
+    };
+  }
+
   async updateStock(
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const listings: HepsiburadaInventoryUploadItem[] = updates.map((u) => ({
+    const listings: HepsiburadaBatchListingItem[] = updates.map((u) => ({
       hepsiburadaSku: u.barcode,
       availableStock: u.quantity,
     }));
-    await this.postInventoryUpload(credentials, listings);
+    await this.postBatchListingUpdate(credentials, listings);
   }
 
   async updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const listings: HepsiburadaInventoryUploadItem[] = updates.map((u) => ({
+    const listings: HepsiburadaBatchListingItem[] = updates.map((u) => ({
       hepsiburadaSku: u.barcode,
       price: u.salePrice,
-      listingPrice: u.listPrice,
     }));
-    await this.postInventoryUpload(credentials, listings);
+    await this.postBatchListingUpdate(credentials, listings);
   }
 
-  private async postInventoryUpload(
+  private async postBatchListingUpdate(
     credentials: Record<string, string>,
-    listings: HepsiburadaInventoryUploadItem[],
+    listings: HepsiburadaBatchListingItem[],
   ): Promise<void> {
     const { username, password } = credentials;
     const merchantId = this.resolveMerchantId(credentials);
@@ -455,7 +593,7 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
     const client = this.getListingClient(username, password, credentials);
-    const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/inventory-uploads`;
+    const path = hepsiburadaBatchRequestsPath(merchantId);
     const batches = chunk(listings, 50);
     for (const batch of batches) {
       await this.listingRequest(client, credentials, 'POST', path, {

@@ -31,6 +31,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/audit-logs': () => import('@/pages/audit/AuditLogPage'),
   '/reports': () => import('@/pages/reports/ReportsPage'),
   '/migration': () => import('@/pages/migration/MigrationPage'),
+  '/migration/history': () => import('@/pages/migration/MigrationHistoryPage'),
   '/partner': () => import('@/pages/partner/PartnerPage'),
   '/settings': () => import('@/pages/settings/SettingsPage'),
   '/settings/notifications': () =>

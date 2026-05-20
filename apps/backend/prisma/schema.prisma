@@ -448,6 +448,17 @@ enum Marketplace {
   RICARDO_CH
   TUTTI_CH
   OLX_PT
+  ZOOD
+  MEGATRADE
+  MARKET_KZ
+  ARBUZ_KZ
+  TAMARA
+  TABBY
+  CASHI
+  TAMTAM
+  JUMIA_ET
+  AUCHAN
+  LEROY_MERLIN
 }
 
 enum PricingStrategy {

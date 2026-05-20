@@ -386,7 +386,18 @@ export type Marketplace =
   | 'WILLHABEN'
   | 'RICARDO_CH'
   | 'TUTTI_CH'
-  | 'OLX_PT';
+  | 'OLX_PT'
+  | 'ZOOD'
+  | 'MEGATRADE'
+  | 'MARKET_KZ'
+  | 'ARBUZ_KZ'
+  | 'TAMARA'
+  | 'TABBY'
+  | 'CASHI'
+  | 'TAMTAM'
+  | 'JUMIA_ET'
+  | 'AUCHAN'
+  | 'LEROY_MERLIN';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

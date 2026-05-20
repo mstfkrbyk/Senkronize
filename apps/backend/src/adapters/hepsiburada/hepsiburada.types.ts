@@ -61,6 +61,58 @@ export interface HepsiburadaOrderListResponse {
   totalCount?: number;
 }
 
+export interface HepsiburadaOrderSummary {
+  orderNumber?: string;
+  orderId?: string;
+  packageId?: string;
+  status?: string;
+  customerName?: string;
+  customerPhone?: string;
+  orderDate?: string;
+  totalAmount?: number;
+  currency?: string;
+  cargoCompanyName?: string;
+  trackingNumber?: string;
+  lines?: HepsiburadaOrderLine[];
+  items?: HepsiburadaOrderLine[];
+}
+
+export interface HepsiburadaOrderSummariesResponse {
+  summaries?: HepsiburadaOrderSummary[];
+  orders?: HepsiburadaOrderSummary[];
+  content?: HepsiburadaOrderSummary[];
+  totalCount?: number;
+}
+
+export interface HepsiburadaMerchantProduct {
+  hepsiburadaSku?: string;
+  merchantSku?: string;
+  barcode?: string;
+  productName?: string;
+  name?: string;
+  availableStock?: number;
+  quantity?: number;
+  price?: number;
+  listPrice?: number;
+  salePrice?: number;
+  isSalable?: boolean;
+  images?: string[];
+}
+
+export interface HepsiburadaMerchantProductsResponse {
+  products?: HepsiburadaMerchantProduct[];
+  merchantProducts?: HepsiburadaMerchantProduct[];
+  content?: HepsiburadaMerchantProduct[];
+  totalCount?: number;
+  totalElements?: number;
+}
+
+export interface HepsiburadaBatchListingItem {
+  hepsiburadaSku: string;
+  availableStock?: number;
+  price?: number;
+}
+
 export interface HepsiburadaPackageDetail {
   packageId?: string;
   orderNumber?: string;

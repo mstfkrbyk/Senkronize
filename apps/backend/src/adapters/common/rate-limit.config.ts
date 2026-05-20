@@ -10,9 +10,9 @@ export interface RateLimitConfig {
 
 /** Platform API hız limitleri (öncelikli konfigürasyon). */
 export const PLATFORM_RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
-  TRENDYOL: { requestsPerMinute: 30, retryAfterSeconds: 60 },
-  HEPSIBURADA: { requestsPerMinute: 20, retryAfterSeconds: 60 },
-  N11: { requestsPerMinute: 15, requestsPerHour: 500, retryAfterSeconds: 120 },
+  TRENDYOL: { requestsPerMinute: 100, retryAfterSeconds: 60 },
+  HEPSIBURADA: { requestsPerMinute: 60, retryAfterSeconds: 60 },
+  N11: { requestsPerMinute: 30, requestsPerHour: 500, retryAfterSeconds: 120 },
   AMAZON: { requestsPerMinute: 60, burstLimit: 100, retryAfterSeconds: 30 },
   ETSY: { requestsPerMinute: 10, requestsPerDay: 2000, retryAfterSeconds: 300 },
   SHOPIFY: { requestsPerMinute: 40, burstLimit: 80, retryAfterSeconds: 10 },

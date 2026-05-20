@@ -1,7 +1,7 @@
 /** Mevcut adaptörlerin kullandığı platform başına istek/dakika (geriye dönük uyumluluk). */
 export const LEGACY_PLATFORM_RPM: Record<string, number> = {
-  TRENDYOL: 60,
-  HEPSIBURADA: 200,
+  TRENDYOL: 100,
+  HEPSIBURADA: 60,
   N11: 30,
   CICEKSEPETI: 60,
   AMAZON_TR: 60,
@@ -389,5 +389,16 @@ export const LEGACY_PLATFORM_RPM: Record<string, number> = {
   RICARDO_CH: 40,
   TUTTI_CH: 40,
   OLX_PT: 35,
+  ZOOD: 40,
+  MEGATRADE: 40,
+  MARKET_KZ: 40,
+  ARBUZ_KZ: 40,
+  TAMARA: 35,
+  TABBY: 35,
+  CASHI: 35,
+  TAMTAM: 40,
+  JUMIA_ET: 35,
+  AUCHAN: 40,
+  LEROY_MERLIN: 40,
   DEFAULT: 30,
 };

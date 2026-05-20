@@ -20,13 +20,17 @@ import {
   TRENDYOL_PRICE_INVENTORY,
   TRENDYOL_PRODUCTS,
   TRENDYOL_USER_AGENT_SUFFIX,
+  trendyolOrderPackagePath,
+  trendyolShipmentPackagePath,
   trendyolSupplierBaseUrl,
 } from './trendyol.constants';
 import type {
+  TrendyolCreatePackageBody,
   TrendyolOrder,
   TrendyolOrdersResponse,
   TrendyolPriceInventoryItem,
   TrendyolProductsResponse,
+  TrendyolShipmentPackageStatus,
 } from './trendyol.types';
 
 const BATCH_DELAY_MS = 100;
@@ -85,7 +89,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
   private async request<T>(
     client: AxiosInstance,
     credentials: Record<string, string>,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH',
     path: string,
     options?: { params?: Record<string, string | number>; data?: unknown },
   ): Promise<T> {
@@ -157,25 +161,80 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     const startDate = since
       ? since.getTime()
       : Date.now() - 7 * 24 * 3600 * 1000;
+    const endDate = Date.now();
+    const all: NormalizedOrder[] = [];
+    let page = 0;
+    const size = 200;
+    let hasMore = true;
 
-    const response = await this.request<TrendyolOrdersResponse>(
+    while (hasMore) {
+      const response = await this.request<TrendyolOrdersResponse>(
+        client,
+        credentials,
+        'GET',
+        TRENDYOL_ORDERS,
+        {
+          params: {
+            status: 'Created,Picking,Invoiced,Shipped',
+            startDate,
+            endDate,
+            page,
+            size,
+          },
+        },
+      );
+
+      const rows = response.content ?? response.orders ?? [];
+      for (const raw of rows) {
+        all.push(this.normalizeOrder(raw));
+      }
+
+      const totalPages = response.totalPages;
+      if (typeof totalPages === 'number' && totalPages > 0) {
+        hasMore = page + 1 < totalPages;
+      } else {
+        hasMore = rows.length >= size;
+      }
+      page += 1;
+    }
+
+    return all;
+  }
+
+  /** Paket durumu güncelleme (Picking, Invoiced, Shipped, Delivered, Returned). */
+  async updateShipmentPackageStatus(
+    credentials: Record<string, string>,
+    shipmentPackageId: string,
+    status: TrendyolShipmentPackageStatus,
+  ): Promise<void> {
+    const { apiKey, apiSecret } = credentials;
+    const supplierId = this.resolveSupplierId(credentials);
+    const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
+    await this.request<unknown>(
       client,
       credentials,
-      'GET',
-      TRENDYOL_ORDERS,
-      {
-        params: {
-          status: 'Created,Picking',
-          startDate,
-          endDate: Date.now(),
-          page: 0,
-          size: 200,
-        },
-      },
+      'PUT',
+      trendyolShipmentPackagePath(shipmentPackageId),
+      { data: { status } },
     );
+  }
 
-    const rows = response.content ?? response.orders ?? [];
-    return rows.map((raw) => this.normalizeOrder(raw));
+  /** Kargo paketi oluşturma ve takip numarası bildirimi. */
+  async createShipmentPackage(
+    credentials: Record<string, string>,
+    orderId: string,
+    body: TrendyolCreatePackageBody,
+  ): Promise<void> {
+    const { apiKey, apiSecret } = credentials;
+    const supplierId = this.resolveSupplierId(credentials);
+    const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
+    await this.request<unknown>(
+      client,
+      credentials,
+      'POST',
+      trendyolOrderPackagePath(orderId),
+      { data: body },
+    );
   }
 
   async getOrders(
@@ -300,7 +359,7 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
       await this.request<unknown>(
         client,
         credentials,
-        'POST',
+        'PATCH',
         TRENDYOL_PRICE_INVENTORY,
         { data: { items: batch } },
       );

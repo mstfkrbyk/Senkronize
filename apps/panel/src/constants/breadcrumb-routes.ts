@@ -27,6 +27,7 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
   '/analytics': 'Analitik',
   '/reports': 'Raporlar',
   '/migration': 'Geçiş Sihirbazı',
+  '/migration/history': 'İçe Aktarma Geçmişi',
   '/partner': 'Partner Paneli',
   '/partner/clients': 'Müşteriler',
   '/partner/commission': 'Komisyon',
