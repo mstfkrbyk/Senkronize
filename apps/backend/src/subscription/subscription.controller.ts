@@ -16,6 +16,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import type { Subscription } from '@prisma/client';
 import type { Request } from 'express';
 
+import { SuperAdminGuard } from '../admin/admin.guard';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -30,12 +31,14 @@ import {
   SubscriptionCheckoutDto,
   SubscriptionPaymentsQueryDto,
   SubscriptionStartDto,
+  TrialExtendDto,
 } from './subscription.dto';
 import { SubscriptionService } from './subscription.service';
+import { TrialService } from './trial.service';
 import type {
   CheckoutUrlResult,
   PlanUpgradeRequestResult,
-  UsageStats,
+  UsageOverview,
 } from './subscription.types';
 
 function getClientIp(req: Request): string {
@@ -84,10 +87,11 @@ function coerceWebhookPayload(body: unknown): PaytrWebhookPayload {
   };
 }
 
-@Controller('subscriptions')
+@Controller(['subscriptions', 'subscription'])
 export class SubscriptionController {
   constructor(
     private readonly subscriptionService: SubscriptionService,
+    private readonly trialService: TrialService,
     private readonly paytrService: PaytrService,
     private readonly config: ConfigService,
   ) {}
@@ -100,8 +104,8 @@ export class SubscriptionController {
 
   @Get('usage')
   @UseGuards(JwtAuthGuard)
-  async usage(@CurrentOrg() org: CurrentOrgPayload): Promise<UsageStats> {
-    return this.subscriptionService.getUsageStats(org.id);
+  async usage(@CurrentOrg() org: CurrentOrgPayload): Promise<UsageOverview> {
+    return this.subscriptionService.getUsageOverview(org.id);
   }
 
   @Post('change-plan')
@@ -140,7 +144,21 @@ export class SubscriptionController {
 
   @Patch('plan')
   @UseGuards(JwtAuthGuard)
-  async requestPlanUpgrade(
+  async requestPlanUpgradeLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionChangePlanDto,
+  ): Promise<PlanUpgradeRequestResult> {
+    return this.subscriptionService.upgradeSubscription(
+      org.id,
+      user.id,
+      dto.plan,
+    );
+  }
+
+  @Post('upgrade')
+  @UseGuards(JwtAuthGuard)
+  async upgrade(
     @CurrentOrg() org: CurrentOrgPayload,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SubscriptionChangePlanDto,
@@ -192,6 +210,20 @@ export class SubscriptionController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Subscription> {
     return this.subscriptionService.reactivateSubscription(org.id, user.id);
+  }
+
+  @Post('trial/extend')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  async extendTrial(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: TrialExtendDto,
+  ): Promise<{ trialEndsAt: string }> {
+    const result = await this.trialService.extendTrial(
+      dto.organizationId,
+      user.id,
+      dto.days ?? 7,
+    );
+    return { trialEndsAt: result.trialEndsAt.toISOString() };
   }
 
   @Get('payments')

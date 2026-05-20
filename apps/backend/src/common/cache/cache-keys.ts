@@ -6,6 +6,8 @@ export const CacheKeys = {
     `listings:${orgId}:${platform ?? 'all'}`,
   product: (orgId: string, productId: string) => `product:${orgId}:${productId}`,
   subscription: (orgId: string) => `subscription:${orgId}`,
+  apiCallsDaily: (orgId: string, dateKey: string) =>
+    `usage:api_calls:${orgId}:${dateKey}`,
   exchangeRates: () => `exchange:rates`,
   buyboxScore: (listingId: string) => `buybox:${listingId}`,
 } as const;

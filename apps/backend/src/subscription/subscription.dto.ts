@@ -41,6 +41,18 @@ export class SubscriptionCancelDto {
   reason?: string;
 }
 
+export class TrialExtendDto {
+  @IsString()
+  organizationId!: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  days?: number = 7;
+}
+
 export class SubscriptionPaymentsQueryDto {
   @IsOptional()
   @Type(() => Number)

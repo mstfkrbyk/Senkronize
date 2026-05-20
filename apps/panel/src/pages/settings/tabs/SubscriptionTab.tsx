@@ -53,9 +53,10 @@ import type {
   BillingPeriod,
   PaymentStatus,
   PlanTier,
+  PlanUpgradeResult,
   SubscriptionRecord,
   SubscriptionStatus,
-  UsageStats,
+  UsageOverview,
 } from '@/types/subscription';
 
 const PLAN_RANK: Record<PlanTier, number> = {
@@ -79,39 +80,57 @@ const PLANS: Array<{
     price: 2_990,
     period: 'yıl',
     features: [
-      '5 pazaryeri',
+      '3 pazaryeri',
       '1.000 ürün',
       '500 sipariş/ay',
-      'E-posta desteği',
+      '2 kullanıcı',
+      '1 depo',
+      'Temel senkronizasyon',
+    ],
+    highlight: false,
+  },
+  {
+    id: 'GELISIM',
+    name: 'Gelişim',
+    price: 5_990,
+    period: 'yıl',
+    features: [
+      '10 pazaryeri',
+      '10.000 ürün',
+      '5.000 sipariş/ay',
+      '5 kullanıcı',
+      '3 depo',
+      'BuyBox & webhook',
+      'Çoklu para birimi',
     ],
     highlight: false,
   },
   {
     id: 'PRO',
     name: 'Pro',
-    price: 5_990,
+    price: 9_990,
     period: 'yıl',
     features: [
-      '20 pazaryeri',
-      '10.000 ürün',
-      '5.000 sipariş/ay',
-      'ERP entegrasyonu',
-      'BuyBox optimizasyonu',
-      'Öncelikli destek',
+      '25 pazaryeri',
+      '50.000 ürün',
+      '25.000 sipariş/ay',
+      '15 kullanıcı',
+      '10 depo',
+      'BuyBox AI & API erişimi',
+      'Özel raporlar',
     ],
     highlight: true,
   },
   {
     id: 'KURUMSAL',
     name: 'Kurumsal',
-    price: 11_990,
+    price: 19_990,
     period: 'yıl',
     features: [
       'Sınırsız pazaryeri',
-      'Sınırsız ürün',
-      'Sınırsız sipariş',
-      'Tüm ERP entegrasyonları',
-      'API erişimi',
+      'Sınırsız ürün & sipariş',
+      'Sınırsız kullanıcı',
+      'Tüm özellikler',
       'Özel destek hattı',
       'White-label',
     ],
@@ -334,13 +353,17 @@ export function SubscriptionTab(): ReactElement {
   });
 
   const upgradePlanMutation = useMutation({
-    mutationFn: async (plan: PlanTier): Promise<{ message: string }> => {
-      const { data } = await api.patch<{ message: string }>('/subscriptions/plan', {
+    mutationFn: async (plan: PlanTier): Promise<PlanUpgradeResult> => {
+      const { data } = await api.post<PlanUpgradeResult>('/subscriptions/upgrade', {
         plan,
       });
       return data;
     },
     onSuccess: (data) => {
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       toast.success(data.message);
       setUpgradeDialogOpen(false);
       setUpgradeTarget(null);
@@ -423,7 +446,7 @@ export function SubscriptionTab(): ReactElement {
     setUpgradeDialogOpen(true);
   }
 
-  const usage: UsageStats | undefined = usageQuery.data;
+  const usage: UsageOverview | undefined = usageQuery.data;
   const upgradeTargetName = upgradeTarget ? planDisplayName(upgradeTarget) : '';
 
   return (
@@ -450,6 +473,13 @@ export function SubscriptionTab(): ReactElement {
           <AlertDescription>
             Deneme süreniz <strong>{daysLeft} gün</strong> içinde bitiyor. Hizmet kesintisi
             yaşamamak için plan seçin.
+            {usage?.renewsAt == null && subQuery.data.trialEndsAt ? (
+              <>
+                {' '}
+                Bitiş:{' '}
+                {new Date(subQuery.data.trialEndsAt).toLocaleDateString('tr-TR')}
+              </>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -461,6 +491,12 @@ export function SubscriptionTab(): ReactElement {
               <CardTitle className="text-base">Mevcut abonelik</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {planDisplayName(subQuery.data.plan)}
+                {usage?.daysLeft != null && subQuery.data.status !== 'TRIAL' ? (
+                  <>
+                    {' '}
+                    · Yenilemeye <strong>{usage.daysLeft} gün</strong>
+                  </>
+                ) : null}
                 {subQuery.data.nextBillingAt
                   ? ` · Yenileme: ${new Date(subQuery.data.nextBillingAt).toLocaleDateString('tr-TR')}`
                   : null}{' '}
@@ -525,19 +561,34 @@ export function SubscriptionTab(): ReactElement {
           {usage ? (
             <>
               <UsageMetricRow
-                label="Siparişler"
-                used={usage.orders.used}
-                limit={usage.orders.limit}
+                label="Pazaryerleri"
+                used={usage.usage.marketplaces.used}
+                limit={usage.usage.marketplaces.limit}
               />
               <UsageMetricRow
-                label="Bağlantılar"
-                used={usage.connections.used}
-                limit={usage.connections.limit}
+                label="Ürünler"
+                used={usage.usage.products.used}
+                limit={usage.usage.products.limit}
+              />
+              <UsageMetricRow
+                label="Siparişler (aylık)"
+                used={usage.usage.orders.used}
+                limit={usage.usage.orders.limit}
               />
               <UsageMetricRow
                 label="Kullanıcılar"
-                used={usage.users.used}
-                limit={usage.users.limit}
+                used={usage.usage.users.used}
+                limit={usage.usage.users.limit}
+              />
+              <UsageMetricRow
+                label="Depolar"
+                used={usage.usage.warehouses.used}
+                limit={usage.usage.warehouses.limit}
+              />
+              <UsageMetricRow
+                label="API çağrıları (bugün)"
+                used={usage.usage.apiCallsToday.used}
+                limit={usage.usage.apiCallsToday.limit}
               />
             </>
           ) : null}
@@ -546,7 +597,7 @@ export function SubscriptionTab(): ReactElement {
 
       <div className="space-y-4">
         <h4 className="text-base font-medium text-primary">Plan karşılaştırma</h4>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan) => {
             const isCurrent = currentPlan === plan.id;
             const canUpgrade = isHigherPlan(plan.id, currentPlan);
@@ -732,7 +783,7 @@ export function SubscriptionTab(): ReactElement {
             <AlertDialogTitle>Plan yükseltme</AlertDialogTitle>
             <AlertDialogDescription>
               {upgradeTargetName
-                ? `${upgradeTargetName} planına yükseltmek istiyor musunuz? Iyzico aboneliğiniz varsa anında uygulanır; aksi halde ekibimiz sizinle iletişime geçer.`
+                ? `${upgradeTargetName} planına yükseltmek istiyor musunuz? Prorasyon tutarı ödeme adımında gösterilir; Iyzico aboneliğiniz varsa anında uygulanır.`
                 : 'Plan yükseltme talebi oluşturulacak.'}
             </AlertDialogDescription>
           </AlertDialogHeader>

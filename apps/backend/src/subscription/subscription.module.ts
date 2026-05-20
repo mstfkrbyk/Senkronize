@@ -5,11 +5,13 @@ import { EventModule } from '../event/event.module';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PartnerModule } from '../partner/partner.module';
 import { PaymentModule } from '../payment/payment.module';
+import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 import { PaytrService } from './paytr.service';
 import { SubscriptionController } from './subscription.controller';
 import { SubscriptionService } from './subscription.service';
 import { SubscriptionRenewalTask } from './subscription-renewal.task';
 import { TrialExpiryTask } from './trial-expiry.task';
+import { TrialService } from './trial.service';
 
 @Module({
   imports: [
@@ -22,14 +24,16 @@ import { TrialExpiryTask } from './trial-expiry.task';
     EventModule,
     InAppNotificationModule,
     PartnerModule,
+    OutboundWebhookModule,
   ],
   controllers: [SubscriptionController],
   providers: [
     PaytrService,
     SubscriptionService,
+    TrialService,
     TrialExpiryTask,
     SubscriptionRenewalTask,
   ],
-  exports: [SubscriptionService],
+  exports: [SubscriptionService, TrialService],
 })
 export class SubscriptionModule {}

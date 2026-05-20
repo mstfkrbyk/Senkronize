@@ -5,6 +5,7 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -31,6 +32,7 @@ export class AnomalyDetectionService {
 
   /** JWT oturumlu HTTP istekleri — dakikalık hacim izleme */
   async recordHttpRequest(organizationId: string): Promise<void> {
+    void this.recordDailyApiUsage(organizationId);
     const bucket = Math.floor(Date.now() / 60_000);
     const key = CacheService.key('security', 'api_minute', organizationId, String(bucket));
     const n = await this.cache.incrWithExpire(key, 120);
@@ -58,6 +60,7 @@ export class AnomalyDetectionService {
     organizationId: string,
     apiKeyId: string,
   ): Promise<void> {
+    void this.recordDailyApiUsage(organizationId);
     const bucket = Math.floor(Date.now() / 60_000);
     const key = CacheService.key(
       'security',
@@ -104,6 +107,14 @@ export class AnomalyDetectionService {
     );
     const hit = await this.cache.get<{ v: true }>(rateLimitKey);
     return hit != null;
+  }
+
+  private async recordDailyApiUsage(organizationId: string): Promise<void> {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const key = CacheKeys.apiCallsDaily(organizationId, dateKey);
+    const current =
+      (await this.cache.get<{ count: number }>(key))?.count ?? 0;
+    await this.cache.set(key, { count: current + 1 }, 86_400);
   }
 
   async checkApiAnomalies(

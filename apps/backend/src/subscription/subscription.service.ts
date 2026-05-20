@@ -13,6 +13,7 @@ import {
   SubStatus,
   UserRole,
   type Subscription,
+  type User,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PostHogService } from '../analytics/posthog.service';
@@ -32,11 +33,21 @@ import {
 } from '../payment/iyzico.types';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
+import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
+import { WebhookEvent } from '../webhook/webhook-event.enum';
 import type {
   CheckoutUrlResult,
   PlanUpgradeRequestResult,
+  UsageOverview,
   UsageStats,
 } from './subscription.types';
+import {
+  PLAN_TIER_RANK,
+  dbLimitsForPlan,
+  effectiveLimit,
+  planLimitFeatureLines,
+  toUsageLimit,
+} from './plan-limits';
 
 const PLAN_PRICES_KURUS: Record<PlanTier, number> = {
   BASLANGIC: 290_000,
@@ -52,106 +63,12 @@ const PLAN_LABEL_TR: Record<PlanTier, string> = {
   KURUMSAL: 'Senkronize — Kurumsal Paket',
 };
 
-const PLAN_TIER_RANK: Record<PlanTier, number> = {
-  BASLANGIC: 0,
-  GELISIM: 1,
-  PRO: 2,
-  KURUMSAL: 3,
-};
 
 function formatTryAmount(amount: number): string {
   return new Intl.NumberFormat('tr-TR', {
     style: 'currency',
     currency: 'TRY',
   }).format(amount);
-}
-
-/** Paket yenilemesinde uygulanan limit varsayılanları */
-const PLAN_LIMITS: Record<
-  PlanTier,
-  {
-    monthlyOrderLimit: number;
-    marketplaceLimit: number;
-    ecommerceLimit: number;
-    erpLimit: number;
-    userLimit: number;
-  }
-> = {
-  BASLANGIC: {
-    monthlyOrderLimit: 500,
-    marketplaceLimit: 1,
-    ecommerceLimit: 1,
-    erpLimit: 1,
-    userLimit: 2,
-  },
-  GELISIM: {
-    monthlyOrderLimit: 2_000,
-    marketplaceLimit: 3,
-    ecommerceLimit: 2,
-    erpLimit: 2,
-    userLimit: 5,
-  },
-  PRO: {
-    monthlyOrderLimit: 10_000,
-    marketplaceLimit: 10,
-    ecommerceLimit: 5,
-    erpLimit: 3,
-    userLimit: 15,
-  },
-  KURUMSAL: {
-    monthlyOrderLimit: 100_000,
-    marketplaceLimit: 50,
-    ecommerceLimit: 20,
-    erpLimit: 10,
-    userLimit: 100,
-  },
-};
-
-/** Panel kullanım metrikleri — -1 sınırsız */
-const USAGE_PLAN_LIMITS: Record<
-  PlanTier,
-  {
-    connections: number;
-    products: number;
-    ordersPerMonth: number;
-    apiKeys: number;
-  }
-> = {
-  BASLANGIC: {
-    connections: 5,
-    products: 1_000,
-    ordersPerMonth: 500,
-    apiKeys: 2,
-  },
-  GELISIM: {
-    connections: 10,
-    products: 5_000,
-    ordersPerMonth: 2_000,
-    apiKeys: 5,
-  },
-  PRO: {
-    connections: 20,
-    products: 10_000,
-    ordersPerMonth: 5_000,
-    apiKeys: 10,
-  },
-  KURUMSAL: {
-    connections: -1,
-    products: -1,
-    ordersPerMonth: -1,
-    apiKeys: -1,
-  },
-};
-
-function planLimitFeatureLines(plan: PlanTier): string[] {
-  const L = PLAN_LIMITS[plan];
-  return [
-    `Aylık sipariş limiti: ${L.monthlyOrderLimit.toLocaleString('tr-TR')}`,
-    `Pazaryeri bağlantısı: ${L.marketplaceLimit}`,
-    `E-ticaret bağlantısı: ${L.ecommerceLimit}`,
-    `ERP bağlantısı: ${L.erpLimit}`,
-    `Kullanıcı kotası: ${L.userLimit}`,
-  ];
 }
 
 @Injectable()
@@ -169,6 +86,7 @@ export class SubscriptionService {
     private readonly inAppNotificationService: InAppNotificationService,
     private readonly config: ConfigService,
     private readonly posthog: PostHogService,
+    private readonly outboundWebhookService: OutboundWebhookService,
   ) {}
 
   /** Panel taban URL (e-posta bağlantıları) */
@@ -178,9 +96,10 @@ export class SubscriptionService {
 
   /** DB'de limit null ise paket varsayılanı */
   effectiveMarketplaceLimit(subscription: Subscription): number {
-    return (
-      subscription.marketplaceLimit ??
-      PLAN_LIMITS[subscription.plan].marketplaceLimit
+    return effectiveLimit(
+      subscription.marketplaceLimit,
+      subscription.plan,
+      'marketplaces',
     );
   }
 
@@ -227,7 +146,7 @@ export class SubscriptionService {
     }
 
     const previousPlan = sub.plan;
-    const limits = PLAN_LIMITS[newPlan];
+    const limits = dbLimitsForPlan(newPlan);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.subscription.update({
@@ -424,6 +343,17 @@ export class SubscriptionService {
       reason: trimmedReason,
     });
 
+    void this.outboundWebhookService.dispatch(
+      organizationId,
+      WebhookEvent.SUBSCRIPTION_CANCELLED,
+      {
+        organizationId,
+        plan: sub.plan,
+        reason: trimmedReason,
+        effectiveUntil: subscriptionEndsAt.toISOString(),
+      },
+    );
+
     await this.invalidateSubscriptionCache(organizationId);
   }
 
@@ -446,7 +376,7 @@ export class SubscriptionService {
     const periodStart = new Date();
     const periodEnd = new Date(periodStart);
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-    const limits = PLAN_LIMITS[sub.plan];
+    const limits = dbLimitsForPlan(sub.plan);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.subscription.update({
@@ -503,7 +433,7 @@ export class SubscriptionService {
     return updated;
   }
 
-  async getUsageStats(organizationId: string): Promise<UsageStats> {
+  async getUsageOverview(organizationId: string): Promise<UsageOverview> {
     const sub = await this.prisma.subscription.findUnique({
       where: { organizationId },
     });
@@ -511,35 +441,39 @@ export class SubscriptionService {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
 
-    const usageLimits = USAGE_PLAN_LIMITS[sub.plan];
-    const defaults = PLAN_LIMITS[sub.plan];
-    const orderLimit =
-      usageLimits.ordersPerMonth < 0
-        ? null
-        : usageLimits.ordersPerMonth;
-    const connectionLimit =
-      usageLimits.connections < 0
-        ? null
-        : usageLimits.connections;
-    const productLimit =
-      usageLimits.products < 0 ? null : usageLimits.products;
-    const apiKeyLimit =
-      usageLimits.apiKeys < 0 ? null : usageLimits.apiKeys;
-    const ecommerceLimit = sub.ecommerceLimit ?? defaults.ecommerceLimit;
-    const erpLimit = sub.erpLimit ?? defaults.erpLimit;
-    const userLimit = sub.userLimit ?? defaults.userLimit;
+    const effectivePlan =
+      sub.status === SubStatus.TRIAL ? PlanTier.BASLANGIC : sub.plan;
+
+    const marketplaceLimit = toUsageLimit(
+      effectiveLimit(sub.marketplaceLimit, effectivePlan, 'marketplaces'),
+    );
+    const productLimit = toUsageLimit(
+      effectiveLimit(null, effectivePlan, 'products'),
+    );
+    const orderLimit = toUsageLimit(
+      effectiveLimit(sub.monthlyOrderLimit, effectivePlan, 'orders'),
+    );
+    const userLimit = toUsageLimit(
+      effectiveLimit(sub.userLimit, effectivePlan, 'users'),
+    );
+    const warehouseLimit = toUsageLimit(
+      effectiveLimit(sub.erpLimit, effectivePlan, 'warehouses'),
+    );
+    const apiCallsLimit = toUsageLimit(
+      effectiveLimit(null, effectivePlan, 'apiCallsPerDay'),
+    );
 
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dateKey = now.toISOString().slice(0, 10);
 
     const [
       ordersThisMonth,
-      connectionCount,
+      marketplaceCount,
       productCount,
-      apiKeyCount,
-      ecommerceCount,
-      erpCount,
       userCount,
+      warehouseCount,
+      apiCallsToday,
     ] = await Promise.all([
       this.prisma.order.count({
         where: {
@@ -554,18 +488,13 @@ export class SubscriptionService {
       this.prisma.product.count({
         where: { organizationId, deletedAt: null },
       }),
-      this.prisma.apiKey.count({
-        where: { organizationId, isActive: true },
-      }),
-      this.prisma.ecommerceConnection.count({
-        where: { organizationId, isActive: true },
-      }),
-      this.prisma.erpConnection.count({
-        where: { organizationId, isActive: true, deletedAt: null },
-      }),
       this.prisma.user.count({
         where: { organizationId, deletedAt: null },
       }),
+      this.prisma.warehouse.count({
+        where: { organizationId, isActive: true },
+      }),
+      this.getApiCallsToday(organizationId, dateKey),
     ]);
 
     let trialDaysLeft: number | null = null;
@@ -576,22 +505,87 @@ export class SubscriptionService {
       trialDaysLeft = diff > 0 ? diff : 0;
     }
 
-    const connections = { used: connectionCount, limit: connectionLimit };
-    const products = { used: productCount, limit: productLimit };
-    const orders = { used: ordersThisMonth, limit: orderLimit };
-    const apiKeys = { used: apiKeyCount, limit: apiKeyLimit };
+    const renewsAt =
+      sub.nextBillingAt?.toISOString() ??
+      sub.currentPeriodEnd?.toISOString() ??
+      null;
+    const renewalTarget = sub.nextBillingAt ?? sub.currentPeriodEnd;
+    const daysLeft = renewalTarget
+      ? Math.max(
+          0,
+          Math.ceil((renewalTarget.getTime() - now.getTime()) / 86_400_000),
+        )
+      : null;
 
     return {
-      connections,
-      products,
-      orders,
-      apiKeys,
-      marketplaces: connections,
-      ecommerce: { used: ecommerceCount, limit: ecommerceLimit },
-      erp: { used: erpCount, limit: erpLimit },
-      users: { used: userCount, limit: userLimit },
+      plan: sub.plan,
+      usage: {
+        marketplaces: { used: marketplaceCount, limit: marketplaceLimit },
+        products: { used: productCount, limit: productLimit },
+        orders: { used: ordersThisMonth, limit: orderLimit },
+        users: { used: userCount, limit: userLimit },
+        warehouses: { used: warehouseCount, limit: warehouseLimit },
+        apiCallsToday: { used: apiCallsToday, limit: apiCallsLimit },
+      },
+      renewsAt,
+      daysLeft,
       trialDaysLeft,
     };
+  }
+
+  /** @deprecated getUsageOverview kullanın */
+  async getUsageStats(organizationId: string): Promise<UsageStats> {
+    const overview = await this.getUsageOverview(organizationId);
+    return {
+      connections: overview.usage.marketplaces,
+      products: overview.usage.products,
+      orders: overview.usage.orders,
+      apiKeys: overview.usage.apiCallsToday,
+      marketplaces: overview.usage.marketplaces,
+      ecommerce: overview.usage.marketplaces,
+      erp: overview.usage.warehouses,
+      users: overview.usage.users,
+      warehouses: overview.usage.warehouses,
+      apiCallsToday: overview.usage.apiCallsToday,
+      trialDaysLeft: overview.trialDaysLeft,
+    };
+  }
+
+  private async getApiCallsToday(
+    organizationId: string,
+    dateKey: string,
+  ): Promise<number> {
+    const raw = await this.cache.get<{ count: number }>(
+      CacheKeys.apiCallsDaily(organizationId, dateKey),
+    );
+    return raw?.count ?? 0;
+  }
+
+  async recordApiCall(organizationId: string): Promise<void> {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const key = CacheKeys.apiCallsDaily(organizationId, dateKey);
+    const current = (await this.cache.get<{ count: number }>(key))?.count ?? 0;
+    await this.cache.set(key, { count: current + 1 }, 86_400);
+  }
+
+  private calculateProrationKurus(
+    sub: Subscription,
+    newPlan: PlanTier,
+  ): number {
+    const billingPeriod = sub.billingPeriod ?? BillingPeriod.YEARLY;
+    const oldPrice = this.amountForPlan(sub.plan, billingPeriod);
+    const newPrice = this.amountForPlan(newPlan, billingPeriod);
+    const now = new Date();
+    const msRemaining = Math.max(
+      0,
+      sub.currentPeriodEnd.getTime() - now.getTime(),
+    );
+    const msTotal = Math.max(
+      1,
+      sub.currentPeriodEnd.getTime() - sub.currentPeriodStart.getTime(),
+    );
+    const priceDiff = Math.max(0, newPrice - oldPrice);
+    return Math.round((msRemaining / msTotal) * priceDiff);
   }
 
   private amountForPlan(plan: PlanTier, billingPeriod: BillingPeriod): number {
@@ -793,6 +787,11 @@ export class SubscriptionService {
     if (!sub) {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
+    if (sub.status !== SubStatus.ACTIVE && sub.status !== SubStatus.TRIAL) {
+      throw new BadRequestException(
+        'Yükseltme yalnızca aktif veya deneme aboneliklerinde yapılabilir.',
+      );
+    }
     if (sub.plan === newPlan) {
       throw new BadRequestException('Zaten bu plandasınız.');
     }
@@ -802,6 +801,9 @@ export class SubscriptionService {
       );
     }
 
+    const previousPlan = sub.plan;
+    const prorationKurus = this.calculateProrationKurus(sub, newPlan);
+    const prorationAmountTry = prorationKurus / 100;
     const billingPeriod = sub.billingPeriod ?? BillingPeriod.YEARLY;
     const iyzicoSub = await this.prisma.iyzicoSubscription.findUnique({
       where: { organizationId },
@@ -817,10 +819,137 @@ export class SubscriptionService {
         newPlanRef,
       );
       await this.changePlan(organizationId, actorUserId, newPlan);
-      return { message: 'Paketiniz yükseltildi.' };
+      void this.outboundWebhookService.dispatch(
+        organizationId,
+        WebhookEvent.SUBSCRIPTION_UPGRADED,
+        {
+          organizationId,
+          fromPlan: previousPlan,
+          toPlan: newPlan,
+          prorationAmountTry,
+        },
+      );
+      return {
+        message: 'Paketiniz yükseltildi.',
+        prorationAmountTry,
+      };
     }
 
-    return this.requestPlanUpgrade(organizationId, actorUserId, newPlan);
+    const actor = await this.prisma.user.findFirst({
+      where: { id: actorUserId, organizationId, deletedAt: null },
+    });
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+
+    if (actor && org) {
+      try {
+        const checkout = await this.createUpgradeCheckout(
+          organizationId,
+          actor,
+          newPlan,
+          billingPeriod,
+          Math.max(prorationKurus, 1),
+        );
+        await this.prisma.auditLog.create({
+          data: {
+            actorUserId,
+            actorOrgId: organizationId,
+            impersonatedOrgId: null,
+            action: 'subscription.plan_upgrade_requested',
+            resourceType: 'Subscription',
+            resourceId: sub.id,
+            metadata: {
+              currentPlan: previousPlan,
+              requestedPlan: newPlan,
+              prorationAmountTry,
+            },
+          },
+        });
+        return {
+          message: 'Yükseltme için ödeme adımına yönlendiriliyorsunuz.',
+          prorationAmountTry,
+          checkoutUrl: checkout.checkoutUrl,
+          conversationId: checkout.conversationId,
+        };
+      } catch (err) {
+        this.logger.warn('Yükseltme checkout oluşturulamadı', {
+          organizationId,
+          message: err instanceof Error ? err.message : 'unknown',
+        });
+      }
+    }
+
+    return this.requestPlanUpgrade(
+      organizationId,
+      actorUserId,
+      newPlan,
+      prorationAmountTry,
+    );
+  }
+
+  private async createUpgradeCheckout(
+    organizationId: string,
+    actor: User,
+    plan: PlanTier,
+    billingPeriod: BillingPeriod,
+    amountKurus: number,
+  ): Promise<CheckoutUrlResult> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    const pricingPlanRef = await this.ensureIyzicoPricingPlanRef(
+      plan,
+      billingPeriod,
+    );
+    const conversationId = randomUUID();
+    const callbackUrl =
+      this.config.get<string>('IYZICO_CALLBACK_URL') ??
+      `${this.panelBaseUrl()}/payment/callback`;
+
+    await this.prisma.payment.create({
+      data: {
+        organizationId,
+        amount: amountKurus,
+        currency: 'TRY',
+        status: PaymentStatus.PENDING,
+        plan,
+        billingPeriod,
+        iyzicoConversationId: conversationId,
+      },
+    });
+
+    const checkout = await this.iyzicoService.createCheckoutForm({
+      conversationId,
+      callbackUrl,
+      pricingPlanReferenceCode: pricingPlanRef,
+      customer: this.iyzicoService.buildCustomerPayload(actor, org),
+    });
+
+    if (!checkout.paymentPageUrl && !checkout.token) {
+      throw new BadRequestException('Ödeme sayfası oluşturulamadı.');
+    }
+
+    if (checkout.token) {
+      await this.prisma.payment.updateMany({
+        where: { iyzicoConversationId: conversationId },
+        data: { iyzicoCheckoutToken: checkout.token },
+      });
+    }
+
+    const checkoutUrl =
+      checkout.paymentPageUrl ??
+      `${this.config.get<string>('IYZICO_CHECKOUT_BASE', 'https://sandbox-cpp.iyzipay.com')}?token=${checkout.token}`;
+
+    return {
+      checkoutUrl,
+      conversationId,
+      token: checkout.token,
+    };
   }
 
   async handleIyzicoWebhook(payload: IyzicoWebhookPayload): Promise<void> {
@@ -943,7 +1072,7 @@ export class SubscriptionService {
     const billingPeriod = payment.billingPeriod ?? BillingPeriod.YEARLY;
     const periodEnd = this.periodEndFromBilling(billingPeriod, periodStart);
     const nextBilling = new Date(periodEnd);
-    const limits = PLAN_LIMITS[payment.plan];
+    const limits = dbLimitsForPlan(payment.plan);
 
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.update({
@@ -1024,6 +1153,7 @@ export class SubscriptionService {
     organizationId: string,
     actorUserId: string,
     requestedPlan: PlanTier,
+    prorationAmountTry?: number,
   ): Promise<PlanUpgradeRequestResult> {
     const sub = await this.prisma.subscription.findUnique({
       where: { organizationId },
@@ -1043,12 +1173,14 @@ export class SubscriptionService {
         metadata: {
           currentPlan: sub.plan,
           requestedPlan,
+          prorationAmountTry: prorationAmountTry ?? null,
         },
       },
     });
 
     return {
       message: 'Talebiniz alındı, ekibimiz sizinle iletişime geçecek.',
+      ...(prorationAmountTry != null ? { prorationAmountTry } : {}),
     };
   }
 
@@ -1210,7 +1342,7 @@ export class SubscriptionService {
       const periodEnd = new Date(periodStart);
       periodEnd.setFullYear(periodEnd.getFullYear() + 1);
       const nextBilling = new Date(periodEnd);
-      const limits = PLAN_LIMITS[payment.plan];
+      const limits = dbLimitsForPlan(payment.plan);
 
       const cardTokenPlain = payload.ctoken?.trim();
       const encryptedCardToken = cardTokenPlain

@@ -380,6 +380,10 @@ export class AuthService {
       );
     }
 
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      await this.assertSubscriptionAllowsLogin(user.organizationId);
+    }
+
     if (user.twoFactorEnabled) {
       await this.handleSuccessfulLogin(user.email);
       const tempToken = await this.jwtService.signAsync(
@@ -457,6 +461,10 @@ export class AuthService {
       (user.organization.suspended && user.role !== UserRole.SUPER_ADMIN)
     ) {
       throw new UnauthorizedException('Oturum açılamadı.');
+    }
+
+    if (user.role !== UserRole.SUPER_ADMIN) {
+      await this.assertSubscriptionAllowsLogin(user.organizationId);
     }
 
     await this.handleSuccessfulLogin(user.email);
@@ -698,6 +706,19 @@ export class AuthService {
       location: null,
     });
     await this.cache.sadd(key, ip);
+  }
+
+  private async assertSubscriptionAllowsLogin(
+    organizationId: string,
+  ): Promise<void> {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (subscription?.status === SubStatus.EXPIRED) {
+      throw new UnauthorizedException(
+        'Deneme süreniz sona erdi. Abonelik başlatarak devam edebilirsiniz.',
+      );
+    }
   }
 
   private resolveUiPlanTier(subscription: Subscription | null): PlanTier {
