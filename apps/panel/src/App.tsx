@@ -84,9 +84,9 @@ const AdminSubscriptionsPage = lazy(() =>
     default: m.AdminSubscriptionsPage,
   })),
 );
-const AdminTicketsPage = lazy(() =>
-  import('@/pages/admin/AdminTicketsPage').then((m) => ({
-    default: m.AdminTicketsPage,
+const AdminSupportPage = lazy(() =>
+  import('@/pages/admin/AdminSupportPage').then((m) => ({
+    default: m.AdminSupportPage,
   })),
 );
 const AdminPartnersPage = lazy(() =>
@@ -112,9 +112,14 @@ const PartnersDiscoveryPage = lazy(() =>
 const SupportPage = lazy(() =>
   import('@/pages/support/SupportPage').then((m) => ({ default: m.SupportPage })),
 );
-const SupportTicketPage = lazy(() =>
-  import('@/pages/support/SupportTicketPage').then((m) => ({
-    default: m.SupportTicketPage,
+const TicketDetailPage = lazy(() =>
+  import('@/pages/support/TicketDetailPage').then((m) => ({
+    default: m.TicketDetailPage,
+  })),
+);
+const HelpArticlePage = lazy(() =>
+  import('@/pages/support/HelpArticlePage').then((m) => ({
+    default: m.HelpArticlePage,
   })),
 );
 const AuditLogPage = lazy(() =>
@@ -413,7 +418,7 @@ export default function App(): ReactElement {
                   path="subscriptions"
                   element={<AdminSubscriptionsPage />}
                 />
-                <Route path="tickets" element={<AdminTicketsPage />} />
+                <Route path="tickets" element={<AdminSupportPage />} />
                 <Route path="partners" element={<AdminPartnersPage />} />
                 <Route
                   path="partner-link-requests"
@@ -466,7 +471,8 @@ export default function App(): ReactElement {
                 <Route path="/sync/history" element={<SyncHistoryPage />} />
                 <Route path="/sync/conflicts" element={<ConflictsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
-                <Route path="/support/:id" element={<SupportTicketPage />} />
+                <Route path="/support/help/:slug" element={<HelpArticlePage />} />
+                <Route path="/support/:id" element={<TicketDetailPage />} />
                 <Route path="/support" element={<SupportPage />} />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />

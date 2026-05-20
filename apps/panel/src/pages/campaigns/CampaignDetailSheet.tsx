@@ -1,5 +1,14 @@
 import type { ReactElement } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Copy, Loader2 } from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,7 +39,9 @@ import {
 import {
   useActivateCampaign,
   useCampaign,
+  useCampaignPerformance,
   useDeactivateCampaign,
+  useDuplicateCampaign,
   usePauseCampaign,
 } from './hooks/useCampaigns';
 
@@ -71,15 +82,23 @@ export function CampaignDetailSheet({
   onOpenChange,
 }: Props): ReactElement {
   const detailQuery = useCampaign(campaignId, open);
+  const performanceQuery = useCampaignPerformance(campaignId, open);
   const activateMutation = useActivateCampaign();
   const pauseMutation = usePauseCampaign();
   const deactivateMutation = useDeactivateCampaign();
+  const duplicateMutation = useDuplicateCampaign();
 
   const campaign = detailQuery.data;
+  const performance = performanceQuery.data;
+  const usageChartData = (performance?.usageByDay ?? []).map((p) => ({
+    label: p.date.slice(5),
+    kullanim: p.usageCount,
+  }));
   const isBusy =
     activateMutation.isPending ||
     pauseMutation.isPending ||
-    deactivateMutation.isPending;
+    deactivateMutation.isPending ||
+    duplicateMutation.isPending;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -148,8 +167,20 @@ export function CampaignDetailSheet({
                 </p>
               </div>
               <div>
+                <p className="text-muted-foreground">Kupon kodu</p>
+                <p className="font-mono">{campaign.couponCode ?? '—'}</p>
+              </div>
+              <div>
                 <p className="text-muted-foreground">Etkilenen ürün</p>
                 <p>{campaign.affectedProductCount}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Min. sipariş</p>
+                <p>
+                  {campaign.minOrderAmount
+                    ? formatMoney(campaign.minOrderAmount)
+                    : '—'}
+                </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Platformlar</p>
@@ -165,7 +196,85 @@ export function CampaignDetailSheet({
               </div>
             </div>
 
+            <div className="space-y-3 rounded-lg border p-4">
+              <p className="text-sm font-medium">Performans</p>
+              {performanceQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Yükleniyor…</p>
+              ) : performance ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    <div>
+                      <p className="text-muted-foreground">Kullanım</p>
+                      <p className="font-semibold tabular-nums">
+                        {performance.usageCount}
+                        {performance.maxUses !== null
+                          ? ` / ${performance.maxUses}`
+                          : ''}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Toplam indirim</p>
+                      <p className="font-semibold tabular-nums">
+                        {formatMoney(performance.totalDiscountAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Dönüşüm</p>
+                      <p className="font-semibold tabular-nums">
+                        %{performance.conversionRate.toLocaleString('tr-TR')}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Gösterim</p>
+                      <p className="font-semibold tabular-nums">
+                        {performance.impressions}
+                      </p>
+                    </div>
+                  </div>
+                  {usageChartData.length > 0 ? (
+                    <div className="h-48 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={usageChartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                          <YAxis allowDecimals={false} width={32} />
+                          <Tooltip
+                            formatter={(value) => [
+                              typeof value === 'number' ? value : 0,
+                              'Kullanım',
+                            ]}
+                          />
+                          <Bar
+                            dataKey="kullanim"
+                            fill="hsl(var(--primary))"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Performans verisi alınamadı.
+                </p>
+              )}
+            </div>
+
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isBusy}
+                className="gap-1"
+                onClick={() =>
+                  void duplicateMutation.mutateAsync(campaign.id)
+                }
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                Kopyala
+              </Button>
               {campaign.status === 'DRAFT' ||
               campaign.status === 'SCHEDULED' ||
               campaign.status === 'PAUSED' ? (

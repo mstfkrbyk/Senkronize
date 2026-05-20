@@ -71,6 +71,11 @@ export const BREADCRUMB_DYNAMIC_PARENTS: {
     parentLabel: 'Siparişler',
   },
   {
+    pattern: /^\/support\/help\/[^/]+$/,
+    parentPath: '/support',
+    parentLabel: 'Destek',
+  },
+  {
     pattern: /^\/support\/[^/]+$/,
     parentPath: '/support',
     parentLabel: 'Destek',

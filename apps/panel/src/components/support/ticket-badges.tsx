@@ -61,8 +61,8 @@ export function TicketPriorityBadge({
 }
 
 export const TICKET_CATEGORY_OPTIONS = [
-  { value: 'entegrasyon', label: 'Entegrasyon' },
-  { value: 'fatura', label: 'Fatura' },
-  { value: 'teknik', label: 'Teknik' },
-  { value: 'genel', label: 'Genel' },
+  { value: 'TECHNICAL', label: 'Teknik' },
+  { value: 'INTEGRATION', label: 'Entegrasyon' },
+  { value: 'BILLING', label: 'Fatura' },
+  { value: 'GENERAL', label: 'Genel' },
 ] as const;

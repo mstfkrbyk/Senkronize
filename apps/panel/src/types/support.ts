@@ -45,3 +45,29 @@ export interface AdminSupportTicketListItem extends SupportTicketListItem {
   slaHours: number;
   slaDays: number;
 }
+
+export interface SupportStats {
+  open: number;
+  inProgress: number;
+  waitingCustomer: number;
+  resolved: number;
+  closed: number;
+  totalOpen: number;
+  avgFirstResponseHours: number | null;
+  avgResolutionHours: number | null;
+}
+
+export interface SupportSlaReport {
+  totalTickets: number;
+  resolvedTickets: number;
+  avgFirstResponseHours: number | null;
+  avgResolutionHours: number | null;
+  firstResponseComplianceRate: number;
+  resolutionComplianceRate: number;
+  slaTargets: {
+    firstResponseHours: number;
+    urgentFirstResponseHours: number;
+    resolutionHours: number;
+    urgentResolutionHours: number;
+  };
+}

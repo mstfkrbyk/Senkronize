@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import {
   ApiOperation,
   ApiResponse,
@@ -38,6 +38,17 @@ export class HelpController {
     @Param('slug') slug: string,
   ): Promise<{ data: HelpArticleDetailDto }> {
     const data = await this.helpService.getBySlug(slug);
+    return { data };
+  }
+
+  @Public()
+  @Patch(':slug/helpful')
+  @ApiOperation({ summary: 'Makaleyi yararlı olarak işaretle' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async markHelpful(
+    @Param('slug') slug: string,
+  ): Promise<{ data: { helpful: number } }> {
+    const data = await this.helpService.markHelpful(slug);
     return { data };
   }
 }

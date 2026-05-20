@@ -1,6 +1,8 @@
 import { api } from '@/lib/api';
 import type {
   AdminSupportTicketListItem,
+  SupportSlaReport,
+  SupportStats,
   SupportTicketDetail,
   SupportTicketListItem,
   TicketPriority,
@@ -10,6 +12,8 @@ import type {
 export async function fetchSupportTickets(params?: {
   status?: TicketStatus;
   priority?: TicketPriority;
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<SupportTicketListItem[]> {
   const { data } = await api.get<{ data: SupportTicketListItem[] }>(
     '/support/tickets',
@@ -62,9 +66,10 @@ export async function fetchAdminTickets(params?: {
   status?: TicketStatus;
   priority?: TicketPriority;
   organizationId?: string;
+  assignedTo?: string;
 }): Promise<AdminSupportTicketListItem[]> {
   const { data } = await api.get<{ data: AdminSupportTicketListItem[] }>(
-    '/admin/tickets',
+    '/admin/support/tickets',
     { params },
   );
   return data.data;
@@ -72,18 +77,32 @@ export async function fetchAdminTickets(params?: {
 
 export async function fetchAdminTicket(id: string): Promise<SupportTicketDetail> {
   const { data } = await api.get<{ data: SupportTicketDetail }>(
-    `/admin/tickets/${id}`,
+    `/admin/support/tickets/${id}`,
   );
   return data.data;
 }
 
-export async function updateAdminTicketStatus(
+export async function fetchAdminSupportStats(): Promise<SupportStats> {
+  const { data } = await api.get<{ data: SupportStats }>('/admin/support/stats');
+  return data.data;
+}
+
+export async function fetchAdminSupportSla(): Promise<SupportSlaReport> {
+  const { data } = await api.get<{ data: SupportSlaReport }>('/admin/support/sla');
+  return data.data;
+}
+
+export async function updateAdminTicket(
   id: string,
-  status: TicketStatus,
+  payload: {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+    assignedTo?: string | null;
+  },
 ): Promise<SupportTicketDetail> {
   const { data } = await api.patch<{ data: SupportTicketDetail }>(
-    `/admin/tickets/${id}/status`,
-    { status },
+    `/admin/support/tickets/${id}`,
+    payload,
   );
   return data.data;
 }
@@ -92,8 +111,8 @@ export async function assignAdminTicket(
   id: string,
   adminId: string,
 ): Promise<SupportTicketDetail> {
-  const { data } = await api.patch<{ data: SupportTicketDetail }>(
-    `/admin/tickets/${id}/assign`,
+  const { data } = await api.post<{ data: SupportTicketDetail }>(
+    `/admin/support/tickets/${id}/assign`,
     { adminId },
   );
   return data.data;
@@ -105,8 +124,19 @@ export async function addAdminTicketMessage(
   isInternal: boolean,
 ): Promise<SupportTicketDetail> {
   const { data } = await api.post<{ data: SupportTicketDetail }>(
-    `/admin/tickets/${id}/messages`,
+    `/admin/support/tickets/${id}/messages`,
     { content, isInternal },
+  );
+  return data.data;
+}
+
+export async function addAdminInternalNote(
+  id: string,
+  content: string,
+): Promise<SupportTicketDetail> {
+  const { data } = await api.post<{ data: SupportTicketDetail }>(
+    `/admin/support/tickets/${id}/internal-note`,
+    { content },
   );
   return data.data;
 }

@@ -27,6 +27,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/sync/conflicts': () => import('@/pages/sync/ConflictsPage'),
   '/notifications': () => import('@/pages/notifications/NotificationsPage'),
   '/support': () => import('@/pages/support/SupportPage'),
+  '/support/help': () => import('@/pages/support/HelpArticlePage'),
   '/audit-logs': () => import('@/pages/audit/AuditLogPage'),
   '/reports': () => import('@/pages/reports/ReportsPage'),
   '/migration': () => import('@/pages/migration/MigrationPage'),

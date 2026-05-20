@@ -96,6 +96,23 @@ export class HelpService {
     };
   }
 
+  async markHelpful(slug: string): Promise<{ helpful: number }> {
+    const article = await this.prisma.helpArticle.findFirst({
+      where: { slug, isPublished: true },
+    });
+    if (!article) {
+      throw new NotFoundException('Yardım makalesi bulunamadı');
+    }
+
+    const updated = await this.prisma.helpArticle.update({
+      where: { id: article.id },
+      data: { helpful: { increment: 1 } },
+      select: { helpful: true },
+    });
+
+    return { helpful: updated.helpful };
+  }
+
   async create(dto: CreateHelpArticleDto): Promise<HelpArticleDetailDto> {
     const existing = await this.prisma.helpArticle.findUnique({
       where: { slug: dto.slug.trim() },
