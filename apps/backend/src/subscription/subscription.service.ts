@@ -22,7 +22,10 @@ import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
-import type { UsageStats } from './subscription.types';
+import type {
+  PlanUpgradeRequestResult,
+  UsageStats,
+} from './subscription.types';
 
 const PLAN_PRICES_KURUS: Record<PlanTier, number> = {
   BASLANGIC: 290_000,
@@ -90,6 +93,42 @@ const PLAN_LIMITS: Record<
     ecommerceLimit: 20,
     erpLimit: 10,
     userLimit: 100,
+  },
+};
+
+/** Panel kullanım metrikleri — -1 sınırsız */
+const USAGE_PLAN_LIMITS: Record<
+  PlanTier,
+  {
+    connections: number;
+    products: number;
+    ordersPerMonth: number;
+    apiKeys: number;
+  }
+> = {
+  BASLANGIC: {
+    connections: 5,
+    products: 1_000,
+    ordersPerMonth: 500,
+    apiKeys: 2,
+  },
+  GELISIM: {
+    connections: 10,
+    products: 5_000,
+    ordersPerMonth: 2_000,
+    apiKeys: 5,
+  },
+  PRO: {
+    connections: 20,
+    products: 10_000,
+    ordersPerMonth: 5_000,
+    apiKeys: 10,
+  },
+  KURUMSAL: {
+    connections: -1,
+    products: -1,
+    ordersPerMonth: -1,
+    apiKeys: -1,
   },
 };
 
@@ -409,10 +448,20 @@ export class SubscriptionService {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
 
+    const usageLimits = USAGE_PLAN_LIMITS[sub.plan];
     const defaults = PLAN_LIMITS[sub.plan];
-    const orderLimit = sub.monthlyOrderLimit ?? defaults.monthlyOrderLimit;
-    const marketplaceLimit =
-      sub.marketplaceLimit ?? defaults.marketplaceLimit;
+    const orderLimit =
+      usageLimits.ordersPerMonth < 0
+        ? null
+        : usageLimits.ordersPerMonth;
+    const connectionLimit =
+      usageLimits.connections < 0
+        ? null
+        : usageLimits.connections;
+    const productLimit =
+      usageLimits.products < 0 ? null : usageLimits.products;
+    const apiKeyLimit =
+      usageLimits.apiKeys < 0 ? null : usageLimits.apiKeys;
     const ecommerceLimit = sub.ecommerceLimit ?? defaults.ecommerceLimit;
     const erpLimit = sub.erpLimit ?? defaults.erpLimit;
     const userLimit = sub.userLimit ?? defaults.userLimit;
@@ -422,7 +471,9 @@ export class SubscriptionService {
 
     const [
       ordersThisMonth,
-      marketplaceCount,
+      connectionCount,
+      productCount,
+      apiKeyCount,
       ecommerceCount,
       erpCount,
       userCount,
@@ -436,6 +487,12 @@ export class SubscriptionService {
       }),
       this.prisma.marketplaceConnection.count({
         where: { organizationId, isActive: true, deletedAt: null },
+      }),
+      this.prisma.product.count({
+        where: { organizationId, deletedAt: null },
+      }),
+      this.prisma.apiKey.count({
+        where: { organizationId, isActive: true },
       }),
       this.prisma.ecommerceConnection.count({
         where: { organizationId, isActive: true },
@@ -456,13 +513,107 @@ export class SubscriptionService {
       trialDaysLeft = diff > 0 ? diff : 0;
     }
 
+    const connections = { used: connectionCount, limit: connectionLimit };
+    const products = { used: productCount, limit: productLimit };
+    const orders = { used: ordersThisMonth, limit: orderLimit };
+    const apiKeys = { used: apiKeyCount, limit: apiKeyLimit };
+
     return {
-      orders: { used: ordersThisMonth, limit: orderLimit },
-      marketplaces: { used: marketplaceCount, limit: marketplaceLimit },
+      connections,
+      products,
+      orders,
+      apiKeys,
+      marketplaces: connections,
       ecommerce: { used: ecommerceCount, limit: ecommerceLimit },
       erp: { used: erpCount, limit: erpLimit },
       users: { used: userCount, limit: userLimit },
       trialDaysLeft,
+    };
+  }
+
+  async requestPlanUpgrade(
+    organizationId: string,
+    actorUserId: string,
+    requestedPlan: PlanTier,
+  ): Promise<PlanUpgradeRequestResult> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId,
+        actorOrgId: organizationId,
+        impersonatedOrgId: null,
+        action: 'subscription.plan_upgrade_requested',
+        resourceType: 'Subscription',
+        resourceId: sub.id,
+        metadata: {
+          currentPlan: sub.plan,
+          requestedPlan,
+        },
+      },
+    });
+
+    return {
+      message: 'Talebiniz alındı, ekibimiz sizinle iletişime geçecek.',
+    };
+  }
+
+  async getInvoiceList(
+    organizationId: string,
+    page: number,
+    limit: number,
+  ): Promise<{
+    items: unknown[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const history = await this.getPaymentHistory(organizationId, page, limit);
+    if (history.total > 0) {
+      return history;
+    }
+
+    const mockItems = [
+      {
+        id: 'mock-inv-2026',
+        organizationId,
+        amount: 599_000,
+        currency: 'TRY',
+        status: PaymentStatus.SUCCESS,
+        plan: PlanTier.PRO,
+        paytrOrderId: null,
+        periodStart: new Date('2026-01-01'),
+        periodEnd: new Date('2027-01-01'),
+        failReason: null,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      },
+      {
+        id: 'mock-inv-2025',
+        organizationId,
+        amount: 599_000,
+        currency: 'TRY',
+        status: PaymentStatus.SUCCESS,
+        plan: PlanTier.PRO,
+        paytrOrderId: null,
+        periodStart: new Date('2025-01-01'),
+        periodEnd: new Date('2026-01-01'),
+        failReason: null,
+        createdAt: new Date('2025-01-01'),
+        updatedAt: new Date('2025-01-01'),
+      },
+    ];
+
+    return {
+      items: mockItems,
+      total: mockItems.length,
+      page: 1,
+      limit,
     };
   }
 

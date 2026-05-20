@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,7 +36,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -60,63 +60,64 @@ import type {
 
 const PAYTR_IFRAME_BASE = 'https://www.paytr.com/odeme/guvenli/';
 
-const TRIAL_TOTAL_DAYS = 14;
-
-const PLAN_YEAR_PRICE_TRY: Record<PlanTier, number> = {
-  BASLANGIC: 2_900,
-  GELISIM: 5_900,
-  PRO: 9_900,
-  KURUMSAL: 19_900,
+const PLAN_RANK: Record<PlanTier, number> = {
+  BASLANGIC: 0,
+  GELISIM: 1,
+  PRO: 2,
+  KURUMSAL: 3,
 };
 
 const PLANS: Array<{
   id: PlanTier;
   name: string;
+  price: number;
+  period: string;
   features: string[];
-  highlighted?: boolean;
+  highlight: boolean;
 }> = [
   {
     id: 'BASLANGIC',
     name: 'Başlangıç',
+    price: 2_990,
+    period: 'yıl',
     features: [
-      '500 sipariş / ay',
-      '1 pazaryeri bağlantısı',
-      '1 ERP bağlantısı',
-      '2 kullanıcı',
+      '5 pazaryeri',
+      '1.000 ürün',
+      '500 sipariş/ay',
+      'E-posta desteği',
     ],
-  },
-  {
-    id: 'GELISIM',
-    name: 'Gelişim',
-    features: [
-      '2.000 sipariş / ay',
-      '3 pazaryeri bağlantısı',
-      '2 ERP bağlantısı',
-      '5 kullanıcı',
-    ],
+    highlight: false,
   },
   {
     id: 'PRO',
     name: 'Pro',
+    price: 5_990,
+    period: 'yıl',
     features: [
-      '10.000 sipariş / ay',
-      '10 pazaryeri bağlantısı',
-      '3 ERP bağlantısı',
-      '15 kullanıcı',
-      'BuyBox ve gelişmiş fiyatlandırma',
+      '20 pazaryeri',
+      '10.000 ürün',
+      '5.000 sipariş/ay',
+      'ERP entegrasyonu',
+      'BuyBox optimizasyonu',
+      'Öncelikli destek',
     ],
-    highlighted: true,
+    highlight: true,
   },
   {
     id: 'KURUMSAL',
     name: 'Kurumsal',
+    price: 11_990,
+    period: 'yıl',
     features: [
-      '100.000 sipariş / ay',
-      '50 pazaryeri bağlantısı',
-      '10 ERP bağlantısı',
-      '100 kullanıcı',
-      'Özel SLA ve destek',
+      'Sınırsız pazaryeri',
+      'Sınırsız ürün',
+      'Sınırsız sipariş',
+      'Tüm ERP entegrasyonları',
+      'API erişimi',
+      'Özel destek hattı',
+      'White-label',
     ],
+    highlight: false,
   },
 ];
 
@@ -129,6 +130,24 @@ const CANCEL_PRESETS = [
 
 function planLabel(id: PlanTier): string {
   return PLANS.find((p) => p.id === id)?.name ?? id;
+}
+
+function planDisplayName(id: PlanTier): string {
+  const fromList = PLANS.find((p) => p.id === id)?.name;
+  if (fromList) {
+    return fromList;
+  }
+  const map: Partial<Record<PlanTier, string>> = {
+    GELISIM: 'Gelişim',
+  };
+  return map[id] ?? id;
+}
+
+function isHigherPlan(target: PlanTier, current: PlanTier | null): boolean {
+  if (!current) {
+    return true;
+  }
+  return PLAN_RANK[target] > PLAN_RANK[current];
 }
 
 function statusBadgeVariant(
@@ -196,6 +215,13 @@ function pctUsed(used: number, limit: number | null): number {
   return Math.min(100, (used / limit) * 100);
 }
 
+function formatLimit(limit: number | null): string {
+  if (limit == null) {
+    return 'Sınırsız';
+  }
+  return limit.toLocaleString('tr-TR');
+}
+
 function UsageMetricRow({
   label,
   used,
@@ -205,9 +231,10 @@ function UsageMetricRow({
   used: number;
   limit: number | null;
 }): ReactElement {
-  const pct = pctUsed(used, limit);
-  const over = limit != null && limit > 0 && used >= limit;
-  const warn = !over && limit != null && limit > 0 && pct >= 80;
+  const unlimited = limit == null;
+  const pct = unlimited ? 0 : pctUsed(used, limit);
+  const over = !unlimited && limit > 0 && used >= limit;
+  const warn = !over && !unlimited && limit > 0 && pct >= 80;
 
   return (
     <div className="space-y-2">
@@ -220,10 +247,11 @@ function UsageMetricRow({
           )}
         >
           {used.toLocaleString('tr-TR')}
-          {limit != null ? ` / ${limit.toLocaleString('tr-TR')}` : ''}
+          {' / '}
+          {formatLimit(limit)}
         </span>
       </div>
-      {limit != null && limit > 0 ? (
+      {!unlimited && limit > 0 ? (
         <Progress
           value={pct}
           className={cn(
@@ -231,6 +259,8 @@ function UsageMetricRow({
             over ? '[&>div]:bg-destructive' : warn ? '[&>div]:bg-amber-500' : '',
           )}
         />
+      ) : unlimited ? (
+        <Progress value={0} className="h-2 opacity-40" />
       ) : null}
       {over ? (
         <div
@@ -260,8 +290,8 @@ export function SubscriptionTab(): ReactElement {
   const [paytrToken, setPaytrToken] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
-  const [planDialogOpen, setPlanDialogOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null);
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [upgradeTarget, setUpgradeTarget] = useState<PlanTier | null>(null);
   const [cancelPreset, setCancelPreset] = useState<string>(CANCEL_PRESETS[0].value);
   const [cancelDetail, setCancelDetail] = useState('');
 
@@ -303,17 +333,17 @@ export function SubscriptionTab(): ReactElement {
     },
   });
 
-  const changePlanMutation = useMutation({
-    mutationFn: async (plan: PlanTier): Promise<void> => {
-      await api.post('/subscriptions/change-plan', { plan });
+  const upgradeRequestMutation = useMutation({
+    mutationFn: async (plan: PlanTier): Promise<{ message: string }> => {
+      const { data } = await api.patch<{ message: string }>('/subscriptions/plan', {
+        plan,
+      });
+      return data;
     },
-    onSuccess: () => {
-      toast.success('Paketiniz güncellendi.');
-      void queryClient.invalidateQueries({ queryKey: ['subscription'] });
-      void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      void usageQuery.refetch();
-      setPlanDialogOpen(false);
-      setSelectedPlan(null);
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setUpgradeDialogOpen(false);
+      setUpgradeTarget(null);
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -350,26 +380,22 @@ export function SubscriptionTab(): ReactElement {
     },
   });
 
-  const payPlan = selectedPlan ?? currentPlan ?? 'GELISIM';
-
-  const trialProgressPct = useMemo(() => {
+  const daysLeft = useMemo(() => {
     if (subQuery.data?.status !== 'TRIAL') {
       return null;
     }
-    const left =
-      usageQuery.data?.trialDaysLeft ??
-      (subQuery.data.trialEndsAt
-        ? Math.max(
-            0,
-            Math.ceil(
-              (new Date(subQuery.data.trialEndsAt).getTime() - Date.now()) / 86_400_000,
-            ),
-          )
-        : null);
-    if (left == null) {
-      return null;
+    if (usageQuery.data?.trialDaysLeft != null) {
+      return usageQuery.data.trialDaysLeft;
     }
-    return Math.min(100, Math.max(0, ((TRIAL_TOTAL_DAYS - left) / TRIAL_TOTAL_DAYS) * 100));
+    if (subQuery.data.trialEndsAt) {
+      return Math.max(
+        0,
+        Math.ceil(
+          (new Date(subQuery.data.trialEndsAt).getTime() - Date.now()) / 86_400_000,
+        ),
+      );
+    }
+    return null;
   }, [subQuery.data, usageQuery.data?.trialDaysLeft]);
 
   function buildCancelReason(): string | undefined {
@@ -387,18 +413,28 @@ export function SubscriptionTab(): ReactElement {
     return preset;
   }
 
+  function openUpgradeDialog(plan: PlanTier): void {
+    track('plan_upgrade_clicked', {
+      currentPlan: currentPlan ?? 'unknown',
+      targetPlan: plan,
+    });
+    setUpgradeTarget(plan);
+    setUpgradeDialogOpen(true);
+  }
+
   const usage: UsageStats | undefined = usageQuery.data;
+  const upgradeTargetName = upgradeTarget ? planDisplayName(upgradeTarget) : '';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h3 className="text-lg font-medium text-primary">Abonelik</h3>
         <p className="text-sm text-muted-foreground">
-          Paketinizi yönetin, kullanımınızı izleyin ve faturalarınızı görüntüleyin.
+          Paketinizi karşılaştırın, kullanımınızı izleyin ve faturalarınızı görüntüleyin.
         </p>
       </div>
 
-      {subQuery.isLoading ? <Skeleton className="h-24 w-full max-w-xl" /> : null}
+      {subQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
 
       {subQuery.isError ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -408,287 +444,167 @@ export function SubscriptionTab(): ReactElement {
         </div>
       ) : null}
 
-      {subQuery.isSuccess && subQuery.data ? (
-        <Tabs defaultValue="overview" className="w-full space-y-4">
-          <TabsList>
-            <TabsTrigger value="overview">Özet</TabsTrigger>
-            <TabsTrigger value="invoices">Fatura geçmişi</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <CardTitle className="text-lg">{planLabel(subQuery.data.plan)}</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Yıllık ücret:{' '}
-                    <span className="font-semibold text-foreground">
-                      ₺{PLAN_YEAR_PRICE_TRY[subQuery.data.plan].toLocaleString('tr-TR')}
-                    </span>
-                  </p>
-                </div>
-                <Badge variant={statusBadgeVariant(subQuery.data.status)}>
-                  {statusLabel(subQuery.data.status)}
-                </Badge>
-              </CardHeader>
-              <CardContent className="space-y-4 text-sm">
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
-                  <p>
-                    <span className="text-muted-foreground">Dönem bitişi:</span>{' '}
-                    <span className="font-medium">
-                      {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
-                    </span>
-                  </p>
-                  {subQuery.data.nextBillingAt ? (
-                    <p>
-                      <span className="text-muted-foreground">Sonraki ödeme:</span>{' '}
-                      <span className="font-medium">
-                        {new Date(subQuery.data.nextBillingAt).toLocaleDateString('tr-TR')}
-                      </span>
-                    </p>
-                  ) : null}
-                </div>
-
-                {subQuery.data.status === 'TRIAL' && trialProgressPct != null ? (
-                  <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/80 p-3">
-                    <div className="flex justify-between text-sm text-amber-950">
-                      <span>Deneme süresi</span>
-                      <span className="font-semibold">
-                        {usage?.trialDaysLeft != null
-                          ? `${usage.trialDaysLeft} gün kaldı`
-                          : 'Aktif'}
-                      </span>
-                    </div>
-                    <Progress
-                      value={trialProgressPct}
-                      className="h-2 [&>div]:bg-amber-600"
-                    />
-                  </div>
-                ) : null}
-
-                {subQuery.data.status === 'CANCELLED' ? (
-                  <div
-                    className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
-                    role="status"
-                  >
-                    <p className="font-medium">İptal talebiniz kayıtlı.</p>
-                    <p className="mt-1">
-                      <span className="font-semibold">
-                        {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
-                      </span>{' '}
-                      tarihine kadar erişiminiz devam eder.
-                    </p>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="mt-3"
-                      disabled={reactivateMutation.isPending}
-                      onClick={() => {
-                        reactivateMutation.mutate();
-                      }}
-                    >
-                      {reactivateMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                      ) : null}
-                      Yeniden aktifleştir
-                    </Button>
-                  </div>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Kullanım</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {usageQuery.isLoading ? <Skeleton className="h-20 w-full" /> : null}
-                {usageQuery.isError ? (
-                  <p className="text-sm text-destructive">{getApiErrorMessage(usageQuery.error)}</p>
-                ) : null}
-                {usage ? (
-                  <>
-                    <UsageMetricRow
-                      label="Bu ay siparişler"
-                      used={usage.orders.used}
-                      limit={usage.orders.limit}
-                    />
-                    <UsageMetricRow
-                      label="Pazaryeri bağlantıları"
-                      used={usage.marketplaces.used}
-                      limit={usage.marketplaces.limit}
-                    />
-                    <UsageMetricRow
-                      label="E-ticaret bağlantıları"
-                      used={usage.ecommerce.used}
-                      limit={usage.ecommerce.limit}
-                    />
-                    <UsageMetricRow
-                      label="ERP bağlantıları"
-                      used={usage.erp.used}
-                      limit={usage.erp.limit}
-                    />
-                    <UsageMetricRow
-                      label="Kullanıcılar"
-                      used={usage.users.used}
-                      limit={usage.users.limit}
-                    />
-                  </>
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                variant="default"
-                onClick={() => {
-                  setPlanDialogOpen(true);
-                }}
-              >
-                Planı değiştir
-              </Button>
-              <Button
-                type="button"
-                disabled={checkoutMutation.isPending}
-                variant="secondary"
-                onClick={() => {
-                  track('plan_upgrade_clicked', {
-                    currentPlan: currentPlan ?? 'unknown',
-                    targetPlan: payPlan,
-                  });
-                  checkoutMutation.mutate(payPlan);
-                }}
-              >
-                {checkoutMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-                ) : null}
-                PayTR ile ödeme
-              </Button>
-              {subQuery.data.status !== 'CANCELLED' ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => setCancelOpen(true)}
-                >
-                  Aboneliği iptal et
-                </Button>
-              ) : null}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="invoices" className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Ödeme kayıtlarınız fatura yerine listelenir; resmi fatura PDF&apos;si yakında
-              eklenecektir.
-            </p>
-            {invoicesQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
-            {invoicesQuery.isError ? (
-              <p className="text-sm text-destructive">{getApiErrorMessage(invoicesQuery.error)}</p>
-            ) : null}
-            {invoicesQuery.isSuccess && invoicesQuery.data.items.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Henüz fatura / ödeme kaydı yok.</p>
-            ) : null}
-            {invoicesQuery.isSuccess && invoicesQuery.data.items.length > 0 ? (
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tarih</TableHead>
-                      <TableHead>Plan</TableHead>
-                      <TableHead>Tutar</TableHead>
-                      <TableHead>Durum</TableHead>
-                      <TableHead className="text-right">PDF</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {invoicesQuery.data.items.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell>
-                          {new Date(p.createdAt).toLocaleString('tr-TR')}
-                        </TableCell>
-                        <TableCell>{planLabel(p.plan)}</TableCell>
-                        <TableCell>
-                          {new Intl.NumberFormat('tr-TR', {
-                            style: 'currency',
-                            currency: p.currency === 'TRY' || !p.currency ? 'TRY' : p.currency,
-                          }).format(p.amount / 100)}
-                        </TableCell>
-                        <TableCell>
-                          <PaymentStatusBadge status={p.status} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="gap-1"
-                            onClick={() => {
-                              toast.message('PDF indirme yakında eklenecek.');
-                            }}
-                          >
-                            <FileDown className="h-4 w-4" aria-hidden />
-                            İndir
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : null}
-          </TabsContent>
-        </Tabs>
+      {subQuery.isSuccess && subQuery.data?.status === 'TRIAL' && daysLeft != null ? (
+        <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-950">
+          <AlertDescription>
+            Deneme süreniz <strong>{daysLeft} gün</strong> içinde bitiyor. Hizmet kesintisi
+            yaşamamak için plan seçin.
+          </AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="space-y-3">
-        <h4 className="text-base font-medium text-primary">Paket seçimi (ödeme)</h4>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {subQuery.isSuccess && subQuery.data ? (
+        <Card>
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Mevcut abonelik</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                {planDisplayName(subQuery.data.plan)} · Dönem bitişi:{' '}
+                {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
+              </p>
+            </div>
+            <Badge variant={statusBadgeVariant(subQuery.data.status)}>
+              {statusLabel(subQuery.data.status)}
+            </Badge>
+          </CardHeader>
+          {subQuery.data.status === 'CANCELLED' ? (
+            <CardContent>
+              <div
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
+                role="status"
+              >
+                <p className="font-medium">İptal talebiniz kayıtlı.</p>
+                <p className="mt-1">
+                  <span className="font-semibold">
+                    {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
+                  </span>{' '}
+                  tarihine kadar erişiminiz devam eder.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  disabled={reactivateMutation.isPending}
+                  onClick={() => {
+                    reactivateMutation.mutate();
+                  }}
+                >
+                  {reactivateMutation.isPending ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  ) : null}
+                  Yeniden aktifleştir
+                </Button>
+              </div>
+            </CardContent>
+          ) : null}
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Kullanım metrikleri</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Mevcut paketinizdeki kaynak kullanımı
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {usageQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
+          {usageQuery.isError ? (
+            <p className="text-sm text-destructive">{getApiErrorMessage(usageQuery.error)}</p>
+          ) : null}
+          {usage ? (
+            <>
+              <UsageMetricRow
+                label="Pazaryerleri"
+                used={usage.connections.used}
+                limit={usage.connections.limit}
+              />
+              <UsageMetricRow
+                label="Ürünler"
+                used={usage.products.used}
+                limit={usage.products.limit}
+              />
+              <UsageMetricRow
+                label="Bu ay sipariş"
+                used={usage.orders.used}
+                limit={usage.orders.limit}
+              />
+              <UsageMetricRow
+                label="API anahtarları"
+                used={usage.apiKeys.used}
+                limit={usage.apiKeys.limit}
+              />
+            </>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-4">
+        <h4 className="text-base font-medium text-primary">Plan karşılaştırma</h4>
+        <div className="grid gap-4 md:grid-cols-3">
           {PLANS.map((plan) => {
             const isCurrent = currentPlan === plan.id;
+            const canUpgrade = isHigherPlan(plan.id, currentPlan);
+            const monthly = Math.round(plan.price / 12);
+
             return (
               <Card
                 key={plan.id}
                 className={cn(
-                  'flex flex-col',
-                  plan.highlighted ? 'border-sky-400 ring-1 ring-sky-400/40' : '',
+                  'flex flex-col border',
+                  plan.highlight ? 'border-sky-400 ring-1 ring-sky-400/40' : '',
+                  isCurrent ? 'border-primary/60 bg-primary/5' : '',
                 )}
               >
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
+                <CardHeader className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="text-lg">{plan.name}</CardTitle>
-                    {isCurrent ? <Badge variant="secondary">Mevcut</Badge> : null}
+                    {isCurrent ? (
+                      <Badge variant="secondary">Aktif Plan</Badge>
+                    ) : null}
+                    {plan.highlight && !isCurrent ? (
+                      <Badge className="border-0 bg-sky-500 text-white hover:bg-sky-500">
+                        Önerilen
+                      </Badge>
+                    ) : null}
                   </div>
-                  <p className="text-2xl font-semibold text-primary">
-                    ₺{PLAN_YEAR_PRICE_TRY[plan.id].toLocaleString('tr-TR')}
-                    <span className="text-sm font-normal text-muted-foreground"> / yıl</span>
-                  </p>
+                  <div>
+                    <p className="text-2xl font-semibold text-primary">
+                      ₺{plan.price.toLocaleString('tr-TR')}
+                      <span className="text-sm font-normal text-muted-foreground">
+                        {' '}
+                        / {plan.period}
+                      </span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      ≈ ₺{monthly.toLocaleString('tr-TR')} / ay
+                    </p>
+                  </div>
                 </CardHeader>
-                <CardContent className="flex-1 space-y-2 text-sm text-muted-foreground">
-                  <ul className="list-inside list-disc space-y-1">
+                <CardContent className="flex-1">
+                  <ul className="space-y-2 text-sm text-muted-foreground">
                     {plan.features.map((f) => (
-                      <li key={f}>{f}</li>
+                      <li key={f} className="flex items-start gap-2">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" aria-hidden />
+                        <span>{f}</span>
+                      </li>
                     ))}
                   </ul>
                 </CardContent>
                 <CardFooter>
                   <Button
                     type="button"
-                    variant={selectedPlan === plan.id ? 'default' : 'outline'}
-                    className="w-full gap-1"
-                    onClick={() => setSelectedPlan(plan.id)}
+                    className="w-full"
+                    variant={canUpgrade ? 'default' : 'outline'}
+                    disabled={!canUpgrade || isCurrent || upgradeRequestMutation.isPending}
+                    onClick={() => {
+                      if (canUpgrade) {
+                        openUpgradeDialog(plan.id);
+                      }
+                    }}
                   >
-                    {selectedPlan === plan.id ? (
-                      <>
-                        <Check className="h-4 w-4" aria-hidden />
-                        Seçildi
-                      </>
-                    ) : (
-                      'Seç'
-                    )}
+                    {isCurrent ? 'Mevcut plan' : canUpgrade ? 'Yükselt' : 'Mevcut veya alt plan'}
                   </Button>
                 </CardFooter>
               </Card>
@@ -697,63 +613,129 @@ export function SubscriptionTab(): ReactElement {
         </div>
       </div>
 
-      <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Planı değiştir</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {PLANS.map((plan) => {
-              const isCurrent = currentPlan === plan.id;
-              return (
-                <Card
-                  key={plan.id}
-                  className={cn(isCurrent ? 'border-sky-400 ring-1 ring-sky-400/50' : '')}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <CardTitle className="text-base">{plan.name}</CardTitle>
-                      {isCurrent ? <Badge>Mevcut</Badge> : null}
-                    </div>
-                    <p className="text-lg font-semibold">
-                      ₺{PLAN_YEAR_PRICE_TRY[plan.id].toLocaleString('tr-TR')}
-                      <span className="text-xs font-normal text-muted-foreground"> / yıl</span>
-                    </p>
-                  </CardHeader>
-                  <CardContent className="text-xs text-muted-foreground">
-                    <ul className="list-inside list-disc space-y-1">
-                      {plan.features.map((f) => (
-                        <li key={f}>{f}</li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                  <CardFooter>
-                    <Button
-                      type="button"
-                      className="w-full"
-                      disabled={isCurrent || changePlanMutation.isPending}
-                      onClick={() => {
-                        track('plan_upgrade_clicked', {
-                          currentPlan: currentPlan ?? 'unknown',
-                          targetPlan: plan.id,
-                        });
-                        changePlanMutation.mutate(plan.id);
-                      }}
-                    >
-                      {isCurrent ? 'Mevcut plan' : 'Yükselt / değiştir'}
-                    </Button>
-                  </CardFooter>
-                </Card>
-              );
-            })}
+      <div className="space-y-4">
+        <h4 className="text-base font-medium text-primary">Fatura geçmişi</h4>
+        <p className="text-sm text-muted-foreground">
+          Ödeme kayıtlarınız listelenir; resmi fatura PDF&apos;si yakında eklenecektir.
+        </p>
+        {invoicesQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
+        {invoicesQuery.isError ? (
+          <p className="text-sm text-destructive">{getApiErrorMessage(invoicesQuery.error)}</p>
+        ) : null}
+        {invoicesQuery.isSuccess && invoicesQuery.data.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Henüz fatura kaydı yok.</p>
+        ) : null}
+        {invoicesQuery.isSuccess && invoicesQuery.data.items.length > 0 ? (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tarih</TableHead>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Tutar</TableHead>
+                  <TableHead>Durum</TableHead>
+                  <TableHead className="text-right">İşlem</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoicesQuery.data.items.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>
+                      {new Date(p.createdAt).toLocaleDateString('tr-TR', {
+                        day: '2-digit',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </TableCell>
+                    <TableCell>{planLabel(p.plan)}</TableCell>
+                    <TableCell>
+                      {new Intl.NumberFormat('tr-TR', {
+                        style: 'currency',
+                        currency: p.currency === 'TRY' || !p.currency ? 'TRY' : p.currency,
+                      }).format(p.amount / 100)}
+                    </TableCell>
+                    <TableCell>
+                      <PaymentStatusBadge status={p.status} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => {
+                          toast.message('Fatura indirme yakında eklenecek.');
+                        }}
+                      >
+                        <FileDown className="h-4 w-4" aria-hidden />
+                        İndir
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPlanDialogOpen(false)}>
-              Kapat
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : null}
+      </div>
+
+      {subQuery.isSuccess && subQuery.data?.status !== 'CANCELLED' ? (
+        <div className="flex flex-wrap gap-3 border-t pt-4">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={checkoutMutation.isPending}
+            onClick={() => {
+              const plan = currentPlan ?? 'PRO';
+              checkoutMutation.mutate(plan);
+            }}
+          >
+            {checkoutMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            ) : null}
+            PayTR ile ödeme
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => setCancelOpen(true)}
+          >
+            Aboneliği iptal et
+          </Button>
+        </div>
+      ) : null}
+
+      <AlertDialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Plan yükseltme</AlertDialogTitle>
+            <AlertDialogDescription>
+              {upgradeTargetName
+                ? `${upgradeTargetName} planına geçmek istiyorsunuz. Ödeme sistemi kurulunca aktif edilecektir. Devam etmek ister misiniz?`
+                : 'Plan yükseltme talebi oluşturulacak. Devam etmek ister misiniz?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              disabled={!upgradeTarget || upgradeRequestMutation.isPending}
+              onClick={() => {
+                if (upgradeTarget) {
+                  upgradeRequestMutation.mutate(upgradeTarget);
+                }
+              }}
+            >
+              {upgradeRequestMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Onayla
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={showPayment && paytrToken != null}

@@ -101,4 +101,27 @@
   .animate-barcode-scan-line {
     animation: barcode-scan-line 2.2s ease-in-out infinite;
   }
+
+  @keyframes lock-wiggle {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-8deg);
+    }
+    40% {
+      transform: rotate(8deg);
+    }
+    60% {
+      transform: rotate(-4deg);
+    }
+    80% {
+      transform: rotate(4deg);
+    }
+  }
+
+  .animate-lock-wiggle {
+    animation: lock-wiggle 2.5s ease-in-out infinite;
+  }
 }

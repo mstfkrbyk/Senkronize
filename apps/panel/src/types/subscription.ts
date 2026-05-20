@@ -4,7 +4,11 @@ export interface UsageStatBucket {
 }
 
 export interface UsageStats {
+  connections: UsageStatBucket;
+  products: UsageStatBucket;
   orders: UsageStatBucket;
+  apiKeys: UsageStatBucket;
+  /** @deprecated connections ile aynı */
   marketplaces: UsageStatBucket;
   ecommerce: UsageStatBucket;
   erp: UsageStatBucket;

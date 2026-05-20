@@ -1,10 +1,11 @@
 import type { ReactElement, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth.store';
 import type { OrgPlanTier } from '@/types/auth';
 
 const TIER_ORDER: Record<OrgPlanTier, number> = {
@@ -34,7 +35,7 @@ function meetsMinimumPlan(
 interface Props {
   feature: string;
   requiredPlan: OrgPlanTier;
-  currentPlan: OrgPlanTier | undefined;
+  currentPlan?: OrgPlanTier;
   description?: ReactNode;
   className?: string;
 }
@@ -47,8 +48,10 @@ export function UpgradePrompt({
   className,
 }: Props): ReactElement | null {
   const navigate = useNavigate();
+  const orgPlan = useAuthStore((s) => s.currentOrg?.plan);
+  const effectivePlan = currentPlan ?? orgPlan;
 
-  if (meetsMinimumPlan(currentPlan, requiredPlan)) {
+  if (meetsMinimumPlan(effectivePlan, requiredPlan)) {
     return null;
   }
 
@@ -57,17 +60,24 @@ export function UpgradePrompt({
   return (
     <Card
       className={cn(
-        'border-dashed border-muted-foreground/40 bg-muted/30 shadow-none',
+        'relative overflow-hidden border-sky-200 bg-gradient-to-br from-sky-50/90 via-background to-slate-50 shadow-sm',
         className,
       )}
     >
-      <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-2">
-        <div className="rounded-md border bg-background p-2 text-muted-foreground">
-          <Lock className="h-5 w-5" aria-hidden />
+      <div
+        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-sky-400/10 blur-2xl"
+        aria-hidden
+      />
+      <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-200 bg-sky-500/10 text-sky-600">
+          <Lock className="h-5 w-5 animate-lock-wiggle" aria-hidden />
         </div>
         <div className="space-y-1">
-          <CardTitle className="text-base font-semibold text-primary">{feature}</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-sky-500" aria-hidden />
+            <CardTitle className="text-base font-semibold text-primary">{feature}</CardTitle>
+          </div>
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {description ??
               `Bu özellik ${target} paket ve üzeri için kullanılabilir.`}
           </p>
@@ -77,20 +87,20 @@ export function UpgradePrompt({
         <p className="text-xs text-muted-foreground">
           Mevcut paketiniz:{' '}
           <span className="font-medium text-foreground">
-            {currentPlan ? TIER_LABEL[currentPlan] : '—'}
+            {effectivePlan ? TIER_LABEL[effectivePlan] : '—'}
           </span>
         </p>
       </CardContent>
-      <CardFooter className="pt-0">
+      <CardFooter className="gap-2 pt-0">
         <Button
           type="button"
           size="sm"
-          className="bg-sky-500 text-white hover:bg-sky-600"
+          className="bg-sky-500 text-white shadow-sm hover:bg-sky-600"
           onClick={() => {
             navigate('/settings/subscription');
           }}
         >
-          {`${target}'e yükselt`}
+          {`${target}'a Geç`}
         </Button>
       </CardFooter>
     </Card>

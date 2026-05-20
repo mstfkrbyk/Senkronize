@@ -1,11 +1,12 @@
 import {
+  Body,
   Controller,
   ForbiddenException,
   Get,
   Header,
   HttpCode,
+  Patch,
   Post,
-  Body,
   Query,
   Req,
   UseGuards,
@@ -29,7 +30,10 @@ import {
   SubscriptionPaymentsQueryDto,
 } from './subscription.dto';
 import { SubscriptionService } from './subscription.service';
-import type { UsageStats } from './subscription.types';
+import type {
+  PlanUpgradeRequestResult,
+  UsageStats,
+} from './subscription.types';
 
 function getClientIp(req: Request): string {
   const xff = req.headers['x-forwarded-for'];
@@ -107,6 +111,20 @@ export class SubscriptionController {
     return this.subscriptionService.changePlan(org.id, user.id, dto.plan);
   }
 
+  @Patch('plan')
+  @UseGuards(JwtAuthGuard)
+  async requestPlanUpgrade(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionChangePlanDto,
+  ): Promise<PlanUpgradeRequestResult> {
+    return this.subscriptionService.requestPlanUpgrade(
+      org.id,
+      user.id,
+      dto.plan,
+    );
+  }
+
   @Post('checkout')
   @UseGuards(JwtAuthGuard)
   async checkout(
@@ -168,7 +186,7 @@ export class SubscriptionController {
   ): Promise<unknown> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    return this.subscriptionService.getPaymentHistory(org.id, page, limit);
+    return this.subscriptionService.getInvoiceList(org.id, page, limit);
   }
 
   @Post('webhook')
