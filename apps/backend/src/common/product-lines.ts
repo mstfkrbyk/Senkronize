@@ -71,6 +71,25 @@ export function orgHasProductLine(
   return lines.includes(required);
 }
 
+const LINE_ORDER: readonly OrgProductLine[] = [
+  OrgProductLine.INTEGRATION,
+  OrgProductLine.ACCOUNTING,
+];
+
+/** Mevcut hatlara tek bir ürün hattı ekler (sıralı, tekrarsız). */
+export function mergeOrgProductLine(
+  raw: unknown,
+  lineToAdd: OrgProductLine,
+): ResolvedOrgProductLine[] {
+  const current = resolveOrgProductLines(raw);
+  if (orgHasProductLine(current, lineToAdd)) {
+    return current;
+  }
+  const merged = new Set(current);
+  merged.add(lineToAdd);
+  return LINE_ORDER.filter((line) => merged.has(line));
+}
+
 /** Kayıt sırasında Organization.productLines JSON alanı için */
 export function productSelectionToProductLines(
   selection?: ProductSelection,

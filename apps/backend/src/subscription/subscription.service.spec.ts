@@ -1,8 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   BillingPeriod,
+  OrgProductLine,
   PlanTier,
   SubStatus,
   type Subscription,
@@ -51,15 +52,33 @@ describe('SubscriptionService', () => {
     updatedAt: new Date('2026-01-01'),
   };
 
-  const prisma = {
+  const prisma: {
+    subscription: { findUnique: jest.Mock };
+    organization: { findFirst: jest.Mock; update: jest.Mock };
+    auditLog: { create: jest.Mock };
+    $transaction: jest.Mock;
+    order: { count: jest.Mock };
+    marketplaceConnection: { count: jest.Mock };
+    product: { count: jest.Mock };
+    user: { count: jest.Mock };
+    warehouse: { count: jest.Mock };
+  } = {
     subscription: {
       findUnique: jest.fn(),
     },
     organization: {
       findFirst: jest.fn().mockResolvedValue({
+        id: orgId,
         productLines: ['INTEGRATION', 'ACCOUNTING'],
       }),
+      update: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn((fn: (tx: typeof prisma) => Promise<unknown>) =>
+      fn(prisma),
+    ),
     order: { count: jest.fn() },
     marketplaceConnection: { count: jest.fn() },
     product: { count: jest.fn() },
@@ -80,6 +99,7 @@ describe('SubscriptionService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prisma.organization.findFirst.mockResolvedValue({
+      id: orgId,
       productLines: ['INTEGRATION', 'ACCOUNTING'],
     });
 
@@ -225,6 +245,87 @@ describe('SubscriptionService', () => {
       const overview = await service.getUsageOverview(orgId);
 
       expect(overview.trialDaysLeft).toBe(0);
+    });
+  });
+
+  describe('addProductLine', () => {
+    const actorUserId = 'user-1';
+
+    it('ACCOUNTING hattını yalnızca entegrasyon olan orga ekler', async () => {
+      prisma.organization.findFirst.mockResolvedValue({
+        id: orgId,
+        productLines: ['INTEGRATION'],
+      });
+      prisma.organization.update.mockResolvedValue({});
+
+      const result = await service.addProductLine(
+        orgId,
+        actorUserId,
+        OrgProductLine.ACCOUNTING,
+      );
+
+      expect(result.productLines).toEqual(['INTEGRATION', 'ACCOUNTING']);
+      expect(prisma.organization.update).toHaveBeenCalledWith({
+        where: { id: orgId },
+        data: { productLines: ['INTEGRATION', 'ACCOUNTING'] },
+      });
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'subscription.product_line_added',
+            actorUserId,
+            actorOrgId: orgId,
+            impersonatedOrgId: null,
+            metadata: expect.objectContaining({
+              productLine: OrgProductLine.ACCOUNTING,
+              stub: true,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('zaten etkin hat için BadRequestException fırlatır', async () => {
+      prisma.organization.findFirst.mockResolvedValue({
+        id: orgId,
+        productLines: ['INTEGRATION'],
+      });
+
+      await expect(
+        service.addProductLine(orgId, actorUserId, OrgProductLine.INTEGRATION),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.organization.update).not.toHaveBeenCalled();
+    });
+
+    it('impersonation sırasında impersonatedOrgId audit kaydına yazılır', async () => {
+      prisma.organization.findFirst.mockResolvedValue({
+        id: orgId,
+        productLines: ['ACCOUNTING'],
+      });
+      prisma.organization.update.mockResolvedValue({});
+
+      await service.addProductLine(
+        orgId,
+        actorUserId,
+        OrgProductLine.INTEGRATION,
+        true,
+      );
+
+      expect(prisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            impersonatedOrgId: orgId,
+          }),
+        }),
+      );
+    });
+
+    it('organizasyon yoksa NotFoundException fırlatır', async () => {
+      prisma.organization.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.addProductLine(orgId, actorUserId, OrgProductLine.ACCOUNTING),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

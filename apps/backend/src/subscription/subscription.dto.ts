@@ -1,4 +1,4 @@
-import { BillingPeriod, PlanTier } from '@prisma/client';
+import { BillingPeriod, OrgProductLine, PlanTier } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -51,6 +51,11 @@ export class TrialExtendDto {
   @Min(1)
   @Max(30)
   days?: number = 7;
+}
+
+export class AddProductLineDto {
+  @IsEnum(OrgProductLine)
+  productLine!: OrgProductLine;
 }
 
 export class SubscriptionPaymentsQueryDto {

@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   BillingPeriod,
   NotificationType,
+  OrgProductLine,
   PaymentStatus,
   PlanTier,
   SubStatus,
@@ -43,6 +44,8 @@ import type {
   UsageStats,
 } from './subscription.types';
 import {
+  mergeOrgProductLine,
+  orgHasProductLine,
   resolveOrgProductLines,
   type ResolvedOrgProductLine,
 } from '../common/product-lines';
@@ -124,6 +127,56 @@ export class SubscriptionService {
       throw new NotFoundException('Organizasyon bulunamadı.');
     }
     return resolveOrgProductLines(org.productLines);
+  }
+
+  /**
+   * Self-service stub: ödeme akışı olmadan organizasyona ürün hattı ekler.
+   */
+  async addProductLine(
+    organizationId: string,
+    actorUserId: string,
+    productLine: OrgProductLine,
+    isImpersonating = false,
+  ): Promise<{ productLines: ResolvedOrgProductLine[] }> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { id: true, productLines: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    const current = resolveOrgProductLines(org.productLines);
+    if (orgHasProductLine(current, productLine)) {
+      throw new BadRequestException('Bu ürün hattı zaten etkin.');
+    }
+
+    const productLines = mergeOrgProductLine(org.productLines, productLine);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({
+        where: { id: organizationId },
+        data: { productLines },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId: organizationId,
+          impersonatedOrgId: isImpersonating ? organizationId : null,
+          action: 'subscription.product_line_added',
+          resourceType: 'Organization',
+          resourceId: organizationId,
+          metadata: {
+            productLine,
+            previousLines: current,
+            productLines,
+            stub: true,
+          },
+        },
+      });
+    });
+
+    return { productLines };
   }
 
   async getSubscription(organizationId: string): Promise<Subscription> {

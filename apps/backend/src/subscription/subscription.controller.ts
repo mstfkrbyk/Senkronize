@@ -18,6 +18,7 @@ import type { PlanTier } from '@prisma/client';
 import type { Request } from 'express';
 
 import { SuperAdminGuard } from '../admin/admin.guard';
+import type { ResolvedOrgProductLine } from '../common/product-lines';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,6 +28,7 @@ import { isPaytrWebhookIpAllowed } from './paytr-webhook-ip';
 import type { PaytrWebhookPayload } from './paytr.types';
 import {
   IyzicoCallbackDto,
+  AddProductLineDto,
   SubscriptionCancelDto,
   SubscriptionChangePlanDto,
   SubscriptionCheckoutDto,
@@ -107,6 +109,22 @@ export class SubscriptionController {
   @UseGuards(JwtAuthGuard)
   async usage(@CurrentOrg() org: CurrentOrgPayload): Promise<UsageOverview> {
     return this.subscriptionService.getUsageOverview(org.id);
+  }
+
+  @Post('add-product-line')
+  @UseGuards(JwtAuthGuard)
+  async addProductLine(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddProductLineDto,
+  ): Promise<{ productLines: ResolvedOrgProductLine[] }> {
+    const result = await this.subscriptionService.addProductLine(
+      org.id,
+      user.id,
+      dto.productLine,
+      org.isImpersonating,
+    );
+    return { productLines: result.productLines };
   }
 
   @Post('change-plan')
