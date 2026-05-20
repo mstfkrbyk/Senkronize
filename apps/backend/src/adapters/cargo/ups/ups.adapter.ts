@@ -4,22 +4,25 @@ import axios from 'axios';
 import type {
   CargoRate,
   CreateShipmentParams,
-  ICargoAdapter,
   RateParams,
   ShipmentResult,
   TrackingResult,
-} from '../cargo-adapter.interface';
+} from '../../cargo-adapter.interface';
+import { CargoBaseAdapter } from '../cargo-base.adapter';
 import {
   extractTrackingCodeFromPayload,
   normalizeTrackingStatus,
+  optionalStringField,
   requireStringField,
   singleEventFromText,
-} from './cargo-adapter.helpers';
+} from '../cargo-adapter.helpers';
 
-export class UpsCargoAdapter implements ICargoAdapter {
+export class UpsCargoAdapter extends CargoBaseAdapter {
   private readonly logger = new Logger(UpsCargoAdapter.name);
 
-  constructor(private readonly creds: Record<string, unknown>) {}
+  constructor(creds: Record<string, unknown>) {
+    super(creds);
+  }
 
   private getApiRoot(): string {
     if (this.creds.sandbox === true) {
@@ -64,83 +67,85 @@ export class UpsCargoAdapter implements ICargoAdapter {
   }
 
   private shipPath(): string {
-    if (typeof this.creds.shipPath === 'string' && this.creds.shipPath.length > 0) {
-      return this.creds.shipPath.startsWith('/') ? this.creds.shipPath : `/${this.creds.shipPath}`;
+    const custom = optionalStringField(this.creds, 'shipPath');
+    if (custom) {
+      return custom.startsWith('/') ? custom : `/${custom}`;
     }
-    return '/shipments/v1/ship';
+    return '/shipments/v2403/ship';
+  }
+
+  private packageDimensions(weightKg: number): Record<string, unknown> {
+    const desi = Math.max(1, Math.ceil(weightKg));
+    return {
+      UnitOfMeasurement: { Code: 'CM' },
+      Length: String(desi),
+      Width: String(Math.max(10, Math.round(desi * 0.6))),
+      Height: String(Math.max(5, Math.round(desi * 0.4))),
+    };
   }
 
   async createShipment(params: CreateShipmentParams): Promise<ShipmentResult> {
     const token = await this.getAccessToken();
     const shipperNumber = requireStringField(this.creds, 'shipperNumber');
     const apiRoot = this.getApiRoot();
+    const weight = Math.max(0.1, params.weight);
+    const cityCode = this.getCityCode(params.receiverCity);
 
-    const shipment = {
-      ShipmentRequest: {
-        Request: { RequestOption: 'nonvalidate', SubVersion: '2403' },
-        Shipment: {
-          Description: params.notes ?? 'Senkronize',
-          Shipper: {
-            ShipperNumber: shipperNumber,
-            Name: 'Shipper',
-            AttentionName: 'Shipper',
-            Phone: { Number: '0000000000' },
-            Address: {
-              AddressLine: ['Merkez'],
-              City: 'Istanbul',
-              StateProvinceCode: '',
-              PostalCode: '34000',
-              CountryCode: 'TR',
-            },
-          },
-          ShipTo: {
-            Name: params.receiverName,
-            AttentionName: params.receiverName,
-            Phone: {
-              Number: params.receiverPhone.replace(/\D/g, '').slice(0, 15) || '0000000000',
-            },
-            Address: {
-              AddressLine: [params.receiverAddress.slice(0, 105)],
-              City: params.receiverCity,
-              StateProvinceCode: '',
-              PostalCode: '34000',
-              CountryCode: 'TR',
-            },
-          },
-          ShipFrom: {
-            Name: 'Shipper',
-            AttentionName: 'Shipper',
-            Phone: { Number: '0000000000' },
-            Address: {
-              AddressLine: ['Merkez'],
-              City: 'Istanbul',
-              StateProvinceCode: '',
-              PostalCode: '34000',
-              CountryCode: 'TR',
-            },
-          },
-          PaymentInformation: {
-            ShipmentCharge: {
-              Type: '01',
-              BillShipper: { AccountNumber: shipperNumber },
-            },
-          },
-          Service: { Code: '65', Description: 'UPS Saver' },
-          Package: {
-            Description: 'Package',
-            Packaging: { Code: '02', Description: 'Customer Supplied Package' },
-            PackageWeight: {
-              UnitOfMeasurement: { Code: 'KGS' },
-              Weight: String(Math.max(0.1, params.weight)),
-            },
+    const body = {
+      Shipment: {
+        Description: params.notes ?? 'Senkronize',
+        Shipper: {
+          ShipperNumber: shipperNumber,
+          Name: optionalStringField(this.creds, 'shipperName') ?? 'Shipper',
+          AttentionName: optionalStringField(this.creds, 'shipperName') ?? 'Shipper',
+          Phone: { Number: optionalStringField(this.creds, 'shipperPhone') ?? '0000000000' },
+          Address: {
+            AddressLine: [optionalStringField(this.creds, 'shipperAddress') ?? 'Merkez'],
+            City: optionalStringField(this.creds, 'shipperCity') ?? 'Istanbul',
+            StateProvinceCode: optionalStringField(this.creds, 'shipperState') ?? '',
+            PostalCode: optionalStringField(this.creds, 'shipperPostalCode') ?? '34000',
+            CountryCode: optionalStringField(this.creds, 'shipperCountry') ?? 'TR',
           },
         },
+        ShipTo: {
+          Name: params.receiverName,
+          AttentionName: params.receiverName,
+          Phone: {
+            Number:
+              params.receiverPhone.replace(/\D/g, '').slice(0, 15) || '0000000000',
+          },
+          Address: {
+            AddressLine: [params.receiverAddress.slice(0, 105)],
+            City: params.receiverCity,
+            StateProvinceCode: cityCode,
+            PostalCode: optionalStringField(this.creds, 'receiverPostalCode') ?? '34000',
+            CountryCode: 'TR',
+          },
+        },
+        PaymentInformation: {
+          ShipmentCharge: {
+            Type: '01',
+            BillShipper: { AccountNumber: shipperNumber },
+          },
+        },
+        Service: { Code: optionalStringField(this.creds, 'serviceCode') ?? '65' },
+        Package: [
+          {
+            Description: 'Package',
+            Packaging: { Code: '02' },
+            Dimensions: this.packageDimensions(weight),
+            PackageWeight: {
+              UnitOfMeasurement: { Code: 'KGS' },
+              Weight: String(weight),
+            },
+          },
+        ],
       },
     };
 
     const { data, status } = await axios.post<unknown>(
       `${apiRoot}${this.shipPath()}`,
-      shipment,
+      body,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -157,7 +162,8 @@ export class UpsCargoAdapter implements ICargoAdapter {
       throw new BadGatewayException('UPS gönderi oluşturma başarısız');
     }
     const code =
-      extractTrackingCodeFromPayload(data) ?? extractUpsTrackingFromShipmentResponse(data);
+      extractTrackingCodeFromPayload(data) ??
+      extractUpsTrackingFromShipmentResponse(data);
     if (!code) {
       throw new BadGatewayException('UPS yanıtında takip numarası bulunamadı');
     }
@@ -258,7 +264,7 @@ export class UpsCargoAdapter implements ICargoAdapter {
             Address: {
               AddressLine: ['Merkez'],
               City: params.fromCity,
-              StateProvinceCode: '',
+              StateProvinceCode: this.getCityCode(params.fromCity),
               PostalCode: params.fromPostalCode || '34000',
               CountryCode: params.fromCountryCode,
             },
@@ -268,7 +274,7 @@ export class UpsCargoAdapter implements ICargoAdapter {
             Address: {
               AddressLine: ['Teslimat'],
               City: params.toCity,
-              StateProvinceCode: '',
+              StateProvinceCode: this.getCityCode(params.toCity),
               PostalCode: params.toPostalCode || '34000',
               CountryCode: params.toCountryCode,
             },
@@ -279,15 +285,16 @@ export class UpsCargoAdapter implements ICargoAdapter {
             Address: {
               AddressLine: ['Merkez'],
               City: params.fromCity,
-              StateProvinceCode: '',
+              StateProvinceCode: this.getCityCode(params.fromCity),
               PostalCode: params.fromPostalCode || '34000',
               CountryCode: params.fromCountryCode,
             },
           },
-          Service: { Code: '65' },
+          Service: { Code: optionalStringField(this.creds, 'serviceCode') ?? '65' },
           ShipmentRatingOptions: { NegotiatedRatesIndicator: '' },
           Package: {
             PackagingType: { Code: '02', Description: 'Package' },
+            Dimensions: this.packageDimensions(params.weightKg),
             PackageWeight: {
               UnitOfMeasurement: { Code: 'KGS' },
               Weight: String(Math.max(0.1, params.weightKg)),
@@ -331,10 +338,21 @@ function extractUpsTrackingFromShipmentResponse(data: unknown): string | undefin
     return undefined;
   }
   const root = data as Record<string, unknown>;
+  const shipment = root.Shipment as Record<string, unknown> | undefined;
   const shipmentResponse = root.ShipmentResponse as Record<string, unknown> | undefined;
-  const results = shipmentResponse?.ShipmentResults as Record<string, unknown> | undefined;
-  const pkg = results?.PackageResults as Record<string, unknown> | undefined;
-  const num = pkg?.TrackingNumber;
+  const results =
+    (shipment?.PackageResults as Record<string, unknown> | undefined) ??
+    (shipmentResponse?.ShipmentResults as Record<string, unknown> | undefined);
+  const pkgList = results?.PackageResults;
+  const pkg = Array.isArray(pkgList) ? pkgList[0] : pkgList;
+  if (typeof pkg === 'object' && pkg !== null) {
+    const num = (pkg as Record<string, unknown>).TrackingNumber;
+    if (typeof num === 'string') {
+      return num;
+    }
+  }
+  const flat = results?.PackageResults as Record<string, unknown> | undefined;
+  const num = flat?.TrackingNumber;
   return typeof num === 'string' ? num : undefined;
 }
 

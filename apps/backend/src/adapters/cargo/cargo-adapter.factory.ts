@@ -28,13 +28,13 @@ import { NartKargoCargoAdapter } from './nart-kargo.cargo-adapter';
 import { NinjaVanCargoAdapter } from './ninja-van.cargo-adapter';
 import { PackuppCargoAdapter } from './packupp.cargo-adapter';
 import { PostNlCargoAdapter } from './postnl.cargo-adapter';
-import { PttKargoCargoAdapter } from './ptt-kargo.cargo-adapter';
+import { PttKargoCargoAdapter } from './ptt/ptt.adapter';
 import { HorozCargoAdapter } from './horoz.cargo-adapter';
 import { NetlogCargoAdapter } from './netlog.cargo-adapter';
 import { SendeoCargoAdapter } from './sendeo.cargo-adapter';
-import { SuratCargoAdapter } from './surat.cargo-adapter';
+import { SuratCargoAdapter } from './surat/surat.adapter';
 import { TntCargoAdapter } from './tnt.cargo-adapter';
-import { UpsCargoAdapter } from './ups.cargo-adapter';
+import { UpsCargoAdapter } from './ups/ups.adapter';
 import { YurticiCargoAdapter } from './yurtici.cargo-adapter';
 
 export function createCargoAdapter(
