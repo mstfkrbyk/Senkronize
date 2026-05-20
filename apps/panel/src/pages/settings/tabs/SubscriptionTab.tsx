@@ -333,6 +333,24 @@ export function SubscriptionTab(): ReactElement {
     },
   });
 
+  const upgradePlanMutation = useMutation({
+    mutationFn: async (plan: PlanTier): Promise<{ message: string }> => {
+      const { data } = await api.patch<{ message: string }>('/subscriptions/plan', {
+        plan,
+      });
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(data.message);
+      setUpgradeDialogOpen(false);
+      setUpgradeTarget(null);
+      void queryClient.invalidateQueries({ queryKey: ['subscription'] });
+    },
+    onError: (e: unknown) => {
+      toast.error(getApiErrorMessage(e));
+    },
+  });
+
   const cancelMutation = useMutation({
     mutationFn: async (reason: string | undefined): Promise<void> => {
       await api.post('/subscriptions/cancel', { reason });
@@ -714,25 +732,22 @@ export function SubscriptionTab(): ReactElement {
             <AlertDialogTitle>Plan yükseltme</AlertDialogTitle>
             <AlertDialogDescription>
               {upgradeTargetName
-                ? `${upgradeTargetName} planına geçmek için güvenli ödeme sayfasına yönlendirileceksiniz. Devam etmek ister misiniz?`
-                : 'Plan yükseltme için ödeme sayfasına yönlendirileceksiniz.'}
+                ? `${upgradeTargetName} planına yükseltmek istiyor musunuz? Iyzico aboneliğiniz varsa anında uygulanır; aksi halde ekibimiz sizinle iletişime geçer.`
+                : 'Plan yükseltme talebi oluşturulacak.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
             <AlertDialogAction
               type="button"
-              disabled={!upgradeTarget || startSubscriptionMutation.isPending}
+              disabled={!upgradeTarget || upgradePlanMutation.isPending}
               onClick={() => {
                 if (upgradeTarget) {
-                  startSubscriptionMutation.mutate({
-                    plan: upgradeTarget,
-                    billingPeriod,
-                  });
+                  upgradePlanMutation.mutate(upgradeTarget);
                 }
               }}
             >
-              {startSubscriptionMutation.isPending ? (
+              {upgradePlanMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
               ) : null}
               Onayla
