@@ -10,6 +10,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -170,3 +171,21 @@ export class UpsertStockCountItemDto {
   @Min(0)
   countedQuantity!: number;
 }
+
+export class DistributeStockDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  barcode!: string;
+
+  @IsIn(['EQUAL', 'PROPORTIONAL', 'PRIORITY'])
+  strategy!: 'EQUAL' | 'PROPORTIONAL' | 'PRIORITY';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  totalStock?: number;
+}
+
+export class PreviewDistributionDto extends DistributeStockDto {}

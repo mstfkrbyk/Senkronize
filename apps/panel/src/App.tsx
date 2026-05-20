@@ -149,6 +149,9 @@ const StockForecastPage = lazy(() =>
 const SyncLogsPage = lazy(() =>
   import('@/pages/sync-logs/SyncLogsPage').then((m) => ({ default: m.SyncLogsPage })),
 );
+const ConflictsPage = lazy(() =>
+  import('@/pages/sync/ConflictsPage').then((m) => ({ default: m.ConflictsPage })),
+);
 const SuppliersPage = lazy(() =>
   import('@/pages/suppliers/SuppliersPage').then((m) => ({ default: m.SuppliersPage })),
 );
@@ -262,6 +265,7 @@ export default function App(): ReactElement {
                 <Route path="/pricing" element={<PricingPage />} />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route path="/sync-logs" element={<SyncLogsPage />} />
+                <Route path="/sync/conflicts" element={<ConflictsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
                 <Route path="/reports" element={<ReportsPage />} />

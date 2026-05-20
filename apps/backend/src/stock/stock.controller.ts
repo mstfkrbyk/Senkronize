@@ -25,6 +25,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   BulkStockUpdateDto,
   CreateStockCountSessionDto,
+  DistributeStockDto,
+  PreviewDistributionDto,
   StockAdjustDto,
   StockForecastQueryDto,
   StockHistoryQueryDto,
@@ -37,6 +39,11 @@ import {
   type StockCountItemRowDto,
   type StockCountSessionDetailDto,
 } from './stock-count.service';
+import { StockDistributionService } from './stock-distribution.service';
+import type {
+  DistributionPreview,
+  DistributionResult,
+} from './stock-distribution.types';
 import { StockForecastService } from './stock-forecast.service';
 import type {
   SeasonalityDataDto,
@@ -64,7 +71,67 @@ export class StockController {
     private readonly stockMovementService: StockMovementService,
     private readonly stockCountService: StockCountService,
     private readonly stockForecastService: StockForecastService,
+    private readonly stockDistributionService: StockDistributionService,
   ) {}
+
+  @Post('distribute/preview')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok dağıtım önizlemesi' })
+  @ApiResponse({ status: 200 })
+  async previewDistribution(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: PreviewDistributionDto,
+  ): Promise<{ data: { distribution: Record<string, number> } }> {
+    const preview = await this.stockDistributionService.getCurrentDistribution(
+      org.id,
+      dto.barcode,
+    );
+    const totalStock = dto.totalStock ?? preview.totalStock;
+    const distribution = await this.stockDistributionService.previewDistribution(
+      org.id,
+      dto.barcode,
+      totalStock,
+      dto.strategy,
+    );
+    return { data: { distribution } };
+  }
+
+  @Post('distribute')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok dağıtım stratejisi uygula' })
+  @ApiResponse({ status: 201 })
+  async distributeStock(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: DistributeStockDto,
+  ): Promise<{ data: DistributionResult }> {
+    const preview = await this.stockDistributionService.getCurrentDistribution(
+      org.id,
+      dto.barcode,
+    );
+    const totalStock = dto.totalStock ?? preview.totalStock;
+    const data = await this.stockDistributionService.distributeStock(
+      org.id,
+      dto.barcode,
+      totalStock,
+      dto.strategy,
+    );
+    return { data };
+  }
+
+  @Get('distribution/:barcode')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürünün mevcut platform stok dağılımı' })
+  @ApiResponse({ status: 200 })
+  async getDistribution(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ): Promise<{ data: DistributionPreview }> {
+    const data = await this.stockDistributionService.getCurrentDistribution(
+      org.id,
+      barcode,
+    );
+    return { data };
+  }
 
   @Get('forecast/summary')
   @UseGuards(JwtAuthGuard)

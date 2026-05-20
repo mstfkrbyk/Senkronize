@@ -57,6 +57,7 @@ import {
   useWarehouseStock,
   useWarehouses,
 } from './hooks/useStockManagement';
+import { StockDistributionTab } from './StockDistributionTab';
 
 const MOVEMENT_LABELS: Record<string, string> = {
   SALE: 'Satış',
@@ -304,6 +305,7 @@ export function StockManagementPage(): ReactElement {
       <Tabs defaultValue="status" className="space-y-4">
         <TabsList>
           <TabsTrigger value="status">Stok durumu</TabsTrigger>
+          <TabsTrigger value="distribution">Stok dağıtım</TabsTrigger>
           <TabsTrigger value="warehouses">Depolar</TabsTrigger>
           <TabsTrigger value="history">Hareket geçmişi</TabsTrigger>
         </TabsList>
@@ -422,6 +424,10 @@ export function StockManagementPage(): ReactElement {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="distribution">
+          <StockDistributionTab />
         </TabsContent>
 
         <TabsContent value="warehouses" className="space-y-4">

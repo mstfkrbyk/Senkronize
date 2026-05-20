@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  AlertTriangle,
   Activity,
   ArrowRightLeft,
   BarChart2,
@@ -54,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.pricing', icon: Tag, path: '/pricing', badge: 'PRO' },
   { labelKey: 'nav.integrations', icon: Plug, path: '/connections' },
   { labelKey: 'nav.syncLogs', icon: Activity, path: '/sync-logs' },
+  { labelKey: 'nav.syncConflicts', icon: AlertTriangle, path: '/sync/conflicts' },
   { labelKey: 'nav.notifications', icon: Bell, path: '/notifications' },
   { labelKey: 'nav.auditLogs', icon: History, path: '/audit-logs' },
   { labelKey: 'nav.reports', icon: BarChart2, path: '/reports' },

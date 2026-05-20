@@ -14,6 +14,7 @@
     "connections": "Bağlantılar",
     "integrations": "Entegrasyonlar",
     "syncLogs": "Sync Durumu",
+    "syncConflicts": "Çakışmalar",
     "notifications": "Bildirimler",
     "auditLogs": "Aktivite Geçmişi",
     "migration": "Geçiş sihirbazı",

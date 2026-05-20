@@ -18,6 +18,7 @@ import { CategoryModule } from './category/category.module';
 import { CargoModule } from './cargo/cargo.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { CurrencyModule } from './currency/currency.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
 import { HealthModule } from './health/health.module';
@@ -46,10 +47,12 @@ import { ReportsModule } from './reports/reports.module';
 import { SecurityModule } from './security/security.module';
 import { SecurityRequestInterceptor } from './security/security-request.interceptor';
 import { ReturnModule } from './return/return.module';
+import { SearchModule } from './search/search.module';
 import { StockModule } from './stock/stock.module';
 import { SupplierModule } from './supplier/supplier.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
+import { SyncModule } from './sync/sync.module';
 import { UsersModule } from './users/users.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { WebhookModule } from './webhook/webhook.module';
@@ -102,6 +105,7 @@ import { WebhookModule } from './webhook/webhook.module';
     UsersModule,
     HealthModule,
     SyncStatusModule,
+    SyncModule,
     NotificationModule,
     InAppNotificationModule,
     SubscriptionModule,
@@ -109,7 +113,9 @@ import { WebhookModule } from './webhook/webhook.module';
     ImpersonationModule,
     WebhookModule,
     ReportsModule,
+    DashboardModule,
     ReturnModule,
+    SearchModule,
     CurrencyModule,
   ],
   providers: [

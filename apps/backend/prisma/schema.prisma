@@ -144,6 +144,17 @@ enum Marketplace {
   LETGO
   SAHIBINDEN_PRO
   SHOPIVERSE
+  WALMART
+  TARGET_PLUS
+  BESTBUY
+  WAYFAIR
+  OVERSTOCK
+  FNAC
+  LAREDOUTE
+  SPARTOO
+  MANOMANO
+  VEEPEE
+  TRENDYOL_INT
 }
 
 enum PricingStrategy {
@@ -410,6 +421,8 @@ model Organization {
   platformCategoryMappings  PlatformCategoryMapping[]
   productMatches            ProductMatch[]
   webhookEndpoints          WebhookEndpoint[]
+  syncConflicts             SyncConflict[]
+  supportTickets            SupportTicket[]
 }
 
 /// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
@@ -552,6 +565,8 @@ model User {
   inAppNotifications       InAppNotification[]
   savedReports             SavedReport[]
   stockCountSessionsStarted StockCountSession[] @relation("StockCountSessionCreatedBy")
+  supportTickets            SupportTicket[]
+  ticketMessages            TicketMessage[]
 }
 
 model InAppNotification {
@@ -1365,4 +1380,93 @@ model PurchaseOrderItem {
   purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@index([purchaseOrderId])
+}
+
+enum ConflictType {
+  STOCK_MISMATCH
+  PRICE_MISMATCH
+  STATUS_MISMATCH
+  PRODUCT_NOT_FOUND
+  DUPLICATE_ORDER
+}
+
+enum ConflictResolution {
+  USE_LOCAL
+  USE_REMOTE
+  MANUAL
+  IGNORED
+}
+
+model SyncConflict {
+  id             String              @id @default(cuid())
+  organizationId String
+  platform       Marketplace
+  entityType     String
+  entityId       String
+  conflictType   ConflictType
+  localValue     Json
+  remoteValue    Json
+  resolution     ConflictResolution?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  notes          String?
+  createdAt      DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, resolution])
+  @@index([organizationId, entityType])
+  @@index([organizationId, conflictType])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id             String         @id @default(cuid())
+  organizationId String
+  userId         String
+  ticketNumber   String         @unique
+  subject        String
+  status         TicketStatus
+  priority       TicketPriority
+  category       String?
+  assignedTo     String?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  messages     TicketMessage[]
+
+  @@index([organizationId, status])
+  @@index([status, assignedTo])
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String
+  userId     String
+  content    String   @db.Text
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
 }
