@@ -275,6 +275,17 @@ enum Marketplace {
   KMART_AU
   GMARKET
   JDCOM
+  JIJI
+  CHEKI
+  PAYSTACK_COMMERCE
+  FLUTTERWAVE
+  REEBELO
+  ZID
+  SALLA
+  CAROUSELL
+  POMELO
+  BEAUTYMNL
+  ZALORA_PH
 }
 
 enum PricingStrategy {
