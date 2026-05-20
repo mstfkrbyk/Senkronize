@@ -616,8 +616,12 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   COUPANG: [
     { key: 'accessKey', label: 'Access Key', type: 'text', required: true },
     { key: 'secretKey', label: 'Secret Key', type: 'password', required: true },
+    { key: 'vendorId', label: 'Vendor ID', type: 'text', required: true },
   ],
-  STREET11: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  STREET11: [
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    { key: 'sellerId', label: 'Seller ID', type: 'text', required: true },
+  ],
   BULDUMBULDUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   ALISVERIS_COM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   CDON: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
@@ -1419,7 +1423,10 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       required: true,
     },
   ],
-  QOO10: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
+  QOO10: [
+    { key: 'apiKey', label: 'QKey (API Key)', type: 'password', required: true },
+    { key: 'goodsCd', label: 'GoodsCd', type: 'text', required: false },
+  ],
   LAZADA_PH: [
     { key: 'appKey', label: 'App Key', type: 'text', required: true },
     {
