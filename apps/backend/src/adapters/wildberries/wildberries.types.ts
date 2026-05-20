@@ -18,3 +18,8 @@ export interface WildberriesStockItem {
   sku: string;
   amount: number;
 }
+
+export interface WildberriesCardPriceUpdate {
+  nmID: number;
+  price: number;
+}

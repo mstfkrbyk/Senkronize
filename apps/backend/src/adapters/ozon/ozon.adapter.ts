@@ -16,8 +16,11 @@ import {
 import { parseMoney, throwSyncFailed } from '../stub-helpers';
 import { OZON_API_BASE } from './ozon.constants';
 import type {
+  OzonPosting,
+  OzonPostingGetResponse,
   OzonPostingsListResponse,
   OzonProductListResponse,
+  OzonShipResponse,
 } from './ozon.types';
 
 @Injectable()
@@ -40,6 +43,14 @@ export class OzonAdapter implements IMarketplaceAdapter {
       'Api-Key': apiKey,
       'Content-Type': 'application/json',
     };
+  }
+
+  private resolveWarehouseId(credentials: Record<string, string>): number {
+    const warehouseIdRaw = credentials.warehouseId?.trim();
+    if (!warehouseIdRaw || Number.isNaN(parseInt(warehouseIdRaw, 10))) {
+      return 0;
+    }
+    return parseInt(warehouseIdRaw, 10);
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
@@ -68,68 +79,145 @@ export class OzonAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      return await withRateLimit('OZON', this.rpm(), async () => {
-        const data = await axiosWithRetry<OzonPostingsListResponse>(
+      const sinceDate = since ?? new Date(Date.now() - 7 * 86400000);
+      const toDate = new Date();
+      const limit = 50;
+      let offset = 0;
+      let hasNext = true;
+      const all: MarketplaceOrder[] = [];
+
+      while (hasNext) {
+        const page = await withRateLimit('OZON', this.rpm(), async () =>
+          axiosWithRetry<OzonPostingsListResponse>(
+            {
+              method: 'POST',
+              url: `${OZON_API_BASE}/v3/posting/fbs/list`,
+              timeout: 30_000,
+              headers: this.headers(credentials),
+              data: {
+                dir: 'ASC',
+                filter: {
+                  since: sinceDate.toISOString(),
+                  to: toDate.toISOString(),
+                  status: 'awaiting_deliver',
+                },
+                limit,
+                offset,
+              },
+            },
+            {},
+          ),
+        );
+
+        const postings = page.result?.postings ?? [];
+        all.push(...postings.map((p) => this.mapPostingToOrder(p)));
+        hasNext = page.result?.has_next === true && postings.length >= limit;
+        offset += limit;
+      }
+
+      return all;
+    } catch (error) {
+      throwSyncFailed('OZON', 'getOrders', error);
+    }
+  }
+
+  async getPostingDetail(
+    credentials: Record<string, string>,
+    postingNumber: string,
+  ): Promise<MarketplaceOrder> {
+    try {
+      const data = await withRateLimit('OZON', this.rpm(), async () =>
+        axiosWithRetry<OzonPostingGetResponse>(
           {
             method: 'POST',
-            url: `${OZON_API_BASE}/v3/posting/fbs/list`,
+            url: `${OZON_API_BASE}/v3/posting/fbs/get`,
             timeout: 30_000,
             headers: this.headers(credentials),
             data: {
-              dir: 'ASC',
-              filter: {
-                ...(since !== undefined ? { since: since.toISOString() } : {}),
-                status: 'awaiting_packaging',
-              },
-              limit: 50,
-              offset: 0,
+              posting_number: postingNumber,
+              with: { analytics_data: false, financial_data: false },
+            },
+          },
+          {},
+        ),
+      );
+      const posting = data.result;
+      if (!posting) {
+        throw new Error('Ozon: gönderi bulunamadı');
+      }
+      return this.mapPostingToOrder(posting);
+    } catch (error) {
+      throwSyncFailed('OZON', 'getPostingDetail', error);
+    }
+  }
+
+  async reportShipping(
+    credentials: Record<string, string>,
+    postingNumber: string,
+    trackingNumber: string,
+  ): Promise<void> {
+    try {
+      await withRateLimit('OZON', this.rpm(), async () => {
+        await axiosWithRetry<OzonShipResponse>(
+          {
+            method: 'POST',
+            url: `${OZON_API_BASE}/v2/posting/fbs/ship`,
+            timeout: 30_000,
+            headers: this.headers(credentials),
+            data: {
+              packages: [
+                {
+                  posting_number: postingNumber,
+                  tracking_number: trackingNumber,
+                },
+              ],
             },
           },
           {},
         );
-        const postings = data.result?.postings ?? [];
-        return postings.map((p) => {
-          const id =
-            typeof p.posting_number === 'string' ? p.posting_number : 'unknown';
-          const created =
-            typeof p.in_process_at === 'string' && p.in_process_at.length > 0
-              ? new Date(p.in_process_at).toISOString()
-              : new Date().toISOString();
-          const products = Array.isArray(p.products) ? p.products : [];
-          const currency =
-            p.financial_data?.posting_services?.products_currency_code ?? 'RUB';
-          let total = 0;
-          const items = products.map((pr) => {
-            const price = parseMoney(pr.price);
-            const qty =
-              typeof pr.quantity === 'number' && Number.isFinite(pr.quantity)
-                ? Math.max(0, Math.round(pr.quantity))
-                : 0;
-            total += price * (qty > 0 ? qty : 1);
-            const offer = typeof pr.offer_id === 'string' ? pr.offer_id : '';
-            return {
-              sku: offer,
-              barcode: offer,
-              quantity: qty > 0 ? qty : 1,
-              unitPrice: price,
-              platformItemId: String(pr.sku ?? offer),
-              productName: typeof pr.name === 'string' ? pr.name : undefined,
-            };
-          });
-          return {
-            platformOrderId: id,
-            status: typeof p.status === 'string' ? p.status : 'awaiting_packaging',
-            customerName: '—',
-            items,
-            totalAmount: total,
-            currency,
-            createdAt: created,
-          };
-        });
       });
     } catch (error) {
-      throwSyncFailed('OZON', 'getOrders', error);
+      throwSyncFailed('OZON', 'reportShipping', error);
     }
+  }
+
+  private mapPostingToOrder(p: OzonPosting): MarketplaceOrder {
+    const id =
+      typeof p.posting_number === 'string' ? p.posting_number : 'unknown';
+    const created =
+      typeof p.in_process_at === 'string' && p.in_process_at.length > 0
+        ? new Date(p.in_process_at).toISOString()
+        : new Date().toISOString();
+    const products = Array.isArray(p.products) ? p.products : [];
+    const currency =
+      p.financial_data?.posting_services?.products_currency_code ?? 'RUB';
+    let total = 0;
+    const items = products.map((pr) => {
+      const price = parseMoney(pr.price);
+      const qty =
+        typeof pr.quantity === 'number' && Number.isFinite(pr.quantity)
+          ? Math.max(0, Math.round(pr.quantity))
+          : 0;
+      total += price * (qty > 0 ? qty : 1);
+      const offer = typeof pr.offer_id === 'string' ? pr.offer_id : '';
+      return {
+        sku: offer,
+        barcode: offer,
+        quantity: qty > 0 ? qty : 1,
+        unitPrice: price,
+        platformItemId: String(pr.sku ?? offer),
+        productName: typeof pr.name === 'string' ? pr.name : undefined,
+      };
+    });
+    return {
+      platformOrderId: id,
+      status: typeof p.status === 'string' ? p.status : 'awaiting_deliver',
+      customerName: '—',
+      items,
+      totalAmount: total,
+      currency,
+      createdAt: created,
+    };
   }
 
   async getListings(
@@ -190,14 +278,7 @@ export class OzonAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const warehouseIdRaw = credentials.warehouseId?.trim();
-      const warehouseId =
-        warehouseIdRaw && !Number.isNaN(parseInt(warehouseIdRaw, 10))
-          ? parseInt(warehouseIdRaw, 10)
-          : 0;
-      if (!warehouseId) {
-        throw new Error('Ozon: warehouseId (sayı) zorunludur');
-      }
+      const warehouseId = this.resolveWarehouseId(credentials);
       await withRateLimit('OZON', this.rpm(), async () => {
         await axiosWithRetry<unknown>(
           {
@@ -237,7 +318,8 @@ export class OzonAdapter implements IMarketplaceAdapter {
               prices: updates.map((u) => ({
                 offer_id: u.barcode,
                 price: String(u.salePrice),
-                old_price: String(u.listPrice > 0 ? u.listPrice : u.salePrice),
+                old_price: '0',
+                min_price: '0',
               })),
             },
           },

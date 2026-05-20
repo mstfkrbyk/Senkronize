@@ -1,4 +1,12 @@
-/** Çiçeksepeti REST yanıtları (dokümantasyona göre doğrulanmalı). */
+/** Çiçeksepeti OMS REST yanıtları */
+
+export interface CiceksepetiTokenResponse {
+  accessToken?: string;
+  token?: string;
+  access_token?: string;
+  expiresIn?: number;
+  expires_in?: number;
+}
 
 export interface CiceksepetiSupplierResponse {
   supplierId?: number;

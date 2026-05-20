@@ -57,7 +57,7 @@ export class N11Adapter implements IMarketplaceAdapter {
       </auth>`;
   }
 
-  private wrapSoapBody(inner: string): string {
+  private wrapOrderSoapBody(inner: string): string {
     return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ord="http://www.n11.com/ws/schemas">
   <soapenv:Header/>
@@ -65,6 +65,59 @@ export class N11Adapter implements IMarketplaceAdapter {
     ${inner}
   </soapenv:Body>
 </soapenv:Envelope>`;
+  }
+
+  private wrapProductSoapBody(inner: string): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:prod="http://www.n11.com/ws/schemas">
+  <soapenv:Header/>
+  <soapenv:Body>
+    ${inner}
+  </soapenv:Body>
+</soapenv:Envelope>`;
+  }
+
+  private formatN11Date(d: Date): string {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(d.getFullYear());
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  private buildGetOrderListInner(
+    apiKey: string,
+    apiSecret: string,
+    status: string,
+    startDate: Date,
+    endDate: Date,
+    pageNumber: number,
+    pageSize = 50,
+  ): string {
+    return `<ord:GetOrderList>
+      ${this.buildAuthXml(apiKey, apiSecret)}
+      <searchData>
+        <status>${this.escapeXml(status)}</status>
+        <period>
+          <startDate>${this.formatN11Date(startDate)}</startDate>
+          <endDate>${this.formatN11Date(endDate)}</endDate>
+        </period>
+        <pagingData>
+          <pageNumber>${String(pageNumber)}</pageNumber>
+          <pageSize>${String(pageSize)}</pageSize>
+        </pagingData>
+      </searchData>
+    </ord:GetOrderList>`;
+  }
+
+  private assertSoapSuccess(parsed: unknown, context: string): void {
+    const fault = this.soapFaultMessage(parsed);
+    if (fault) {
+      throw new Error(`${context}: ${fault}`);
+    }
+    const st = this.findResultStatus(parsed);
+    if (st?.status && st.status !== 'success') {
+      throw new Error(`${context}: ${st.status}`);
+    }
   }
 
   private rateLimitKey(credentials: Record<string, string>): string {
@@ -147,15 +200,21 @@ export class N11Adapter implements IMarketplaceAdapter {
       if (!apiKey || !apiSecret) {
         return false;
       }
-      const inner = `<ord:GetOrderListRequest>
-      ${this.buildAuthXml(apiKey, apiSecret)}
-      <searchData><status>New</status></searchData>
-      <pagingData><currentPage>0</currentPage><pageSize>1</pageSize></pagingData>
-    </ord:GetOrderListRequest>`;
+      const end = new Date();
+      const start = new Date(end.getTime() - 24 * 60 * 60 * 1000);
+      const inner = this.buildGetOrderListInner(
+        apiKey,
+        apiSecret,
+        'New',
+        start,
+        end,
+        0,
+        1,
+      );
       const xml = await this.postSoap(
         credentials,
         N11_ORDER_WSDL,
-        this.wrapSoapBody(inner),
+        this.wrapOrderSoapBody(inner),
       );
       const parsed = this.parseXml(xml);
       const fault = this.soapFaultMessage(parsed);
@@ -183,26 +242,39 @@ export class N11Adapter implements IMarketplaceAdapter {
       return [];
     }
 
+    const end = new Date();
+    const start =
+      since ?? new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
     const statuses = ['New', 'Approved', 'Shipped'];
+    const pageSize = 50;
     const all: NormalizedOrder[] = [];
-    for (const status of statuses) {
-      const inner = `<ord:GetOrderListRequest>
-      ${this.buildAuthXml(apiKey, apiSecret)}
-      <searchData><status>${status}</status></searchData>
-      <pagingData><currentPage>0</currentPage><pageSize>100</pageSize></pagingData>
-    </ord:GetOrderListRequest>`;
 
-      const xml = await this.postSoap(
-        credentials,
-        N11_ORDER_WSDL,
-        this.wrapSoapBody(inner),
-      );
-      const parsed = this.parseXml(xml);
-      const fault = this.soapFaultMessage(parsed);
-      if (fault) {
-        throw new Error(`N11 sipariş listesi (${status}): ${fault}`);
+    for (const status of statuses) {
+      let pageNumber = 0;
+      for (;;) {
+        const inner = this.buildGetOrderListInner(
+          apiKey,
+          apiSecret,
+          status,
+          start,
+          end,
+          pageNumber,
+          pageSize,
+        );
+        const xml = await this.postSoap(
+          credentials,
+          N11_ORDER_WSDL,
+          this.wrapOrderSoapBody(inner),
+        );
+        const parsed = this.parseXml(xml);
+        this.assertSoapSuccess(parsed, `N11 sipariş listesi (${status})`);
+        const batch = this.extractOrdersFromParsed(parsed);
+        all.push(...batch);
+        if (batch.length < pageSize) {
+          break;
+        }
+        pageNumber += 1;
       }
-      all.push(...this.extractOrdersFromParsed(parsed));
     }
 
     const sinceMs = since?.getTime() ?? 0;
@@ -252,6 +324,65 @@ export class N11Adapter implements IMarketplaceAdapter {
     return [];
   }
 
+  async getOrderDetail(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<N11OrderXml | null> {
+    const apiKey = credentials.apiKey;
+    const apiSecret = credentials.apiSecret;
+    if (!apiKey || !apiSecret || !orderId.trim()) {
+      return null;
+    }
+    const inner = `<ord:GetOrderDetail>
+      ${this.buildAuthXml(apiKey, apiSecret)}
+      <orderRequest><id>${this.escapeXml(orderId.trim())}</id></orderRequest>
+    </ord:GetOrderDetail>`;
+    const xml = await this.postSoap(
+      credentials,
+      N11_ORDER_WSDL,
+      this.wrapOrderSoapBody(inner),
+    );
+    const parsed = this.parseXml(xml);
+    this.assertSoapSuccess(parsed, 'N11 sipariş detayı');
+    const orders = this.deepFindOrderList(parsed);
+    return orders[0] ?? null;
+  }
+
+  async reportShipping(
+    credentials: Record<string, string>,
+    orderItemId: string,
+    cargoCompany: string,
+    trackingNumber: string,
+  ): Promise<void> {
+    const apiKey = credentials.apiKey;
+    const apiSecret = credentials.apiSecret;
+    if (!apiKey || !apiSecret) {
+      throw new Error('N11 kargo bildirimi: apiKey/apiSecret eksik');
+    }
+    const inner = `<ord:UpdateOrderStatus>
+      ${this.buildAuthXml(apiKey, apiSecret)}
+      <orderRequest>
+        <orderItemList>
+          <orderItem>
+            <id>${this.escapeXml(orderItemId)}</id>
+            <status>Shipped</status>
+            <shipmentInfo>
+              <shipmentCompany>${this.escapeXml(cargoCompany)}</shipmentCompany>
+              <trackingNumber>${this.escapeXml(trackingNumber)}</trackingNumber>
+            </shipmentInfo>
+          </orderItem>
+        </orderItemList>
+      </orderRequest>
+    </ord:UpdateOrderStatus>`;
+    const xml = await this.postSoap(
+      credentials,
+      N11_ORDER_WSDL,
+      this.wrapOrderSoapBody(inner),
+    );
+    const parsed = this.parseXml(xml);
+    this.assertSoapSuccess(parsed, 'N11 sipariş durum güncelleme');
+  }
+
   private normalizeOrder(o: N11OrderXml): NormalizedOrder {
     const itemsRaw = o.orderItemList?.orderItem;
     const itemsArr = this.ensureArray(itemsRaw ?? undefined);
@@ -269,15 +400,29 @@ export class N11Adapter implements IMarketplaceAdapter {
     const total = Number(o.totalAmount ?? 0);
     const createdAt = this.parseTrDate(String(o.createDate ?? ''));
     const rawStatus = String(o.status ?? 'New');
+    const buyerName = String(
+      o.buyer?.fullName ?? o.buyer?.name ?? '',
+    ).trim();
+    const ship = o.shippingAddress;
+    const addressParts = [
+      ship?.fullAddress,
+      ship?.address,
+      ship?.district,
+      ship?.city,
+    ].filter((p): p is string => typeof p === 'string' && p.trim().length > 0);
     return {
       platformOrderId: String(o.id ?? o.orderNumber ?? ''),
       rawStatus,
       status: mapN11Status(rawStatus),
-      customerName: '—',
+      customerName: buyerName.length > 0 ? buyerName : '—',
       items,
       totalAmount: Number.isFinite(total) ? total : 0,
       currency: 'TRY',
-      shippingAddress: { fullAddress: '' },
+      shippingAddress: {
+        fullAddress: addressParts.join(', '),
+        city: ship?.city,
+        district: ship?.district,
+      },
       platformCreatedAt: createdAt,
     };
   }
@@ -316,7 +461,7 @@ export class N11Adapter implements IMarketplaceAdapter {
     const xml = await this.postSoap(
       credentials,
       N11_CATALOG_SERVICE_WSDL,
-      this.wrapSoapBody(inner),
+      this.wrapOrderSoapBody(inner),
     );
     const parsed = this.parseXml(xml);
     const fault = this.soapFaultMessage(parsed);
@@ -433,34 +578,25 @@ export class N11Adapter implements IMarketplaceAdapter {
     }
     const stockXml =
       quantity !== undefined
-        ? `<stockItems><stockItem><quantity>${String(quantity)}</quantity></stockItem></stockItems>`
+        ? `<newStockAmount>${String(quantity)}</newStockAmount>`
         : '';
     const priceXml =
       salePrice !== undefined
-        ? `<price>${String(salePrice)}</price><displayPrice>${String(listPrice ?? salePrice)}</displayPrice><currencyType>TL</currencyType>`
+        ? `<newPrice>${String(salePrice)}</newPrice>`
         : '';
-    const inner = `<sch:UpdateProductPriceAndStockByProductIdRequest xmlns:sch="http://www.n11.com/ws/schemas">
+    const inner = `<prod:UpdateProductPriceAndStockByProductId>
       ${this.buildAuthXml(apiKey, apiSecret)}
-      <product>
-        <productSellerCode>${this.escapeXml(barcode)}</productSellerCode>
-        ${priceXml}
-        ${stockXml}
-      </product>
-    </sch:UpdateProductPriceAndStockByProductIdRequest>`;
+      <productSellerCode>${this.escapeXml(barcode)}</productSellerCode>
+      ${priceXml}
+      ${stockXml}
+    </prod:UpdateProductPriceAndStockByProductId>`;
     const xml = await this.postSoap(
       credentials,
       N11_PRODUCT_WSDL,
-      this.wrapSoapBody(inner),
+      this.wrapProductSoapBody(inner),
     );
     const parsed = this.parseXml(xml);
-    const fault = this.soapFaultMessage(parsed);
-    if (fault) {
-      throw new Error(`N11 stok/fiyat (${barcode}): ${fault}`);
-    }
-    const st = this.findResultStatus(parsed);
-    if (st?.status && st.status !== 'success') {
-      throw new Error(`N11 stok/fiyat (${barcode}): ${st.status}`);
-    }
+    this.assertSoapSuccess(parsed, `N11 stok/fiyat (${barcode})`);
   }
 
   async updateStock(

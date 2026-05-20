@@ -10,6 +10,8 @@ import { Marketplace } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { EncryptionService } from '../common/encryption/encryption.service';
+import { EventService } from '../event/event.service';
+import { WS_EVENTS } from '../event/event.types';
 import { OrderService } from '../order/order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PULL } from '../queue/queue.constants';
@@ -23,6 +25,7 @@ import {
 import {
   extractOrderIdentifiers,
   extractTrendyolEventType,
+  parseTrendyolOrderStatusWebhook,
 } from './trendyol-payload.util';
 import { WebhookSignatureService } from './webhook-signature.service';
 import { resolvePlainWebhookSecret } from './webhook-secret.util';
@@ -65,6 +68,7 @@ export class PlatformWebhookService {
     private readonly orderService: OrderService,
     private readonly encryptionService: EncryptionService,
     private readonly webhookSignature: WebhookSignatureService,
+    private readonly eventService: EventService,
     @InjectQueue(QUEUE_MARKETPLACE_PULL)
     private readonly marketplacePullQueue: Queue<MarketplacePullJobData>,
   ) {}
@@ -493,15 +497,7 @@ export class PlatformWebhookService {
     payload: unknown,
   ): Promise<void> {
     if (platform === Marketplace.TRENDYOL) {
-      const ids = extractOrderIdentifiers(payload);
-      if (ids.platformOrderId && ids.status) {
-        await this.orderService.updateStatusFromPlatform(
-          orgId,
-          platform,
-          ids.platformOrderId,
-          ids.status,
-        );
-      }
+      await this.applyTrendyolInlineOrderUpdate(orgId, payload);
       return;
     }
     if (platform === Marketplace.HEPSIBURADA) {
@@ -526,6 +522,80 @@ export class PlatformWebhookService {
           },
         );
       }
+    }
+  }
+
+  private async applyTrendyolInlineOrderUpdate(
+    orgId: string,
+    payload: unknown,
+  ): Promise<void> {
+    const webhook = parseTrendyolOrderStatusWebhook(payload);
+    const ids = webhook
+      ? {
+          platformOrderId: webhook.orderId,
+          status: webhook.status,
+          shipmentTrackingNumber: webhook.shipmentTrackingNumber,
+        }
+      : extractOrderIdentifiers(payload);
+
+    if (!ids.platformOrderId || !ids.status) {
+      return;
+    }
+
+    const before = await this.prisma.order.findFirst({
+      where: {
+        organizationId: orgId,
+        platform: Marketplace.TRENDYOL,
+        platformOrderId: ids.platformOrderId,
+        deletedAt: null,
+      },
+      select: { id: true, status: true },
+    });
+
+    await this.orderService.updateStatusFromPlatform(
+      orgId,
+      Marketplace.TRENDYOL,
+      ids.platformOrderId,
+      ids.status,
+    );
+
+    if (ids.shipmentTrackingNumber) {
+      await this.orderService.updateCargoFromPlatform(
+        orgId,
+        Marketplace.TRENDYOL,
+        ids.platformOrderId,
+        { trackingNumber: ids.shipmentTrackingNumber },
+      );
+    }
+
+    const after = await this.prisma.order.findFirst({
+      where: {
+        organizationId: orgId,
+        platform: Marketplace.TRENDYOL,
+        platformOrderId: ids.platformOrderId,
+        deletedAt: null,
+      },
+      select: { id: true, status: true, cargoTrackingNumber: true },
+    });
+
+    if (!after) {
+      return;
+    }
+
+    const prevStatus = before?.status;
+    const statusChanged = prevStatus !== undefined && prevStatus !== after.status;
+    const trackingChanged =
+      ids.shipmentTrackingNumber !== undefined &&
+      ids.shipmentTrackingNumber.length > 0;
+
+    if (statusChanged || trackingChanged) {
+      this.eventService.emit(orgId, WS_EVENTS.ORDER_UPDATED, {
+        orderId: after.id,
+        platformOrderId: ids.platformOrderId,
+        oldStatus: prevStatus ?? null,
+        newStatus: after.status,
+        shipmentTrackingNumber: after.cargoTrackingNumber ?? null,
+      });
     }
   }
 }

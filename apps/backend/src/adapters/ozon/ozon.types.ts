@@ -40,3 +40,11 @@ export interface OzonProductListResponse {
     last_id?: string;
   };
 }
+
+export interface OzonPostingGetResponse {
+  result?: OzonPosting;
+}
+
+export interface OzonShipResponse {
+  result?: Array<{ posting_number?: string; success?: boolean }>;
+}

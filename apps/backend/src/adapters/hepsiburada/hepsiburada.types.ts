@@ -109,8 +109,44 @@ export interface HepsiburadaMerchantProductsResponse {
 
 export interface HepsiburadaBatchListingItem {
   hepsiburadaSku: string;
+  merchantSku?: string;
   availableStock?: number;
-  price?: number;
+  price?: string | number;
+  salePrice?: string | number;
+}
+
+export interface HepsiburadaBatchRequestResponse {
+  batchRequestId?: string;
+  id?: string;
+  batchId?: string;
+}
+
+export interface HepsiburadaBatchRequestStatus {
+  batchRequestId?: string;
+  id?: string;
+  status?: string;
+  processingStatus?: string;
+  failedCount?: number;
+  successCount?: number;
+  totalCount?: number;
+  errors?: Array<{ hepsiburadaSku?: string; message?: string }>;
+}
+
+export interface HepsiburadaMpopPackage {
+  packageNumber?: string;
+  packageId?: string;
+  orderNumber?: string;
+  status?: string;
+  cargoCompanyCode?: string;
+  trackingNumber?: string;
+  lines?: HepsiburadaOrderLine[];
+  items?: HepsiburadaOrderLine[];
+}
+
+export interface HepsiburadaMpopPackagesResponse {
+  packages?: HepsiburadaMpopPackage[];
+  content?: HepsiburadaMpopPackage[];
+  totalCount?: number;
 }
 
 export interface HepsiburadaPackageDetail {

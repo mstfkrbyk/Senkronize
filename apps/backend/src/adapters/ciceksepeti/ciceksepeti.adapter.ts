@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import axios, { type AxiosInstance } from 'axios';
+import { randomUUID } from 'node:crypto';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -9,26 +10,74 @@ import type {
   StockUpdatePayload,
 } from '@senkronize/shared';
 
-import { CICEKSEPETI_BASE_URL } from './ciceksepeti.constants';
+import {
+  CICEKSEPETI_OMS_BASE_URL,
+  CICEKSEPETI_ORDER_STATUS_NEW,
+  CICEKSEPETI_TOKEN_URL,
+} from './ciceksepeti.constants';
 import type {
   CiceksepetiOrder,
   CiceksepetiOrderLine,
   CiceksepetiOrdersResponse,
   CiceksepetiProduct,
   CiceksepetiProductsResponse,
+  CiceksepetiTokenResponse,
 } from './ciceksepeti.types';
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+}
 
 @Injectable()
 export class CiceksepetiAdapter implements IMarketplaceAdapter {
   readonly platform = 'CICEKSEPETI';
   private readonly logger = new Logger(CiceksepetiAdapter.name);
+  private readonly tokenCache = new Map<string, CachedToken>();
 
-  private getClient(apiKey: string): AxiosInstance {
+  private async fetchAccessToken(apiKey: string): Promise<string> {
+    const cached = this.tokenCache.get(apiKey);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return cached.token;
+    }
+    const { data } = await axios.post<CiceksepetiTokenResponse>(
+      CICEKSEPETI_TOKEN_URL,
+      { apiKey },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15_000,
+        validateStatus: (s) => s >= 200 && s < 300,
+      },
+    );
+    const token =
+      (typeof data.accessToken === 'string' && data.accessToken) ||
+      (typeof data.token === 'string' && data.token) ||
+      (typeof data.access_token === 'string' && data.access_token) ||
+      '';
+    if (!token) {
+      throw new Error('Çiçeksepeti token yanıtında erişim anahtarı yok');
+    }
+    const ttlSec =
+      typeof data.expiresIn === 'number'
+        ? data.expiresIn
+        : typeof data.expires_in === 'number'
+          ? data.expires_in
+          : 3600;
+    this.tokenCache.set(apiKey, {
+      token,
+      expiresAt: Date.now() + ttlSec * 1000,
+    });
+    return token;
+  }
+
+  private async getClient(apiKey: string): Promise<AxiosInstance> {
+    const token = await this.fetchAccessToken(apiKey);
     return axios.create({
-      baseURL: CICEKSEPETI_BASE_URL,
+      baseURL: CICEKSEPETI_OMS_BASE_URL,
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'x-request-id': randomUUID(),
       },
       timeout: 15_000,
     });
@@ -40,8 +89,14 @@ export class CiceksepetiAdapter implements IMarketplaceAdapter {
       if (!apiKey) {
         return false;
       }
-      const client = this.getClient(apiKey);
-      await client.get('/supplier');
+      const client = await this.getClient(apiKey);
+      await client.get('/v1/orders', {
+        params: {
+          status: CICEKSEPETI_ORDER_STATUS_NEW,
+          pageNumber: 0,
+          pageSize: 1,
+        },
+      });
       return true;
     } catch (error) {
       this.logger.warn('Çiçeksepeti bağlantı testi başarısız', {
@@ -59,20 +114,47 @@ export class CiceksepetiAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       return [];
     }
-    const client = this.getClient(apiKey);
+    const client = await this.getClient(apiKey);
     const end = new Date();
     const start = since ?? new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const params: Record<string, string | number> = {
-      startDate: start.toISOString(),
-      endDate: end.toISOString(),
-      pageNumber: 0,
-      pageSize: 100,
-    };
-    const { data } = await client.get<CiceksepetiOrdersResponse>('/orders', {
-      params,
+    const pageSize = 20;
+    const all: MarketplaceOrder[] = [];
+
+    for (let pageNumber = 0; ; pageNumber += 1) {
+      const { data } = await client.get<CiceksepetiOrdersResponse>('/v1/orders', {
+        params: {
+          status: CICEKSEPETI_ORDER_STATUS_NEW,
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          pageSize,
+          pageNumber,
+        },
+      });
+      const list = data.orders ?? [];
+      all.push(...list.map((o) => this.mapOrder(o)));
+      if (list.length < pageSize) {
+        break;
+      }
+    }
+
+    return all;
+  }
+
+  async reportCargo(
+    credentials: Record<string, string>,
+    orderId: string,
+    cargoCode: string,
+    trackingNumber: string,
+  ): Promise<void> {
+    const apiKey = credentials.apiKey;
+    if (!apiKey) {
+      throw new Error('Çiçeksepeti kargo: apiKey eksik');
+    }
+    const client = await this.getClient(apiKey);
+    await client.put(`/v1/orders/${encodeURIComponent(orderId)}/cargo`, {
+      cargoCode,
+      trackingNumber,
     });
-    const list = data.orders ?? [];
-    return list.map((o) => this.mapOrder(o));
   }
 
   private mapOrder(o: CiceksepetiOrder): MarketplaceOrder {
@@ -116,8 +198,8 @@ export class CiceksepetiAdapter implements IMarketplaceAdapter {
     if (!apiKey) {
       return { items: [], total: 0, page: 0, pageSize: 50 };
     }
-    const client = this.getClient(apiKey);
-    const { data } = await client.get<CiceksepetiProductsResponse>('/products', {
+    const client = await this.getClient(apiKey);
+    const { data } = await client.get<CiceksepetiProductsResponse>('/v1/products', {
       params: { pageNumber: page, pageSize: 50 },
     });
     const products = data.products ?? [];
@@ -164,38 +246,58 @@ export class CiceksepetiAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private async updateProductStockAndPrice(
+    credentials: Record<string, string>,
+    productCode: string,
+    quantity?: number,
+    price?: number,
+  ): Promise<void> {
+    const apiKey = credentials.apiKey;
+    if (!apiKey) {
+      throw new Error('Çiçeksepeti güncelleme: apiKey eksik');
+    }
+    const client = await this.getClient(apiKey);
+    const body: { quantity?: number; price?: number } = {};
+    if (quantity !== undefined) {
+      body.quantity = quantity;
+    }
+    if (price !== undefined) {
+      body.price = price;
+    }
+    await client.put(
+      `/v1/products/${encodeURIComponent(productCode)}/stock`,
+      body,
+    );
+  }
+
   async updateStock(
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const apiKey = credentials.apiKey;
-    if (!apiKey) {
-      throw new Error('Çiçeksepeti stok: apiKey eksik');
+    for (const u of updates) {
+      const code = u.barcode.trim();
+      if (!code) {
+        continue;
+      }
+      await this.updateProductStockAndPrice(credentials, code, u.quantity);
     }
-    const client = this.getClient(apiKey);
-    await client.put('/products/stock-price-update', {
-      items: updates.map((u) => ({
-        barcode: u.barcode,
-        stockCount: u.quantity,
-      })),
-    });
   }
 
   async updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const apiKey = credentials.apiKey;
-    if (!apiKey) {
-      throw new Error('Çiçeksepeti fiyat: apiKey eksik');
+    for (const u of updates) {
+      const code = u.barcode.trim();
+      if (!code) {
+        continue;
+      }
+      await this.updateProductStockAndPrice(
+        credentials,
+        code,
+        undefined,
+        u.salePrice,
+      );
     }
-    const client = this.getClient(apiKey);
-    await client.put('/products/stock-price-update', {
-      items: updates.map((u) => ({
-        barcode: u.barcode,
-        salesPrice: u.salePrice,
-        listPrice: u.listPrice,
-      })),
-    });
   }
 }

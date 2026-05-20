@@ -21,6 +21,16 @@ export interface N11OrderXml {
   status?: string | number;
   createDate?: string;
   totalAmount?: string | number;
+  buyer?: {
+    fullName?: string;
+    name?: string;
+  };
+  shippingAddress?: {
+    address?: string;
+    fullAddress?: string;
+    city?: string;
+    district?: string;
+  };
   orderItemList?: {
     orderItem?: N11OrderItemXml | N11OrderItemXml[];
   };
