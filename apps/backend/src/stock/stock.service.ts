@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { type Marketplace, Prisma, StockMovementType } from '@prisma/client';
 import type { Queue } from 'bull';
 
+import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
@@ -76,6 +77,7 @@ export class StockService {
     private readonly outboundWebhookService: OutboundWebhookService,
     private readonly warehouseService: WarehouseService,
     private readonly stockMovementService: StockMovementService,
+    private readonly erpSyncSettingsService: ErpSyncSettingsService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     @InjectQueue(QUEUE_LISTING_SYNC)
@@ -152,6 +154,12 @@ export class StockService {
       { orgId: organizationId, barcode: trimmed, stock: newStock },
       LISTING_SYNC_STOCK_JOB_OPTIONS,
     );
+
+    void this.erpSyncSettingsService
+      .enqueueStockPush(organizationId, trimmed, newStock)
+      .catch(() => {
+        // ERP kuyruğu opsiyonel; stok güncellemesi yerelde tamamlandı
+      });
   }
 
   async findAll(

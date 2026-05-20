@@ -184,6 +184,58 @@ export class ErpSyncSettingsService {
     return jobs.length;
   }
 
+  /** Teslim edilen sipariş için ERP fatura işi kuyruğa alır */
+  async enqueueOrderInvoicePush(
+    organizationId: string,
+    orderId: string,
+  ): Promise<void> {
+    const connections = await this.prisma.erpConnection.findMany({
+      where: { organizationId, isActive: true, deletedAt: null },
+      include: { syncSettings: true },
+    });
+    for (const connection of connections) {
+      if (connection.syncSettings && !connection.syncSettings.syncInvoices) {
+        continue;
+      }
+      const payload: ErpSyncJobData = {
+        organizationId,
+        erpConnectionId: connection.id,
+        erpType: connection.erpType,
+        direction: 'push',
+        type: 'invoices',
+        orderId,
+      };
+      await this.erpSyncQueue.add('push-order-invoice', payload, JOB_DEFAULT_OPTIONS);
+    }
+  }
+
+  /** Stok değişikliğini ERP'ye push eder */
+  async enqueueStockPush(
+    organizationId: string,
+    barcode: string,
+    quantity: number,
+  ): Promise<void> {
+    const connections = await this.prisma.erpConnection.findMany({
+      where: { organizationId, isActive: true, deletedAt: null },
+      include: { syncSettings: true },
+    });
+    for (const connection of connections) {
+      if (connection.syncSettings && !connection.syncSettings.syncStock) {
+        continue;
+      }
+      const payload: ErpSyncJobData = {
+        organizationId,
+        erpConnectionId: connection.id,
+        erpType: connection.erpType,
+        direction: 'push',
+        type: 'stock',
+        barcode,
+        quantity,
+      };
+      await this.erpSyncQueue.add('push-stock-to-erp', payload, JOB_DEFAULT_OPTIONS);
+    }
+  }
+
   async markSyncCompleted(
     erpConnectionId: string,
     organizationId: string,

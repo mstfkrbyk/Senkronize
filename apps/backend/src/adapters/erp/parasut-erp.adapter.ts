@@ -10,13 +10,14 @@ import axios, { type AxiosInstance } from 'axios';
 import { axiosWithRetry } from '../../common/utils/http-retry';
 import { parseJsonApi, type JsonApiResource } from './erp-adapter.utils';
 
-const PARASUT_AUTH_URL = 'https://api.parasut.com/oauth/token';
+const PARASUT_AUTH_URL = 'https://uygulama.parasut.com/oauth/token';
 const PARASUT_BASE_URL = 'https://api.parasut.com/v4';
 
 interface ParasutTokenResponse {
   access_token: string;
   expires_in: number;
   token_type: string;
+  refresh_token?: string;
 }
 
 interface ParasutProductAttributes {
@@ -24,6 +25,7 @@ interface ParasutProductAttributes {
   code?: string;
   inventory_tracking?: boolean;
   initial_stock_count?: number;
+  stock_count?: number;
   purchase_price?: number;
 }
 
@@ -44,6 +46,13 @@ interface ParasutInvoiceAttributes {
   currency: string;
   net_total?: number;
   gross_total?: number;
+  invoice_no?: string;
+}
+
+interface ParasutContactAttributes {
+  name?: string;
+  email?: string;
+  contact_type?: string;
 }
 
 @Injectable()
@@ -120,10 +129,12 @@ export class ParasutErpAdapter implements IErpAdapter {
     try {
       const client = await this.getClient(credentials);
       const { data: meData } = await client.get<ParasutMeResponse>('/me');
-      const { data: productsData } = await client.get<{ data: unknown[]; meta?: { total_count?: number } }>(
-        '/products',
-        { params: { 'filter[type]': 'product', 'page[size]': 1 } },
-      );
+      const { data: productsData } = await client.get<{
+        data: unknown[];
+        meta?: { total_count?: number };
+      }>('/products', {
+        params: { 'page[size]': 1, 'page[number]': 1 },
+      });
       return {
         success: true,
         companyName: meData.data.attributes.name,
@@ -138,35 +149,37 @@ export class ParasutErpAdapter implements IErpAdapter {
     }
   }
 
-  async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
+  async getProducts(
+    credentials: Record<string, string>,
+    search?: string,
+  ): Promise<ErpProduct[]> {
     const client = await this.getClient(credentials);
     const out: ErpProduct[] = [];
     let page = 1;
     let totalPages = 1;
 
     do {
-      const { data } = await client.get<{ data: Array<{ id: string; attributes: ParasutProductAttributes }>; meta?: { total_pages?: number } }>(
-        '/products',
-        {
-          params: {
-            'filter[type]': 'product',
-            'page[size]': 100,
-            'page[number]': page,
-          },
-        },
-      );
+      const params: Record<string, string | number> = {
+        'page[size]': 25,
+        'page[number]': page,
+      };
+      if (search?.trim()) {
+        params['filter[name]'] = search.trim();
+      }
+      const { data } = await client.get<{
+        data: Array<{ id: string; attributes: ParasutProductAttributes }>;
+        meta?: { total_pages?: number };
+      }>('/products', { params });
       const rows = parseJsonApi<ParasutProductAttributes>({
         data: data.data as unknown as JsonApiResource[],
       });
       for (const p of rows) {
+        const stockCount = p.stock_count ?? p.initial_stock_count ?? 0;
         out.push({
           erpProductId: p.id,
           barcode: (p.code ?? p.id).trim(),
           name: p.name.trim(),
-          stockQuantity: Math.max(
-            0,
-            Math.round(Number(p.initial_stock_count ?? 0)),
-          ),
+          stockQuantity: Math.max(0, Math.round(Number(stockCount))),
           purchasePrice: p.purchase_price,
         });
       }
@@ -181,14 +194,13 @@ export class ParasutErpAdapter implements IErpAdapter {
     credentials: Record<string, string>,
     productId: string,
     quantity: number,
-    note = 'Senkronize sync',
+    description = 'Senkronize',
   ): Promise<void> {
     const client = await this.getClient(credentials);
-    const today = new Date().toISOString().slice(0, 10);
     await client.post('/stock_movements', {
       data: {
         type: 'stock_movements',
-        attributes: { date: today, quantity, note },
+        attributes: { quantity, description },
         relationships: {
           stockable: { data: { id: productId, type: 'products' } },
         },
@@ -199,22 +211,47 @@ export class ParasutErpAdapter implements IErpAdapter {
   async getContacts(
     credentials: Record<string, string>,
     contactType: 'customer' | 'supplier' = 'customer',
+    page = 1,
   ): Promise<Array<{ id: string; name: string }>> {
     const client = await this.getClient(credentials);
     const { data } = await client.get<{
-      data: Array<{ id: string; attributes: { name?: string; email?: string } }>;
+      data: Array<{ id: string; attributes: ParasutContactAttributes }>;
     }>('/contacts', {
       params: {
         'filter[contact_type]': contactType,
-        'page[size]': 100,
+        'page[size]': 25,
+        'page[number]': page,
       },
     });
-    return parseJsonApi<{ name?: string; email?: string }>({ data: data.data }).map(
-      (c) => ({
-        id: c.id,
-        name: c.name ?? c.email ?? c.id,
-      }),
-    );
+    return parseJsonApi<ParasutContactAttributes>({
+      data: data.data as unknown as JsonApiResource[],
+    }).map((c) => ({
+      id: c.id,
+      name: c.name ?? c.email ?? c.id,
+    }));
+  }
+
+  async createContact(
+    credentials: Record<string, string>,
+    contact: { name: string; email?: string },
+  ): Promise<{ id: string; name: string }> {
+    const client = await this.getClient(credentials);
+    const { data } = await client.post<{
+      data: { id: string; attributes: ParasutContactAttributes };
+    }>('/contacts', {
+      data: {
+        type: 'contacts',
+        attributes: {
+          name: contact.name,
+          email: contact.email,
+          contact_type: 'customer',
+        },
+      },
+    });
+    return {
+      id: data.data.id,
+      name: data.data.attributes.name ?? contact.name,
+    };
   }
 
   async createInvoice(
@@ -223,11 +260,9 @@ export class ParasutErpAdapter implements IErpAdapter {
   ): Promise<ErpInvoice> {
     const client = await this.getClient(credentials);
     const today = new Date().toISOString().slice(0, 10);
-    const contactId =
-      credentials.defaultContactId?.trim() ||
-      (await this.getContacts(credentials))[0]?.id;
+    const contactId = await this.resolveContactId(credentials, invoice.orderRef);
 
-    const body: Record<string, unknown> = {
+    const body = {
       data: {
         type: 'sales_invoices',
         attributes: {
@@ -239,13 +274,9 @@ export class ParasutErpAdapter implements IErpAdapter {
           net_total: invoice.totalAmount,
           gross_total: invoice.totalAmount,
         },
-        ...(contactId
-          ? {
-              relationships: {
-                contact: { data: { id: contactId, type: 'contacts' } },
-              },
-            }
-          : {}),
+        relationships: {
+          contact: { data: { id: contactId, type: 'contacts' } },
+        },
       },
     };
 
@@ -256,11 +287,31 @@ export class ParasutErpAdapter implements IErpAdapter {
     return {
       erpInvoiceId: data.data.id,
       orderRef: invoice.orderRef,
-      invoiceNumber: data.data.id,
+      invoiceNumber: data.data.attributes.invoice_no ?? data.data.id,
       totalAmount: data.data.attributes.gross_total ?? invoice.totalAmount,
       currency: data.data.attributes.currency,
       issuedAt: data.data.attributes.issue_date,
       lines: invoice.lines,
+    };
+  }
+
+  async getSalesInvoice(
+    credentials: Record<string, string>,
+    invoiceId: string,
+  ): Promise<ErpInvoice> {
+    const client = await this.getClient(credentials);
+    const { data } = await client.get<{
+      data: { id: string; attributes: ParasutInvoiceAttributes };
+    }>(`/sales_invoices/${invoiceId}`);
+    const inv = data.data;
+    return {
+      erpInvoiceId: inv.id,
+      orderRef: inv.attributes.description ?? inv.id,
+      invoiceNumber: inv.attributes.invoice_no ?? inv.id,
+      totalAmount: inv.attributes.gross_total ?? 0,
+      currency: inv.attributes.currency,
+      issuedAt: inv.attributes.issue_date,
+      lines: [],
     };
   }
 
@@ -269,24 +320,59 @@ export class ParasutErpAdapter implements IErpAdapter {
     since?: Date,
   ): Promise<ErpInvoice[]> {
     const client = await this.getClient(credentials);
-    const params: Record<string, string | number> = { 'page[size]': 100 };
-    if (since) {
-      params['filter[issue_date_gt]'] = since.toISOString().slice(0, 10);
-    }
-    const { data } = await client.get<{
-      data: Array<{ id: string; attributes: ParasutInvoiceAttributes }>;
-    }>('/sales_invoices', { params });
+    const out: ErpInvoice[] = [];
+    let page = 1;
+    let totalPages = 1;
 
-    return parseJsonApi<ParasutInvoiceAttributes>({
-      data: data.data as unknown as JsonApiResource[],
-    }).map((inv) => ({
-      erpInvoiceId: inv.id,
-      orderRef: inv.description ?? inv.id,
-      invoiceNumber: inv.id,
-      totalAmount: inv.gross_total ?? 0,
-      currency: inv.currency,
-      issuedAt: inv.issue_date,
-      lines: [],
-    }));
+    do {
+      const params: Record<string, string | number> = {
+        'page[size]': 25,
+        'page[number]': page,
+      };
+      if (since) {
+        params['filter[issue_date_gte]'] = since.toISOString().slice(0, 10);
+      }
+      const { data } = await client.get<{
+        data: Array<{ id: string; attributes: ParasutInvoiceAttributes }>;
+        meta?: { total_pages?: number };
+      }>('/sales_invoices', { params });
+
+      const rows = parseJsonApi<ParasutInvoiceAttributes>({
+        data: data.data as unknown as JsonApiResource[],
+      });
+      for (const inv of rows) {
+        out.push({
+          erpInvoiceId: inv.id,
+          orderRef: inv.description ?? inv.id,
+          invoiceNumber: inv.invoice_no ?? inv.id,
+          totalAmount: inv.gross_total ?? 0,
+          currency: inv.currency,
+          issuedAt: inv.issue_date,
+          lines: [],
+        });
+      }
+      totalPages = data.meta?.total_pages ?? 1;
+      page += 1;
+    } while (page <= totalPages && page <= 100);
+
+    return out;
+  }
+
+  private async resolveContactId(
+    credentials: Record<string, string>,
+    orderRef: string,
+  ): Promise<string> {
+    const defaultId = credentials.defaultContactId?.trim();
+    if (defaultId) {
+      return defaultId;
+    }
+    const contacts = await this.getContacts(credentials);
+    if (contacts[0]?.id) {
+      return contacts[0].id;
+    }
+    const created = await this.createContact(credentials, {
+      name: `Senkronize Müşteri (${orderRef})`,
+    });
+    return created.id;
   }
 }

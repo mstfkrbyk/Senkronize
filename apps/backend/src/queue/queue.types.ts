@@ -23,6 +23,11 @@ export interface ErpSyncJobData {
   erpType: string;
   direction: 'push' | 'pull';
   type: 'products' | 'orders' | 'stock' | 'invoices';
+  /** push-order-invoice işi için */
+  orderId?: string;
+  /** push-stock-to-erp işi için */
+  barcode?: string;
+  quantity?: number;
 }
 
 /** notification-dispatch job payload */

@@ -24,6 +24,7 @@ import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { InvoiceService } from '../invoice/invoice.service';
+import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { resolveOrderWebhookEvents } from '../webhook/order-webhook-events.util';
 import { WarehouseService } from '../warehouse/warehouse.service';
@@ -56,6 +57,7 @@ export class OrderService {
     private readonly warehouseService: WarehouseService,
     private readonly outboundWebhookService: OutboundWebhookService,
     private readonly invoiceService: InvoiceService,
+    private readonly erpSyncSettingsService: ErpSyncSettingsService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
     private readonly posthog: PostHogService,
@@ -579,6 +581,15 @@ export class OrderService {
             error: err,
           });
         });
+        void this.erpSyncSettingsService
+          .enqueueOrderInvoicePush(organizationId, id)
+          .catch((err: unknown) => {
+            this.logger.warn('ERP fatura işi kuyruğa alınamadı', {
+              orderId: id,
+              organizationId,
+              error: err instanceof Error ? err.message : 'Bilinmeyen hata',
+            });
+          });
       }
     }
     await this.cache.invalidateReportsForOrg(organizationId);

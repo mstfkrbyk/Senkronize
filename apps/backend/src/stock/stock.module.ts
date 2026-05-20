@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bull';
 
+import { ErpModule } from '../erp/erp.module';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import {
@@ -24,6 +25,7 @@ import { StockService } from './stock.service';
   imports: [
     PrismaModule,
     WarehouseModule,
+    ErpModule,
     InAppNotificationModule,
     OutboundWebhookModule,
     BullModule.registerQueue(
