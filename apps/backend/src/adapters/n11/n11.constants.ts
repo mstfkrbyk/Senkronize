@@ -1,3 +1,4 @@
+/** N11 SOAP servis kökü */
 export const N11_WSDL_BASE = 'https://api.n11.com/ws';
 
 export const N11_ORDER_WSDL = `${N11_WSDL_BASE}/OrderService.wsdl`;

@@ -18,31 +18,60 @@ export interface HepsiburadaListingsResponse {
   };
 }
 
-/** OMS — ödemesi tamamlanmış kalemler (satır bazlı) */
-export interface HepsiburadaMoney {
-  amount?: number;
-  currency?: string;
+export interface HepsiburadaInventoryUploadItem {
+  hepsiburadaSku: string;
+  availableStock?: number;
+  price?: number;
+  listingPrice?: number;
 }
 
-export interface HepsiburadaOmsLineItem {
-  id?: string;
+export interface HepsiburadaOrderListItem {
   orderNumber?: string;
   orderId?: string;
+  packageId?: string;
   status?: string;
   customerName?: string;
-  merchantSKU?: string;
-  sku?: string;
-  productBarcode?: string;
-  barcode?: string;
-  quantity?: number;
+  customerPhone?: string;
   orderDate?: string;
-  name?: string;
-  unitPrice?: HepsiburadaMoney;
-  totalPrice?: HepsiburadaMoney;
-  cargoCompany?: string;
+  totalAmount?: number;
+  currency?: string;
+  cargoCompanyName?: string;
+  trackingNumber?: string;
+  lines?: HepsiburadaOrderLine[];
+  items?: HepsiburadaOrderLine[];
 }
 
-export interface HepsiburadaOmsPaged {
-  items: HepsiburadaOmsLineItem[];
-  totalCount: number;
+export interface HepsiburadaOrderLine {
+  hepsiburadaSku?: string;
+  merchantSku?: string;
+  sku?: string;
+  barcode?: string;
+  productName?: string;
+  name?: string;
+  quantity?: number;
+  unitPrice?: number;
+  price?: number;
+  listingPrice?: number;
+}
+
+export interface HepsiburadaOrderListResponse {
+  orders?: HepsiburadaOrderListItem[];
+  content?: HepsiburadaOrderListItem[];
+  totalElements?: number;
+  totalCount?: number;
+}
+
+export interface HepsiburadaPackageDetail {
+  packageId?: string;
+  orderNumber?: string;
+  status?: string;
+  customerName?: string;
+  customerPhone?: string;
+  totalAmount?: number;
+  currency?: string;
+  orderDate?: string;
+  cargoCompanyName?: string;
+  trackingNumber?: string;
+  lines?: HepsiburadaOrderLine[];
+  items?: HepsiburadaOrderLine[];
 }

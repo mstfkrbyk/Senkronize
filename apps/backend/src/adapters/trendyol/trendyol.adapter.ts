@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -10,21 +10,22 @@ import type {
 } from '@senkronize/shared';
 
 import {
-  axiosWithRetry,
-  PLATFORM_RATE_LIMITS,
-  withRateLimit,
-} from '../../common/utils/http-retry';
+  mapTrendyolStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../common/order-normalizer';
+import { RedisRateLimiter } from '../common/redis-rate-limiter';
 import {
-  TRENDYOL_BASE_URL,
+  TRENDYOL_ORDERS,
+  TRENDYOL_PRICE_INVENTORY,
   TRENDYOL_PRODUCTS,
-  TRENDYOL_SELLER_ORDERS,
-  TRENDYOL_SHIPMENT_PROVIDERS,
-  TRENDYOL_STOCK_UPDATE,
   TRENDYOL_USER_AGENT_SUFFIX,
-  trendyolSellerPath,
+  trendyolSupplierBaseUrl,
 } from './trendyol.constants';
 import type {
+  TrendyolOrder,
   TrendyolOrdersResponse,
+  TrendyolPriceInventoryItem,
   TrendyolProductsResponse,
 } from './trendyol.types';
 
@@ -35,12 +36,12 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
   readonly platform: string = 'TRENDYOL';
   private readonly logger = new Logger(TrendyolAdapter.name);
 
-  /** Uluslararası / kanal varyantları base URL override eder */
-  protected trendyolBaseUrl(): string {
-    return TRENDYOL_BASE_URL;
+  constructor(private readonly rateLimiter: RedisRateLimiter) {}
+
+  protected trendyolBaseUrl(supplierId: string): string {
+    return trendyolSupplierBaseUrl(supplierId);
   }
 
-  /** Premium / kanal başlıkları (alt sınıflar override eder) */
   protected extraTrendyolHeaders(
     credentials: Record<string, string>,
   ): Record<string, string> {
@@ -48,17 +49,32 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     return {};
   }
 
+  private resolveSupplierId(credentials: Record<string, string>): string {
+    const id =
+      (typeof credentials.supplierId === 'string' && credentials.supplierId.trim()) ||
+      (typeof credentials.sellerId === 'string' && credentials.sellerId.trim()) ||
+      '';
+    if (!id) {
+      throw new Error('Trendyol supplierId veya sellerId zorunlu');
+    }
+    return id;
+  }
+
+  private rateLimitKey(credentials: Record<string, string>): string {
+    return this.resolveSupplierId(credentials);
+  }
+
   private getClient(
-    sellerId: string,
+    supplierId: string,
     apiKey: string,
     apiSecret: string,
     credentials: Record<string, string>,
   ): AxiosInstance {
     return axios.create({
-      baseURL: this.trendyolBaseUrl(),
+      baseURL: this.trendyolBaseUrl(supplierId),
       auth: { username: apiKey, password: apiSecret },
       headers: {
-        'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
+        'User-Agent': `${supplierId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
         'Content-Type': 'application/json',
         ...this.extraTrendyolHeaders(credentials),
       },
@@ -66,22 +82,61 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     });
   }
 
-  private trendyolRpm(): number {
-    return (
-      PLATFORM_RATE_LIMITS[this.platform] ??
-      PLATFORM_RATE_LIMITS.TRENDYOL ??
-      PLATFORM_RATE_LIMITS.DEFAULT
-    );
+  private async request<T>(
+    client: AxiosInstance,
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST',
+    path: string,
+    options?: { params?: Record<string, string | number>; data?: unknown },
+  ): Promise<T> {
+    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    try {
+      const { data } = await client.request<T>({
+        method,
+        url: path,
+        params: options?.params,
+        data: options?.data,
+      });
+      return data;
+    } catch (error) {
+      throw this.toApiError(error);
+    }
+  }
+
+  private toApiError(error: unknown): Error {
+    if (axios.isAxiosError(error)) {
+      const ax = error as AxiosError<{ message?: string }>;
+      const status = ax.response?.status;
+      const body = ax.response?.data;
+      const detail =
+        typeof body === 'object' && body !== null && typeof body.message === 'string'
+          ? body.message
+          : ax.message;
+      return new Error(
+        `Trendyol API${status != null ? ` (${String(status)})` : ''}: ${detail}`,
+      );
+    }
+    if (error instanceof Error) {
+      return error;
+    }
+    return new Error('Trendyol API isteği başarısız');
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const { sellerId, apiKey, apiSecret } = credentials;
-      if (!sellerId || !apiKey || !apiSecret) {
+      const { apiKey, apiSecret } = credentials;
+      if (!apiKey || !apiSecret) {
         return false;
       }
-      const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
-      await client.get(trendyolSellerPath(TRENDYOL_SHIPMENT_PROVIDERS, sellerId));
+      const supplierId = this.resolveSupplierId(credentials);
+      const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
+      await this.request<TrendyolProductsResponse>(
+        client,
+        credentials,
+        'GET',
+        TRENDYOL_PRODUCTS,
+        { params: { approved: 'true', page: 0, size: 1 } },
+      );
       return true;
     } catch (error) {
       this.logger.warn('Trendyol bağlantı testi başarısız', {
@@ -91,66 +146,97 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     }
   }
 
+  async fetchOrders(
+    credentials: Record<string, string>,
+    since?: Date,
+  ): Promise<NormalizedOrder[]> {
+    const { apiKey, apiSecret } = credentials;
+    const supplierId = this.resolveSupplierId(credentials);
+    const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
+
+    const startDate = since
+      ? since.getTime()
+      : Date.now() - 7 * 24 * 3600 * 1000;
+
+    const response = await this.request<TrendyolOrdersResponse>(
+      client,
+      credentials,
+      'GET',
+      TRENDYOL_ORDERS,
+      {
+        params: {
+          status: 'Created,Picking',
+          startDate,
+          endDate: Date.now(),
+          page: 0,
+          size: 200,
+        },
+      },
+    );
+
+    const rows = response.content ?? response.orders ?? [];
+    return rows.map((raw) => this.normalizeOrder(raw));
+  }
+
   async getOrders(
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
-    const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
+    const normalized = await this.fetchOrders(credentials, since);
+    return normalized.map(toMarketplaceOrder);
+  }
 
-    const startDate = since
-      ? since.getTime()
-      : Date.now() - 24 * 60 * 60 * 1000;
-    const params = {
-      startDate,
-      endDate: Date.now(),
-      page: 0,
-      size: 200,
-      status: 'Created,Picking,Invoiced,Shipped,Delivered',
+  private normalizeOrder(raw: TrendyolOrder): NormalizedOrder {
+    const addr = raw.shipmentAddress;
+    const first = addr?.firstName ?? '';
+    const last = addr?.lastName ?? '';
+    const phone =
+      (typeof addr?.phone === 'string' && addr.phone) ||
+      (typeof addr?.phoneNumber === 'string' && addr.phoneNumber) ||
+      undefined;
+
+    return {
+      platformOrderId: String(raw.orderNumber),
+      rawStatus: raw.status,
+      status: mapTrendyolStatus(raw.status),
+      customerName: `${first} ${last}`.trim() || '—',
+      customerPhone: phone,
+      totalAmount: raw.totalPrice ?? raw.grossAmount ?? 0,
+      currency: raw.currencyCode ?? 'TRY',
+      cargoProvider: raw.cargoProviderName,
+      trackingNumber:
+        raw.cargoTrackingNumber != null
+          ? String(raw.cargoTrackingNumber)
+          : undefined,
+      items: raw.lines.map((line) => ({
+        sku: line.barcode || line.merchantSku || '',
+        name: line.productName,
+        quantity: line.quantity,
+        unitPrice: line.price,
+      })),
+      shippingAddress: {
+        fullAddress: addr?.fullAddress ?? '',
+        city: addr?.city,
+        district: addr?.district,
+      },
+      platformCreatedAt: new Date(raw.orderDate),
     };
-
-    const { data } = await client.get<TrendyolOrdersResponse>(
-      trendyolSellerPath(TRENDYOL_SELLER_ORDERS, sellerId),
-      { params },
-    );
-
-    const rows = data.orders ?? data.content ?? [];
-
-    return rows.map((o) => {
-      const first = o.shipmentAddress?.firstName ?? '';
-      const last = o.shipmentAddress?.lastName ?? '';
-      const customerName = `${first} ${last}`.trim() || '—';
-      return {
-        platformOrderId: String(o.id),
-        status: o.status,
-        customerName,
-        items: o.lines.map((l) => ({
-          sku: l.merchantSku,
-          barcode: l.barcode,
-          quantity: l.quantity,
-          unitPrice: l.price,
-          platformItemId: String(l.id),
-          productName: l.productName,
-        })),
-        totalAmount: o.grossAmount,
-        currency: o.currencyCode,
-        createdAt: new Date(o.orderDate).toISOString(),
-        cargoTrackingNumber: o.cargoTrackingNumber,
-        cargoProvider: o.cargoProviderName,
-      };
-    });
   }
 
   async getListings(
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
-    const { sellerId, apiKey, apiSecret } = credentials;
-    const client = this.getClient(sellerId, apiKey, apiSecret, credentials);
+    const { apiKey, apiSecret } = credentials;
+    const supplierId = this.resolveSupplierId(credentials);
+    const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
 
-    const { data } = await client.get<TrendyolProductsResponse>(
-      trendyolSellerPath(TRENDYOL_PRODUCTS, sellerId),
-      { params: { page, size: 50 } },
+    const data = await this.request<TrendyolProductsResponse>(
+      client,
+      credentials,
+      'GET',
+      TRENDYOL_PRODUCTS,
+      { params: { approved: 'true', page, size: 50 } },
     );
 
     const productRows = data.content ?? data.products ?? [];
@@ -159,17 +245,17 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
 
     return {
       items: productRows.map((p) => ({
-        platformProductId: p.id,
+        platformProductId: String(p.id),
         barcode: p.barcode,
         title: p.title,
         quantity: p.quantity,
         salePrice: p.salePrice,
         listPrice: p.listPrice,
         approved: p.approved,
-        images: p.images.map((i) => i.url),
+        images: (p.images ?? []).map((i) => i.url),
       })),
       total,
-      page: data.page,
+      page: data.page ?? page,
       pageSize: 50,
     };
   }
@@ -178,80 +264,46 @@ export class TrendyolAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const { sellerId, apiKey, apiSecret } = credentials;
-    const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
-    const url = `${this.trendyolBaseUrl()}${path}`;
-    const rpm = this.trendyolRpm();
-    const batches = chunkArray(updates, 100);
-
-    for (let i = 0; i < batches.length; i++) {
-      if (i > 0) {
-        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-      }
-      const batch = batches[i]!;
-      await withRateLimit(this.platform, rpm, async () => {
-        await axiosWithRetry(
-          {
-            method: 'PUT',
-            url,
-            auth: { username: apiKey, password: apiSecret },
-            headers: {
-              'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
-              'Content-Type': 'application/json',
-              ...this.extraTrendyolHeaders(credentials),
-            },
-            timeout: 15_000,
-            data: {
-              items: batch.map((u) => ({
-                barcode: u.barcode,
-                quantity: u.quantity,
-              })),
-            },
-          },
-          {},
-        );
-      });
-    }
+    const items: TrendyolPriceInventoryItem[] = updates.map((u) => ({
+      barcode: u.barcode,
+      quantity: u.quantity,
+    }));
+    await this.postPriceAndInventory(credentials, items);
   }
 
   async updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    const { sellerId, apiKey, apiSecret } = credentials;
-    const path = trendyolSellerPath(TRENDYOL_STOCK_UPDATE, sellerId);
-    const url = `${this.trendyolBaseUrl()}${path}`;
-    const rpm = this.trendyolRpm();
-    const batches = chunkArray(updates, 100);
+    const items: TrendyolPriceInventoryItem[] = updates.map((u) => ({
+      barcode: u.barcode,
+      salePrice: u.salePrice,
+      listPrice: u.listPrice,
+    }));
+    await this.postPriceAndInventory(credentials, items);
+  }
+
+  private async postPriceAndInventory(
+    credentials: Record<string, string>,
+    items: TrendyolPriceInventoryItem[],
+  ): Promise<void> {
+    const { apiKey, apiSecret } = credentials;
+    const supplierId = this.resolveSupplierId(credentials);
+    const client = this.getClient(supplierId, apiKey, apiSecret, credentials);
+    const batches = chunkArray(items, 100);
 
     for (let i = 0; i < batches.length; i++) {
       if (i > 0) {
         await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
       }
       const batch = batches[i]!;
-      await withRateLimit(this.platform, rpm, async () => {
-        await axiosWithRetry(
-          {
-            method: 'PUT',
-            url,
-            auth: { username: apiKey, password: apiSecret },
-            headers: {
-              'User-Agent': `${sellerId} - ${TRENDYOL_USER_AGENT_SUFFIX}`,
-              'Content-Type': 'application/json',
-              ...this.extraTrendyolHeaders(credentials),
-            },
-            timeout: 15_000,
-            data: {
-              items: batch.map((u) => ({
-                barcode: u.barcode,
-                salePrice: u.salePrice,
-                listPrice: u.listPrice,
-              })),
-            },
-          },
-          {},
-        );
-      });
+      await this.request<unknown>(
+        client,
+        credentials,
+        'POST',
+        TRENDYOL_PRICE_INVENTORY,
+        { data: { items: batch } },
+      );
     }
   }
 }

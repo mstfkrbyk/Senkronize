@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios, { AxiosInstance } from 'axios';
+import axios, { AxiosError, type AxiosInstance } from 'axios';
 import type {
   IMarketplaceAdapter,
   MarketplaceListing,
@@ -10,14 +10,22 @@ import type {
 } from '@senkronize/shared';
 
 import {
+  mapHepsiburadaStatus,
+  toMarketplaceOrder,
+  type NormalizedOrder,
+} from '../common/order-normalizer';
+import { RedisRateLimiter } from '../common/redis-rate-limiter';
+import {
   HEPSIBURADA_INTEGRATION_ID,
   HEPSIBURADA_LISTING_BASE_URL,
   HEPSIBURADA_OMS_BASE_URL,
 } from './hepsiburada.constants';
 import type {
+  HepsiburadaInventoryUploadItem,
   HepsiburadaListingsResponse,
-  HepsiburadaOmsLineItem,
-  HepsiburadaOmsPaged,
+  HepsiburadaOrderListItem,
+  HepsiburadaOrderListResponse,
+  HepsiburadaPackageDetail,
 } from './hepsiburada.types';
 
 @Injectable()
@@ -25,7 +33,8 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
   readonly platform: string = 'HEPSIBURADA';
   private readonly logger = new Logger(HepsiburadaAdapter.name);
 
-  /** Premium / kurumsal kanallar için ek HTTP başlıkları (alt sınıflar override eder) */
+  constructor(private readonly rateLimiter: RedisRateLimiter) {}
+
   protected extraHttpHeaders(
     credentials: Record<string, string>,
   ): Record<string, string> {
@@ -43,6 +52,10 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
         ? credentials.username
         : null;
     return (fromField ?? fromUser ?? '').trim();
+  }
+
+  private rateLimitKey(credentials: Record<string, string>): string {
+    return this.resolveMerchantId(credentials) || 'default';
   }
 
   private getListingClient(
@@ -79,6 +92,68 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     });
   }
 
+  private async omsRequest<T>(
+    client: AxiosInstance,
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST',
+    path: string,
+    options?: { params?: Record<string, string | number>; data?: unknown },
+  ): Promise<T> {
+    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    try {
+      const { data } = await client.request<T>({
+        method,
+        url: path,
+        params: options?.params,
+        data: options?.data,
+      });
+      return data;
+    } catch (error) {
+      throw this.toApiError('Hepsiburada OMS', error);
+    }
+  }
+
+  private async listingRequest<T>(
+    client: AxiosInstance,
+    credentials: Record<string, string>,
+    method: 'GET' | 'POST',
+    path: string,
+    options?: { params?: Record<string, string | number>; data?: unknown },
+  ): Promise<T> {
+    await this.rateLimiter.acquire(this.platform, this.rateLimitKey(credentials));
+    try {
+      const { data } = await client.request<T>({
+        method,
+        url: path,
+        params: options?.params,
+        data: options?.data,
+      });
+      return data;
+    } catch (error) {
+      throw this.toApiError('Hepsiburada Listing', error);
+    }
+  }
+
+  private toApiError(label: string, error: unknown): Error {
+    if (axios.isAxiosError(error)) {
+      const ax = error as AxiosError<{ message?: string }>;
+      const status = ax.response?.status;
+      const detail =
+        typeof ax.response?.data === 'object' &&
+        ax.response.data !== null &&
+        typeof ax.response.data.message === 'string'
+          ? ax.response.data.message
+          : ax.message;
+      return new Error(
+        `${label} API${status != null ? ` (${String(status)})` : ''}: ${detail}`,
+      );
+    }
+    if (error instanceof Error) {
+      return error;
+    }
+    return new Error(`${label} API isteği başarısız`);
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
       const username = credentials.username;
@@ -92,7 +167,9 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
         merchantId.length > 0
           ? `/listings/merchantid/${encodeURIComponent(merchantId)}/listings`
           : '/listings/merchantid/self/listings';
-      await client.get(path, { params: { offset: 0, limit: 1 } });
+      await this.listingRequest(client, credentials, 'GET', path, {
+        params: { offset: 0, limit: 1 },
+      });
       return true;
     } catch (error) {
       this.logger.warn('Hepsiburada bağlantı testi başarısız', {
@@ -102,151 +179,207 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     }
   }
 
-  async getOrders(
+  async fetchOrders(
     credentials: Record<string, string>,
     since?: Date,
-  ): Promise<MarketplaceOrder[]> {
+  ): Promise<NormalizedOrder[]> {
     const { username, password } = credentials;
     const merchantId = this.resolveMerchantId(credentials);
     if (!merchantId) {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
     const client = this.getOmsClient(username, password, credentials);
-    return this.fetchOmsOrdersPaged(client, merchantId, since);
-  }
+    const end = new Date();
+    const start = since ?? new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+    const beginDate = formatHbDate(start);
+    const endDate = formatHbDate(end);
 
-  private async fetchOmsOrdersPaged(
-    client: AxiosInstance,
-    merchantId: string,
-    since?: Date,
-  ): Promise<MarketplaceOrder[]> {
-    const limit = 100;
-    let offset = 0;
-    const allLines: HepsiburadaOmsLineItem[] = [];
-    let total = Number.POSITIVE_INFINITY;
+    const all: NormalizedOrder[] = [];
+    let page = 0;
+    const size = 50;
+    let hasMore = true;
 
-    const beginDate =
-      since != null
-        ? `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}-${String(since.getDate()).padStart(2, '0')} ${String(since.getHours()).padStart(2, '0')}:${String(since.getMinutes()).padStart(2, '0')}`
-        : undefined;
-
-    while (offset < total) {
-      const params: Record<string, string> = {
-        offset: String(offset),
-        limit: String(limit),
-      };
-      if (beginDate) {
-        params.begindate = beginDate;
-      }
-
-      const { data } = await client.get<unknown>(
-        `/orders/merchantid/${encodeURIComponent(merchantId)}`,
-        { params },
+    while (hasMore) {
+      const data = await this.omsRequest<HepsiburadaOrderListResponse>(
+        client,
+        credentials,
+        'GET',
+        `/orders/merchantid/${encodeURIComponent(merchantId)}/orderlist`,
+        {
+          params: {
+            beginDate,
+            endDate,
+            status: 'WaitingForPacking',
+            page,
+            size,
+          },
+        },
       );
 
-      const page = this.parseOmsOrdersPage(data);
-      allLines.push(...page.items);
-      total = page.totalCount > 0 ? page.totalCount : allLines.length;
-      offset += limit;
-
-      if (page.items.length < limit) {
-        break;
+      const rows = data.orders ?? data.content ?? [];
+      for (const row of rows) {
+        all.push(this.normalizeOrderListItem(row));
       }
+
+      hasMore = rows.length >= size;
+      page += 1;
     }
 
-    return this.groupOmsLinesToOrders(allLines);
+    return all;
   }
 
-  private parseOmsOrdersPage(data: unknown): HepsiburadaOmsPaged {
-    if (!data || typeof data !== 'object') {
-      return { items: [], totalCount: 0 };
-    }
-    const root = data as Record<string, unknown>;
-    const body =
-      root.items != null
-        ? root
-        : root.data != null && typeof root.data === 'object'
-          ? (root.data as Record<string, unknown>)
-          : null;
-    if (!body || !Array.isArray(body.items)) {
-      return { items: [], totalCount: 0 };
-    }
-    const items = body.items as HepsiburadaOmsLineItem[];
-    const totalCount =
-      typeof body.totalCount === 'number' && Number.isFinite(body.totalCount)
-        ? body.totalCount
-        : items.length;
-    return { items, totalCount };
+  async getOrders(
+    credentials: Record<string, string>,
+    since?: Date,
+  ): Promise<MarketplaceOrder[]> {
+    const normalized = await this.fetchOrders(credentials, since);
+    return normalized.map(toMarketplaceOrder);
   }
 
-  private groupOmsLinesToOrders(lines: HepsiburadaOmsLineItem[]): MarketplaceOrder[] {
-    const byOrder = new Map<string, HepsiburadaOmsLineItem[]>();
-    for (const line of lines) {
-      const key =
-        (typeof line.orderNumber === 'string' && line.orderNumber) ||
-        (typeof line.orderId === 'string' && line.orderId) ||
-        (typeof line.id === 'string' && line.id) ||
-        'unknown';
-      const list = byOrder.get(key) ?? [];
-      list.push(line);
-      byOrder.set(key, list);
-    }
+  private normalizeOrderListItem(raw: HepsiburadaOrderListItem): NormalizedOrder {
+    const lines = raw.lines ?? raw.items ?? [];
+    const platformOrderId =
+      (typeof raw.orderNumber === 'string' && raw.orderNumber) ||
+      (typeof raw.orderId === 'string' && raw.orderId) ||
+      (typeof raw.packageId === 'string' && raw.packageId) ||
+      'unknown';
 
-    const orders: MarketplaceOrder[] = [];
-    for (const [, group] of byOrder) {
-      if (group.length === 0) {
-        continue;
-      }
-      const first = group[0];
-      if (!first) {
-        continue;
-      }
-      const platformOrderId =
-        (typeof first.orderNumber === 'string' && first.orderNumber) ||
-        (typeof first.orderId === 'string' && first.orderId) ||
-        'unknown';
-      let total = 0;
-      let currency = 'TRY';
-      for (const line of group) {
-        total += moneyAmount(line.totalPrice);
-        const c = line.totalPrice?.currency;
-        if (typeof c === 'string' && c.length > 0) {
-          currency = c;
-        }
-      }
-      const dates = group
-        .map((l) => l.orderDate)
-        .filter((d): d is string => typeof d === 'string' && d.length > 0)
-        .sort();
-      orders.push({
-        platformOrderId,
-        status: typeof first.status === 'string' ? first.status : 'UNKNOWN',
-        customerName:
-          typeof first.customerName === 'string' ? first.customerName : '',
-        items: group.map((line) => ({
-          sku:
-            (typeof line.merchantSKU === 'string' && line.merchantSKU) ||
-            (typeof line.sku === 'string' && line.sku) ||
-            '',
-          barcode:
-            (typeof line.productBarcode === 'string' && line.productBarcode) ||
-            (typeof line.barcode === 'string' && line.barcode) ||
-            '',
-          quantity: typeof line.quantity === 'number' ? line.quantity : 0,
-          unitPrice: moneyAmount(line.unitPrice),
-          platformItemId:
-            (typeof line.id === 'string' && line.id) || platformOrderId,
-          productName: typeof line.name === 'string' ? line.name : undefined,
-        })),
-        totalAmount: total,
-        currency,
-        createdAt: dates[0] ?? new Date().toISOString(),
-        cargoTrackingNumber: undefined,
-        cargoProvider:
-          typeof first.cargoCompany === 'string' ? first.cargoCompany : undefined,
-      });
+    const rawStatus =
+      typeof raw.status === 'string' ? raw.status : 'WaitingForPacking';
+    return {
+      platformOrderId,
+      rawStatus,
+      status: mapHepsiburadaStatus(rawStatus),
+      customerName:
+        typeof raw.customerName === 'string' ? raw.customerName : '—',
+      customerPhone:
+        typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      totalAmount:
+        typeof raw.totalAmount === 'number' && Number.isFinite(raw.totalAmount)
+          ? raw.totalAmount
+          : 0,
+      currency: raw.currency ?? 'TRY',
+      cargoProvider: raw.cargoCompanyName,
+      trackingNumber: raw.trackingNumber,
+      items: lines.map((line) => ({
+        sku:
+          line.hepsiburadaSku ??
+          line.merchantSku ??
+          line.sku ??
+          line.barcode ??
+          '',
+        name: line.productName ?? line.name ?? '',
+        quantity:
+          typeof line.quantity === 'number' && Number.isFinite(line.quantity)
+            ? line.quantity
+            : 0,
+        unitPrice:
+          typeof line.unitPrice === 'number'
+            ? line.unitPrice
+            : typeof line.price === 'number'
+              ? line.price
+              : 0,
+      })),
+      shippingAddress: { fullAddress: '' },
+      platformCreatedAt: raw.orderDate
+        ? new Date(raw.orderDate)
+        : new Date(),
+    };
+  }
+
+  async getPackageDetail(
+    credentials: Record<string, string>,
+    packageId: string,
+  ): Promise<NormalizedOrder> {
+    const { username, password } = credentials;
+    const merchantId = this.resolveMerchantId(credentials);
+    if (!merchantId) {
+      throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
-    return orders;
+    const client = this.getOmsClient(username, password, credentials);
+    const data = await this.omsRequest<HepsiburadaPackageDetail>(
+      client,
+      credentials,
+      'GET',
+      `/packages/merchantid/${encodeURIComponent(merchantId)}/packagelist/${encodeURIComponent(packageId)}`,
+    );
+    return this.normalizePackageDetail(data, packageId);
+  }
+
+  private normalizePackageDetail(
+    raw: HepsiburadaPackageDetail,
+    packageId: string,
+  ): NormalizedOrder {
+    const lines = raw.lines ?? raw.items ?? [];
+    const rawStatus =
+      typeof raw.status === 'string' ? raw.status : 'WaitingForPacking';
+    return {
+      platformOrderId:
+        (typeof raw.orderNumber === 'string' && raw.orderNumber) || packageId,
+      rawStatus,
+      status: mapHepsiburadaStatus(rawStatus),
+      customerName:
+        typeof raw.customerName === 'string' ? raw.customerName : '—',
+      customerPhone:
+        typeof raw.customerPhone === 'string' ? raw.customerPhone : undefined,
+      totalAmount:
+        typeof raw.totalAmount === 'number' && Number.isFinite(raw.totalAmount)
+          ? raw.totalAmount
+          : 0,
+      currency: raw.currency ?? 'TRY',
+      cargoProvider: raw.cargoCompanyName,
+      trackingNumber: raw.trackingNumber,
+      items: lines.map((line) => ({
+        sku:
+          line.hepsiburadaSku ??
+          line.merchantSku ??
+          line.sku ??
+          line.barcode ??
+          '',
+        name: line.productName ?? line.name ?? '',
+        quantity:
+          typeof line.quantity === 'number' && Number.isFinite(line.quantity)
+            ? line.quantity
+            : 0,
+        unitPrice:
+          typeof line.unitPrice === 'number'
+            ? line.unitPrice
+            : typeof line.price === 'number'
+              ? line.price
+              : 0,
+      })),
+      shippingAddress: { fullAddress: '' },
+      platformCreatedAt: raw.orderDate
+        ? new Date(raw.orderDate)
+        : new Date(),
+    };
+  }
+
+  async reportShipping(
+    credentials: Record<string, string>,
+    packageId: string,
+    cargoCompanyName: string,
+    trackingNumber: string,
+  ): Promise<void> {
+    const { username, password } = credentials;
+    const merchantId = this.resolveMerchantId(credentials);
+    if (!merchantId) {
+      throw new Error('Hepsiburada merchantId veya username zorunlu');
+    }
+    const client = this.getOmsClient(username, password, credentials);
+    await this.omsRequest(
+      client,
+      credentials,
+      'POST',
+      `/packages/merchantid/${encodeURIComponent(merchantId)}/packagelist/${encodeURIComponent(packageId)}/shippinginfo`,
+      {
+        data: {
+          cargoCompanyName,
+          trackingNumber,
+          isCancelled: false,
+        },
+      },
+    );
   }
 
   async getListings(
@@ -261,10 +394,11 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
         ? `/listings/merchantid/${encodeURIComponent(merchantId)}/listings`
         : '/listings/merchantid/self/listings';
 
-    const { data } = await client.get<HepsiburadaListingsResponse | Record<string, unknown>>(
-      path,
-      { params: { offset: page * 50, limit: 50 } },
-    );
+    const data = await this.listingRequest<
+      HepsiburadaListingsResponse | Record<string, unknown>
+    >(client, credentials, 'GET', path, {
+      params: { offset: page * 50, limit: 50 },
+    });
 
     const inner = extractListingsInner(data);
     if (!inner) {
@@ -292,26 +426,28 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    const { username, password } = credentials;
-    const merchantId = this.resolveMerchantId(credentials);
-    if (!merchantId) {
-      throw new Error('Hepsiburada merchantId veya username zorunlu');
-    }
-    const client = this.getListingClient(username, password, credentials);
-    const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/stock-uploads`;
-    const batches = chunk(updates, 50);
-    for (const batch of batches) {
-      const body = batch.map((u) => ({
-        merchantSku: u.barcode,
-        availableStock: u.quantity,
-      }));
-      await client.post(path, body);
-    }
+    const listings: HepsiburadaInventoryUploadItem[] = updates.map((u) => ({
+      hepsiburadaSku: u.barcode,
+      availableStock: u.quantity,
+    }));
+    await this.postInventoryUpload(credentials, listings);
   }
 
   async updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
+  ): Promise<void> {
+    const listings: HepsiburadaInventoryUploadItem[] = updates.map((u) => ({
+      hepsiburadaSku: u.barcode,
+      price: u.salePrice,
+      listingPrice: u.listPrice,
+    }));
+    await this.postInventoryUpload(credentials, listings);
+  }
+
+  private async postInventoryUpload(
+    credentials: Record<string, string>,
+    listings: HepsiburadaInventoryUploadItem[],
   ): Promise<void> {
     const { username, password } = credentials;
     const merchantId = this.resolveMerchantId(credentials);
@@ -319,16 +455,21 @@ export class HepsiburadaAdapter implements IMarketplaceAdapter {
       throw new Error('Hepsiburada merchantId veya username zorunlu');
     }
     const client = this.getListingClient(username, password, credentials);
-    const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/price-uploads`;
-    const batches = chunk(updates, 50);
+    const path = `/listings/merchantid/${encodeURIComponent(merchantId)}/inventory-uploads`;
+    const batches = chunk(listings, 50);
     for (const batch of batches) {
-      const body = batch.map((u) => ({
-        merchantSku: u.barcode,
-        price: u.salePrice,
-      }));
-      await client.post(path, body);
+      await this.listingRequest(client, credentials, 'POST', path, {
+        data: { listings: batch },
+      });
     }
   }
+}
+
+function formatHbDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${String(y)}-${m}-${day}`;
 }
 
 function extractListingsInner(
@@ -344,17 +485,6 @@ function extractListingsInner(
     return data as unknown as HepsiburadaListingsResponse['data'];
   }
   return null;
-}
-
-function moneyAmount(value: unknown): number {
-  if (value && typeof value === 'object' && 'amount' in value) {
-    const a = (value as { amount: unknown }).amount;
-    return typeof a === 'number' && Number.isFinite(a) ? a : 0;
-  }
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value;
-  }
-  return 0;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
