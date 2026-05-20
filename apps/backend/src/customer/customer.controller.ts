@@ -5,6 +5,7 @@ import {
   Header,
   Param,
   Patch,
+  Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -18,7 +19,11 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { CustomerNoteDto, CustomerQueryDto, CustomerTagsDto } from './customer.dto';
+import {
+  CustomerNoteDto,
+  CustomerQueryDto,
+  CustomerTagsDto,
+} from './customer.dto';
 import { CustomerService } from './customer.service';
 import type {
   CustomerDetail,
@@ -32,6 +37,29 @@ import type {
 export class CustomerController {
   constructor(private readonly customerService: CustomerService) {}
 
+  @Get('segments')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Müşteri segment istatistikleri' })
+  @ApiResponse({ status: 200, description: 'Segment sayıları ve gelir' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async getSegments(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: CustomerSegmentsSummary }> {
+    const data = await this.customerService.getSegments(org.id);
+    return { data };
+  }
+
+  @Get('export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="musteriler.csv"')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Müşteri listesi CSV dışa aktarım' })
+  @ApiResponse({ status: 200, description: 'CSV' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  async exportCsv(@CurrentOrg() org: CurrentOrgPayload): Promise<string> {
+    return this.customerService.exportCsv(org.id);
+  }
+
   @Get()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Müşteri listesi' })
@@ -40,42 +68,27 @@ export class CustomerController {
   async findAll(
     @CurrentOrg() org: CurrentOrgPayload,
     @Query() query: CustomerQueryDto,
-  ): Promise<{ items: SerializedCustomer[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    items: SerializedCustomer[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     return this.customerService.findAll(org.id, query);
-  }
-
-  @Get('segments')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Müşteri segment özeti' })
-  @ApiResponse({ status: 200, description: 'Segmentler' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
-  async getSegments(
-    @CurrentOrg() org: CurrentOrgPayload,
-  ): Promise<CustomerSegmentsSummary> {
-    return this.customerService.getSegments(org.id);
-  }
-
-  @Get('export/csv')
-  @UseGuards(JwtAuthGuard)
-  @Header('Content-Type', 'text/csv; charset=utf-8')
-  @ApiOperation({ summary: 'Müşteri listesini CSV olarak indir' })
-  @ApiResponse({ status: 200, description: 'CSV' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
-  async exportCsv(@CurrentOrg() org: CurrentOrgPayload): Promise<string> {
-    return this.customerService.exportCsv(org.id);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Müşteri detayı' })
+  @ApiOperation({ summary: 'Müşteri detayı ve sipariş geçmişi' })
   @ApiResponse({ status: 200, description: 'Detay' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
   async findOne(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
-  ): Promise<CustomerDetail> {
-    return this.customerService.findOne(org.id, id);
+  ): Promise<{ data: CustomerDetail }> {
+    const data = await this.customerService.findOne(org.id, id);
+    return { data };
   }
 
   @Patch(':id/tags')
@@ -88,24 +101,26 @@ export class CustomerController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: CustomerTagsDto,
-  ): Promise<SerializedCustomer> {
-    if (dto.action === 'add') {
-      return this.customerService.addTag(org.id, id, dto.tag);
-    }
-    return this.customerService.removeTag(org.id, id, dto.tag);
+  ): Promise<{ data: SerializedCustomer }> {
+    const data =
+      dto.action === 'add'
+        ? await this.customerService.addTag(org.id, id, dto.tag)
+        : await this.customerService.removeTag(org.id, id, dto.tag);
+    return { data };
   }
 
-  @Patch(':id/notes')
+  @Post(':id/notes')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Müşteriye not ekle' })
-  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 200, description: 'Not eklendi' })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   @ApiResponse({ status: 404, description: 'Bulunamadı' })
   async addNote(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: CustomerNoteDto,
-  ): Promise<SerializedCustomer> {
-    return this.customerService.addNote(org.id, id, dto.note);
+  ): Promise<{ data: SerializedCustomer }> {
+    const data = await this.customerService.addNote(org.id, id, dto.note);
+    return { data };
   }
 }

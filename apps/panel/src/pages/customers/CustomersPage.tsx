@@ -195,7 +195,7 @@ export function CustomersPage(): ReactElement {
       </div>
 
       {listQuery.isLoading ? (
-        <TableSkeleton columns={7} rows={8} />
+        <TableSkeleton cols={7} rows={8} />
       ) : listQuery.isError ? (
         <EmptyState
           icon={Users}

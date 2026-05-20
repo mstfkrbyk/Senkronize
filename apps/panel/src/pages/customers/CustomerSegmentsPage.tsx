@@ -147,15 +147,9 @@ export function CustomerSegmentsPage(): ReactElement {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number, _name, props) => {
-                      const payload = props.payload as {
-                        revenue: string;
-                      };
-                      return [
-                        `${value.toLocaleString('tr-TR')} müşteri · ${formatTryAmount(payload.revenue)}`,
-                        props.name,
-                      ];
-                    }}
+                    formatter={(v) =>
+                      `${Number(v ?? 0).toLocaleString('tr-TR')} müşteri`
+                    }
                   />
                 </PieChart>
               </ResponsiveContainer>
