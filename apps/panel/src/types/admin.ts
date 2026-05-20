@@ -4,6 +4,7 @@ export type SubStatus =
   | 'TRIAL'
   | 'ACTIVE'
   | 'PAUSED'
+  | 'CANCELING'
   | 'CANCELLED'
   | 'EXPIRED';
 

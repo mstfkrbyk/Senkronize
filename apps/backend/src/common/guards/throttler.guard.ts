@@ -1,5 +1,5 @@
 import { ExecutionContext, Injectable } from '@nestjs/common';
-import { ThrottlerGuard, type ThrottlerModuleOptions } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 /** Saniye cinsinden TTL — Nest Throttler milisaniye bekler. */
 export const rateLimitConfig = {
@@ -35,9 +35,7 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     return ip;
   }
 
-  protected getThrottlers(
-    context: ExecutionContext,
-  ): ThrottlerModuleOptions['throttlers'] {
+  protected getThrottlers(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<{
       originalUrl?: string;
       url?: string;

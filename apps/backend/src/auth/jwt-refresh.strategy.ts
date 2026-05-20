@@ -4,8 +4,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Request } from 'express';
 import { Strategy } from 'passport-jwt';
 import { UserRole } from '@prisma/client';
-import { AuthService } from './auth.service';
 import { JwtPayload } from './auth.types';
+import { SessionService } from './session.service';
 
 export type JwtRefreshValidatedUser = {
   id: string;
@@ -19,7 +19,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
   'jwt-refresh',
 ) {
   constructor(
-    private readonly authService: AuthService,
+    private readonly sessionService: SessionService,
     config: ConfigService,
   ) {
     super({
@@ -41,7 +41,7 @@ export class JwtRefreshStrategy extends PassportStrategy(
     if (!refreshToken) {
       throw new UnauthorizedException();
     }
-    const ok = await this.authService.validateRefreshToken(
+    const ok = await this.sessionService.validateRefreshToken(
       payload.sub,
       refreshToken,
     );
