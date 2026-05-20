@@ -374,9 +374,27 @@ export class MarketplaceConnectionService {
       platform === Marketplace.DECATHLON_TR ||
       platform === Marketplace.INTERSPORT_TR ||
       platform === Marketplace.SPORTIVE_TR ||
-      platform === Marketplace.ENEBA
+      platform === Marketplace.ENEBA ||
+      platform === Marketplace.MADE_COM ||
+      platform === Marketplace.ARTICLE ||
+      platform === Marketplace.JOSS_MAIN ||
+      platform === Marketplace.BIRCH_LANE ||
+      platform === Marketplace.PERIGOLD ||
+      platform === Marketplace.KARACA ||
+      platform === Marketplace.MADAME_COCO ||
+      platform === Marketplace.ENGLISH_HOME ||
+      platform === Marketplace.LINENS_N_THINGS ||
+      platform === Marketplace.OBI_TR ||
+      platform === Marketplace.BAUHAUS_TR
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (
+      platform === Marketplace.HOUZZ ||
+      platform === Marketplace.GARDENA
+    ) {
+      const label = creds.accessToken ?? creds.clientId;
+      return label ? `${label.slice(0, 6)}...` : null;
     }
     if (
       platform === Marketplace.GAMEFLIP ||

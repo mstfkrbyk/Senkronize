@@ -285,7 +285,20 @@ export type Marketplace =
   | 'GYMSHARK'
   | 'DECATHLON_TR'
   | 'INTERSPORT_TR'
-  | 'SPORTIVE_TR';
+  | 'SPORTIVE_TR'
+  | 'HOUZZ'
+  | 'MADE_COM'
+  | 'ARTICLE'
+  | 'JOSS_MAIN'
+  | 'BIRCH_LANE'
+  | 'PERIGOLD'
+  | 'KARACA'
+  | 'MADAME_COCO'
+  | 'ENGLISH_HOME'
+  | 'LINENS_N_THINGS'
+  | 'GARDENA'
+  | 'OBI_TR'
+  | 'BAUHAUS_TR';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

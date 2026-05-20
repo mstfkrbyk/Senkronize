@@ -22,6 +22,7 @@ import { AkulakuModule } from './akulaku/akulaku.module';
 import { AmericanasModule } from './americanas/americanas.module';
 import { ArcelikModule } from './arcelik/arcelik.module';
 import { AracimModule } from './aracim/aracim.module';
+import { ArticleModule } from './article/article.module';
 import { ArtsyModule } from './artsy/artsy.module';
 import { AmazonAdapter } from './amazon/amazon.adapter';
 import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
@@ -34,9 +35,11 @@ import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
 import { BoutiqaatModule } from './boutiqaat/boutiqaat.module';
 import { BackmarketModule } from './backmarket/backmarket.module';
+import { BauhausTrModule } from './bauhaus-tr/bauhaus-tr.module';
 import { BanabiModule } from './banabi/banabi.module';
 import { BestbuyModule } from './bestbuy/bestbuy.module';
 import { BigwModule } from './bigw/bigw.module';
+import { BirchLaneModule } from './birch-lane/birch-lane.module';
 import { BidorbuyModule } from './bidorbuy/bidorbuy.module';
 import { BimOnlineModule } from './bim-online/bim-online.module';
 import { BimakilliModule } from './bimakilli/bimakilli.module';
@@ -84,6 +87,7 @@ import { EbayMotorsModule } from './ebay-motors/ebay-motors.module';
 import { ElektraModule } from './elektra/elektra.module';
 import { EmagModule } from './emag/emag.module';
 import { EnebaModule } from './eneba/eneba.module';
+import { EnglishHomeModule } from './english-home/english-home.module';
 import { EnparaModule } from './enpara/enpara.module';
 import { EtaAdapter } from './eta/eta.adapter';
 import { EtsyModule } from './etsy/etsy.module';
@@ -108,10 +112,12 @@ import { GymsharkModule } from './gymshark/gymshark.module';
 import { GotoBusinessModule } from './goto-business/goto-business.module';
 import { GmarketModule } from './gmarket/gmarket.module';
 import { GrabMartModule } from './grab-mart/grab-mart.module';
+import { GardenaModule } from './gardena/gardena.module';
 import { G2aModule } from './g2a/g2a.module';
 import { GameflipModule } from './gameflip/gameflip.module';
 import { GittigidiyorModule } from './gittigidiyor/gittigidiyor.module';
 import { GratisModule } from './gratis/gratis.module';
+import { HouzzModule } from './houzz/houzz.module';
 import { HellofreshModule } from './hellofresh/hellofresh.module';
 import { HeurekaModule } from './heureka/heureka.module';
 import { IherbModule } from './iherb/iherb.module';
@@ -135,10 +141,12 @@ import { JdidModule } from './jdid/jdid.module';
 import { JdcomModule } from './jdcom/jdcom.module';
 import { JetModule } from './jet/jet.module';
 import { JiomartModule } from './jiomart/jiomart.module';
+import { JossMainModule } from './joss-main/joss-main.module';
 import { JoomModule } from './joom/joom.module';
 import { JumiaModule } from './jumia/jumia.module';
 import { LamodaModule } from './lamoda/lamoda.module';
 import { KauflandModule } from './kaufland/kaufland.module';
+import { KaracaModule } from './karaca/karaca.module';
 import { KaspiModule } from './kaspi/kaspi.module';
 import { KomplettModule } from './komplett/komplett.module';
 import { KinguinModule } from './kinguin/kinguin.module';
@@ -157,11 +165,14 @@ import { LookfantasticModule } from './lookfantastic/lookfantastic.module';
 import { LetgoModule } from './letgo/letgo.module';
 import { LidyanaModule } from './lidyana/lidyana.module';
 import { LidlModule } from './lidl/lidl.module';
+import { LinensNThingsModule } from './linens-n-things/linens-n-things.module';
 import { LinioModule } from './linio/linio.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
 import { LucaAdapter } from './luca/luca.adapter';
+import { MadeComModule } from './made-com/made-com.module';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
+import { MadameCocoModule } from './madame-coco/madame-coco.module';
 import { MagaluModule } from './magalu/magalu.module';
 import { MallCzModule } from './mall-cz/mall-cz.module';
 import { MagentoModule } from './magento/magento.module';
@@ -209,6 +220,7 @@ import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { Pazar365Module } from './pazar365/pazar365.module';
 import { PowerDkModule } from './power-dk/power-dk.module';
+import { PerigoldModule } from './perigold/perigold.module';
 import { PorlandModule } from './porland/porland.module';
 import { PoshmarkModule } from './poshmark/poshmark.module';
 import { PiguModule } from './pigu/pigu.module';
@@ -230,6 +242,7 @@ import { SendoModule } from './sendo/sendo.module';
 import { SheinModule } from './shein/shein.module';
 import { SivviModule } from './sivvi/sivvi.module';
 import { SharafDgModule } from './sharaf-dg/sharaf-dg.module';
+import { ObiTrModule } from './obi-tr/obi-tr.module';
 import { OberloModule } from './oberlo/oberlo.module';
 import { SahibindenB2bModule } from './sahibinden-b2b/sahibinden-b2b.module';
 import { SahibindenProModule } from './sahibinden-pro/sahibinden-pro.module';
@@ -353,6 +366,19 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ArcelikModule,
     AracimModule,
     ArtsyModule,
+    ArticleModule,
+    BauhausTrModule,
+    BirchLaneModule,
+    EnglishHomeModule,
+    GardenaModule,
+    HouzzModule,
+    JossMainModule,
+    KaracaModule,
+    LinensNThingsModule,
+    MadeComModule,
+    MadameCocoModule,
+    ObiTrModule,
+    PerigoldModule,
     BackmarketModule,
     BanabiModule,
     BestbuyModule,
@@ -679,6 +705,19 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ArcelikModule,
     AracimModule,
     ArtsyModule,
+    ArticleModule,
+    BauhausTrModule,
+    BirchLaneModule,
+    EnglishHomeModule,
+    GardenaModule,
+    HouzzModule,
+    JossMainModule,
+    KaracaModule,
+    LinensNThingsModule,
+    MadeComModule,
+    MadameCocoModule,
+    ObiTrModule,
+    PerigoldModule,
     BackmarketModule,
     BanabiModule,
     BestbuyModule,

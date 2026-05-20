@@ -28,12 +28,15 @@ import { AmazonJpAdapter } from './amazon-jp/amazon-jp.adapter';
 import { AmazonUkAdapter } from './amazon-uk/amazon-uk.adapter';
 import { ArcelikAdapter } from './arcelik/arcelik.adapter';
 import { AracimAdapter } from './aracim/aracim.adapter';
+import { ArticleAdapter } from './article/article.adapter';
 import { ArtsyAdapter } from './artsy/artsy.adapter';
 import { BoutiqaatAdapter } from './boutiqaat/boutiqaat.adapter';
 import { BackmarketAdapter } from './backmarket/backmarket.adapter';
+import { BauhausTrAdapter } from './bauhaus-tr/bauhaus-tr.adapter';
 import { BanabiAdapter } from './banabi/banabi.adapter';
 import { BestbuyAdapter } from './bestbuy/bestbuy.adapter';
 import { BigwAdapter } from './bigw/bigw.adapter';
+import { BirchLaneAdapter } from './birch-lane/birch-lane.adapter';
 import { BidorbuyAdapter } from './bidorbuy/bidorbuy.adapter';
 import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
 import { LogoErpAdapter } from './erp/logo-erp.adapter';
@@ -78,6 +81,7 @@ import { DlgamerAdapter } from './dlgamer/dlgamer.adapter';
 import { DustinAdapter } from './dustin/dustin.adapter';
 import { DolapAdapter } from './dolap/dolap.adapter';
 import { DrAdapter } from './dr/dr.adapter';
+import { EnglishHomeAdapter } from './english-home/english-home.adapter';
 import { EllosAdapter } from './ellos/ellos.adapter';
 import { Ec21Adapter } from './ec21/ec21.adapter';
 import { EbayAdapter } from './ebay/ebay.adapter';
@@ -108,6 +112,7 @@ import { GotoBusinessAdapter } from './goto-business/goto-business.adapter';
 import { GmarketAdapter } from './gmarket/gmarket.adapter';
 import { GrabMartAdapter } from './grab-mart/grab-mart.adapter';
 import { GlobalSourcesAdapter } from './global-sources/global-sources.adapter';
+import { GardenaAdapter } from './gardena/gardena.adapter';
 import { G2aAdapter } from './g2a/g2a.adapter';
 import { GameflipAdapter } from './gameflip/gameflip.adapter';
 import { GittigidiyorAdapter } from './gittigidiyor/gittigidiyor.adapter';
@@ -120,6 +125,7 @@ import { HepsiburadaAdapter } from './hepsiburada/hepsiburada.adapter';
 import { HepsiburadaPremiumAdapter } from './hepsiburada-premium/hepsiburada-premium.adapter';
 import { HepsiexpressAdapter } from './hepsiexpress/hepsiexpress.adapter';
 import { HizliresmiAdapter } from './hizliresmi/hizliresmi.adapter';
+import { HouzzAdapter } from './houzz/houzz.adapter';
 import { HarveyNormanAdapter } from './harvey-norman/harvey-norman.adapter';
 import { IdeasoftAdapter } from './ideasoft/ideasoft.adapter';
 import { IdealoAdapter } from './idealo/idealo.adapter';
@@ -136,10 +142,12 @@ import { JdidAdapter } from './jdid/jdid.adapter';
 import { JdcomAdapter } from './jdcom/jdcom.adapter';
 import { JetAdapter } from './jet/jet.adapter';
 import { JiomartAdapter } from './jiomart/jiomart.adapter';
+import { JossMainAdapter } from './joss-main/joss-main.adapter';
 import { JoomAdapter } from './joom/joom.adapter';
 import { JumiaAdapter } from './jumia/jumia.adapter';
 import { LamodaAdapter } from './lamoda/lamoda.adapter';
 import { KauflandAdapter } from './kaufland/kaufland.adapter';
+import { KaracaAdapter } from './karaca/karaca.adapter';
 import { KaspiAdapter } from './kaspi/kaspi.adapter';
 import { KomplettAdapter } from './komplett/komplett.adapter';
 import { KilimallAdapter } from './kilimall/kilimall.adapter';
@@ -154,6 +162,7 @@ import { LcwaikikiAdapter } from './lcwaikiki/lcwaikiki.adapter';
 import { LookfantasticAdapter } from './lookfantastic/lookfantastic.adapter';
 import { LidyanaAdapter } from './lidyana/lidyana.adapter';
 import { LidlAdapter } from './lidl/lidl.adapter';
+import { LinensNThingsAdapter } from './linens-n-things/linens-n-things.adapter';
 import { LinioAdapter } from './linio/linio.adapter';
 import { LogoCommerceAdapter } from './logo-commerce/logo-commerce.adapter';
 import { LogoCloudAdapter } from './logo-cloud/logo-cloud.adapter';
@@ -162,7 +171,9 @@ import { LazadaPhAdapter } from './lazada-ph/lazada-ph.adapter';
 import { LaredouteAdapter } from './laredoute/laredoute.adapter';
 import { LetgoAdapter } from './letgo/letgo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
+import { MadeComAdapter } from './made-com/made-com.adapter';
 import { MadeinchinaAdapter } from './madeinchina/madeinchina.adapter';
+import { MadameCocoAdapter } from './madame-coco/madame-coco.adapter';
 import { MagaluAdapter } from './magalu/magalu.adapter';
 import { MallCzAdapter } from './mall-cz/mall-cz.adapter';
 import { MagentoAdapter } from './magento/magento.adapter';
@@ -191,6 +202,7 @@ import { MyntraAdapter } from './myntra/myntra.adapter';
 import { N11Adapter } from './n11/n11.adapter';
 import { N11ProAdapter } from './n11-pro/n11-pro.adapter';
 import { NotinoAdapter } from './notino/notino.adapter';
+import { ObiTrAdapter } from './obi-tr/obi-tr.adapter';
 import { OberloAdapter } from './oberlo/oberlo.adapter';
 import { NamshiAdapter } from './namshi/namshi.adapter';
 import { NetsisAdapter } from './netsis/netsis.adapter';
@@ -211,6 +223,7 @@ import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumAdapter } from './pazarama-premium/pazarama-premium.adapter';
 import { Pazar365Adapter } from './pazar365/pazar365.adapter';
 import { PowerDkAdapter } from './power-dk/power-dk.adapter';
+import { PerigoldAdapter } from './perigold/perigold.adapter';
 import { PorlandAdapter } from './porland/porland.adapter';
 import { PoshmarkAdapter } from './poshmark/poshmark.adapter';
 import { PiguAdapter } from './pigu/pigu.adapter';
@@ -340,6 +353,7 @@ export class AdapterRegistry {
     private readonly newegg: NeweggAdapter,
     private readonly cdiscount: CdiscountAdapter,
     private readonly kaufland: KauflandAdapter,
+    private readonly karaca: KaracaAdapter,
     private readonly kaspi: KaspiAdapter,
     private readonly trendyol: TrendyolAdapter,
     private readonly hellofresh: HellofreshAdapter,
@@ -375,6 +389,7 @@ export class AdapterRegistry {
     private readonly mumzworld: MumzworldAdapter,
     private readonly morhipo: MorhipoAdapter,
     private readonly dolap: DolapAdapter,
+    private readonly englishHome: EnglishHomeAdapter,
     private readonly ellos: EllosAdapter,
     private readonly ebay: EbayAdapter,
     private readonly ebayMotors: EbayMotorsAdapter,
@@ -420,11 +435,14 @@ export class AdapterRegistry {
     private readonly asos: AsosAdapter,
     private readonly arcelik: ArcelikAdapter,
     private readonly aracim: AracimAdapter,
+    private readonly article: ArticleAdapter,
     private readonly artsy: ArtsyAdapter,
     private readonly backmarket: BackmarketAdapter,
+    private readonly bauhausTr: BauhausTrAdapter,
     private readonly banabi: BanabiAdapter,
     private readonly bestbuy: BestbuyAdapter,
     private readonly bigw: BigwAdapter,
+    private readonly birchLane: BirchLaneAdapter,
     private readonly bidorbuy: BidorbuyAdapter,
     private readonly bimakilli: BimakilliAdapter,
     private readonly bimOnline: BimOnlineAdapter,
@@ -472,9 +490,11 @@ export class AdapterRegistry {
     private readonly alibabaTr: AlibabaTrAdapter,
     private readonly autods: AutodsAdapter,
     private readonly autotrader: AutotraderAdapter,
+    private readonly madeCom: MadeComAdapter,
     private readonly madeinchina: MadeinchinaAdapter,
     private readonly exportify: ExportifyAdapter,
     private readonly globalSources: GlobalSourcesAdapter,
+    private readonly gardena: GardenaAdapter,
     private readonly g2a: G2aAdapter,
     private readonly gameflip: GameflipAdapter,
     private readonly gittigidiyor: GittigidiyorAdapter,
@@ -512,6 +532,7 @@ export class AdapterRegistry {
     private readonly tazeDirekt: TazeDirektAdapter,
     private readonly meesho: MeeshoAdapter,
     private readonly powerDk: PowerDkAdapter,
+    private readonly perigold: PerigoldAdapter,
     private readonly porland: PorlandAdapter,
     private readonly poshmark: PoshmarkAdapter,
     private readonly pigu: PiguAdapter,
@@ -544,6 +565,7 @@ export class AdapterRegistry {
     private readonly indiamart: IndiamartAdapter,
     private readonly n11Pro: N11ProAdapter,
     private readonly notino: NotinoAdapter,
+    private readonly obiTr: ObiTrAdapter,
     private readonly oberlo: OberloAdapter,
     private readonly onbuy: OnbuyAdapter,
     private readonly otto: OttoAdapter,
@@ -567,6 +589,7 @@ export class AdapterRegistry {
     private readonly jdcom: JdcomAdapter,
     private readonly jet: JetAdapter,
     private readonly jiomart: JiomartAdapter,
+    private readonly jossMain: JossMainAdapter,
     private readonly joom: JoomAdapter,
     private readonly jumia: JumiaAdapter,
     private readonly lamoda: LamodaAdapter,
@@ -625,9 +648,12 @@ export class AdapterRegistry {
     private readonly gmarket: GmarketAdapter,
     private readonly grabMart: GrabMartAdapter,
     private readonly hizliresmi: HizliresmiAdapter,
+    private readonly houzz: HouzzAdapter,
     private readonly harveyNorman: HarveyNormanAdapter,
     private readonly ikasMp: IkasMpAdapter,
+    private readonly linensNThings: LinensNThingsAdapter,
     private readonly linio: LinioAdapter,
+    private readonly madameCoco: MadameCocoAdapter,
     private readonly magalu: MagaluAdapter,
     private readonly mallCz: MallCzAdapter,
     private readonly ticimaxMp: TicimaxMpAdapter,
@@ -653,6 +679,7 @@ export class AdapterRegistry {
       ['NEWEGG', newegg],
       ['CDISCOUNT', cdiscount],
       ['KAUFLAND', kaufland],
+      ['KARACA', karaca],
       ['KASPI', kaspi],
       ['KINGUIN', kinguin],
       ['KITAPYURDU', kitapyurdu],
@@ -687,6 +714,7 @@ export class AdapterRegistry {
       ['SAHIBINDEN_PREMIUM', sahibindenPremium],
       ['SPOCKET', spocket],
       ['MIGROS', migros],
+      ['MADE_COM', madeCom],
       ['MADEINCHINA', madeinchina],
       ['HEPSIEXPRESS', hepsiexpress],
       ['FLO', flo],
@@ -730,8 +758,10 @@ export class AdapterRegistry {
       ['ASOS', asos],
       ['ARCELIK', arcelik],
       ['ARACIM', aracim],
+      ['ARTICLE', article],
       ['ARSY', artsy],
       ['BACKMARKET', backmarket],
+      ['BAUHAUS_TR', bauhausTr],
       ['BANABI', banabi],
       ['BIMAKILLI', bimakilli],
       ['BIM_ONLINE', bimOnline],
@@ -764,6 +794,7 @@ export class AdapterRegistry {
       ['CENEO', ceneo],
       ['CHAIRISH', chairish],
       ['DUSTIN', dustin],
+      ['ENGLISH_HOME', englishHome],
       ['ELLOS', ellos],
       ['HEUREKA', heureka],
       ['KOMPLETT', komplett],
@@ -783,6 +814,7 @@ export class AdapterRegistry {
       ['GETIR_MARKET', getirMarket],
       ['GETIR_YEMEK', getirYemek],
       ['GLOBAL_SOURCES', globalSources],
+      ['GARDENA', gardena],
       ['G2A', g2a],
       ['GAMEFLIP', gameflip],
       ['GITTIGIDIYOR', gittigidiyor],
@@ -797,6 +829,7 @@ export class AdapterRegistry {
       ['LIDL', lidl],
       ['MODACRUZ', modacruz],
       ['MODANISA', modanisa],
+      ['PERIGOLD', perigold],
       ['PORLAND', porland],
       ['POSHMARK', poshmark],
       ['PIGU', pigu],
@@ -841,6 +874,7 @@ export class AdapterRegistry {
       ['PAZAR365', pazar365],
       ['N11_PRO', n11Pro],
       ['NOTINO', notino],
+      ['OBI_TR', obiTr],
       ['OBERLO', oberlo],
       ['NAMSHI', namshi],
       ['CARREFOUR_ME', carrefourMe],
@@ -852,6 +886,7 @@ export class AdapterRegistry {
       ['JDCOM', jdcom],
       ['JET', jet],
       ['JIOMART', jiomart],
+      ['JOSS_MAIN', jossMain],
       ['JOOM', joom],
       ['JUMIA', jumia],
       ['LAMODA', lamoda],
@@ -898,6 +933,7 @@ export class AdapterRegistry {
       ['TRADESY', tradesy],
       ['YANDEX_MARKET', yandexMarket],
       ['TAKEALOT', takealot],
+      ['BIRCH_LANE', birchLane],
       ['BIDORBUY', bidorbuy],
       ['KILIMALL', kilimall],
       ['KONGA', konga],
@@ -917,9 +953,12 @@ export class AdapterRegistry {
       ['GMARKET', gmarket],
       ['GRAB_MART', grabMart],
       ['HIZLIRESMI', hizliresmi],
+      ['HOUZZ', houzz],
       ['HARVEY_NORMAN', harveyNorman],
       ['IKAS_MP', ikasMp],
+      ['LINENS_N_THINGS', linensNThings],
       ['LINIO', linio],
+      ['MADAME_COCO', madameCoco],
       ['MAGALU', magalu],
       ['MALL_CZ', mallCz],
       ['TICIMAX_MP', ticimaxMp],

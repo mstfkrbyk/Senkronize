@@ -266,6 +266,19 @@ export const MARKETPLACE_LABEL_TR: Partial<Record<Marketplace, string>> = {
   [Marketplace.DECATHLON_TR]: 'Decathlon TR',
   [Marketplace.INTERSPORT_TR]: 'Intersport TR',
   [Marketplace.SPORTIVE_TR]: 'Sportive TR',
+  [Marketplace.HOUZZ]: 'Houzz',
+  [Marketplace.MADE_COM]: 'Made.com',
+  [Marketplace.ARTICLE]: 'Article',
+  [Marketplace.JOSS_MAIN]: 'Joss & Main',
+  [Marketplace.BIRCH_LANE]: 'Birch Lane',
+  [Marketplace.PERIGOLD]: 'Perigold',
+  [Marketplace.KARACA]: 'Karaca',
+  [Marketplace.MADAME_COCO]: 'Madame Coco',
+  [Marketplace.ENGLISH_HOME]: 'English Home',
+  [Marketplace.LINENS_N_THINGS]: "Linens 'n Things",
+  [Marketplace.GARDENA]: 'Gardena',
+  [Marketplace.OBI_TR]: 'Obi TR',
+  [Marketplace.BAUHAUS_TR]: 'Bauhaus TR',
 };
 
 @Injectable()
