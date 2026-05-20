@@ -18,12 +18,10 @@ import {
 } from '../../common/utils/http-retry';
 import {
   isRecord,
-  normalizeOrdersRows,
   normalizeProductRows,
   parseMoney,
   throwSyncFailed,
 } from '../stub-helpers';
-import type { StubRestOrder, StubRestOrderLine } from '../internal/rest-stub-marketplace.types';
 
 const SHOPEE_BASE = 'https://partner.shopeemobile.com';
 
@@ -37,6 +35,19 @@ function shopeeSign(
 ): string {
   const base = `${partnerId}${path}${timestamp}${accessToken}${shopId}`;
   return createHmac('sha256', partnerKey).update(base, 'utf8').digest('hex');
+}
+
+function unwrapShopeeResponse(data: unknown): Record<string, unknown> {
+  if (!isRecord(data)) {
+    throw new Error('Shopee: geçersiz API yanıtı');
+  }
+  const err = data.error;
+  if (typeof err === 'string' && err.length > 0) {
+    const msg = typeof data.message === 'string' ? data.message : err;
+    throw new Error(`Shopee: ${msg}`);
+  }
+  const inner = data.response;
+  return isRecord(inner) ? inner : data;
 }
 
 @Injectable()
@@ -59,7 +70,10 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     shopId: string;
   } {
     const partnerId = credentials.partnerId?.trim();
-    const partnerKey = credentials.partnerKey?.trim();
+    const partnerKey =
+      credentials.partnerKey?.trim() ??
+      credentials.apiSecret?.trim() ??
+      credentials.secretKey?.trim();
     const accessToken = credentials.accessToken?.trim();
     const shopId = credentials.shopId?.trim();
     if (!partnerId || !partnerKey || !accessToken || !shopId) {
@@ -68,11 +82,16 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     return { partnerId, partnerKey, accessToken, shopId };
   }
 
-  private signedParams(
+  private signedQuery(
     credentials: Record<string, string>,
     path: string,
-    extra: Record<string, string>,
-  ): Record<string, string> {
+  ): {
+    partner_id: string;
+    timestamp: string;
+    access_token: string;
+    shop_id: string;
+    sign: string;
+  } {
     const { partnerId, partnerKey, accessToken, shopId } = this.requireCreds(credentials);
     const timestamp = Math.floor(Date.now() / 1000);
     const sign = shopeeSign(partnerKey, partnerId, path, timestamp, accessToken, shopId);
@@ -82,78 +101,118 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
       access_token: accessToken,
       shop_id: shopId,
       sign,
-      ...extra,
     };
+  }
+
+  private async get<T>(
+    credentials: Record<string, string>,
+    path: string,
+    params: Record<string, string> = {},
+  ): Promise<T> {
+    const query = { ...this.signedQuery(credentials, path), ...params };
+    const data = await axiosWithRetry<unknown>(
+      {
+        method: 'GET',
+        url: `${SHOPEE_BASE}${path}`,
+        timeout: 25_000,
+        params: query,
+      },
+      {},
+    );
+    return unwrapShopeeResponse(data) as T;
+  }
+
+  private async post<T>(
+    credentials: Record<string, string>,
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
+    const query = this.signedQuery(credentials, path);
+    const data = await axiosWithRetry<unknown>(
+      {
+        method: 'POST',
+        url: `${SHOPEE_BASE}${path}`,
+        timeout: 25_000,
+        params: query,
+        headers: { 'Content-Type': 'application/json' },
+        data: body,
+      },
+      {},
+    );
+    return unwrapShopeeResponse(data) as T;
   }
 
   private mapOrder(row: unknown): MarketplaceOrder | null {
     if (!isRecord(row)) {
       return null;
     }
-    const o = row as StubRestOrder;
-    const idRaw = o.id ?? o.order_id ?? o.order_sn;
+    const idRaw = row.order_sn ?? row.order_id ?? row.id;
     if (idRaw === undefined || idRaw === null) {
       return null;
     }
-    const lines = o.lines ?? o.items ?? [];
-    const createdRaw = o.created_at ?? o.create_time;
+    const lines = row.item_list ?? row.lines ?? row.items ?? [];
+    const createdRaw = row.create_time ?? row.created_at;
     const createdAt =
-      typeof createdRaw === 'string' && createdRaw.length > 0
-        ? new Date(createdRaw).toISOString()
-        : typeof createdRaw === 'number' && Number.isFinite(createdRaw)
-          ? new Date(createdRaw * 1000).toISOString()
+      typeof createdRaw === 'number' && Number.isFinite(createdRaw)
+        ? new Date(createdRaw * 1000).toISOString()
+        : typeof createdRaw === 'string' && createdRaw.length > 0
+          ? new Date(createdRaw).toISOString()
           : new Date().toISOString();
+    const recipient = isRecord(row.recipient_address) ? row.recipient_address : null;
     const name =
-      typeof o.customer_name === 'string' && o.customer_name.length > 0
-        ? o.customer_name
-        : typeof o.buyer_username === 'string' && o.buyer_username.length > 0
-          ? o.buyer_username
+      typeof row.buyer_username === 'string' && row.buyer_username.length > 0
+        ? row.buyer_username
+        : recipient && typeof recipient.name === 'string'
+          ? recipient.name
           : '—';
+    const lineArr = Array.isArray(lines) ? lines : [];
     return {
       platformOrderId: String(idRaw),
-      status: typeof o.status === 'string' ? o.status : 'NEW',
+      status: typeof row.order_status === 'string' ? row.order_status : 'NEW',
       customerName: name,
-      items: lines.map((l: StubRestOrderLine) => ({
-        sku: typeof l.sku === 'string' ? l.sku : String(l.barcode ?? ''),
-        barcode: typeof l.barcode === 'string' ? l.barcode : String(l.sku ?? ''),
+      items: lineArr.filter(isRecord).map((line) => ({
+        sku: typeof line.model_sku === 'string' ? line.model_sku : String(line.item_sku ?? ''),
+        barcode:
+          typeof line.item_sku === 'string'
+            ? line.item_sku
+            : String(line.model_sku ?? line.item_id ?? ''),
         quantity:
-          typeof l.quantity === 'number' && Number.isFinite(l.quantity)
-            ? Math.max(0, Math.round(l.quantity))
-            : 0,
-        unitPrice: parseMoney(l.unit_price ?? l.price),
+          typeof line.model_quantity_purchased === 'number' &&
+          Number.isFinite(line.model_quantity_purchased)
+            ? Math.max(0, Math.round(line.model_quantity_purchased))
+            : typeof line.quantity === 'number' && Number.isFinite(line.quantity)
+              ? Math.max(0, Math.round(line.quantity))
+              : 0,
+        unitPrice: parseMoney(
+          line.model_discounted_price ?? line.model_original_price ?? line.unit_price,
+        ),
         platformItemId:
-          l.id !== undefined && l.id !== null ? String(l.id) : String(l.sku ?? ''),
+          line.order_item_id !== undefined && line.order_item_id !== null
+            ? String(line.order_item_id)
+            : line.item_id !== undefined && line.item_id !== null
+              ? String(line.item_id)
+              : String(line.model_id ?? ''),
         productName:
-          typeof l.product_name === 'string'
-            ? l.product_name
-            : typeof l.title === 'string'
-              ? l.title
+          typeof line.item_name === 'string'
+            ? line.item_name
+            : typeof line.product_name === 'string'
+              ? line.product_name
               : undefined,
       })),
-      totalAmount: parseMoney(o.total_amount ?? o.total),
-      currency: typeof o.currency === 'string' ? o.currency : 'MYR',
+      totalAmount: parseMoney(row.total_amount ?? row.escrow_amount),
+      currency: typeof row.currency === 'string' ? row.currency : 'MYR',
       createdAt,
       cargoTrackingNumber:
-        typeof o.tracking_number === 'string' ? o.tracking_number : undefined,
+        typeof row.tracking_number === 'string' ? row.tracking_number : undefined,
       cargoProvider:
-        typeof o.courier_name === 'string' ? o.courier_name : undefined,
+        typeof row.shipping_carrier === 'string' ? row.shipping_carrier : undefined,
     };
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const path = '/api/v2/shop/get_shop_info';
-      const params = this.signedParams(credentials, path, {});
       await withRateLimit('SHOPEE', this.rpm(), async () => {
-        await axiosWithRetry<unknown>(
-          {
-            method: 'GET',
-            url: `${SHOPEE_BASE}${path}`,
-            timeout: 12_000,
-            params,
-          },
-          { maxRetries: 1 },
-        );
+        await this.get<unknown>(credentials, '/api/v2/shop/get_shop_info');
       });
       return true;
     } catch (error) {
@@ -169,28 +228,68 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
-      const path = '/api/v2/order/get_order_list';
-      const extra: Record<string, string> = {};
-      if (since) {
-        extra.time_from = String(Math.floor(since.getTime() / 1000));
-      }
-      const params = this.signedParams(credentials, path, extra);
-      let rows: MarketplaceOrder[] = [];
-      await withRateLimit('SHOPEE', this.rpm(), async () => {
-        const data = await axiosWithRetry<unknown>(
-          {
-            method: 'GET',
-            url: `${SHOPEE_BASE}${path}`,
-            timeout: 20_000,
+      const now = Math.floor(Date.now() / 1000);
+      const timeFrom = since
+        ? Math.floor(since.getTime() / 1000)
+        : now - 7 * 24 * 3600;
+      const orderSns: string[] = [];
+      let cursor = '';
+
+      for (;;) {
+        const params: Record<string, string> = {
+          time_range_field: 'create_time',
+          time_from: String(timeFrom),
+          time_to: String(now),
+          page_size: '50',
+          order_status: 'READY_TO_SHIP',
+        };
+        if (cursor.length > 0) {
+          params.cursor = cursor;
+        }
+        const listPage = await withRateLimit('SHOPEE', this.rpm(), async () =>
+          this.get<Record<string, unknown>>(
+            credentials,
+            '/api/v2/order/get_order_list',
             params,
-          },
-          {},
+          ),
         );
-        rows = normalizeOrdersRows(data)
-          .map((r) => this.mapOrder(r))
-          .filter((x): x is MarketplaceOrder => x !== null);
-      });
-      return rows;
+        const list = Array.isArray(listPage.order_list) ? listPage.order_list : [];
+        for (const entry of list) {
+          if (isRecord(entry) && typeof entry.order_sn === 'string') {
+            orderSns.push(entry.order_sn);
+          }
+        }
+        const more = listPage.more === true;
+        const next =
+          typeof listPage.next_cursor === 'string' ? listPage.next_cursor : '';
+        if (!more || next.length === 0) {
+          break;
+        }
+        cursor = next;
+      }
+
+      if (orderSns.length === 0) {
+        return [];
+      }
+
+      const orders: MarketplaceOrder[] = [];
+      const chunkSize = 50;
+      for (let i = 0; i < orderSns.length; i += chunkSize) {
+        const chunk = orderSns.slice(i, i + chunkSize);
+        const detail = await withRateLimit('SHOPEE', this.rpm(), async () =>
+          this.get<Record<string, unknown>>(credentials, '/api/v2/order/get_order_detail', {
+            order_sn_list: chunk.join(','),
+          }),
+        );
+        const detailList = Array.isArray(detail.order_list) ? detail.order_list : [];
+        for (const row of detailList) {
+          const mapped = this.mapOrder(row);
+          if (mapped) {
+            orders.push(mapped);
+          }
+        }
+      }
+      return orders;
     } catch (error) {
       throwSyncFailed(this.platform, 'getOrders', error);
     }
@@ -201,50 +300,44 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     try {
-      const path = '/api/v2/product/get_item_list';
-      const params = this.signedParams(credentials, path, {
-        offset: String(page * 50),
-        page_size: '50',
-      });
-      const { rows, total } = await withRateLimit('SHOPEE', this.rpm(), async () => {
-        const data = await axiosWithRetry<unknown>(
-          {
-            method: 'GET',
-            url: `${SHOPEE_BASE}${path}`,
-            timeout: 20_000,
-            params,
-          },
-          {},
-        );
-        return normalizeProductRows(data);
-      });
+      const data = await withRateLimit('SHOPEE', this.rpm(), async () =>
+        this.get<unknown>(credentials, '/api/v2/product/get_item_list', {
+          offset: String(page * 50),
+          page_size: '50',
+        }),
+      );
+      const { rows, total } = normalizeProductRows(data);
       const items: MarketplaceListing[] = rows.map((row, i) => {
         const p = isRecord(row) ? row : {};
         const idRaw = p.item_id ?? p.id ?? p.sku;
         const id =
           idRaw !== undefined && idRaw !== null ? String(idRaw) : `row-${i}`;
         const barcode =
-          typeof p.barcode === 'string'
-            ? p.barcode
+          typeof p.item_sku === 'string'
+            ? p.item_sku
             : typeof p.sku === 'string'
               ? p.sku
               : id;
-        const titleRaw = p.title ?? p.name ?? barcode;
+        const titleRaw = p.item_name ?? p.title ?? p.name ?? barcode;
         const title =
           typeof titleRaw === 'string' ? titleRaw : String(titleRaw);
-        const sale = parseMoney(p.sale_price ?? p.price);
-        const qtyRaw = p.stock ?? p.quantity ?? 0;
+        const priceInfo = isRecord(p.price_info) ? p.price_info : null;
+        const stockInfo = isRecord(p.stock_info) ? p.stock_info : null;
+        const sale = parseMoney(
+          priceInfo?.current_price ?? priceInfo?.original_price ?? p.sale_price ?? p.price,
+        );
+        const qtyRaw = stockInfo?.current_stock ?? p.stock ?? p.quantity ?? 0;
         const quantity =
           typeof qtyRaw === 'number' && Number.isFinite(qtyRaw)
             ? Math.max(0, Math.round(qtyRaw))
             : 0;
         const images: string[] = [];
-        if (Array.isArray(p.images)) {
-          for (const im of p.images) {
+        if (Array.isArray(p.image)) {
+          for (const im of p.image) {
             if (typeof im === 'string') {
               images.push(im);
-            } else if (isRecord(im) && typeof im.url === 'string') {
-              images.push(im.url);
+            } else if (isRecord(im) && typeof im.image_url === 'string') {
+              images.push(im.image_url);
             }
           }
         }
@@ -254,8 +347,8 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
           title,
           quantity,
           salePrice: sale,
-          listPrice: parseMoney(p.list_price ?? sale),
-          approved: p.active !== false,
+          listPrice: parseMoney(priceInfo?.original_price ?? sale),
+          approved: p.item_status !== 'UNLIST',
           images,
         };
       });
@@ -275,22 +368,15 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     try {
-      const path = '/api/v2/product/update_stock';
-      const params = this.signedParams(credentials, path, {
-        stock_list: JSON.stringify(
-          updates.map((u) => ({ item_sku: u.barcode, stock: u.quantity })),
-        ),
-      });
+      const stock_list = updates.map((u) => ({
+        model_id: 0,
+        item_id: Number.parseInt(u.barcode, 10) || u.barcode,
+        normal_stock: u.quantity,
+      }));
       await withRateLimit('SHOPEE', this.rpm(), async () => {
-        await axiosWithRetry<unknown>(
-          {
-            method: 'POST',
-            url: `${SHOPEE_BASE}${path}`,
-            timeout: 20_000,
-            params,
-          },
-          {},
-        );
+        await this.post<unknown>(credentials, '/api/v2/product/update_stock', {
+          stock_list,
+        });
       });
     } catch (error) {
       throwSyncFailed(this.platform, 'updateStock', error);
@@ -302,29 +388,39 @@ export class ShopeeAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     try {
-      const path = '/api/v2/product/update_price';
-      const params = this.signedParams(credentials, path, {
-        price_list: JSON.stringify(
-          updates.map((u) => ({
-            item_sku: u.barcode,
-            price: u.salePrice,
-            original_price: u.listPrice,
-          })),
-        ),
-      });
-      await withRateLimit('SHOPEE', this.rpm(), async () => {
-        await axiosWithRetry<unknown>(
-          {
-            method: 'POST',
-            url: `${SHOPEE_BASE}${path}`,
-            timeout: 20_000,
-            params,
-          },
-          {},
-        );
-      });
+      for (const u of updates) {
+        const item_id = Number.parseInt(u.barcode, 10) || u.barcode;
+        await withRateLimit('SHOPEE', this.rpm(), async () => {
+          await this.post<unknown>(credentials, '/api/v2/product/update_price', {
+            item_id,
+            price_list: [{ model_id: 0, original_price: u.salePrice }],
+          });
+        });
+      }
     } catch (error) {
       throwSyncFailed(this.platform, 'updatePrice', error);
+    }
+  }
+
+  /** Kargo bildirimi — POST /logistics/init */
+  async initLogistics(
+    credentials: Record<string, string>,
+    orderSn: string,
+    trackingNo: string,
+    logisticsChannelId: number,
+    packageNumber = '',
+  ): Promise<void> {
+    try {
+      await withRateLimit('SHOPEE', this.rpm(), async () => {
+        await this.post<unknown>(credentials, '/api/v2/logistics/init', {
+          order_sn: orderSn,
+          package_number: packageNumber,
+          tracking_no: trackingNo,
+          logistics_channel_id: logisticsChannelId,
+        });
+      });
+    } catch (error) {
+      throwSyncFailed(this.platform, 'initLogistics', error);
     }
   }
 }

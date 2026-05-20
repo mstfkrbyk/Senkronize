@@ -95,7 +95,9 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
+      "^@/(.*)$": "<rootDir>/$1",
+      "^archiver$": "<rootDir>/../test/__mocks__/archiver.ts",
+      "^puppeteer$": "<rootDir>/../test/__mocks__/puppeteer.ts"
     }
   },
   "prisma": {

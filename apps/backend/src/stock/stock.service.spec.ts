@@ -19,8 +19,9 @@ import { WarehouseService } from '../warehouse/warehouse.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 
-import { StockAdjustDto } from './stock.dto';
+import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { CacheService } from '../common/cache/cache.service';
+import { StockAdjustDto } from './stock.dto';
 import { StockMovementService } from './stock-movement.service';
 import { StockService } from './stock.service';
 
@@ -94,6 +95,10 @@ describe('StockService', () => {
               (_k: string, _t: number, fn: () => Promise<unknown>) => fn(),
             ),
           },
+        },
+        {
+          provide: ErpSyncSettingsService,
+          useValue: { isErpStockSyncEnabled: jest.fn().mockResolvedValue(false) },
         },
       ],
     }).compile();
