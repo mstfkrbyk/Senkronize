@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ErpConnectionModule } from '../erp-connection/erp-connection.module';
+import { CustomerModule } from '../customer/customer.module';
 import { ImageModule } from '../image/image.module';
 import { ImageSyncProcessor } from '../image/image-sync.processor';
 import { ImageProcessor } from '../image/image.processor';
@@ -35,6 +36,7 @@ import { InAppNotificationModule } from '../notifications/in-app/in-app-notifica
     SyncStatusModule,
     MarketplaceConnectionModule,
     OrderModule,
+    CustomerModule,
     ErpConnectionModule,
     ListingModule,
     PricingModule,

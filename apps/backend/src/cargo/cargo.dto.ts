@@ -28,3 +28,9 @@ export class CompareCargoRatesDto {
   @Min(0.1)
   weightKg?: number;
 }
+
+export class OptimalCarrierQueryDto {
+  @IsString()
+  @IsNotEmpty()
+  orderId!: string;
+}

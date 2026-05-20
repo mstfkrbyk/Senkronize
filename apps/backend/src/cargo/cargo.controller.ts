@@ -19,7 +19,13 @@ import {
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-import { CargoShipmentQueryDto, CompareCargoRatesDto, CreateCargoShipmentDto } from './cargo.dto';
+import {
+  CargoShipmentQueryDto,
+  CompareCargoRatesDto,
+  CreateCargoShipmentDto,
+  OptimalCarrierQueryDto,
+} from './cargo.dto';
+import { CargoOptimizerService } from './cargo-optimizer.service';
 import { CargoRateService } from './cargo-rate.service';
 import { CargoService } from './cargo.service';
 
@@ -30,7 +36,21 @@ export class CargoController {
   constructor(
     private readonly cargoService: CargoService,
     private readonly cargoRateService: CargoRateService,
+    private readonly cargoOptimizerService: CargoOptimizerService,
   ) {}
+
+  @Get('optimal-carrier')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sipariş için en uygun kargo firması önerisi' })
+  @ApiResponse({ status: 200, description: 'Kargo önerisi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Sipariş veya bağlantı bulunamadı' })
+  async getOptimalCarrier(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: OptimalCarrierQueryDto,
+  ) {
+    return this.cargoOptimizerService.getOptimalCarrierForOrder(org.id, query.orderId);
+  }
 
   @Post('rates/compare')
   @HttpCode(200)

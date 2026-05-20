@@ -212,6 +212,16 @@ enum ErpType {
   LOGO_CLOUD
   FINANS_MUHASEBE
   MIKRO_BULUT
+  NETSUITE
+  DYNAMICS365
+  ODOO
+  EPICOR
+  IQRA_ERP
+  QUICKBOOKS
+  XERO
+  SAGE50
+  LIGHTSPEED
+  VEND_POS
 }
 
 enum EcommerceType {
@@ -242,12 +252,22 @@ enum CargoProvider {
   PTT_KARGO
   UPS
   DHL
+  DHL_PARCEL
   FEDEX
   SENDEO
   HEPSIJET
   TRENDYOL_EXPRESS
   NETLOG
   HOROZ
+  TNT
+  GLS
+  DPD
+  HERMES
+  POSTNL
+  BRINGO
+  CEVA
+  NART_KARGO
+  KOLAY_GELSIN
 }
 
 enum PartnerStatus {
@@ -336,6 +356,13 @@ enum StockCountSessionStatus {
 enum StockCountMode {
   FULL
   PARTIAL
+}
+
+enum TransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
 }
 
 enum POStatus {
@@ -435,6 +462,7 @@ model Organization {
   stockMovements            StockMovement[]
   stockCountSessions        StockCountSession[]
   stockCountItems           StockCountItem[]
+  stockTransfers            StockTransfer[]
   orders                    Order[]
   reservations              Reservation[]
   partnerRelationships      PartnerRelationship[]     @relation("PartnerOrg")
@@ -470,6 +498,7 @@ model Organization {
   supportTickets            SupportTicket[]
   campaigns                 Campaign[]
   priceAlerts               PriceAlert[]
+  customers                 Customer[]
 }
 
 /// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
@@ -918,6 +947,7 @@ model Product {
   stockEntries         StockEntry[]
   reservations         Reservation[]
   stockCountItems      StockCountItem[]
+  stockTransferItems   StockTransferItem[]
   masterProductMatches ProductMatch[]   @relation("ProductMasterMatches")
 
   @@unique([organizationId, barcode])
@@ -1016,9 +1046,42 @@ model Warehouse {
   stockEntries       StockEntry[]
   movements          StockMovement[]
   stockCountSessions StockCountSession[]
+  transfersFrom      StockTransfer[]     @relation("TransferFrom")
+  transfersTo        StockTransfer[]     @relation("TransferTo")
 
   @@unique([organizationId, code])
   @@index([organizationId])
+}
+
+model StockTransfer {
+  id              String              @id @default(cuid())
+  organizationId  String
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  fromWarehouseId String
+  toWarehouseId   String
+  fromWarehouse   Warehouse           @relation("TransferFrom", fields: [fromWarehouseId], references: [id])
+  toWarehouse     Warehouse           @relation("TransferTo", fields: [toWarehouseId], references: [id])
+  status          TransferStatus      @default(DRAFT)
+  note            String?
+  createdBy       String
+  completedAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  items           StockTransferItem[]
+
+  @@index([organizationId])
+  @@index([organizationId, status])
+}
+
+model StockTransferItem {
+  id         String        @id @default(cuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product       @relation(fields: [productId], references: [id])
+  quantity   Int
+
+  @@index([transferId])
 }
 
 model StockMovement {
@@ -1136,6 +1199,32 @@ model OrderItem {
 
   @@index([orderId])
   @@index([organizationId])
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  platform       Marketplace?
+  name           String
+  email          String?
+  phone          String?
+  city           String?
+  country        String       @default("TR")
+  totalOrders    Int          @default(0)
+  totalSpent     Decimal      @default(0) @db.Decimal(14, 2)
+  firstOrderAt   DateTime?
+  lastOrderAt    DateTime?
+  tags           String[]
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+
+  @@unique([organizationId, platform, externalId])
+  @@index([organizationId])
+  @@index([organizationId, email])
 }
 
 model Return {

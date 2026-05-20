@@ -18,11 +18,11 @@ export function FeaturesSection(): ReactElement {
           transition={{ duration: 0.45 }}
         >
           <h2 className="text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
-            Öne Çıkan Özellikler
+            Neden Senkronize?
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Pazaryeri, e-ticaret altyapısı ve ERP’yi tek panelde birleştirin;
-            webhook senkron, AI BuyBox ve partner araçlarıyla ölçekleyin.
+            Çok kanallı e-ticarette büyümek için ihtiyacınız olan senkronizasyon,
+            fiyatlandırma ve operasyon araçları tek platformda.
           </p>
         </motion.div>
         <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

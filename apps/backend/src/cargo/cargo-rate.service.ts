@@ -19,10 +19,22 @@ const CARGO_PROVIDER_LABEL_TR: Record<string, string> = {
   PTT_KARGO: 'PTT Kargo',
   UPS: 'UPS',
   DHL: 'DHL Express',
+  DHL_PARCEL: 'DHL Parcel',
   FEDEX: 'FedEx',
   SENDEO: 'Sendeo',
   HEPSIJET: 'Hepsijet',
   TRENDYOL_EXPRESS: 'Trendyol Express',
+  NETLOG: 'Netlog Lojistik',
+  HOROZ: 'Horoz Lojistik',
+  TNT: 'TNT Express',
+  GLS: 'GLS',
+  DPD: 'DPD',
+  HERMES: 'Hermes',
+  POSTNL: 'PostNL',
+  BRINGO: 'Bringo',
+  CEVA: 'CEVA Lojistik',
+  NART_KARGO: 'Nart Kargo',
+  KOLAY_GELSIN: 'Kolay Gelsin',
 };
 
 @Injectable()

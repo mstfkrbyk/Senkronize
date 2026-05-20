@@ -165,6 +165,7 @@ import { YemeksepetiAdapter } from './yemeksepeti/yemeksepeti.adapter';
 import { ZalandoAdapter } from './zalando/zalando.adapter';
 import { ZaraAdapter } from './zara/zara.adapter';
 import { ZirveAdapter } from './zirve/zirve.adapter';
+import { ErpAdapterRegistry } from './erp/erp-adapter.registry';
 
 @Injectable()
 export class AdapterRegistry {
@@ -336,6 +337,7 @@ export class AdapterRegistry {
     private readonly finansMuhasebe: FinansMuhasebeAdapter,
     private readonly mikroBulut: MikroBulutAdapter,
     private readonly yandexMarket: YandexMarketAdapter,
+    private readonly erpAdapterRegistry: ErpAdapterRegistry,
   ) {
     this.adapters = new Map<string, IMarketplaceAdapter>([
       ['AMAZON_TR', amazon],
@@ -507,6 +509,9 @@ export class AdapterRegistry {
       ['FINANS_MUHASEBE', finansMuhasebe],
       ['MIKRO_BULUT', mikroBulut],
     ]);
+    for (const [erpType, adapter] of this.erpAdapterRegistry.adapters) {
+      this.erpAdapters.set(erpType, adapter);
+    }
   }
 
   get(platform: string): IMarketplaceAdapter {

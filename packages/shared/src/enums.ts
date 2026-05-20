@@ -209,12 +209,22 @@ export type CargoProvider =
   | 'PTT_KARGO'
   | 'UPS'
   | 'DHL'
+  | 'DHL_PARCEL'
   | 'FEDEX'
   | 'SENDEO'
   | 'HEPSIJET'
   | 'TRENDYOL_EXPRESS'
   | 'NETLOG'
-  | 'HOROZ';
+  | 'HOROZ'
+  | 'TNT'
+  | 'GLS'
+  | 'DPD'
+  | 'HERMES'
+  | 'POSTNL'
+  | 'BRINGO'
+  | 'CEVA'
+  | 'NART_KARGO'
+  | 'KOLAY_GELSIN';
 
 /** Prisma `PartnerStatus` ile uyumlu */
 export type PartnerStatus = 'ACTIVE' | 'PAUSED' | 'TERMINATED';

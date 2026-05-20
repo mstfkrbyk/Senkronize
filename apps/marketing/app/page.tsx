@@ -6,7 +6,7 @@ import { CTASection } from '@/components/CTASection';
 import { ExitIntentNewsletter } from '@/components/ExitIntentNewsletter';
 import { FeaturesSection } from '@/components/FeaturesSection';
 import { HeroSection } from '@/components/HeroSection';
-import { PartnerLogosSection } from '@/components/PartnerLogosSection';
+import { PlatformLogoMarquee } from '@/components/PlatformLogoMarquee';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { StatsSection } from '@/components/StatsSection';
@@ -83,11 +83,11 @@ export default function HomePage(): ReactElement {
       <JsonLd data={homeSoftwareLd} />
       <main>
         <HeroSection />
+        <PlatformLogoMarquee />
         <StatsSection />
-        <PartnerLogosSection />
         <ComparisonTableSection />
         <FeaturesSection />
-        <PricingSection />
+        <PricingSection variant="teaser" />
         <TestimonialsSection />
         <CTASection />
         <ExitIntentNewsletter />

@@ -20,6 +20,7 @@ import { CategoryModule } from './category/category.module';
 import { CargoModule } from './cargo/cargo.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 import { CurrencyModule } from './currency/currency.module';
+import { CustomerModule } from './customer/customer.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
@@ -124,6 +125,7 @@ import { WebhookModule } from './webhook/webhook.module';
     ReturnModule,
     SearchModule,
     CurrencyModule,
+    CustomerModule,
     SupportModule,
   ],
   providers: [

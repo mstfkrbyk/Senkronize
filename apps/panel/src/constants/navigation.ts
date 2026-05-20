@@ -23,6 +23,7 @@ import {
   ShoppingCart,
   Tag,
   Undo2,
+  UserCircle,
   Users2,
   Warehouse,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
     badge: 'canlı',
   },
   { labelKey: 'nav.returns', icon: Undo2, path: '/returns' },
+  { labelKey: 'nav.customers', icon: UserCircle, path: '/customers' },
   { labelKey: 'nav.listings', icon: Package, path: '/listings' },
   { labelKey: 'nav.products', icon: PackageSearch, path: '/products' },
   { labelKey: 'nav.categories', icon: FolderTree, path: '/categories' },

@@ -1,10 +1,10 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  BarChart3,
+  Code2,
   Laptop,
-  LayoutGrid,
-  Receipt,
+  Package,
   Sparkles,
-  Users,
   Zap,
 } from 'lucide-react';
 
@@ -16,33 +16,66 @@ export const FEATURES: {
 }[] = [
   {
     icon: Zap,
-    title: 'Gerçek Zamanlı Senkronizasyon',
-    desc: 'Webhook tabanlı stok ve fiyat güncellemeleri saniyeler içinde tüm kanallara yansır.',
-  },
-  {
-    icon: LayoutGrid,
-    title: 'Tüm Pazaryerlerinde Tek Panel',
-    desc: 'Trendyol, Hepsiburada, N11 ve daha fazlası — sipariş ve operasyon tek ekranda.',
-  },
-  {
-    icon: Receipt,
-    title: 'Otomatik ERP Faturalama',
-    desc: 'Sipariş oluştuğunda BizimHesap, Paraşüt, Logo Tiger ve diğer ERP’lere otomatik aktarım.',
+    title: 'Anlık Senkronizasyon',
+    desc: 'WebSocket ve webhook ile stok, fiyat ve sipariş güncellemeleri sıfır gecikmeyle tüm kanallara yansır.',
   },
   {
     icon: Sparkles,
-    title: 'AI BuyBox Optimizasyonu',
-    desc: 'PRO planda rekabetçi fiyat ve kâr koruma kurallarıyla BuyBox şansınızı artırın.',
+    title: 'BuyBox Optimizasyonu',
+    desc: 'Yapay zekâ destekli fiyatlandırma kurallarıyla marjınızı koruyarak görünürlük kazanın.',
   },
   {
-    icon: Users,
-    title: 'Partner / Bayi Sistemi',
-    desc: 'Ajanslar müşteri hesaplarını güvenli şekilde yönetir; beyaz etiket ile kendi markanızla sunun.',
+    icon: Package,
+    title: 'Stok Yönetimi',
+    desc: 'Çoklu depo desteği, rezervasyon ve otomatik düşük stok uyarıları tek panelde.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Gelişmiş Raporlar',
+    desc: 'Özelleştirilebilir PDF raporları; kanal, kategori ve dönem bazlı performans analizi.',
   },
   {
     icon: Laptop,
-    title: 'Tauri Masaüstü Köprüsü',
-    desc: 'On‑premise ERP ve yerel ağlar için Windows ve macOS masaüstü uygulaması ile güvenli bağlantı.',
+    title: 'Desktop Uygulaması',
+    desc: 'Windows ve macOS için yerel ERP köprüsü; offline senaryolarda güvenli senkron.',
+  },
+  {
+    icon: Code2,
+    title: 'API Entegrasyonu',
+    desc: 'REST API ve webhook desteği ile kendi sistemlerinizi Senkronize’a bağlayın.',
+  },
+];
+
+/** Ana sayfa teaser fiyatlandırma kartları */
+export const HOMEPAGE_PRICING_TEASER: {
+  name: string;
+  status: string;
+  description: string;
+  cta: string;
+  href: string;
+  highlighted?: boolean;
+}[] = [
+  {
+    name: 'Starter',
+    status: 'Yakında',
+    description: 'Küçük işletmeler için temel pazaryeri senkronizasyonu.',
+    cta: 'Bildirim Al',
+    href: '/contact',
+  },
+  {
+    name: 'Pro',
+    status: 'Yakında',
+    description: 'Büyüyen markalar için AI BuyBox ve gelişmiş otomasyon.',
+    cta: 'Bildirim Al',
+    href: '/contact',
+    highlighted: true,
+  },
+  {
+    name: 'Enterprise',
+    status: 'Özel teklif',
+    description: 'Yüksek hacim, SLA ve özel entegrasyon ihtiyaçları.',
+    cta: 'Bize Ulaşın',
+    href: '/contact',
   },
 ];
 

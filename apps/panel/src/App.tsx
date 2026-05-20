@@ -117,6 +117,21 @@ const OrdersPage = lazy(() =>
 const ReturnsPage = lazy(() =>
   import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
 );
+const CustomersPage = lazy(() =>
+  import('@/pages/customers/CustomersPage').then((m) => ({
+    default: m.CustomersPage,
+  })),
+);
+const CustomerDetailPage = lazy(() =>
+  import('@/pages/customers/CustomerDetailPage').then((m) => ({
+    default: m.CustomerDetailPage,
+  })),
+);
+const CustomerSegmentsPage = lazy(() =>
+  import('@/pages/customers/CustomerSegmentsPage').then((m) => ({
+    default: m.CustomerSegmentsPage,
+  })),
+);
 const PartnerPage = lazy(() =>
   import('@/pages/partner/PartnerPage').then((m) => ({ default: m.PartnerPage })),
 );
@@ -276,6 +291,9 @@ export default function App(): ReactElement {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/customers/segments" element={<CustomerSegmentsPage />} />
+                <Route path="/customers/:id" element={<CustomerDetailPage />} />
+                <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/returns" element={<ReturnsPage />} />
                 <Route path="/listings" element={<ListingsPage />} />
                 <Route path="/products/import" element={<ProductImportPage />} />

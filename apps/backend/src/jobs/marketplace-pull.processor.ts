@@ -7,6 +7,7 @@ import type { Job, Queue } from 'bull';
 import type { MarketplaceListing } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { CustomerService } from '../customer/customer.service';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
@@ -31,6 +32,7 @@ export class MarketplacePullProcessor {
     private readonly adapterRegistry: AdapterRegistry,
     private readonly marketplaceConnectionService: MarketplaceConnectionService,
     private readonly orderService: OrderService,
+    private readonly customerService: CustomerService,
     private readonly listingService: ListingService,
     private readonly syncStatusService: SyncStatusService,
     private readonly eventService: EventService,
@@ -98,6 +100,16 @@ export class MarketplacePullProcessor {
         orders,
       );
       for (const order of createdOrders) {
+        try {
+          await this.customerService.upsertFromOrder(order);
+        } catch (customerErr) {
+          this.logger.warn('Müşteri kaydı güncellenemedi', {
+            organizationId,
+            orderId: order.id,
+            message:
+              customerErr instanceof Error ? customerErr.message : 'unknown',
+          });
+        }
         this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
           orderId: order.id,
           platform,

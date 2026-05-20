@@ -35,16 +35,11 @@ export function HeroSection(): ReactElement {
                 visible: { transition: { staggerChildren: 0.1 } },
               }}
             >
-              <motion.h1 className="text-4xl font-extrabold tracking-tight text-[#111827] sm:text-5xl lg:text-6xl">
-                <motion.span className="block" variants={fadeUp}>
-                  Tüm Pazaryerlerinizi
-                </motion.span>
-                <motion.span
-                  className="mt-1 block text-primary"
-                  variants={fadeUp}
-                >
-                  Tek Panelden Yönetin
-                </motion.span>
+              <motion.h1
+                className="text-4xl font-extrabold tracking-tight text-[#111827] sm:text-5xl lg:text-6xl"
+                variants={fadeUp}
+              >
+                Tüm Pazaryerlerini Tek Panelden Yönet
               </motion.h1>
             </motion.div>
             <motion.p
@@ -53,31 +48,36 @@ export function HeroSection(): ReactElement {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25, duration: 0.5 }}
             >
-              Trendyol, Hepsiburada, N11 ve daha fazlası — gerçek zamanlı stok,
-              fiyat ve sipariş yönetimi.
+              Trendyol, HB, N11, Amazon ve 100+ platformu tek yerden
+              senkronize et.
             </motion.p>
             <motion.div
-              className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center"
+              className="mt-8"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35, duration: 0.5 }}
             >
-              <Button size="lg" className="h-12 px-8 text-base" asChild>
-                <a
-                  href={`${panel}/register`}
-                  onClick={() => {
-                    track('cta_clicked', { location: 'hero', plan: 'trial' });
-                  }}
-                >
-                  Ücretsiz Deneyin
-                </a>
-              </Button>
-              <Button size="lg" variant="ghost" className="h-12 gap-2" asChild>
-                <Link href="#demo">
-                  <Play className="h-5 w-5 fill-current" />
-                  Demo İzle
-                </Link>
-              </Button>
+              <motion.div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button size="lg" className="h-12 px-8 text-base" asChild>
+                  <a
+                    href={`${panel}/register`}
+                    onClick={() => {
+                      track('cta_clicked', { location: 'hero', plan: 'trial' });
+                    }}
+                  >
+                    Ücretsiz Dene
+                  </a>
+                </Button>
+                <Button size="lg" variant="outline" className="h-12 gap-2" asChild>
+                  <Link href="/demo">
+                    <Play className="h-5 w-5 fill-current" />
+                    Demo İzle
+                  </Link>
+                </Button>
+              </motion.div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                14 gün ücretsiz deneme · kredi kartı gerekmez
+              </p>
             </motion.div>
             <motion.div
               className="mt-10 flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-8 text-sm text-muted-foreground"
@@ -86,16 +86,13 @@ export function HeroSection(): ReactElement {
               transition={{ delay: 0.5, duration: 0.5 }}
             >
               <span>
-                <strong className="text-foreground">10+</strong> pazaryeri &
-                ERP entegrasyonu
+                <strong className="text-foreground">150+</strong> entegrasyon
               </span>
               <span>
-                <strong className="text-foreground">Webhook</strong> ile anlık
-                senkron
+                <strong className="text-foreground">500+</strong> müşteri
               </span>
               <span>
-                <strong className="text-foreground">14 gün</strong> ücretsiz
-                deneme
+                <strong className="text-foreground">%99.9</strong> uptime
               </span>
             </motion.div>
           </div>

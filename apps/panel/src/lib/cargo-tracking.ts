@@ -14,6 +14,18 @@ export const CARGO_TRACKING_URLS: Record<string, string> = {
   HEPSIJET: 'https://www.google.com/search?q={trackingCode}+hepsijet+kargo+takip',
   TRENDYOL_EXPRESS:
     'https://www.google.com/search?q={trackingCode}+trendyol+express+kargo+takip',
+  NETLOG: 'https://www.netlog.com.tr/kargo-takip?code={trackingCode}',
+  HOROZ: 'https://www.horoz.com.tr/kargo-takip?code={trackingCode}',
+  TNT: 'https://www.tnt.com/express/tr_tr/site/shipping-tools/tracking.html?searchType=con&cons={trackingCode}',
+  GLS: 'https://gls-group.eu/TR/tr/takip-ve-bul?match={trackingCode}',
+  DPD: 'https://tracking.dpd.de/status/en_US/parcel/{trackingCode}',
+  HERMES: 'https://www.myhermes.co.uk/track.html?parcelNumber={trackingCode}',
+  POSTNL: 'https://jouw.postnl.nl/track-and-trace/{trackingCode}',
+  DHL_PARCEL: 'https://www.dhl.com/tr-tr/home/tracking/tracking-parcel.html?submit=1&tracking-id={trackingCode}',
+  BRINGO: 'https://www.bringo.com.tr/kargo-takip?code={trackingCode}',
+  CEVA: 'https://www.cevalogistics.com/track/{trackingCode}',
+  NART_KARGO: 'https://www.nartkargo.com/takip?kod={trackingCode}',
+  KOLAY_GELSIN: 'https://www.kolaygelsin.com/takip?code={trackingCode}',
 };
 
 function applyTemplate(template: string, trackingCode: string): string {

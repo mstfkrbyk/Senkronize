@@ -16,11 +16,13 @@ import {
 import { track } from '@/lib/analytics';
 import { getPanelUrl } from '@/lib/panel-url';
 import {
+  HOMEPAGE_PRICING_TEASER,
   PLANS,
   PRICING_COMPARISON,
   type ComparisonCell,
   type PlanColumnKey,
 } from '@/lib/site-content';
+import Link from 'next/link';
 
 function formatTry(amount: number): string {
   return amount.toLocaleString('tr-TR');
@@ -45,6 +47,8 @@ interface PricingSectionProps {
   spacious?: boolean;
   /** Karşılaştırma tablosu (fiyatlandırma sayfası) */
   showComparison?: boolean;
+  /** Ana sayfa: 3 kartlı teaser (Yakında / Bize Ulaşın) */
+  variant?: 'full' | 'teaser';
 }
 
 const COLUMN_HEADERS: { key: PlanColumnKey; label: string }[] = [
@@ -57,6 +61,7 @@ const COLUMN_HEADERS: { key: PlanColumnKey; label: string }[] = [
 export function PricingSection({
   spacious = false,
   showComparison = false,
+  variant = 'full',
 }: PricingSectionProps): ReactElement {
   const panel = getPanelUrl();
 
@@ -64,6 +69,64 @@ export function PricingSection({
     () => ['baslangic', 'gelisim', 'pro', 'kurumsal'] as const satisfies readonly PlanColumnKey[],
     [],
   );
+
+  if (variant === 'teaser') {
+    return (
+      <section className="bg-white py-16 sm:py-24">
+        <motion.div
+          className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.45 }}
+        >
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
+              Fiyatlandırma
+            </h2>
+            <p className="mt-4 text-muted-foreground">
+              Paketlerimiz çok yakında. Erken erişim ve kurumsal teklifler için bize
+              ulaşın.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
+            {HOMEPAGE_PRICING_TEASER.map((plan, index) => (
+              <motion.div
+                key={plan.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: index * 0.06 }}
+              >
+                <Card
+                  className={`flex h-full flex-col ${
+                    plan.highlighted
+                      ? 'border-2 border-primary shadow-lg ring-2 ring-primary/10'
+                      : 'border-border'
+                  }`}
+                >
+                  <CardHeader className="pb-4 text-center">
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <p className="mt-4 text-3xl font-bold text-primary">{plan.status}</p>
+                    <p className="mt-3 text-sm text-muted-foreground">{plan.description}</p>
+                  </CardHeader>
+                  <CardFooter className="mt-auto">
+                    <Button
+                      className="w-full"
+                      variant={plan.highlighted ? 'default' : 'outline'}
+                      asChild
+                    >
+                      <Link href={plan.href}>{plan.cta}</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+    );
+  }
 
   return (
     <section

@@ -117,6 +117,36 @@ export class ErpConnectionService {
     if (erpType === ErpType.MIKRO_BULUT) {
       return creds.company ?? creds.companyId ?? creds.username ?? null;
     }
+    if (erpType === ErpType.NETSUITE) {
+      return creds.accountId ?? creds.baseUrl ?? null;
+    }
+    if (erpType === ErpType.DYNAMICS365) {
+      return creds.companyId ?? creds.tenantId ?? null;
+    }
+    if (erpType === ErpType.ODOO) {
+      return creds.instance ?? creds.db ?? null;
+    }
+    if (erpType === ErpType.EPICOR) {
+      return creds.company ?? creds.server ?? creds.baseUrl ?? null;
+    }
+    if (erpType === ErpType.IQRA_ERP) {
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
+    }
+    if (erpType === ErpType.QUICKBOOKS) {
+      return creds.companyId ?? null;
+    }
+    if (erpType === ErpType.XERO) {
+      return creds.tenantId ?? null;
+    }
+    if (erpType === ErpType.SAGE50) {
+      return creds.baseUrl ?? null;
+    }
+    if (erpType === ErpType.LIGHTSPEED) {
+      return creds.accountId ?? creds.accountID ?? null;
+    }
+    if (erpType === ErpType.VEND_POS) {
+      return creds.domainPrefix ?? creds.domain_prefix ?? null;
+    }
     return null;
   }
 
