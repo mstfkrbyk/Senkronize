@@ -172,9 +172,40 @@ const ReportsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
+const PaymentCallbackPage = lazy(() =>
+  import('@/pages/payment/PaymentCallbackPage').then((m) => ({
+    default: m.PaymentCallbackPage,
+  })),
+);
+const PaymentSuccessPage = lazy(() =>
+  import('@/pages/payment/PaymentSuccessPage').then((m) => ({
+    default: m.PaymentSuccessPage,
+  })),
+);
+const PaymentFailurePage = lazy(() =>
+  import('@/pages/payment/PaymentFailurePage').then((m) => ({
+    default: m.PaymentFailurePage,
+  })),
+);
+const ProfilePage = lazy(() =>
+  import('@/pages/settings/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const WebhooksPage = lazy(() =>
+  import('@/pages/settings/WebhooksPage').then((m) => ({ default: m.WebhooksPage })),
+);
+const WebhookDetailPage = lazy(() =>
+  import('@/pages/settings/WebhookDetailPage').then((m) => ({
+    default: m.WebhookDetailPage,
+  })),
+);
 const StockCountPage = lazy(() =>
   import('@/pages/stock/StockCountPage').then((m) => ({
     default: m.StockCountPage,
+  })),
+);
+const StockTransferPage = lazy(() =>
+  import('@/pages/stock/StockTransferPage').then((m) => ({
+    default: m.StockTransferPage,
   })),
 );
 const StockManagementPage = lazy(() =>
@@ -266,6 +297,9 @@ export default function App(): ReactElement {
               }
             >
               <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/payment/callback" element={<PaymentCallbackPage />} />
+              <Route path="/payment/success" element={<PaymentSuccessPage />} />
+              <Route path="/payment/failure" element={<PaymentFailurePage />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route
                 path="/admin"
@@ -302,6 +336,8 @@ export default function App(): ReactElement {
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/stock/count" element={<StockCountPage />} />
+                <Route path="/stock/transfers/:id" element={<StockTransferPage />} />
+                <Route path="/stock/transfers" element={<StockTransferPage />} />
                 <Route path="/stock/forecast" element={<StockForecastPage />} />
                 <Route path="/stock" element={<StockManagementPage />} />
                 <Route path="/suppliers/:supplierId" element={<SupplierDetailPage />} />
@@ -325,6 +361,9 @@ export default function App(): ReactElement {
                   path="/settings/subscription"
                   element={<SettingsPage />}
                 />
+                <Route path="/settings/profile" element={<ProfilePage />} />
+                <Route path="/settings/webhooks/:id" element={<WebhookDetailPage />} />
+                <Route path="/settings/webhooks" element={<WebhooksPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

@@ -20,8 +20,11 @@ export type SubscriptionStatus =
   | 'TRIAL'
   | 'ACTIVE'
   | 'PAUSED'
+  | 'CANCELING'
   | 'CANCELLED'
   | 'EXPIRED';
+
+export type BillingPeriod = 'MONTHLY' | 'YEARLY';
 
 export type PlanTier = 'BASLANGIC' | 'GELISIM' | 'PRO' | 'KURUMSAL';
 
@@ -36,6 +39,8 @@ export interface SubscriptionRecord {
   nextBillingAt: string | null;
   currentPeriodStart: string;
   currentPeriodEnd: string;
+  subscriptionEndsAt?: string | null;
+  billingPeriod?: BillingPeriod | null;
   monthlyOrderLimit: number | null;
   marketplaceLimit: number | null;
   ecommerceLimit: number | null;

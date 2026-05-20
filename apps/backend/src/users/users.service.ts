@@ -8,7 +8,6 @@ import {
 import {
   type NotificationPreference,
   Prisma,
-  type UserSession,
   UserRole,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -572,50 +571,6 @@ export class UsersService {
     });
   }
 
-  async getActiveSessions(userId: string): Promise<UserSession[]> {
-    const now = new Date();
-    return this.prisma.userSession.findMany({
-      where: { userId, expiresAt: { gt: now } },
-      orderBy: { lastActiveAt: 'desc' },
-    });
-  }
-
-  async revokeSession(userId: string, sessionId: string): Promise<void> {
-    const session = await this.prisma.userSession.findFirst({
-      where: { id: sessionId, userId },
-    });
-    if (!session) {
-      throw new NotFoundException('Oturum bulunamadı.');
-    }
-    await this.prisma.$transaction([
-      this.prisma.refreshToken.deleteMany({
-        where: { userId, token: session.token },
-      }),
-      this.prisma.userSession.delete({ where: { id: session.id } }),
-    ]);
-  }
-
-  async revokeAllSessions(
-    userId: string,
-    exceptCurrentSessionId?: string,
-  ): Promise<void> {
-    const sessions = await this.prisma.userSession.findMany({
-      where: {
-        userId,
-        ...(exceptCurrentSessionId
-          ? { id: { not: exceptCurrentSessionId } }
-          : {}),
-      },
-    });
-    await this.prisma.$transaction(async (tx) => {
-      for (const s of sessions) {
-        await tx.refreshToken.deleteMany({
-          where: { userId, token: s.token },
-        });
-        await tx.userSession.delete({ where: { id: s.id } });
-      }
-    });
-  }
 
   async updateRole(
     organizationId: string,

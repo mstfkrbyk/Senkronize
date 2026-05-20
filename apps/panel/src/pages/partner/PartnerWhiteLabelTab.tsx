@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -48,7 +48,7 @@ export function PartnerWhiteLabelTab(): ReactElement {
   });
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodFormResolver(schema),
     defaultValues: {
       brandName: '',
       logoUrl: '',

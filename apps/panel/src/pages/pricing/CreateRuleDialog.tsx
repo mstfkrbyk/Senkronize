@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -128,7 +128,7 @@ export function CreateRuleDialog({ open, onOpenChange }: Props): ReactElement {
   const createMutation = useCreateRule();
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodFormResolver(formSchema),
     defaultValues: {
       name: '',
       platform: 'TRENDYOL',

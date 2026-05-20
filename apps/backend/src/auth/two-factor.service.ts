@@ -11,6 +11,7 @@ import * as QRCode from 'qrcode';
 
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SecurityNotificationService } from '../security/security-notification.service';
 
 import type { AuthenticatedUser } from './auth.types';
 
@@ -34,6 +35,7 @@ export class TwoFactorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly encryption: EncryptionService,
+    private readonly securityNotification: SecurityNotificationService,
   ) {}
 
   private generateBackupCodesPlain(): string[] {
@@ -113,15 +115,15 @@ export class TwoFactorService {
       normalizedCodes.map((code) => bcrypt.hash(code, BCRYPT_ROUNDS)),
     );
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
         where: { id: actor.id },
         data: {
           twoFactorEnabled: true,
           backupCodes: hashedCodes,
         },
-      }),
-      this.prisma.auditLog.create({
+      });
+      await tx.auditLog.create({
         data: {
           actorUserId: actor.id,
           actorOrgId: actor.organizationId,
@@ -131,8 +133,10 @@ export class TwoFactorService {
           resourceId: actor.id,
           metadata: {},
         },
-      }),
-    ]);
+      });
+      return u;
+    });
+    void this.securityNotification.notify2FAStatusChange(updated, true);
   }
 
   async disableTwoFactor(actor: AuthenticatedUser, token: string): Promise<void> {
@@ -150,16 +154,16 @@ export class TwoFactorService {
       throw new UnauthorizedException('Geçersiz doğrulama kodu');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
         where: { id: actor.id },
         data: {
           twoFactorEnabled: false,
           twoFactorSecret: null,
           backupCodes: [],
         },
-      }),
-      this.prisma.auditLog.create({
+      });
+      await tx.auditLog.create({
         data: {
           actorUserId: actor.id,
           actorOrgId: actor.organizationId,
@@ -169,8 +173,10 @@ export class TwoFactorService {
           resourceId: actor.id,
           metadata: {},
         },
-      }),
-    ]);
+      });
+      return u;
+    });
+    void this.securityNotification.notify2FAStatusChange(updated, false);
   }
 
   async regenerateBackupCodes(

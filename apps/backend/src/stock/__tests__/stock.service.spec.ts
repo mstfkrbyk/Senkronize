@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../../queue/queue.constants';
 import type { MarketplacePushJobData } from '../../queue/queue.types';
 import { OutboundWebhookService } from '../../webhook/outbound-webhook.service';
+import { WebhookEvent } from '../../webhook/webhook-event.enum';
 import { StockService } from '../stock.service';
 
 describe('StockService', () => {
@@ -64,7 +65,7 @@ describe('StockService', () => {
       expect(result.jobIds).toHaveLength(2);
       expect(outboundDispatch).toHaveBeenCalledWith(
         'org-1',
-        'stock.updated',
+        WebhookEvent.STOCK_UPDATED,
         expect.objectContaining({ barcode: '8690000001', newQty: 12 }),
       );
       expect(queueAdd).toHaveBeenCalledTimes(2);

@@ -17,8 +17,9 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AuthService, type IssueTokenResult } from './auth.service';
+import { PasswordPolicyService } from './password-policy.service';
 import {
   AcceptInviteDto,
   ChangePasswordDto,
@@ -44,12 +45,12 @@ import { UserInviteService } from '../users/user-invite.service';
 
 @ApiTags('auth')
 @Controller('auth')
-@Throttle({ default: { limit: 5 } })
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly twoFactorService: TwoFactorService,
     private readonly userInviteService: UserInviteService,
+    private readonly passwordPolicy: PasswordPolicyService,
   ) {}
 
   @Post('register')
@@ -63,7 +64,6 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
-  @Throttle({ default: { limit: 30 } })
   @Get('invite-preview')
   @ApiOperation({ summary: 'Organizasyon daveti önizleme (herkese açık)' })
   @ApiResponse({ status: 200, description: 'Davet bilgisi' })
@@ -72,7 +72,6 @@ export class AuthController {
     return this.userInviteService.getInvitePreview(token ?? '');
   }
 
-  @Throttle({ default: { limit: 20 } })
   @Post('accept-invite')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Organizasyon davetini kabul et' })
@@ -94,7 +93,6 @@ export class AuthController {
     });
   }
 
-  @Throttle({ default: { limit: 20 } })
   @Post('recommend-plan')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'İş yapısına göre paket önerisi' })
@@ -124,7 +122,6 @@ export class AuthController {
     return this.authService.login(dto, { ipAddress, userAgent });
   }
 
-  @Throttle({ default: { limit: 30 } })
   @Post('2fa/verify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'İki adımlı doğrulama ile girişi tamamla' })
@@ -209,7 +206,6 @@ export class AuthController {
     return { backupCodes };
   }
 
-  @Throttle({ default: { limit: 20 } })
   @Post('refresh')
   @UseGuards(JwtRefreshAuthGuard)
   @ApiOperation({ summary: 'Access token yenile' })
@@ -270,6 +266,14 @@ export class AuthController {
       currentOrgId: user.currentOrgId,
       isImpersonating: user.isImpersonating,
     };
+  }
+
+  @Post('validate-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Şifre politikası doğrulama (istemci güç göstergesi)' })
+  @ApiResponse({ status: 200, description: 'Doğrulama sonucu' })
+  validatePassword(@Body() body: { password: string }) {
+    return this.passwordPolicy.validatePassword(body.password ?? '');
   }
 
   @SkipThrottle()

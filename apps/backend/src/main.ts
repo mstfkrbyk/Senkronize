@@ -164,11 +164,12 @@ API, iki kimlik doğrulama yöntemini destekler:
 - **API Key**: Harici entegrasyonlar için (\`sk_live_\` öneki ile)
 
 ## Rate Limiting
-- Varsayılan: Dakikada 100 istek (\`default\` profili)
-- Kimlik doğrulama: Dakikada 5 istek (JWT dışı uçlar; oturum açık uçlar \`SkipThrottle\`)
-- API anahtarları: Dakikada 60 istek
-- Manuel senkron tetikleri: Dakikada 10 istek
-- Webhook endpoint'leri: Sınırsız
+- Varsayılan: Dakikada 100 istek
+- \`POST /auth/login\`: Dakikada 5 istek
+- \`POST /auth/register\`: Saatte 3 kayıt
+- \`/sync\` uçları: Dakikada 10 istek
+- API anahtarları: Dakikada 60 istek (controller düzeyi)
+- Webhook endpoint'leri: Sınırsız (\`SkipThrottle\`)
 
 ## Sayfalama
 Liste endpoint'leri \`page\` ve \`limit\` parametrelerini destekler.

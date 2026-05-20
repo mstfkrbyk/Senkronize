@@ -7,7 +7,6 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { JwtSignOptions } from '@nestjs/jwt';
 import { JwtService } from '@nestjs/jwt';
 import {
   OrgType,
@@ -25,6 +24,7 @@ import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../common/cache/cache.service';
 import { AnomalyDetectionService } from '../security/anomaly-detection.service';
+import { SecurityNotificationService } from '../security/security-notification.service';
 import {
   ChangePasswordDto,
   LoginDto,
@@ -33,16 +33,14 @@ import {
   UpdateProfileDto,
 } from './auth.dto';
 import { AuthenticatedUser } from './auth.types';
+import { PasswordPolicyService } from './password-policy.service';
+import { SessionService, type TokenPair } from './session.service';
+import { parseDeviceInfo } from './session.utils';
 import { TwoFactorService } from './two-factor.service';
 
 const BCRYPT_ROUNDS = 10;
-const REFRESH_TOKEN_MS = 7 * 24 * 60 * 60 * 1000;
 
-export interface IssueTokenResult {
-  accessToken: string;
-  refreshToken: string;
-  sessionId: string;
-}
+export type IssueTokenResult = TokenPair;
 
 @Injectable()
 export class AuthService {
@@ -59,11 +57,17 @@ export class AuthService {
     private readonly twoFactorService: TwoFactorService,
     private readonly cache: CacheService,
     private readonly anomalyDetectionService: AnomalyDetectionService,
+    private readonly sessionService: SessionService,
+    private readonly passwordPolicy: PasswordPolicyService,
+    private readonly securityNotification: SecurityNotificationService,
   ) {}
 
-  async register(
-    dto: RegisterDto,
-  ): Promise<IssueTokenResult> {
+  async register(dto: RegisterDto): Promise<IssueTokenResult> {
+    const passwordCheck = this.passwordPolicy.validatePassword(dto.password);
+    if (!passwordCheck.valid) {
+      throw new BadRequestException(passwordCheck.errors[0]);
+    }
+
     const email = dto.email.toLowerCase();
     const existing = await this.prisma.user.findFirst({
       where: { email, deletedAt: null },
@@ -188,7 +192,7 @@ export class AuthService {
 
     await this.handleSuccessfulLogin(email);
 
-    return this.generateTokens(
+    return this.sessionService.issueTokenPair(
       newUser.id,
       newUser.organizationId!,
       UserRole.OWNER,
@@ -220,6 +224,10 @@ export class AuthService {
       data: { lockedUntil },
     });
     await this.emailService.sendAccountLockNotification(user.email);
+    void this.securityNotification.notifySuspiciousLogin(
+      user,
+      'Çok sayıda başarısız giriş denemesi nedeniyle hesabınız geçici olarak kilitlendi.',
+    );
   }
 
   async issueTokenPair(
@@ -228,7 +236,12 @@ export class AuthService {
     role: UserRole,
     sessionMeta?: { ipAddress?: string; userAgent?: string },
   ): Promise<IssueTokenResult> {
-    return this.generateTokens(userId, organizationId, role, sessionMeta);
+    return this.sessionService.issueTokenPair(
+      userId,
+      organizationId,
+      role,
+      sessionMeta,
+    );
   }
 
   recommendPlan(dto: RecommendPlanDto): {
@@ -345,12 +358,9 @@ export class AuthService {
       data: { lastLoginAt: new Date(), lockedUntil: null },
     });
 
-    void this.anomalyDetectionService.checkNewIpLogin(
-      user.id,
-      sessionMeta?.ipAddress,
-    );
+    await this.notifyLoginIfNewDevice(user, sessionMeta);
 
-    return this.generateTokens(
+    return this.sessionService.issueTokenPair(
       user.id,
       user.organizationId,
       user.role,
@@ -408,12 +418,9 @@ export class AuthService {
       data: { lastLoginAt: new Date(), lockedUntil: null },
     });
 
-    void this.anomalyDetectionService.checkNewIpLogin(
-      user.id,
-      sessionMeta?.ipAddress,
-    );
+    await this.notifyLoginIfNewDevice(user, sessionMeta);
 
-    return this.generateTokens(
+    return this.sessionService.issueTokenPair(
       user.id,
       user.organizationId,
       user.role,
@@ -426,62 +433,26 @@ export class AuthService {
     refreshToken: string,
     sessionMeta?: { ipAddress?: string; userAgent?: string },
   ): Promise<IssueTokenResult> {
-    const ok = await this.validateRefreshToken(userId, refreshToken);
-    if (!ok) {
-      throw new UnauthorizedException('Oturum yenilenemedi.');
-    }
-
-    await this.touchRefreshSession(userId, refreshToken);
-
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, deletedAt: null },
-      include: { organization: true },
-    });
-    if (!user) {
-      throw new UnauthorizedException('Oturum yenilenemedi.');
-    }
-
-    if (
-      !user.organizationId ||
-      !user.organization ||
-      (user.organization.suspended && user.role !== UserRole.SUPER_ADMIN)
-    ) {
-      throw new UnauthorizedException('Oturum yenilenemedi.');
-    }
-
-    await this.deleteRefreshTokenByPlain(userId, refreshToken);
-
-    return this.generateTokens(
-      user.id,
-      user.organizationId,
-      user.role,
+    return this.sessionService.rotateRefreshToken(
+      userId,
+      refreshToken,
       sessionMeta,
     );
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
-    await this.deleteRefreshTokenByPlain(userId, refreshToken);
-  }
-
-  async validateRefreshToken(userId: string, token: string): Promise<boolean> {
-    const rows = await this.prisma.refreshToken.findMany({
-      where: {
-        userId,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    for (const row of rows) {
-      if (await bcrypt.compare(token, row.token)) {
-        return true;
-      }
-    }
-    return false;
+    await this.sessionService.logout(userId, refreshToken);
   }
 
   async changePassword(
     actor: AuthenticatedUser,
     dto: ChangePasswordDto,
   ): Promise<void> {
+    const passwordCheck = this.passwordPolicy.validatePassword(dto.newPassword);
+    if (!passwordCheck.valid) {
+      throw new BadRequestException(passwordCheck.errors[0]);
+    }
+
     const user = await this.prisma.user.findFirst({
       where: { id: actor.id, deletedAt: null },
     });
@@ -511,6 +482,8 @@ export class AuthService {
         metadata: {},
       },
     });
+
+    void this.securityNotification.notifyPasswordChanged(user);
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<void> {
@@ -542,6 +515,46 @@ export class AuthService {
     };
   }
 
+  private async notifyLoginIfNewDevice(
+    user: {
+      id: string;
+      email: string;
+      organizationId: string | null;
+    },
+    sessionMeta?: { ipAddress?: string; userAgent?: string },
+  ): Promise<void> {
+    const ip = sessionMeta?.ipAddress;
+    void this.anomalyDetectionService.checkNewIpLogin(user.id, ip);
+
+    if (!ip) {
+      return;
+    }
+    const key = CacheService.key('security', 'known_login_ip', user.id);
+    const known = await this.cache.sismember(key, ip);
+    if (known === true) {
+      return;
+    }
+    if (known === null) {
+      return;
+    }
+
+    const fullUser = await this.prisma.user.findFirst({
+      where: { id: user.id, deletedAt: null },
+    });
+    if (!fullUser) {
+      return;
+    }
+
+    const deviceInfo = parseDeviceInfo(sessionMeta?.userAgent);
+    void this.securityNotification.notifyNewDeviceLogin(fullUser, {
+      ipAddress: ip,
+      userAgent: sessionMeta?.userAgent,
+      deviceInfo,
+      location: null,
+    });
+    await this.cache.sadd(key, ip);
+  }
+
   private resolveUiPlanTier(subscription: Subscription | null): PlanTier {
     const now = new Date();
     if (!subscription) {
@@ -554,8 +567,10 @@ export class AuthService {
       return PlanTier.BASLANGIC;
     }
     if (
-      subscription.status === SubStatus.CANCELLED &&
-      now > subscription.currentPeriodEnd
+      (subscription.status === SubStatus.CANCELLED ||
+        subscription.status === SubStatus.CANCELING) &&
+      now >
+        (subscription.subscriptionEndsAt ?? subscription.currentPeriodEnd)
     ) {
       return PlanTier.BASLANGIC;
     }
@@ -589,34 +604,6 @@ export class AuthService {
     return `${base}-${randomBytes(8).toString('hex')}`;
   }
 
-  private async generateTokens(
-    userId: string,
-    orgId: string,
-    role: UserRole,
-    sessionMeta?: { ipAddress?: string; userAgent?: string },
-  ): Promise<IssueTokenResult> {
-    const payload = { sub: userId, orgId, role };
-    const accessSecret = this.config.getOrThrow<string>('JWT_SECRET');
-    const refreshSecret = this.config.getOrThrow<string>('JWT_REFRESH_SECRET');
-    const accessExp = (this.config.get<string>('JWT_EXPIRES_IN') ??
-      '15m') as NonNullable<JwtSignOptions['expiresIn']>;
-    const refreshExp = (this.config.get<string>('JWT_REFRESH_EXPIRES_IN') ??
-      '7d') as NonNullable<JwtSignOptions['expiresIn']>;
-
-    const accessToken = await this.jwtService.signAsync(payload, {
-      secret: accessSecret,
-      expiresIn: accessExp,
-    });
-
-    const refreshToken = await this.jwtService.signAsync(payload, {
-      secret: refreshSecret,
-      expiresIn: refreshExp,
-    });
-
-    const sessionId = await this.storeRefreshToken(userId, refreshToken, sessionMeta);
-    return { accessToken, refreshToken, sessionId };
-  }
-
   private async hashPassword(password: string): Promise<string> {
     return bcrypt.hash(password, BCRYPT_ROUNDS);
   }
@@ -626,80 +613,5 @@ export class AuthService {
     hash: string,
   ): Promise<boolean> {
     return bcrypt.compare(plain, hash);
-  }
-
-  private refreshTokenExpiresAt(): Date {
-    const d = new Date();
-    d.setTime(d.getTime() + REFRESH_TOKEN_MS);
-    return d;
-  }
-
-  private async storeRefreshToken(
-    userId: string,
-    token: string,
-    meta?: { ipAddress?: string; userAgent?: string },
-  ): Promise<string> {
-    const tokenHash = await bcrypt.hash(token, BCRYPT_ROUNDS);
-    const expiresAt = this.refreshTokenExpiresAt();
-    return this.prisma.$transaction(async (tx) => {
-      await tx.refreshToken.create({
-        data: {
-          userId,
-          token: tokenHash,
-          expiresAt,
-        },
-      });
-      const session = await tx.userSession.create({
-        data: {
-          userId,
-          token: tokenHash,
-          expiresAt,
-          ipAddress: meta?.ipAddress ?? null,
-          userAgent: meta?.userAgent ?? null,
-        },
-      });
-      return session.id;
-    });
-  }
-
-  private async touchRefreshSession(
-    userId: string,
-    plain: string,
-  ): Promise<void> {
-    const rows = await this.prisma.refreshToken.findMany({
-      where: {
-        userId,
-        expiresAt: { gt: new Date() },
-      },
-    });
-    for (const row of rows) {
-      if (await bcrypt.compare(plain, row.token)) {
-        await this.prisma.userSession.updateMany({
-          where: { userId, token: row.token },
-          data: { lastActiveAt: new Date() },
-        });
-        return;
-      }
-    }
-  }
-
-  private async deleteRefreshTokenByPlain(
-    userId: string,
-    plain: string,
-  ): Promise<void> {
-    const rows = await this.prisma.refreshToken.findMany({
-      where: { userId },
-    });
-    for (const row of rows) {
-      if (await bcrypt.compare(plain, row.token)) {
-        await this.prisma.$transaction([
-          this.prisma.refreshToken.delete({ where: { id: row.id } }),
-          this.prisma.userSession.deleteMany({
-            where: { userId, token: row.token },
-          }),
-        ]);
-        return;
-      }
-    }
   }
 }

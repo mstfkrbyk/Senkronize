@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format, subDays } from 'date-fns';
-import { Download, Loader2, Printer, CalendarClock } from 'lucide-react';
+import { BarChart2, Download, Loader2, Printer, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   CartesianGrid,
@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { EmptyState } from '@/components/EmptyState';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { badgeVariants } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -309,6 +310,18 @@ export function ReportsPage(): ReactElement {
             <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               {getApiErrorMessage(salesQuery.error)}
             </div>
+          ) : null}
+
+          {!isSalesLoading &&
+          !salesQuery.isError &&
+          chartRows.length === 0 &&
+          !showSampleBanner ? (
+            <EmptyState
+              icon={BarChart2}
+              title="Henüz yeterli veri yok"
+              description="Raporlar sync başladıktan sonra oluşacak."
+              secondaryAction={{ label: 'Bağlantılara git', href: '/connections' }}
+            />
           ) : null}
 
           <div className="flex flex-wrap items-center justify-end gap-2">

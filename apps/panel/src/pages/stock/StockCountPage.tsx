@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { toast } from 'sonner';
-import { Camera, Minus, Plus, ScanLine } from 'lucide-react';
+import { Camera, FileDown, Minus, Plus, ScanLine, Upload } from 'lucide-react';
 
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import {
@@ -62,6 +62,8 @@ import {
   useApplyStockCountSession,
   useCancelStockCountSession,
   useCreateStockCountSession,
+  useExportStockCountPdf,
+  useImportStockCountCsv,
   useStockCountSession,
   useUpsertStockCountItem,
 } from './hooks/useStockCount';
@@ -99,6 +101,9 @@ export function StockCountPage(): ReactElement {
   const upsertMut = useUpsertStockCountItem(sessionId ?? undefined);
   const applyMut = useApplyStockCountSession(sessionId ?? undefined);
   const cancelMut = useCancelStockCountSession(sessionId ?? undefined);
+  const exportPdfMut = useExportStockCountPdf(sessionId ?? undefined);
+  const importCsvMut = useImportStockCountCsv(sessionId ?? undefined);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [warehouseId, setWarehouseId] = useState<string>('');
@@ -199,8 +204,17 @@ export function StockCountPage(): ReactElement {
   };
 
   const summary = useMemo(() => {
+    if (session?.varianceSummary) {
+      return {
+        loss: session.items.filter((it) => it.difference < 0).length,
+        gain: session.items.filter((it) => it.difference > 0).length,
+        neutral: session.items.filter((it) => it.difference === 0).length,
+        totalValue: session.varianceSummary.totalDifferenceValue,
+        hasVariance: session.varianceSummary.itemsWithVariance > 0,
+      };
+    }
     if (!session?.items.length) {
-      return { loss: 0, gain: 0, neutral: 0 };
+      return { loss: 0, gain: 0, neutral: 0, totalValue: 0, hasVariance: false };
     }
     let loss = 0;
     let gain = 0;
@@ -214,8 +228,14 @@ export function StockCountPage(): ReactElement {
         neutral += 1;
       }
     }
-    return { loss, gain, neutral };
-  }, [session?.items]);
+    return {
+      loss,
+      gain,
+      neutral,
+      totalValue: 0,
+      hasVariance: loss + gain > 0,
+    };
+  }, [session?.items, session?.varianceSummary]);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -275,6 +295,53 @@ export function StockCountPage(): ReactElement {
           <CardContent className="flex flex-col gap-6">
             {session.status === 'IN_PROGRESS' ? (
               <>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={exportPdfMut.isPending}
+                    onClick={() =>
+                      void exportPdfMut
+                        .mutateAsync()
+                        .then(() => toast.success('Sayım formu indirildi'))
+                        .catch((e) => toast.error(getApiErrorMessage(e)))
+                    }
+                  >
+                    <FileDown className="mr-1 size-4" />
+                    Sayım Formu PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={importCsvMut.isPending}
+                    onClick={() => csvInputRef.current?.click()}
+                  >
+                    <Upload className="mr-1 size-4" />
+                    Sonuç Yükle (CSV)
+                  </Button>
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      void importCsvMut
+                        .mutateAsync(file)
+                        .then((r) =>
+                          toast.success(
+                            `Yüklendi · ${r.imported} satır, ${r.skipped} atlandı`,
+                          ),
+                        )
+                        .catch((err) => toast.error(getApiErrorMessage(err)));
+                    }}
+                  />
+                </div>
+
                 <div className="flex flex-col gap-3 rounded-lg border p-4">
                   <p className="text-sm font-medium">Sayım girişi</p>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -345,9 +412,10 @@ export function StockCountPage(): ReactElement {
                         <TableHead>Barkod</TableHead>
                         <TableHead>Ürün</TableHead>
                         <TableHead>Platform</TableHead>
-                        <TableHead className="text-right">Sistem</TableHead>
+                        <TableHead className="text-right">Beklenen</TableHead>
                         <TableHead className="text-right">Sayılan</TableHead>
                         <TableHead className="text-right">Fark</TableHead>
+                        <TableHead className="text-right">Fark değeri</TableHead>
                         <TableHead className="w-[140px]" />
                       </TableRow>
                     </TableHeader>
@@ -355,7 +423,7 @@ export function StockCountPage(): ReactElement {
                       {session.items.length === 0 ? (
                         <TableRow>
                           <TableCell
-                            colSpan={7}
+                            colSpan={8}
                             className="text-muted-foreground h-24 text-center"
                           >
                             Henüz sayım satırı yok.
@@ -396,6 +464,16 @@ export function StockCountPage(): ReactElement {
                               {row.difference > 0
                                 ? `+${row.difference}`
                                 : row.difference}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right tabular-nums ${diffClass(row.difference)}`}
+                            >
+                              {row.differenceValue !== null
+                                ? `${row.differenceValue.toLocaleString('tr-TR', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })} ₺`
+                                : '—'}
                             </TableCell>
                             <TableCell>
                               <div className="flex justify-end gap-1">
@@ -445,6 +523,19 @@ export function StockCountPage(): ReactElement {
                       <p className="text-muted-foreground text-xs">
                         Kayıp satırı: {summary.loss} · Fazla: {summary.gain} · Denk:{' '}
                         {summary.neutral}
+                        {summary.totalValue !== 0 ? (
+                          <>
+                            {' '}
+                            · Net fark değeri:{' '}
+                            <span className={diffClass(summary.totalValue > 0 ? 1 : -1)}>
+                              {summary.totalValue.toLocaleString('tr-TR', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}{' '}
+                              ₺
+                            </span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -466,13 +557,24 @@ export function StockCountPage(): ReactElement {
                       >
                         İptal et
                       </Button>
-                      <Button
-                        type="button"
-                        disabled={!session.items.length || applyMut.isPending}
-                        onClick={() => setApplyOpen(true)}
-                      >
-                        Farkları uygula
-                      </Button>
+                      {summary.hasVariance ? (
+                        <Button
+                          type="button"
+                          disabled={!session.items.length || applyMut.isPending}
+                          onClick={() => setApplyOpen(true)}
+                        >
+                          Stoku Güncelle
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled
+                          title="Fark bulunmuyor"
+                        >
+                          Stoku Güncelle
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -595,10 +697,10 @@ export function StockCountPage(): ReactElement {
       <AlertDialog open={applyOpen} onOpenChange={setApplyOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Farkları uygulansın mı?</AlertDialogTitle>
+            <AlertDialogTitle>Stok güncellensin mi?</AlertDialogTitle>
             <AlertDialogDescription>
-              Sayılan miktarlar merkezi stok (depo: {session?.warehouseName ?? ''})
-              üzerine yazılır ve her değişiklik için ADJUSTMENT hareketi oluşturulur.
+              Sayım farkları merkezi stoğa (depo: {session?.warehouseName ?? ''})
+              uygulanır ve her değişiklik için düzeltme hareketi oluşturulur.
               Bu işlem geri alınamaz.
             </AlertDialogDescription>
           </AlertDialogHeader>

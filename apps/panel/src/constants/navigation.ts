@@ -57,6 +57,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: 'nav.stock', icon: Warehouse, path: '/stock' },
   { labelKey: 'nav.stockForecast', icon: LineChart, path: '/stock/forecast' },
   { labelKey: 'nav.stockCount', icon: ScanLine, path: '/stock/count' },
+  { labelKey: 'nav.stockTransfer', icon: ArrowRightLeft, path: '/stock/transfers' },
   { labelKey: 'nav.pricing', icon: Tag, path: '/pricing', badge: 'PRO' },
   { labelKey: 'nav.campaigns', icon: Megaphone, path: '/campaigns', badge: 'PRO' },
   { labelKey: 'nav.integrations', icon: Plug, path: '/connections' },

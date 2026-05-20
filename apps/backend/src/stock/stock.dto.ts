@@ -2,6 +2,7 @@ import {
   Marketplace,
   StockCountMode,
   StockMovementType,
+  TransferStatus,
 } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
@@ -189,3 +190,62 @@ export class DistributeStockDto {
 }
 
 export class PreviewDistributionDto extends DistributeStockDto {}
+
+export class StockTransferItemInputDto {
+  @IsString()
+  @IsNotEmpty()
+  productId!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+}
+
+export class CreateStockTransferDto {
+  @IsString()
+  @IsNotEmpty()
+  fromWarehouseId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  toWarehouseId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => StockTransferItemInputDto)
+  items!: StockTransferItemInputDto[];
+}
+
+export class ListStockTransfersQueryDto {
+  @IsOptional()
+  @IsEnum(TransferStatus)
+  status?: TransferStatus;
+
+  @IsOptional()
+  @IsString()
+  fromWarehouseId?: string;
+
+  @IsOptional()
+  @IsString()
+  toWarehouseId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}

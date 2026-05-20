@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -57,7 +57,7 @@ export function AcceptInvitePage(): ReactElement {
   const [previewLoading, setPreviewLoading] = useState(true);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+    resolver: zodFormResolver(schema),
     defaultValues: { name: '', password: '' },
   });
 

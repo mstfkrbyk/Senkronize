@@ -5,6 +5,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { OutboundWebhookModule } from '../webhook/outbound-webhook.module';
 
 import { ProductBulkService } from './product-bulk.service';
+import { BarcodeService } from './barcode.service';
 import { ProductController } from './product.controller';
 import { ProductImportService } from './product-import.service';
 import { ProductVariantService } from './product-variant.service';
@@ -18,12 +19,14 @@ import { ProductService } from './product.service';
     ProductVariantService,
     ProductImportService,
     ProductBulkService,
+    BarcodeService,
   ],
   exports: [
     ProductService,
     ProductVariantService,
     ProductImportService,
     ProductBulkService,
+    BarcodeService,
   ],
 })
 export class ProductModule {}

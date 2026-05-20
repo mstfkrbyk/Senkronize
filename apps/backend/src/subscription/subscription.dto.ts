@@ -1,4 +1,4 @@
-import { PlanTier } from '@prisma/client';
+import { BillingPeriod, PlanTier } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEnum,
@@ -13,6 +13,20 @@ import {
 export class SubscriptionCheckoutDto {
   @IsEnum(PlanTier)
   plan!: PlanTier;
+}
+
+export class SubscriptionStartDto {
+  @IsEnum(PlanTier)
+  plan!: PlanTier;
+
+  @IsEnum(BillingPeriod)
+  billingPeriod!: BillingPeriod;
+}
+
+export class IyzicoCallbackDto {
+  @IsString()
+  @MaxLength(256)
+  token!: string;
 }
 
 export class SubscriptionChangePlanDto {

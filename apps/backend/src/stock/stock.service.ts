@@ -10,6 +10,7 @@ import {
 } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
+import { WebhookEvent } from '../webhook/webhook-event.enum';
 
 import type { BulkStockUpdateDto, StockQueryDto } from './stock.dto';
 
@@ -180,10 +181,22 @@ export class StockService {
       quantity: u.quantity,
     }));
     for (const u of dto.updates) {
-      void this.outboundWebhookService.dispatch(organizationId, 'stock.updated', {
+      void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.STOCK_UPDATED, {
         barcode: u.barcode,
         newQty: u.quantity,
       });
+      if (u.quantity === 0) {
+        void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.STOCK_OUT, {
+          barcode: u.barcode,
+          quantity: u.quantity,
+        });
+      } else if (u.quantity < LOW_STOCK_THRESHOLD) {
+        void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.STOCK_LOW, {
+          barcode: u.barcode,
+          quantity: u.quantity,
+          threshold: LOW_STOCK_THRESHOLD,
+        });
+      }
     }
     for (const conn of connections) {
       const job = await this.marketplacePushQueue.add(

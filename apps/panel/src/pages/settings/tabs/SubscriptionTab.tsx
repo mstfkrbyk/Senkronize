@@ -50,14 +50,13 @@ import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type {
+  BillingPeriod,
   PaymentStatus,
   PlanTier,
   SubscriptionRecord,
   SubscriptionStatus,
   UsageStats,
 } from '@/types/subscription';
-
-const PAYTR_IFRAME_BASE = 'https://www.paytr.com/odeme/guvenli/';
 
 const PLAN_RANK: Record<PlanTier, number> = {
   BASLANGIC: 0,
@@ -158,7 +157,7 @@ function statusBadgeVariant(
   if (status === 'TRIAL') {
     return 'secondary';
   }
-  if (status === 'CANCELLED') {
+  if (status === 'CANCELLED' || status === 'CANCELING') {
     return 'destructive';
   }
   return 'outline';
@@ -169,6 +168,7 @@ function statusLabel(status: SubscriptionStatus): string {
     TRIAL: 'Deneme',
     ACTIVE: 'Aktif',
     PAUSED: 'Duraklatıldı',
+    CANCELING: 'İptal sürecinde',
     CANCELLED: 'İptal edildi',
     EXPIRED: 'Süresi doldu',
   };
@@ -286,11 +286,12 @@ function UsageMetricRow({
 
 export function SubscriptionTab(): ReactElement {
   const queryClient = useQueryClient();
-  const [paytrToken, setPaytrToken] = useState<string | null>(null);
-  const [showPayment, setShowPayment] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
   const [upgradeTarget, setUpgradeTarget] = useState<PlanTier | null>(null);
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [startPlan, setStartPlan] = useState<PlanTier>('PRO');
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('YEARLY');
   const [cancelPreset, setCancelPreset] = useState<string>(CANCEL_PRESETS[0].value);
   const [cancelDetail, setCancelDetail] = useState('');
 
@@ -313,36 +314,19 @@ export function SubscriptionTab(): ReactElement {
 
   const currentPlan = subQuery.data?.plan ?? null;
 
-  const checkoutMutation = useMutation({
-    mutationFn: async (plan: PlanTier): Promise<{ token: string }> => {
-      const { data } = await api.post<{
-        token: string;
-        iframeToken: string;
-        merchantOid: string;
-      }>('/subscriptions/checkout', { plan });
-      const token = data.token ?? data.iframeToken;
-      return { token };
-    },
-    onSuccess: ({ token }) => {
-      setPaytrToken(token);
-      setShowPayment(true);
-    },
-    onError: (e: unknown) => {
-      toast.error(getApiErrorMessage(e));
-    },
-  });
-
-  const upgradeRequestMutation = useMutation({
-    mutationFn: async (plan: PlanTier): Promise<{ message: string }> => {
-      const { data } = await api.patch<{ message: string }>('/subscriptions/plan', {
-        plan,
-      });
+  const startSubscriptionMutation = useMutation({
+    mutationFn: async (input: {
+      plan: PlanTier;
+      billingPeriod: BillingPeriod;
+    }): Promise<{ checkoutUrl: string }> => {
+      const { data } = await api.post<{ checkoutUrl: string }>(
+        '/subscriptions/start',
+        input,
+      );
       return data;
     },
     onSuccess: (data) => {
-      toast.success(data.message);
-      setUpgradeDialogOpen(false);
-      setUpgradeTarget(null);
+      window.location.href = data.checkoutUrl;
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -458,7 +442,11 @@ export function SubscriptionTab(): ReactElement {
             <div>
               <CardTitle className="text-base">Mevcut abonelik</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {planDisplayName(subQuery.data.plan)} · Dönem bitişi:{' '}
+                {planDisplayName(subQuery.data.plan)}
+                {subQuery.data.nextBillingAt
+                  ? ` · Yenileme: ${new Date(subQuery.data.nextBillingAt).toLocaleDateString('tr-TR')}`
+                  : null}{' '}
+                · Dönem bitişi:{' '}
                 {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
               </p>
             </div>
@@ -466,7 +454,8 @@ export function SubscriptionTab(): ReactElement {
               {statusLabel(subQuery.data.status)}
             </Badge>
           </CardHeader>
-          {subQuery.data.status === 'CANCELLED' ? (
+          {subQuery.data.status === 'CANCELLED' ||
+          subQuery.data.status === 'CANCELING' ? (
             <CardContent>
               <div
                 className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
@@ -475,7 +464,10 @@ export function SubscriptionTab(): ReactElement {
                 <p className="font-medium">İptal talebiniz kayıtlı.</p>
                 <p className="mt-1">
                   <span className="font-semibold">
-                    {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
+                    {new Date(
+                      subQuery.data.subscriptionEndsAt ??
+                        subQuery.data.currentPeriodEnd,
+                    ).toLocaleDateString('tr-TR')}
                   </span>{' '}
                   tarihine kadar erişiminiz devam eder.
                 </p>
@@ -515,24 +507,19 @@ export function SubscriptionTab(): ReactElement {
           {usage ? (
             <>
               <UsageMetricRow
-                label="Pazaryerleri"
-                used={usage.connections.used}
-                limit={usage.connections.limit}
-              />
-              <UsageMetricRow
-                label="Ürünler"
-                used={usage.products.used}
-                limit={usage.products.limit}
-              />
-              <UsageMetricRow
-                label="Bu ay sipariş"
+                label="Siparişler"
                 used={usage.orders.used}
                 limit={usage.orders.limit}
               />
               <UsageMetricRow
-                label="API anahtarları"
-                used={usage.apiKeys.used}
-                limit={usage.apiKeys.limit}
+                label="Bağlantılar"
+                used={usage.connections.used}
+                limit={usage.connections.limit}
+              />
+              <UsageMetricRow
+                label="Kullanıcılar"
+                used={usage.users.used}
+                limit={usage.users.limit}
               />
             </>
           ) : null}
@@ -596,7 +583,7 @@ export function SubscriptionTab(): ReactElement {
                     type="button"
                     className="w-full"
                     variant={canUpgrade ? 'default' : 'outline'}
-                    disabled={!canUpgrade || isCurrent || upgradeRequestMutation.isPending}
+                    disabled={!canUpgrade || isCurrent || startSubscriptionMutation.isPending}
                     onClick={() => {
                       if (canUpgrade) {
                         openUpgradeDialog(plan.id);
@@ -678,22 +665,37 @@ export function SubscriptionTab(): ReactElement {
         ) : null}
       </div>
 
-      {subQuery.isSuccess && subQuery.data?.status !== 'CANCELLED' ? (
-        <div className="flex flex-wrap gap-3 border-t pt-4">
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={checkoutMutation.isPending}
-            onClick={() => {
-              const plan = currentPlan ?? 'PRO';
-              checkoutMutation.mutate(plan);
-            }}
-          >
-            {checkoutMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-            ) : null}
-            PayTR ile ödeme
+      {subQuery.isError || subQuery.data?.status === 'TRIAL' ? (
+        <div className="flex flex-wrap gap-3">
+          <Button type="button" onClick={() => setStartDialogOpen(true)}>
+            Yeni abonelik başlat
           </Button>
+        </div>
+      ) : null}
+
+      {subQuery.isSuccess &&
+      subQuery.data?.status !== 'CANCELLED' &&
+      subQuery.data?.status !== 'CANCELING' ? (
+        <div className="flex flex-wrap gap-3 border-t pt-4">
+          {currentPlan && isHigherPlan('KURUMSAL', currentPlan) ? (
+            <Button
+              type="button"
+              variant="default"
+              disabled={startSubscriptionMutation.isPending}
+              onClick={() => {
+                const next =
+                  currentPlan === 'BASLANGIC'
+                    ? 'GELISIM'
+                    : currentPlan === 'GELISIM'
+                      ? 'PRO'
+                      : 'KURUMSAL';
+                setUpgradeTarget(next);
+                setUpgradeDialogOpen(true);
+              }}
+            >
+              Plan yükselt
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -712,22 +714,25 @@ export function SubscriptionTab(): ReactElement {
             <AlertDialogTitle>Plan yükseltme</AlertDialogTitle>
             <AlertDialogDescription>
               {upgradeTargetName
-                ? `${upgradeTargetName} planına geçmek istiyorsunuz. Ödeme sistemi kurulunca aktif edilecektir. Devam etmek ister misiniz?`
-                : 'Plan yükseltme talebi oluşturulacak. Devam etmek ister misiniz?'}
+                ? `${upgradeTargetName} planına geçmek için güvenli ödeme sayfasına yönlendirileceksiniz. Devam etmek ister misiniz?`
+                : 'Plan yükseltme için ödeme sayfasına yönlendirileceksiniz.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
             <AlertDialogAction
               type="button"
-              disabled={!upgradeTarget || upgradeRequestMutation.isPending}
+              disabled={!upgradeTarget || startSubscriptionMutation.isPending}
               onClick={() => {
                 if (upgradeTarget) {
-                  upgradeRequestMutation.mutate(upgradeTarget);
+                  startSubscriptionMutation.mutate({
+                    plan: upgradeTarget,
+                    billingPeriod,
+                  });
                 }
               }}
             >
-              {upgradeRequestMutation.isPending ? (
+              {startSubscriptionMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
               ) : null}
               Onayla
@@ -736,28 +741,62 @@ export function SubscriptionTab(): ReactElement {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog
-        open={showPayment && paytrToken != null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setShowPayment(false);
-            setPaytrToken(null);
-          }
-        }}
-      >
-        <DialogContent className="max-w-2xl">
+      <Dialog open={startDialogOpen} onOpenChange={setStartDialogOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Güvenli ödeme</DialogTitle>
+            <DialogTitle>Yeni abonelik</DialogTitle>
           </DialogHeader>
-          {paytrToken ? (
-            <iframe
-              title="PayTR güvenli ödeme"
-              src={`${PAYTR_IFRAME_BASE}${paytrToken}`}
-              className="w-full rounded-md border-0"
-              height={600}
-              scrolling="no"
-            />
-          ) : null}
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Paket</Label>
+              <Select
+                value={startPlan}
+                onValueChange={(v) => setStartPlan(v as PlanTier)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLANS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Fatura dönemi</Label>
+              <Select
+                value={billingPeriod}
+                onValueChange={(v) => setBillingPeriod(v as BillingPeriod)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="YEARLY">Yıllık</SelectItem>
+                  <SelectItem value="MONTHLY">Aylık</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              className="w-full"
+              disabled={startSubscriptionMutation.isPending}
+              onClick={() => {
+                startSubscriptionMutation.mutate({
+                  plan: startPlan,
+                  billingPeriod,
+                });
+              }}
+            >
+              {startSubscriptionMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : null}
+              Ödemeye geç
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

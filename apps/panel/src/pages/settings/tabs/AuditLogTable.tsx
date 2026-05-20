@@ -27,6 +27,11 @@ const ACTION_LABELS: Record<string, string> = {
   'subscription.cancel_requested': 'Abonelik İptal Talebi',
   'subscription.reactivated': 'Abonelik Yeniden Aktifleşti',
   'subscription.payment_failed': 'Ödeme Başarısız',
+  'auth.password_changed': 'Şifre değiştirildi',
+  'auth.two_factor_enabled': '2FA etkinleştirildi',
+  'auth.two_factor_disabled': '2FA devre dışı',
+  'auth.two_factor_backup_regenerated': '2FA yedek kodları yenilendi',
+  'security.suspect_bulk_night': 'Şüpheli toplu işlem (gece)',
 };
 
 interface Props {

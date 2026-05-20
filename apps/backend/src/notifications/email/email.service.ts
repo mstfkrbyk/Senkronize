@@ -308,20 +308,89 @@ export class EmailService {
   }
 
   async sendNewIpLoginAlert(to: string, ip: string): Promise<void> {
-    const safeIp = ip
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    await this.sendNewDeviceLoginAlert(to, { ip, device: 'Bilinmeyen cihaz', location: 'Bilinmiyor' });
+  }
+
+  async sendNewDeviceLoginAlert(
+    to: string,
+    info: { ip: string; device: string; location: string },
+  ): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const base = this.panelBaseUrl();
     await this.send(
       to,
-      'Yeni IP adresinden giriş',
+      'Yeni cihazdan giriş',
       `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>Hesabınıza yeni bir IP üzerinden giriş yapıldı</h2>
-        <p><strong>IP:</strong> ${safeIp}</p>
+        <h2>Hesabınıza yeni bir cihazdan giriş yapıldı</h2>
+        <p><strong>Cihaz:</strong> ${esc(info.device)}</p>
+        <p><strong>IP:</strong> ${esc(info.ip)}</p>
+        <p><strong>Konum:</strong> ${esc(info.location)}</p>
         <p>Bu sizseniz bu mesajı yok sayabilirsiniz. Tanımadığınız bir aktiviteyse şifrenizi değiştirin.</p>
-        <a href="${base}/settings/security"
+        <a href="${base}/settings?tab=security"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Güvenlik ayarları
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendPasswordChangedAlert(to: string): Promise<void> {
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Şifreniz değiştirildi',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Hesap şifreniz güncellendi</h2>
+        <p>Bu işlemi siz yaptıysanız ek bir işlem gerekmez.</p>
+        <p>Siz yapmadıysanız hemen şifrenizi sıfırlayın ve destek ile iletişime geçin.</p>
+        <a href="${base}/settings?tab=security"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Güvenlik ayarları
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendTwoFactorStatusAlert(to: string, enabled: boolean): Promise<void> {
+    const base = this.panelBaseUrl();
+    const title = enabled ? '2FA etkinleştirildi' : '2FA devre dışı bırakıldı';
+    const body = enabled
+      ? 'İki adımlı doğrulama hesabınızda etkinleştirildi.'
+      : 'İki adımlı doğrulama kapatıldı. Siz yapmadıysanız hesabınızı kontrol edin.';
+    await this.send(
+      to,
+      title,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>${title}</h2>
+        <p>${body}</p>
+        <a href="${base}/settings?tab=security"
+           style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
+          Güvenlik ayarları
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendSuspiciousLoginAlert(to: string, reason: string): Promise<void> {
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const base = this.panelBaseUrl();
+    await this.send(
+      to,
+      'Şüpheli giriş denemesi',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Şüpheli oturum açma girişimi</h2>
+        <p>${esc(reason)}</p>
+        <p>Hesabınızı korumak için şifrenizi değiştirmenizi öneririz.</p>
+        <a href="${base}/settings?tab=security"
            style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
           Güvenlik ayarları
         </a>

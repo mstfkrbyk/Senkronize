@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { ReactElement } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -13,6 +15,11 @@ interface Props {
   onStartSync?: () => void;
   syncDisabled?: boolean;
   syncLabel?: string;
+  icon?: LucideIcon;
+  emptyTitle?: string;
+  emptyDescription?: string;
+  noConnectionTitle?: string;
+  noConnectionDescription?: string;
 }
 
 export function TablePageEmptyState({
@@ -22,6 +29,11 @@ export function TablePageEmptyState({
   onStartSync,
   syncDisabled = false,
   syncLabel = 'Senkronizasyonu başlat',
+  icon = ShoppingCart,
+  emptyTitle,
+  emptyDescription,
+  noConnectionTitle = 'Bağlantı yok',
+  noConnectionDescription = 'Sipariş ve listelerinizi görmek için önce pazaryeri bağlantınızı ekleyin.',
 }: Props): ReactElement {
   if (connectionsLoading || hasMarketplaceConnections === null) {
     return (
@@ -35,8 +47,9 @@ export function TablePageEmptyState({
   if (!hasMarketplaceConnections) {
     return (
       <EmptyState
-        title="Bağlantı yok"
-        description="Sipariş ve listelerinizi görmek için önce pazaryeri bağlantınızı ekleyin."
+        icon={icon}
+        title={noConnectionTitle}
+        description={noConnectionDescription}
         actionSlot={
           <Button type="button" variant="default" asChild>
             <Link to="/connections">İlk bağlantınızı ekleyin</Link>
@@ -48,11 +61,16 @@ export function TablePageEmptyState({
 
   return (
     <EmptyState
-      title={hasActiveFilters ? 'Filtrelere uygun kayıt yok' : 'Henüz kayıt yok'}
+      icon={icon}
+      title={
+        emptyTitle ??
+        (hasActiveFilters ? 'Filtrelere uygun kayıt yok' : 'Henüz kayıt yok')
+      }
       description={
-        hasActiveFilters
+        emptyDescription ??
+        (hasActiveFilters
           ? 'Filtreleri gevşeterek veya temizleyerek tekrar deneyin.'
-          : 'Aktif bağlantılarınızdan veri geldikten sonra kayıtlar burada görünür. Senkronizasyonu başlatabilir veya bağlantılarınızı yönetebilirsiniz.'
+          : 'Aktif bağlantılarınızdan veri geldikten sonra kayıtlar burada görünür. Senkronizasyonu başlatabilir veya bağlantılarınızı yönetebilirsiniz.')
       }
       actionSlot={
         !hasActiveFilters ? (

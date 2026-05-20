@@ -93,3 +93,49 @@ export function useCancelStockCountSession(sessionId: string | undefined) {
     },
   });
 }
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function useExportStockCountPdf(sessionId: string | undefined) {
+  return useMutation({
+    mutationFn: async (): Promise<void> => {
+      const res = await api.get(
+        `/stock/count-sessions/${sessionId as string}/export-pdf`,
+        { responseType: 'blob' },
+      );
+      downloadBlob(
+        new Blob([res.data as BlobPart], { type: 'application/pdf' }),
+        `sayim-${(sessionId ?? 'form').slice(0, 8)}.pdf`,
+      );
+    },
+  });
+}
+
+export function useImportStockCountCsv(sessionId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File): Promise<{ imported: number; skipped: number }> => {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await api.post<{
+        data: { imported: number; skipped: number };
+      }>(`/stock/count-sessions/${sessionId as string}/import-csv`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data.data;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({
+        queryKey: ['stock', 'count-session', sessionId],
+      });
+      await qc.invalidateQueries({ queryKey: ['stock'] });
+    },
+  });
+}

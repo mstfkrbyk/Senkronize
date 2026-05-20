@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -47,7 +47,7 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
   const invite = useCreateOnboardingInvite();
 
   const form = useForm<InviteFormValues>({
-    resolver: zodResolver(inviteSchema),
+    resolver: zodFormResolver(inviteSchema),
     defaultValues: {
       email: '',
       message: '',

@@ -10,6 +10,7 @@ import { type User, type UserInvite, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { AuthService } from '../auth/auth.service';
+import { PasswordPolicyService } from '../auth/password-policy.service';
 import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -28,6 +29,7 @@ export class UserInviteService {
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
     private readonly authService: AuthService,
+    private readonly passwordPolicy: PasswordPolicyService,
     private readonly config: ConfigService,
   ) {}
 
@@ -158,6 +160,11 @@ export class UserInviteService {
     });
     if (!invite || invite.expiresAt <= new Date()) {
       throw new NotFoundException('Davet bulunamadı veya süresi dolmuş.');
+    }
+
+    const passwordCheck = this.passwordPolicy.validatePassword(password);
+    if (!passwordCheck.valid) {
+      throw new BadRequestException(passwordCheck.errors[0]);
     }
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);

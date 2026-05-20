@@ -42,6 +42,8 @@ import {
   ReorderProductImagesDto,
 } from './product-bulk.dto';
 import { ProductBulkService } from './product-bulk.service';
+import { BarcodeService } from './barcode.service';
+import type { ProductBarcodeSearchResult } from './barcode.service';
 import type { ImportResult } from './product-import.types';
 import { ProductImportService } from './product-import.service';
 import {
@@ -85,6 +87,7 @@ export class ProductController {
     private readonly productImportService: ProductImportService,
     private readonly productBulkService: ProductBulkService,
     private readonly imageService: ImageService,
+    private readonly barcodeService: BarcodeService,
   ) {}
 
   @Get('reorder-alerts')
@@ -107,6 +110,40 @@ export class ProductController {
   ): Promise<{ items: string[] }> {
     const items = await this.productService.listBarcodes(org.id);
     return { items };
+  }
+
+  @Get('barcode/validate')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'EAN-13 barkod geçerliliğini kontrol et' })
+  @ApiResponse({ status: 200 })
+  validateBarcode(
+    @Query('barcode') barcode: string,
+  ): Promise<{ valid: boolean }> {
+    return Promise.resolve({
+      valid: this.barcodeService.validateBarcode(barcode ?? ''),
+    });
+  }
+
+  @Get('barcode/search')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Barkoda göre ürün ara' })
+  @ApiResponse({ status: 200 })
+  async searchByBarcode(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('barcode') barcode: string,
+  ): Promise<{ data: ProductBarcodeSearchResult | null }> {
+    return this.barcodeService.searchByBarcode(org.id, barcode ?? '');
+  }
+
+  @Post(':id/barcode/generate')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Ürün için EAN-13 barkod üret' })
+  @ApiResponse({ status: 200 })
+  async generateBarcode(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ barcode: string }> {
+    return this.barcodeService.generateBarcode(org.id, id);
   }
 
   @Post('sync-all-platforms')

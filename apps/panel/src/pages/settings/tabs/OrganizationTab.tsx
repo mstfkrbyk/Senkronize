@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -43,7 +43,7 @@ export function OrganizationTab(): ReactElement {
   });
 
   const form = useForm<OrgFormValues>({
-    resolver: zodResolver(orgSchema),
+    resolver: zodFormResolver(orgSchema),
     defaultValues: { name: '' },
   });
 

@@ -54,7 +54,7 @@ export function SyncStatusWidget(): ReactElement {
   });
 
   return (
-    <Card className="h-full">
+    <Card className="h-full" data-tour="dashboard-sync">
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
           <CardTitle>Senkronizasyon</CardTitle>

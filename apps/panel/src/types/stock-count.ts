@@ -14,8 +14,16 @@ export interface StockCountItemRow {
   systemQuantity: number;
   countedQuantity: number;
   difference: number;
+  differenceValue: number | null;
+  unitCost: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockCountVarianceSummary {
+  totalDifferenceUnits: number;
+  totalDifferenceValue: number;
+  itemsWithVariance: number;
 }
 
 export interface StockCountSessionDetail {
@@ -32,4 +40,5 @@ export interface StockCountSessionDetail {
   completedAt: string | null;
   createdBy: string;
   items: StockCountItemRow[];
+  varianceSummary: StockCountVarianceSummary;
 }

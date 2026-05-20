@@ -66,8 +66,13 @@ export class SubscriptionGuard implements CanActivate {
       );
     }
 
-    if (subscription.status === SubStatus.CANCELLED) {
-      if (now > subscription.currentPeriodEnd) {
+    if (
+      subscription.status === SubStatus.CANCELLED ||
+      subscription.status === SubStatus.CANCELING
+    ) {
+      const endsAt =
+        subscription.subscriptionEndsAt ?? subscription.currentPeriodEnd;
+      if (now > endsAt) {
         throw new HttpException(
           'Abonelik dönemi sona erdi',
           HttpStatus.PAYMENT_REQUIRED,

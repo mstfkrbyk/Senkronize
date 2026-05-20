@@ -1,16 +1,24 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   DefaultValuePipe,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -25,7 +33,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   BulkStockUpdateDto,
   CreateStockCountSessionDto,
+  CreateStockTransferDto,
   DistributeStockDto,
+  ListStockTransfersQueryDto,
   PreviewDistributionDto,
   StockAdjustDto,
   StockForecastQueryDto,
@@ -56,11 +66,25 @@ import {
   type MovementSummary,
 } from './stock-movement.service';
 import {
+  StockTransferService,
+  type StockTransferDetailDto,
+  type StockTransferRowDto,
+} from './stock-transfer.service';
+import {
   StockService,
   type LowStockEntryRow,
   type SerializedStockEntry,
   type StockOverviewRow,
 } from './stock.service';
+
+const CSV_MAX_BYTES = 10 * 1024 * 1024;
+const CSV_MIMES = new Set([
+  'text/csv',
+  'application/csv',
+  'text/plain',
+  'application/vnd.ms-excel',
+  'application/octet-stream',
+]);
 
 @ApiTags('Stok')
 @ApiBearerAuth()
@@ -70,6 +94,7 @@ export class StockController {
     private readonly stockService: StockService,
     private readonly stockMovementService: StockMovementService,
     private readonly stockCountService: StockCountService,
+    private readonly stockTransferService: StockTransferService,
     private readonly stockForecastService: StockForecastService,
     private readonly stockDistributionService: StockDistributionService,
   ) {}
@@ -361,5 +386,107 @@ export class StockController {
     @Param('id') id: string,
   ): Promise<{ success: true }> {
     return this.stockCountService.cancelSession(org.id, id);
+  }
+
+  @Get('count-sessions/:id/export-pdf')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Sayım formu PDF indir (barkod/QR)' })
+  @ApiResponse({ status: 200 })
+  async exportStockCountSheet(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<StreamableFile> {
+    const buffer = await this.stockCountService.exportCountSheet(org.id, id);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="sayim-${id.slice(0, 8)}.pdf"`,
+    });
+  }
+
+  @Post('count-sessions/:id/import-csv')
+  @UseGuards(JwtAuthGuard)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOperation({ summary: 'CSV ile sayım sonuçlarını yükle' })
+  @ApiResponse({ status: 200 })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: CSV_MAX_BYTES },
+    }),
+  )
+  async importStockCountResult(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<{ data: { imported: number; skipped: number } }> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('CSV dosyası gerekli.');
+    }
+    const mime = file.mimetype?.toLowerCase() ?? '';
+    if (mime.length > 0 && !CSV_MIMES.has(mime)) {
+      throw new BadRequestException('Yalnızca CSV dosyası yüklenebilir.');
+    }
+    return this.stockCountService.importCountResult(org.id, id, file.buffer);
+  }
+
+  @Get('transfers')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok transfer listesi' })
+  @ApiResponse({ status: 200 })
+  async listTransfers(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query() query: ListStockTransfersQueryDto,
+  ): Promise<{ data: StockTransferRowDto[]; total: number }> {
+    return this.stockTransferService.listTransfers(org.id, query);
+  }
+
+  @Get('transfers/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Stok transfer detayı' })
+  @ApiResponse({ status: 200 })
+  async getTransfer(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: StockTransferDetailDto }> {
+    return this.stockTransferService.getTransfer(org.id, id);
+  }
+
+  @Post('transfers')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Yeni stok transferi oluştur' })
+  @ApiResponse({ status: 201 })
+  async createTransfer(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateStockTransferDto,
+  ): Promise<{ data: StockTransferDetailDto }> {
+    return this.stockTransferService.createTransfer(org.id, user.id, dto);
+  }
+
+  @Patch('transfers/:id/confirm')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Transferi onayla ve stok hareketi oluştur' })
+  @ApiResponse({ status: 200 })
+  async confirmTransfer(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: StockTransferDetailDto }> {
+    return this.stockTransferService.confirmTransfer(org.id, id);
+  }
+
+  @Patch('transfers/:id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Transferi iptal et' })
+  @ApiResponse({ status: 200 })
+  async cancelTransfer(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<{ data: StockTransferDetailDto }> {
+    return this.stockTransferService.cancelTransfer(org.id, id);
   }
 }

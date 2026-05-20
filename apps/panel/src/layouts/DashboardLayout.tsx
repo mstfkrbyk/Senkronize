@@ -3,8 +3,10 @@ import { Fragment, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 
 import { BarcodeInputProvider } from '@/hooks/useBarcodeInput';
-import { GlobalSearch } from '@/components/GlobalSearch';
-import { ShortcutsModal } from '@/components/ShortcutsModal';
+import { CommandPalette } from '@/components/CommandPalette';
+import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { Breadcrumb } from '@/components/layout/Breadcrumb';
+import { BreadcrumbProvider } from '@/contexts/breadcrumb.context';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
 import { DemoBanner } from '@/components/DemoBanner';
 import { ImpersonationBanner } from '@/components/ImpersonationBanner';
@@ -52,6 +54,7 @@ export function DashboardLayout(): ReactElement {
 
   return (
     <BarcodeInputProvider>
+      <BreadcrumbProvider>
       <Fragment>
         <a
           href="#main-content"
@@ -73,15 +76,17 @@ export function DashboardLayout(): ReactElement {
             tabIndex={-1}
             className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto p-4 outline-none md:p-6"
           >
+            <Breadcrumb />
             <Outlet />
           </main>
         </SidebarInset>
       </SidebarProvider>
-      <ShortcutsModal />
-      <GlobalSearch />
+      <KeyboardShortcutsModal />
+      <CommandPalette />
       <OnboardingTour />
       <CurrencyWidget />
     </Fragment>
+      </BreadcrumbProvider>
     </BarcodeInputProvider>
   );
 }

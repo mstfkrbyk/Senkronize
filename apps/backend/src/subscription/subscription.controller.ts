@@ -24,13 +24,16 @@ import { PaytrService } from './paytr.service';
 import { isPaytrWebhookIpAllowed } from './paytr-webhook-ip';
 import type { PaytrWebhookPayload } from './paytr.types';
 import {
+  IyzicoCallbackDto,
   SubscriptionCancelDto,
   SubscriptionChangePlanDto,
   SubscriptionCheckoutDto,
   SubscriptionPaymentsQueryDto,
+  SubscriptionStartDto,
 } from './subscription.dto';
 import { SubscriptionService } from './subscription.service';
 import type {
+  CheckoutUrlResult,
   PlanUpgradeRequestResult,
   UsageStats,
 } from './subscription.types';
@@ -111,6 +114,30 @@ export class SubscriptionController {
     return this.subscriptionService.changePlan(org.id, user.id, dto.plan);
   }
 
+  @Post('start')
+  @UseGuards(JwtAuthGuard)
+  async startSubscription(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionStartDto,
+  ): Promise<CheckoutUrlResult> {
+    return this.subscriptionService.startSubscription(
+      org.id,
+      user,
+      dto.plan,
+      dto.billingPeriod,
+    );
+  }
+
+  @Post('iyzico/callback')
+  @UseGuards(JwtAuthGuard)
+  async iyzicoCallback(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: IyzicoCallbackDto,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.subscriptionService.completeIyzicoCheckout(org.id, dto.token);
+  }
+
   @Patch('plan')
   @UseGuards(JwtAuthGuard)
   async requestPlanUpgrade(
@@ -118,7 +145,7 @@ export class SubscriptionController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SubscriptionChangePlanDto,
   ): Promise<PlanUpgradeRequestResult> {
-    return this.subscriptionService.requestPlanUpgrade(
+    return this.subscriptionService.upgradeSubscription(
       org.id,
       user.id,
       dto.plan,

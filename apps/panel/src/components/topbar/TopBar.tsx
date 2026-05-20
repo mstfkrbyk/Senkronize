@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Search } from 'lucide-react';
 
 import { HelpMenu } from '@/components/topbar/HelpMenu';
-import { openGlobalSearch } from '@/components/GlobalSearch';
+import { openCommandPalette } from '@/lib/command-palette';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -101,7 +101,7 @@ export function TopBar(): ReactElement {
           type="button"
           variant="outline"
           className="text-muted-foreground h-9 w-full max-w-xs justify-start gap-2 px-3 font-normal"
-          onClick={() => openGlobalSearch()}
+          onClick={() => openCommandPalette()}
         >
           <Search className="size-4 shrink-0" aria-hidden />
           <span className="truncate">{t('common.searchPlaceholder')}</span>

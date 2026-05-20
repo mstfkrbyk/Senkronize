@@ -1,19 +1,21 @@
 import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
-import { GLOBAL_SEARCH_EVENT, openGlobalSearch } from '@/components/GlobalSearch';
+import { openCommandPalette } from '@/lib/command-palette';
 import { useUiStore } from '@/store/ui.store';
 
-const SHORTCUTS: Record<string, string> = {
+const SEQUENCE_SHORTCUTS: Record<string, string> = {
   'g d': '/dashboard',
   'g o': '/orders',
-  'g l': '/listings',
-  'g s': '/stock',
   'g p': '/products',
-  'g f': '/pricing',
+  'g s': '/stock',
   'g r': '/reports',
   'g c': '/connections',
+  'g l': '/listings',
+  'g f': '/pricing',
   'g m': '/migration',
+  'n o': '/orders',
   '?': '?help',
 };
 
@@ -27,8 +29,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+function refetchCurrentPage(queryClient: ReturnType<typeof useQueryClient>): void {
+  void queryClient.refetchQueries({ type: 'active' });
+}
+
 export function useKeyboardShortcuts(): void {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const setShortcutsHelpOpen = useUiStore((s) => s.setShortcutsHelpOpen);
 
   useEffect(() => {
@@ -42,7 +49,23 @@ export function useKeyboardShortcuts(): void {
 
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        openGlobalSearch();
+        openCommandPalette();
+        buffer = '';
+        clearTimeout(timer);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        setShortcutsHelpOpen(true);
+        buffer = '';
+        clearTimeout(timer);
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'r' || e.key === 'R')) {
+        e.preventDefault();
+        refetchCurrentPage(queryClient);
         buffer = '';
         clearTimeout(timer);
         return;
@@ -60,7 +83,7 @@ export function useKeyboardShortcuts(): void {
 
       if (e.key === '/') {
         e.preventDefault();
-        openGlobalSearch();
+        openCommandPalette();
         buffer = '';
         clearTimeout(timer);
         return;
@@ -83,7 +106,7 @@ export function useKeyboardShortcuts(): void {
         buffer = '';
       }, 1000);
 
-      const route = SHORTCUTS[buffer];
+      const route = SEQUENCE_SHORTCUTS[buffer];
       if (route) {
         buffer = '';
         clearTimeout(timer);
@@ -101,7 +124,12 @@ export function useKeyboardShortcuts(): void {
       window.removeEventListener('keydown', handler);
       clearTimeout(timer);
     };
-  }, [navigate, setShortcutsHelpOpen]);
+  }, [navigate, queryClient, setShortcutsHelpOpen]);
 }
 
-export { GLOBAL_SEARCH_EVENT, openGlobalSearch };
+export {
+  COMMAND_PALETTE_EVENT,
+  GLOBAL_SEARCH_EVENT,
+  openCommandPalette,
+  openGlobalSearch,
+} from '@/lib/command-palette';

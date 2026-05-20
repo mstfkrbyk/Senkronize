@@ -32,8 +32,14 @@ enum SubStatus {
   TRIAL
   ACTIVE
   PAUSED
+  CANCELING
   CANCELLED
   EXPIRED
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
 }
 
 enum PaymentStatus {
@@ -175,6 +181,15 @@ enum Marketplace {
   TRADEME
   LAMODA
   YANDEX_MARKET
+  TAKEALOT
+  BIDORBUY
+  KILIMALL
+  KONGA
+  SOUQ
+  SHARAF_DG
+  WADI
+  OPENSOOQ
+  CIMRI
 }
 
 enum PricingStrategy {
@@ -395,6 +410,8 @@ model UserSession {
   token        String   @unique // refresh token hash
   ipAddress    String?
   userAgent    String?
+  deviceInfo   String?
+  location     String?
   lastActiveAt DateTime @default(now())
   expiresAt    DateTime
   createdAt    DateTime @default(now())
@@ -473,6 +490,7 @@ model Organization {
   partnerClientOnboardings  ClientOnboarding[]        @relation("PartnerOnboarding")
   clientOnboardingsAsClient ClientOnboarding[]        @relation("ClientOnboardingClient")
   paytrSubscription         PaytrSubscription?
+  iyzicoSubscription        IyzicoSubscription?
   payments                  Payment[]
   pricingRules              PricingRule[]
   competitorPrices          CompetitorPrice[]
@@ -735,26 +753,51 @@ model NotificationDigestItem {
 }
 
 model Subscription {
-  id                  String       @id @default(cuid())
-  organizationId      String       @unique
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                  String         @id @default(cuid())
+  organizationId      String         @unique
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan                PlanTier
   status              SubStatus
+  billingPeriod       BillingPeriod?
   trialEndsAt         DateTime?
   nextBillingAt       DateTime?
   currentPeriodStart  DateTime
   currentPeriodEnd    DateTime
+  subscriptionEndsAt  DateTime?
   paytrSubscriptionId String?
   monthlyOrderLimit   Int?
   marketplaceLimit    Int?
   ecommerceLimit      Int?
   erpLimit            Int?
   userLimit           Int?
-  addons              Json         @default("[]")
+  addons              Json           @default("[]")
   canceledAt          DateTime?
   cancelReason        String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+}
+
+model IyzicoSubscription {
+  id                    String       @id @default(cuid())
+  organizationId        String       @unique
+  organization          Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customerRefCode       String?
+  subscriptionRefCode   String?      @unique
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+/// Iyzico abonelik ürün/plan referansları (plan + dönem)
+model IyzicoPricingPlan {
+  id                   String        @id @default(cuid())
+  plan                 PlanTier
+  billingPeriod        BillingPeriod
+  productRefCode       String
+  pricingPlanRefCode   String        @unique
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@unique([plan, billingPeriod])
 }
 
 model PaytrSubscription {
@@ -769,20 +812,24 @@ model PaytrSubscription {
 }
 
 model Payment {
-  id             String        @id @default(cuid())
-  organizationId String
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  amount         Int
-  currency       String        @default("TRY")
-  status         PaymentStatus
-  paytrOrderId   String        @unique
-  paytrPaymentId String?
-  plan           PlanTier
-  periodStart    DateTime?
-  periodEnd      DateTime?
-  failReason     String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                     String         @id @default(cuid())
+  organizationId         String
+  organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  amount                 Int
+  currency               String         @default("TRY")
+  status                 PaymentStatus
+  plan                   PlanTier
+  billingPeriod          BillingPeriod?
+  paytrOrderId           String?        @unique
+  paytrPaymentId         String?
+  iyzicoConversationId   String?        @unique
+  iyzicoCheckoutToken    String?
+  iyzicoOrderReference   String?        @unique
+  periodStart            DateTime?
+  periodEnd              DateTime?
+  failReason             String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
 
   @@index([organizationId])
 }

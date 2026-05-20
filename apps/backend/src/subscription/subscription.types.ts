@@ -19,3 +19,9 @@ export interface UsageStats {
 export interface PlanUpgradeRequestResult {
   message: string;
 }
+
+export interface CheckoutUrlResult {
+  checkoutUrl: string;
+  conversationId: string;
+  token?: string;
+}

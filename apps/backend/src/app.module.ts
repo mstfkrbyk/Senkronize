@@ -2,7 +2,8 @@ import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/c
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
+import { SenkronizeThrottlerGuard } from './common/guards/throttler.guard';
 import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 import { AuditModule } from './audit/audit.module';
 import { AdminModule } from './admin/admin.module';
@@ -55,6 +56,7 @@ import { SearchModule } from './search/search.module';
 import { SupportModule } from './support/support.module';
 import { StockModule } from './stock/stock.module';
 import { SupplierModule } from './supplier/supplier.module';
+import { PaymentModule } from './payment/payment.module';
 import { SubscriptionModule } from './subscription/subscription.module';
 import { SyncStatusModule } from './sync-status/sync-status.module';
 import { SyncModule } from './sync/sync.module';
@@ -115,6 +117,7 @@ import { WebhookModule } from './webhook/webhook.module';
     SyncModule,
     NotificationModule,
     InAppNotificationModule,
+    PaymentModule,
     SubscriptionModule,
     PartnerModule,
     ImpersonationModule,
@@ -131,7 +134,7 @@ import { WebhookModule } from './webhook/webhook.module';
   providers: [
     { provide: APP_GUARD, useClass: IpBlockGuard },
     { provide: APP_GUARD, useClass: DemoModeGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: SenkronizeThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: SecurityRequestInterceptor },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

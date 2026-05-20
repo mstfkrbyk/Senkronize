@@ -52,7 +52,9 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { recordRecentView } from '@/lib/recent-views';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import { ProductImagesTab } from '@/pages/products/components/ProductImagesTab';
 import { ProductPerformanceTab } from '@/pages/products/components/ProductPerformanceTab';
@@ -511,6 +513,23 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
     },
   });
 
+  const productName = detailQuery.data?.product.name;
+  usePageTitle(productName ?? 'Ürün detayı');
+  useBreadcrumbTail(productName);
+
+  useEffect(() => {
+    const product = detailQuery.data?.product;
+    if (!product) {
+      return;
+    }
+    recordRecentView({
+      type: 'product',
+      id: productId,
+      label: product.name,
+      href: `/products/${productId}`,
+    });
+  }, [detailQuery.data?.product, productId]);
+
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ['product-detail', productId] });
     void queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -842,7 +861,6 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
 
 export function ProductDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
-  usePageTitle('Ürün detayı');
 
   if (!id) {
     return <p className="text-muted-foreground text-sm">Ürün bulunamadı.</p>;

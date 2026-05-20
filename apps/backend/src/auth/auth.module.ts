@@ -15,7 +15,9 @@ import { JwtRefreshAuthGuard } from './jwt-refresh-auth.guard';
 import { JwtRefreshStrategy } from './jwt-refresh.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
+import { PasswordPolicyService } from './password-policy.service';
 import { PermissionGuard } from './permission.guard';
+import { SessionService } from './session.service';
 import { TwoFactorService } from './two-factor.service';
 
 @Module({
@@ -42,6 +44,8 @@ import { TwoFactorService } from './two-factor.service';
   controllers: [AuthController],
   providers: [
     AuthService,
+    SessionService,
+    PasswordPolicyService,
     TwoFactorService,
     JwtStrategy,
     JwtRefreshStrategy,
@@ -49,6 +53,12 @@ import { TwoFactorService } from './two-factor.service';
     JwtRefreshAuthGuard,
     PermissionGuard,
   ],
-  exports: [AuthService, JwtAuthGuard, PermissionGuard],
+  exports: [
+    AuthService,
+    SessionService,
+    PasswordPolicyService,
+    JwtAuthGuard,
+    PermissionGuard,
+  ],
 })
 export class AuthModule {}

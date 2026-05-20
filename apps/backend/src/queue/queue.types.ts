@@ -70,6 +70,7 @@ export interface ImageSyncJobData {
 /** Giden webhook teslimatı — webhook-delivery kuyruğu */
 export interface WebhookDeliveryJobData {
   endpointId: string;
+  deliveryId: string;
   event: string;
   payload: Record<string, unknown>;
 }

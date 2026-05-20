@@ -25,8 +25,11 @@ import { SmsService } from '../../notifications/sms/sms.service';
 import { PartnerService } from '../../partner/partner.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AnomalyDetectionService } from '../../security/anomaly-detection.service';
+import { SecurityNotificationService } from '../../security/security-notification.service';
 import { RegisterDto } from '../auth.dto';
 import { AuthService } from '../auth.service';
+import { PasswordPolicyService } from '../password-policy.service';
+import { SessionService } from '../session.service';
 import { TwoFactorService } from '../two-factor.service';
 
 describe('AuthService', () => {
@@ -136,11 +139,35 @@ describe('AuthService', () => {
           useValue: {
             del: jest.fn().mockResolvedValue(undefined),
             incrWithExpire: jest.fn().mockResolvedValue(1),
+            sismember: jest.fn().mockResolvedValue(false),
+            sadd: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
           provide: AnomalyDetectionService,
           useValue: { checkNewIpLogin: jest.fn() },
+        },
+        {
+          provide: SessionService,
+          useValue: {
+            issueTokenPair: jest.fn().mockResolvedValue({
+              accessToken: 'access-token',
+              refreshToken: 'refresh-token',
+              sessionId: 'sess-reg',
+            }),
+            rotateRefreshToken: jest.fn(),
+            logout: jest.fn(),
+          },
+        },
+        PasswordPolicyService,
+        {
+          provide: SecurityNotificationService,
+          useValue: {
+            notifyNewDeviceLogin: jest.fn(),
+            notifyPasswordChanged: jest.fn(),
+            notify2FAStatusChange: jest.fn(),
+            notifySuspiciousLogin: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -176,20 +203,6 @@ describe('AuthService', () => {
             return (arg as (t: typeof tx) => Promise<unknown>)(tx);
           },
         )
-        .mockImplementationOnce(
-          async (arg: unknown) => {
-            const tx = {
-              refreshToken: {
-                create: jest.fn().mockResolvedValue({ id: 'rt1' }),
-              },
-              userSession: {
-                create: jest.fn().mockResolvedValue({ id: 'sess-reg' }),
-              },
-            };
-            return (arg as (t: typeof tx) => Promise<unknown>)(tx);
-          },
-        );
-
       const result = await service.register({
         email: 'New@Example.com',
         password: 'Secret123!',
@@ -295,11 +308,6 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('geçerli kimlik bilgileri ile token döndürmeli', async () => {
-      jwtSignAsync
-        .mockReset()
-        .mockResolvedValueOnce('access-2')
-        .mockResolvedValueOnce('refresh-2');
-
       prismaService.user.findFirst.mockResolvedValue({
         id: 'u2',
         email: 'ok@example.com',
@@ -311,29 +319,15 @@ describe('AuthService', () => {
       } as never);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
-      prismaService.$transaction.mockImplementationOnce(
-        async (arg: unknown) => {
-          const tx = {
-            refreshToken: {
-              create: jest.fn().mockResolvedValue({ id: 'rt1' }),
-            },
-            userSession: {
-              create: jest.fn().mockResolvedValue({ id: 'sess-def' }),
-            },
-          };
-          return (arg as (t: typeof tx) => Promise<unknown>)(tx);
-        },
-      );
-
       const result = await service.login({
         email: 'OK@Example.com',
         password: 'correct',
       });
 
       expect(result).toEqual({
-        accessToken: 'access-2',
-        refreshToken: 'refresh-2',
-        sessionId: 'sess-def',
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        sessionId: 'sess-reg',
       });
       expect(prismaService.user.update).toHaveBeenCalledWith({
         where: { id: 'u2' },

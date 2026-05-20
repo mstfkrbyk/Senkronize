@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -20,19 +20,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
-
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, FORM_MESSAGES.required),
-    newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalıdır.'),
-    confirmPassword: z.string().min(1, FORM_MESSAGES.required),
-  })
-  .refine((v) => v.newPassword === v.confirmPassword, {
-    message: 'Şifreler eşleşmiyor.',
-    path: ['confirmPassword'],
-  });
-
-type PasswordForm = z.infer<typeof passwordSchema>;
 
 const profileSchema = z.object({
   name: z
@@ -58,17 +45,8 @@ export function ProfileTab(): ReactElement {
   const { data: me, isLoading, isError, error } = useAuth();
 
   const profileForm = useForm<ProfileForm>({
-    resolver: zodResolver(profileSchema),
+    resolver: zodFormResolver(profileSchema),
     defaultValues: { name: '' },
-  });
-
-  const passwordForm = useForm<PasswordForm>({
-    resolver: zodResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
   });
 
   const updateProfile = useMutation({
@@ -82,29 +60,12 @@ export function ProfileTab(): ReactElement {
     },
   });
 
-  const changePassword = useMutation({
-    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
-      api.patch('/auth/change-password', data),
-    onSuccess: () => {
-      toast.success('Şifre güncellendi');
-      passwordForm.reset();
-    },
-    onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err));
-    },
-  });
-
   useEffect(() => {
     if (!me) {
       return;
     }
     profileForm.reset({ name: me.user.name });
-    passwordForm.reset({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
-  }, [me, profileForm, passwordForm]);
+  }, [me, profileForm]);
 
   if (isLoading) {
     return (
@@ -167,63 +128,9 @@ export function ProfileTab(): ReactElement {
         </form>
       </Form>
 
-      <div className="space-y-4 border-t pt-6">
-        <h4 className="text-base font-medium text-primary">Şifre değiştir</h4>
-        <Form {...passwordForm}>
-          <form
-            onSubmit={passwordForm.handleSubmit((values) => {
-              changePassword.mutate({
-                currentPassword: values.currentPassword,
-                newPassword: values.newPassword,
-              });
-            })}
-            className="space-y-4"
-          >
-            <FormField
-              control={passwordForm.control}
-              name="currentPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mevcut şifre</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="current-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={passwordForm.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Yeni şifre</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={passwordForm.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Yeni şifre (tekrar)</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={changePassword.isPending}>
-              {changePassword.isPending ? 'Güncelleniyor…' : 'Şifreyi güncelle'}
-            </Button>
-          </form>
-        </Form>
-      </div>
+      <p className="border-t pt-6 text-sm text-muted-foreground">
+        Şifre ve oturum yönetimi için Ayarlar → Güvenlik sekmesini kullanın.
+      </p>
     </div>
   );
 }

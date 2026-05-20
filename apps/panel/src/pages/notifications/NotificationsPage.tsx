@@ -3,9 +3,10 @@ import { useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { Bell, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { EmptyState } from '@/components/EmptyState';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -38,6 +39,7 @@ import {
   type InAppNotificationType,
   useNotificationsStore,
 } from '@/store/notifications.store';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 
 function typeEmoji(type: InAppNotificationType): string {
@@ -78,6 +80,9 @@ export function NotificationsPage(): ReactElement {
   const limit = 20;
   const markAsReadLocal = useNotificationsStore((s) => s.markAsRead);
   const removeNotificationLocal = useNotificationsStore((s) => s.removeNotification);
+  const unreadCount = useNotificationsStore((s) => s.unreadCount);
+
+  usePageTitle('Bildirimler', { badgeCount: unreadCount });
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['notifications-page', page, filter],
@@ -210,12 +215,11 @@ export function NotificationsPage(): ReactElement {
           </Button>
         </div>
       ) : !data?.data.length ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <p className="text-sm font-medium text-foreground">Henüz bildirim yok</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Yeni sipariş veya uyarılar burada listelenir.
-          </p>
-        </div>
+        <EmptyState
+          icon={Bell}
+          title="Tüm bildirimler okundu"
+          description="Yeni sipariş, stok veya senkronizasyon uyarıları burada görünecek."
+        />
       ) : (
         <>
           <ul className="divide-y rounded-lg border bg-card">

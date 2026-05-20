@@ -17,6 +17,7 @@ export type SubStatus =
   | 'TRIAL'
   | 'ACTIVE'
   | 'PAUSED'
+  | 'CANCELING'
   | 'CANCELLED'
   | 'EXPIRED';
 
@@ -152,7 +153,16 @@ export type Marketplace =
   | 'MYDEAL'
   | 'TRADEME'
   | 'LAMODA'
-  | 'YANDEX_MARKET';
+  | 'YANDEX_MARKET'
+  | 'TAKEALOT'
+  | 'BIDORBUY'
+  | 'KILIMALL'
+  | 'KONGA'
+  | 'SOUQ'
+  | 'SHARAF_DG'
+  | 'WADI'
+  | 'OPENSOOQ'
+  | 'CIMRI';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  BillingPeriod,
   NotificationType,
   PaymentStatus,
   PlanTier,
@@ -13,6 +14,7 @@ import {
   UserRole,
   type Subscription,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { EmailService } from '../notifications/email/email.service';
@@ -20,9 +22,15 @@ import type { InvoiceEmailData } from '../notifications/email/email-template.typ
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PartnerService } from '../partner/partner.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { IyzicoService } from '../payment/iyzico.service';
+import {
+  normalizeIyzicoEventType,
+  type IyzicoWebhookPayload,
+} from '../payment/iyzico.types';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
 import type {
+  CheckoutUrlResult,
   PlanUpgradeRequestResult,
   UsageStats,
 } from './subscription.types';
@@ -150,6 +158,7 @@ export class SubscriptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly paytrService: PaytrService,
+    private readonly iyzicoService: IyzicoService,
     private readonly encryptionService: EncryptionService,
     private readonly emailService: EmailService,
     private readonly partnerService: PartnerService,
@@ -293,18 +302,39 @@ export class SubscriptionService {
     if (!sub) {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
-    if (sub.status === SubStatus.CANCELLED) {
+    if (
+      sub.status === SubStatus.CANCELLED ||
+      sub.status === SubStatus.CANCELING
+    ) {
       return;
     }
 
     const trimmedReason = reason?.trim().slice(0, 500) ?? null;
     const canceledAt = new Date();
+    const subscriptionEndsAt = sub.currentPeriodEnd;
+
+    const iyzicoSub = await this.prisma.iyzicoSubscription.findUnique({
+      where: { organizationId },
+    });
+    if (iyzicoSub?.subscriptionRefCode) {
+      try {
+        await this.iyzicoService.cancelSubscription(
+          iyzicoSub.subscriptionRefCode,
+        );
+      } catch (err) {
+        this.logger.warn('Iyzico abonelik iptali API hatası', {
+          organizationId,
+          message: err instanceof Error ? err.message : 'unknown',
+        });
+      }
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.subscription.update({
         where: { organizationId },
         data: {
-          status: SubStatus.CANCELLED,
+          status: SubStatus.CANCELING,
+          subscriptionEndsAt,
           canceledAt,
           cancelReason: trimmedReason,
         },
@@ -331,7 +361,7 @@ export class SubscriptionService {
         organizationId,
         type: NotificationType.SYSTEM,
         title: 'Abonelik iptal talebi',
-        message: `Aboneliğiniz ${sub.currentPeriodEnd.toLocaleDateString('tr-TR')} tarihine kadar kullanılabilir.`,
+        message: `Aboneliğiniz ${subscriptionEndsAt.toLocaleDateString('tr-TR')} tarihine kadar kullanılabilir.`,
         link: '/settings/subscription',
         metadata: { effectiveUntil: sub.currentPeriodEnd.toISOString() },
       });
@@ -529,6 +559,429 @@ export class SubscriptionService {
       users: { used: userCount, limit: userLimit },
       trialDaysLeft,
     };
+  }
+
+  private amountForPlan(plan: PlanTier, billingPeriod: BillingPeriod): number {
+    const yearlyKurus = PLAN_PRICES_KURUS[plan];
+    if (billingPeriod === BillingPeriod.YEARLY) {
+      return yearlyKurus;
+    }
+    return Math.round(yearlyKurus / 12);
+  }
+
+  private priceTryForIyzico(plan: PlanTier, billingPeriod: BillingPeriod): number {
+    return this.amountForPlan(plan, billingPeriod) / 100;
+  }
+
+  private periodEndFromBilling(billingPeriod: BillingPeriod, start: Date): Date {
+    const end = new Date(start);
+    if (billingPeriod === BillingPeriod.YEARLY) {
+      end.setFullYear(end.getFullYear() + 1);
+    } else {
+      end.setMonth(end.getMonth() + 1);
+    }
+    return end;
+  }
+
+  private async ensureIyzicoPricingPlanRef(
+    plan: PlanTier,
+    billingPeriod: BillingPeriod,
+  ): Promise<string> {
+    const cached = await this.prisma.iyzicoPricingPlan.findUnique({
+      where: { plan_billingPeriod: { plan, billingPeriod } },
+    });
+    if (cached) {
+      return cached.pricingPlanRefCode;
+    }
+
+    const productName = `Senkronize ${plan}`;
+    const productRef = await this.iyzicoService.createSubscriptionProduct(
+      productName,
+      'tr',
+    );
+    const pricingPlanRef = await this.iyzicoService.createSubscriptionPricingPlan(
+      productRef,
+      {
+        name: `${PLAN_LABEL_TR[plan]} (${billingPeriod === BillingPeriod.YEARLY ? 'Yıllık' : 'Aylık'})`,
+        priceTry: this.priceTryForIyzico(plan, billingPeriod),
+        billingPeriod,
+      },
+    );
+
+    await this.prisma.iyzicoPricingPlan.create({
+      data: {
+        plan,
+        billingPeriod,
+        productRefCode: productRef,
+        pricingPlanRefCode: pricingPlanRef,
+      },
+    });
+    return pricingPlanRef;
+  }
+
+  async startSubscription(
+    organizationId: string,
+    actor: AuthenticatedUser,
+    plan: PlanTier,
+    billingPeriod: BillingPeriod,
+  ): Promise<CheckoutUrlResult> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    const pricingPlanRef = await this.ensureIyzicoPricingPlanRef(
+      plan,
+      billingPeriod,
+    );
+    const conversationId = randomUUID();
+    const amount = this.amountForPlan(plan, billingPeriod);
+    const callbackUrl =
+      this.config.get<string>('IYZICO_CALLBACK_URL') ??
+      `${this.panelBaseUrl()}/payment/callback`;
+
+    await this.prisma.payment.create({
+      data: {
+        organizationId,
+        amount,
+        currency: 'TRY',
+        status: PaymentStatus.PENDING,
+        plan,
+        billingPeriod,
+        iyzicoConversationId: conversationId,
+      },
+    });
+
+    const checkout = await this.iyzicoService.createCheckoutForm({
+      conversationId,
+      callbackUrl,
+      pricingPlanReferenceCode: pricingPlanRef,
+      customer: this.iyzicoService.buildCustomerPayload(actor, org),
+    });
+
+    if (!checkout.paymentPageUrl && !checkout.token) {
+      await this.prisma.payment.updateMany({
+        where: {
+          iyzicoConversationId: conversationId,
+          status: PaymentStatus.PENDING,
+        },
+        data: {
+          status: PaymentStatus.FAILED,
+          failReason: 'iyzico_checkout_init_failed',
+        },
+      });
+      throw new BadRequestException(
+        'Ödeme sayfası oluşturulamadı. Lütfen daha sonra tekrar deneyin.',
+      );
+    }
+
+    if (checkout.token) {
+      await this.prisma.payment.updateMany({
+        where: { iyzicoConversationId: conversationId },
+        data: { iyzicoCheckoutToken: checkout.token },
+      });
+    }
+
+    const checkoutUrl =
+      checkout.paymentPageUrl ??
+      `${this.config.get<string>('IYZICO_CHECKOUT_BASE', 'https://sandbox-cpp.iyzipay.com')}?token=${checkout.token}`;
+
+    return {
+      checkoutUrl,
+      conversationId,
+      token: checkout.token,
+    };
+  }
+
+  async completeIyzicoCheckout(
+    organizationId: string,
+    token: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const result = await this.iyzicoService.retrieveCheckoutForm(token);
+    if (result.status !== 'success' || !result.subscriptionReferenceCode) {
+      return {
+        success: false,
+        message:
+          result.errorMessage ??
+          'Ödeme doğrulanamadı. Lütfen tekrar deneyin veya destek ile iletişime geçin.',
+      };
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        organizationId,
+        iyzicoCheckoutToken: token,
+        status: PaymentStatus.PENDING,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!payment) {
+      const byConversation = await this.prisma.payment.findFirst({
+        where: { organizationId, status: PaymentStatus.PENDING },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!byConversation) {
+        return { success: false, message: 'Bekleyen ödeme kaydı bulunamadı.' };
+      }
+      await this.activateSubscriptionFromIyzicoPayment(
+        byConversation.id,
+        result.subscriptionReferenceCode,
+        result.customerReferenceCode,
+      );
+      return { success: true, message: 'Aboneliğiniz aktifleştirildi.' };
+    }
+
+    await this.activateSubscriptionFromIyzicoPayment(
+      payment.id,
+      result.subscriptionReferenceCode,
+      result.customerReferenceCode,
+    );
+    return { success: true, message: 'Aboneliğiniz aktifleştirildi.' };
+  }
+
+  async upgradeSubscription(
+    organizationId: string,
+    actorUserId: string,
+    newPlan: PlanTier,
+  ): Promise<PlanUpgradeRequestResult> {
+    const sub = await this.prisma.subscription.findUnique({
+      where: { organizationId },
+    });
+    if (!sub) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+    if (sub.plan === newPlan) {
+      throw new BadRequestException('Zaten bu plandasınız.');
+    }
+    if (PLAN_TIER_RANK[newPlan] <= PLAN_TIER_RANK[sub.plan]) {
+      throw new BadRequestException(
+        'Yalnızca daha üst bir pakete yükseltme yapılabilir.',
+      );
+    }
+
+    const billingPeriod = sub.billingPeriod ?? BillingPeriod.YEARLY;
+    const iyzicoSub = await this.prisma.iyzicoSubscription.findUnique({
+      where: { organizationId },
+    });
+
+    if (iyzicoSub?.subscriptionRefCode) {
+      const newPlanRef = await this.ensureIyzicoPricingPlanRef(
+        newPlan,
+        billingPeriod,
+      );
+      await this.iyzicoService.upgradeSubscription(
+        iyzicoSub.subscriptionRefCode,
+        newPlanRef,
+      );
+      await this.changePlan(organizationId, actorUserId, newPlan);
+      return { message: 'Paketiniz yükseltildi.' };
+    }
+
+    return this.requestPlanUpgrade(organizationId, actorUserId, newPlan);
+  }
+
+  async handleIyzicoWebhook(payload: IyzicoWebhookPayload): Promise<void> {
+    const event = normalizeIyzicoEventType(
+      payload.iyziEventType ?? payload.eventType,
+    );
+    if (!event) {
+      this.logger.warn('Iyzico webhook: bilinmeyen event tipi');
+      return;
+    }
+
+    const subscriptionRef = payload.subscriptionReferenceCode?.trim();
+    const orderRef = payload.orderReferenceCode?.trim();
+
+    if (event === 'SUBSCRIPTION_ORDER_SUCCESS') {
+      const payment = orderRef
+        ? await this.prisma.payment.findFirst({
+            where: {
+              OR: [
+                { iyzicoOrderReference: orderRef },
+                { iyzicoConversationId: orderRef },
+              ],
+            },
+          })
+        : null;
+
+      if (payment && subscriptionRef) {
+        await this.activateSubscriptionFromIyzicoPayment(
+          payment.id,
+          subscriptionRef,
+          payload.customerReferenceCode,
+          orderRef,
+        );
+      } else if (subscriptionRef) {
+        const iyzicoSub = await this.prisma.iyzicoSubscription.findFirst({
+          where: { subscriptionRefCode: subscriptionRef },
+        });
+        if (iyzicoSub) {
+          const pending = await this.prisma.payment.findFirst({
+            where: {
+              organizationId: iyzicoSub.organizationId,
+              status: PaymentStatus.PENDING,
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+          if (pending) {
+            await this.activateSubscriptionFromIyzicoPayment(
+              pending.id,
+              subscriptionRef,
+              payload.customerReferenceCode,
+              orderRef,
+            );
+          }
+        }
+      }
+      return;
+    }
+
+    if (event === 'SUBSCRIPTION_ORDER_FAILURE') {
+      if (!orderRef) {
+        return;
+      }
+      await this.prisma.payment.updateMany({
+        where: {
+          OR: [
+            { iyzicoOrderReference: orderRef },
+            { iyzicoConversationId: orderRef },
+          ],
+          status: PaymentStatus.PENDING,
+        },
+        data: {
+          status: PaymentStatus.FAILED,
+          failReason: 'iyzico_subscription_order_failure',
+        },
+      });
+      return;
+    }
+
+    if (event === 'SUBSCRIPTION_CANCELED' && subscriptionRef) {
+      const iyzicoSub = await this.prisma.iyzicoSubscription.findFirst({
+        where: { subscriptionRefCode: subscriptionRef },
+        include: { organization: { include: { subscription: true } } },
+      });
+      const orgSub = iyzicoSub?.organization.subscription;
+      if (orgSub) {
+        await this.prisma.subscription.update({
+          where: { organizationId: orgSub.organizationId },
+          data: {
+            status: SubStatus.CANCELLED,
+            subscriptionEndsAt: orgSub.subscriptionEndsAt ?? orgSub.currentPeriodEnd,
+          },
+        });
+      }
+      return;
+    }
+
+    if (event === 'SUBSCRIPTION_UPGRADED' && subscriptionRef) {
+      this.logger.log('Iyzico abonelik yükseltildi', { subscriptionRef });
+    }
+  }
+
+  private async activateSubscriptionFromIyzicoPayment(
+    paymentId: string,
+    subscriptionRefCode: string,
+    customerRefCode?: string,
+    orderReferenceCode?: string,
+  ): Promise<void> {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+    });
+    if (!payment) {
+      return;
+    }
+    if (payment.status === PaymentStatus.SUCCESS) {
+      return;
+    }
+
+    const periodStart = new Date();
+    const billingPeriod = payment.billingPeriod ?? BillingPeriod.YEARLY;
+    const periodEnd = this.periodEndFromBilling(billingPeriod, periodStart);
+    const nextBilling = new Date(periodEnd);
+    const limits = PLAN_LIMITS[payment.plan];
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: PaymentStatus.SUCCESS,
+          periodStart,
+          periodEnd,
+          ...(orderReferenceCode
+            ? { iyzicoOrderReference: orderReferenceCode }
+            : {}),
+        },
+      });
+
+      await tx.subscription.update({
+        where: { organizationId: payment.organizationId },
+        data: {
+          plan: payment.plan,
+          status: SubStatus.ACTIVE,
+          billingPeriod,
+          trialEndsAt: null,
+          currentPeriodStart: periodStart,
+          currentPeriodEnd: periodEnd,
+          nextBillingAt: nextBilling,
+          subscriptionEndsAt: null,
+          canceledAt: null,
+          cancelReason: null,
+          monthlyOrderLimit: limits.monthlyOrderLimit,
+          marketplaceLimit: limits.marketplaceLimit,
+          ecommerceLimit: limits.ecommerceLimit,
+          erpLimit: limits.erpLimit,
+          userLimit: limits.userLimit,
+        },
+      });
+
+      await tx.iyzicoSubscription.upsert({
+        where: { organizationId: payment.organizationId },
+        create: {
+          organizationId: payment.organizationId,
+          subscriptionRefCode,
+          customerRefCode: customerRefCode ?? null,
+        },
+        update: {
+          subscriptionRefCode,
+          ...(customerRefCode ? { customerRefCode } : {}),
+        },
+      });
+    });
+
+    const paymentAmountTry = payment.amount / 100;
+    await this.partnerService.recordCommission(
+      payment.organizationId,
+      paymentAmountTry,
+      `Abonelik ödemesi (${payment.plan})`,
+      payment.id,
+    );
+
+    try {
+      await this.inAppNotificationService.create({
+        organizationId: payment.organizationId,
+        type: NotificationType.SYSTEM,
+        title: 'Abonelik aktif',
+        message: `${PLAN_LABEL_TR[payment.plan]} aboneliğiniz başarıyla aktifleştirildi.`,
+        link: '/settings/subscription',
+        metadata: { plan: payment.plan },
+      });
+    } catch (notifyErr) {
+      this.logger.warn('Abonelik aktivasyon bildirimi oluşturulamadı', {
+        organizationId: payment.organizationId,
+        message: notifyErr instanceof Error ? notifyErr.message : 'unknown',
+      });
+    }
   }
 
   async requestPlanUpgrade(

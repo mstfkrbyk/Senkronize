@@ -2,12 +2,14 @@ import {
   BadRequestException,
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   Headers,
   HttpCode,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -32,8 +34,13 @@ import { Public } from '../auth/public.decorator';
 import {
   CreateWebhookEndpointDto,
   UpdateWebhookEndpointDto,
+  WebhookDeliveryLogsResponseDto,
+  WebhookEndpointListItemDto,
 } from './outbound-webhook.dto';
-import { OutboundWebhookService } from './outbound-webhook.service';
+import {
+  OutboundWebhookService,
+  type WebhookEndpointListItem,
+} from './outbound-webhook.service';
 import { WebhookService } from './webhook.service';
 
 function omitWebhookSecret(row: WebhookEndpoint): Omit<WebhookEndpoint, 'secret'> {
@@ -50,20 +57,19 @@ export class WebhookController {
     private readonly outboundWebhookService: OutboundWebhookService,
   ) {}
 
-  @Get('endpoints')
+  @Get()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Giden webhook uç noktaları' })
-  @ApiResponse({ status: 200, description: 'Liste' })
+  @ApiResponse({ status: 200, description: 'Liste', type: [WebhookEndpointListItemDto] })
   @ApiResponse({ status: 401, description: 'Yetkisiz' })
   async listEndpoints(
     @CurrentOrg() org: CurrentOrgPayload,
-  ): Promise<Omit<WebhookEndpoint, 'secret'>[]> {
-    const rows = await this.outboundWebhookService.listEndpoints(org.id);
-    return rows.map(omitWebhookSecret);
+  ): Promise<WebhookEndpointListItem[]> {
+    return this.outboundWebhookService.listEndpointsWithSummary(org.id);
   }
 
-  @Post('endpoints')
+  @Post()
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   @ApiBearerAuth()
@@ -77,7 +83,7 @@ export class WebhookController {
     return this.outboundWebhookService.createEndpoint(org.id, dto);
   }
 
-  @Patch('endpoints/:id')
+  @Patch(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Giden webhook uç noktasını güncelle' })
@@ -93,7 +99,7 @@ export class WebhookController {
     return omitWebhookSecret(row);
   }
 
-  @Delete('endpoints/:id')
+  @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @HttpCode(204)
   @ApiBearerAuth()
@@ -108,7 +114,23 @@ export class WebhookController {
     await this.outboundWebhookService.deleteEndpoint(org.id, id);
   }
 
-  @Post('endpoints/:id/test')
+  @Get(':id/logs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Webhook teslimat geçmişi (sayfalı)' })
+  @ApiResponse({ status: 200, description: 'Liste', type: WebhookDeliveryLogsResponseDto })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async listDeliveryLogs(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+  ): Promise<WebhookDeliveryLogsResponseDto> {
+    return this.outboundWebhookService.getDeliveries(org.id, id, page, limit);
+  }
+
+  @Post(':id/test')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Test webhook gönder' })
@@ -122,18 +144,92 @@ export class WebhookController {
     return this.outboundWebhookService.testEndpoint(org.id, id);
   }
 
+  @Post(':id/redeliver/:logId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Başarısız teslimatı tekrar dene' })
+  @ApiResponse({ status: 200, description: 'Teslimat yeniden kuyruğa alındı' })
+  @ApiResponse({ status: 400, description: 'Geçersiz istek' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async redeliverLog(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Param('logId') logId: string,
+  ): Promise<WebhookDelivery> {
+    return this.outboundWebhookService.redeliver(org.id, id, logId);
+  }
+
+  /** @deprecated `/webhooks` kullanın */
+  @Get('endpoints')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Giden webhook uç noktaları (legacy)' })
+  async listEndpointsLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<Omit<WebhookEndpoint, 'secret'>[]> {
+    const rows = await this.outboundWebhookService.listEndpoints(org.id);
+    return rows.map(omitWebhookSecret);
+  }
+
+  /** @deprecated `/webhooks` kullanın */
+  @Post('endpoints')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth()
+  async createEndpointLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Body() dto: CreateWebhookEndpointDto,
+  ): Promise<WebhookEndpoint> {
+    return this.outboundWebhookService.createEndpoint(org.id, dto);
+  }
+
+  /** @deprecated `/webhooks/:id` kullanın */
+  @Patch('endpoints/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async updateEndpointLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+    @Body() dto: UpdateWebhookEndpointDto,
+  ): Promise<Omit<WebhookEndpoint, 'secret'>> {
+    const row = await this.outboundWebhookService.updateEndpoint(org.id, id, dto);
+    return omitWebhookSecret(row);
+  }
+
+  /** @deprecated `/webhooks/:id` kullanın */
+  @Delete('endpoints/:id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  @ApiBearerAuth()
+  async deleteEndpointLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<void> {
+    await this.outboundWebhookService.deleteEndpoint(org.id, id);
+  }
+
+  /** @deprecated `/webhooks/:id/test` kullanın */
+  @Post('endpoints/:id/test')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async testEndpointLegacy(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ): Promise<WebhookDelivery> {
+    return this.outboundWebhookService.testEndpoint(org.id, id);
+  }
+
+  /** @deprecated `/webhooks/:id/logs` kullanın */
   @Get('endpoints/:id/deliveries')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Webhook teslimat geçmişi' })
-  @ApiResponse({ status: 200, description: 'Liste' })
-  @ApiResponse({ status: 401, description: 'Yetkisiz' })
-  @ApiResponse({ status: 404, description: 'Bulunamadı' })
-  async listDeliveries(
+  async listDeliveriesLegacy(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
   ): Promise<WebhookDelivery[]> {
-    return this.outboundWebhookService.getDeliveries(org.id, id);
+    const page = await this.outboundWebhookService.getDeliveries(org.id, id, 1, 100);
+    return page.data;
   }
 
   @Public()

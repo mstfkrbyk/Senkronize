@@ -19,6 +19,13 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/store/auth.store';
 
+const NAV_TOUR_ATTR: Partial<Record<string, string>> = {
+  '/connections': 'sidebar-connections',
+  '/products': 'sidebar-products',
+  '/orders': 'sidebar-orders',
+  '/pricing': 'sidebar-pricing',
+};
+
 export function SidebarNav(): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
@@ -59,6 +66,7 @@ export function SidebarNav(): ReactElement {
                     <NavLink
                       to={item.path}
                       data-onboarding={item.path}
+                      data-tour={NAV_TOUR_ATTR[item.path]}
                       onMouseEnter={() => {
                         prefetchRoute(item.path);
                       }}

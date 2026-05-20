@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { EmptyState } from '@/components/EmptyState';
 import {
   TICKET_CATEGORY_OPTIONS,
   TicketPriorityBadge,
@@ -140,9 +141,15 @@ export function SupportPage(): ReactElement {
           </Button>
         </div>
       ) : !data?.length ? (
-        <div className="rounded-lg border border-dashed p-12 text-center text-muted-foreground">
-          {t('support.empty')}
-        </div>
+        <EmptyState
+          icon={LifeBuoy}
+          title={t('support.empty')}
+          description="Yeni bir talep oluşturarak destek ekibimizle iletişime geçebilirsiniz."
+          action={{
+            label: t('support.newTicket'),
+            onClick: () => setCreateOpen(true),
+          }}
+        />
       ) : (
         <div className="rounded-lg border bg-card">
           <Table>

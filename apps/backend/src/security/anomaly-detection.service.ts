@@ -63,13 +63,6 @@ export class AnomalyDetectionService {
     if (known === true) {
       return;
     }
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, deletedAt: null },
-      select: { email: true },
-    });
-    if (user) {
-      await this.emailService.sendNewIpLoginAlert(user.email, ip);
-    }
     await this.cache.sadd(key, ip);
   }
 

@@ -3,6 +3,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -14,15 +15,15 @@ import {
   Min,
 } from 'class-validator';
 
-/** Panel ve doğrulama için desteklenen giden olay adları */
-export const OUTBOUND_WEBHOOK_EVENT_OPTIONS = [
-  'order.created',
-  'order.status_changed',
-  'stock.updated',
-  'product.updated',
-] as const;
+import {
+  WEBHOOK_EVENT_VALUES,
+  WebhookEvent,
+} from './webhook-event.enum';
 
-export type OutboundWebhookEventId = (typeof OUTBOUND_WEBHOOK_EVENT_OPTIONS)[number];
+/** Panel ve doğrulama için desteklenen giden olay adları */
+export const OUTBOUND_WEBHOOK_EVENT_OPTIONS = WEBHOOK_EVENT_VALUES;
+
+export type OutboundWebhookEventId = WebhookEvent;
 
 export class CreateWebhookEndpointDto {
   @ApiProperty({ example: 'Üretim ERP' })
@@ -36,11 +37,14 @@ export class CreateWebhookEndpointDto {
   @MaxLength(2048)
   url!: string;
 
-  @ApiProperty({ type: [String], example: ['order.created', 'stock.updated'] })
+  @ApiProperty({
+    type: [String],
+    example: [WebhookEvent.ORDER_CREATED, WebhookEvent.STOCK_UPDATED],
+  })
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
-  @MaxLength(120, { each: true })
+  @IsIn(WEBHOOK_EVENT_VALUES, { each: true })
   events!: string[];
 
   @ApiPropertyOptional({
@@ -58,14 +62,14 @@ export class CreateWebhookEndpointDto {
   @IsBoolean()
   isActive?: boolean;
 
-  @ApiPropertyOptional({ default: 3, minimum: 1, maximum: 10 })
+  @ApiPropertyOptional({ default: 5, minimum: 1, maximum: 10 })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(10)
   retryCount?: number;
 
-  @ApiPropertyOptional({ default: 5000, minimum: 1000, maximum: 60000 })
+  @ApiPropertyOptional({ default: 10000, minimum: 1000, maximum: 60000 })
   @IsOptional()
   @IsInt()
   @Min(1000)
@@ -92,7 +96,7 @@ export class UpdateWebhookEndpointDto {
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
-  @MaxLength(120, { each: true })
+  @IsIn(WEBHOOK_EVENT_VALUES, { each: true })
   events?: string[];
 
   @ApiPropertyOptional({
@@ -161,4 +165,29 @@ export class WebhookEndpointCreatedDto extends WebhookEndpointSummaryDto {
     description: 'HMAC imza anahtarı — yalnızca oluşturma yanıtında döner',
   })
   secret!: string;
+}
+
+export class WebhookEndpointListItemDto extends WebhookEndpointSummaryDto {
+  @ApiPropertyOptional()
+  lastDeliveryStatus?: string | null;
+
+  @ApiPropertyOptional()
+  lastDeliveryStatusCode?: number | null;
+
+  @ApiPropertyOptional()
+  lastDeliveryAt?: Date | null;
+}
+
+export class WebhookDeliveryLogsResponseDto {
+  @ApiProperty({ type: [Object] })
+  data!: unknown[];
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  limit!: number;
 }

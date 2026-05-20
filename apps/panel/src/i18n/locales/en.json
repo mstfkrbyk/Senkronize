@@ -9,6 +9,7 @@
     "stock": "Inventory",
     "stockForecast": "Stock forecast",
     "stockCount": "Stock count",
+    "stockTransfer": "Stock transfer",
     "pricing": "Pricing",
     "campaigns": "Campaigns",
     "analytics": "Analytics",

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -271,7 +271,7 @@ export function UsersPage(): ReactElement {
   });
 
   const inviteForm = useForm<InviteForm>({
-    resolver: zodResolver(inviteSchema),
+    resolver: zodFormResolver(inviteSchema),
     defaultValues: { email: '', role: 'VIEWER' },
   });
 

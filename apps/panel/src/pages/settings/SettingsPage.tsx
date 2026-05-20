@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,19 +13,38 @@ import { OrganizationTab } from './tabs/OrganizationTab';
 import { PartnersTab } from './tabs/PartnersTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { ProfileTab } from './tabs/ProfileTab';
-import { SubscriptionTab } from './tabs/SubscriptionTab';
+import { SubscriptionPage } from './SubscriptionPage';
 import { TeamTab } from './tabs/TeamTab';
 import { WebhooksTab } from './tabs/WebhooksTab';
+
+const SETTINGS_TAB_IDS = [
+  'profile',
+  'appearance',
+  'organization',
+  'currency',
+  'team',
+  'subscription',
+  'notifications',
+  'security',
+  'api-keys',
+  'webhooks',
+  'partners',
+] as const;
 
 export function SettingsPage(): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const orgType = useAuthStore((s) => s.currentOrg?.type);
   const showPartnersTab = orgType !== 'PARTNER';
 
+  const tabParam = searchParams.get('tab');
   const defaultTab = location.pathname.includes('/settings/subscription')
     ? 'subscription'
-    : 'profile';
+    : tabParam &&
+        (SETTINGS_TAB_IDS as readonly string[]).includes(tabParam)
+      ? tabParam
+      : 'profile';
 
   return (
     <div className="space-y-6">
@@ -51,6 +70,13 @@ export function SettingsPage(): ReactElement {
           ) : null}
         </TabsList>
         <TabsContent value="profile" className="mt-6">
+          <p className="mb-4 text-sm text-muted-foreground">
+            Gelişmiş profil ve oturum yönetimi için{' '}
+            <Link to="/settings/profile" className="font-medium text-primary underline-offset-4 hover:underline">
+              profil sayfasına
+            </Link>{' '}
+            gidin.
+          </p>
           <ProfileTab />
         </TabsContent>
         <TabsContent value="appearance" className="mt-6">
@@ -66,7 +92,7 @@ export function SettingsPage(): ReactElement {
           <TeamTab />
         </TabsContent>
         <TabsContent value="subscription" className="mt-6">
-          <SubscriptionTab />
+          <SubscriptionPage />
         </TabsContent>
         <TabsContent value="notifications" className="mt-6">
           <NotificationsTab />

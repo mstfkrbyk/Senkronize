@@ -33,6 +33,7 @@ import {
   UpdateNotificationPreferencesDto,
   UpdateUserRoleDto,
 } from './users.dto';
+import { SessionService } from '../auth/session.service';
 import { UserInviteService } from './user-invite.service';
 import { UsersService } from './users.service';
 
@@ -43,6 +44,7 @@ export class UsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly userInviteService: UserInviteService,
+    private readonly sessionService: SessionService,
   ) {}
 
   @Get()
@@ -68,8 +70,11 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Aktif oturumlarım' })
   @ApiResponse({ status: 200, description: 'Oturum listesi' })
-  async listSessions(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.getActiveSessions(user.id);
+  async listSessions(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('currentSessionId') currentSessionId?: string,
+  ) {
+    return this.sessionService.getActiveSessions(user.id, currentSessionId);
   }
 
   @Post('invite')
@@ -134,7 +139,7 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('sessionId') sessionId: string,
   ): Promise<{ ok: true }> {
-    await this.usersService.revokeSession(user.id, sessionId);
+    await this.sessionService.revokeSession(user.id, sessionId);
     return { ok: true };
   }
 
@@ -147,7 +152,14 @@ export class UsersController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('exceptSessionId') exceptSessionId?: string,
   ): Promise<{ ok: true }> {
-    await this.usersService.revokeAllSessions(user.id, exceptSessionId);
+    if (exceptSessionId) {
+      await this.sessionService.revokeAllOtherSessions(user.id, exceptSessionId);
+    } else {
+      const sessions = await this.sessionService.getActiveSessions(user.id);
+      await Promise.all(
+        sessions.map((s) => this.sessionService.revokeSession(user.id, s.id)),
+      );
+    }
     return { ok: true };
   }
 

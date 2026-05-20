@@ -9,9 +9,11 @@ import {
   StockCountSessionStatus,
   type Product,
 } from '@prisma/client';
+import Papa from 'papaparse';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { StockCountPdfService } from './stock-count-pdf.service';
 import { StockMovementService } from './stock-movement.service';
 import type { CreateStockCountSessionDto, UpsertStockCountItemDto } from './stock.dto';
 
@@ -24,6 +26,8 @@ export interface StockCountItemRowDto {
   systemQuantity: number;
   countedQuantity: number;
   difference: number;
+  differenceValue: number | null;
+  unitCost: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +46,20 @@ export interface StockCountSessionDetailDto {
   completedAt: string | null;
   createdBy: string;
   items: StockCountItemRowDto[];
+  varianceSummary: {
+    totalDifferenceUnits: number;
+    totalDifferenceValue: number;
+    itemsWithVariance: number;
+  };
+}
+
+interface CsvCountRow {
+  barcode?: string;
+  Barkod?: string;
+  countedQuantity?: string | number;
+  'Sayılan'?: string | number;
+  Sayilan?: string | number;
+  quantity?: string | number;
 }
 
 @Injectable()
@@ -49,6 +67,7 @@ export class StockCountService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stockMovementService: StockMovementService,
+    private readonly stockCountPdfService: StockCountPdfService,
   ) {}
 
   private matchesPartialFilters(
@@ -139,6 +158,213 @@ export class StockCountService {
     return 'Merkezi';
   }
 
+  private unitCostFromProduct(
+    product: { costPrice: Prisma.Decimal | null } | null | undefined,
+  ): number | null {
+    if (!product?.costPrice) {
+      return null;
+    }
+    const n = Number(product.costPrice);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private mapItemRow(
+    it: {
+      id: string;
+      barcode: string;
+      productId: string | null;
+      productName: string | null;
+      platformLabel: string | null;
+      systemQuantity: number;
+      countedQuantity: number;
+      difference: number;
+      createdAt: Date;
+      updatedAt: Date;
+      product?: { costPrice: Prisma.Decimal | null } | null;
+    },
+    unitCost?: number | null,
+  ): StockCountItemRowDto {
+    const cost = unitCost ?? this.unitCostFromProduct(it.product);
+    const differenceValue =
+      cost !== null ? Number((it.difference * cost).toFixed(2)) : null;
+    return {
+      id: it.id,
+      barcode: it.barcode,
+      productId: it.productId,
+      productName: it.productName,
+      platformLabel: it.platformLabel,
+      systemQuantity: it.systemQuantity,
+      countedQuantity: it.countedQuantity,
+      difference: it.difference,
+      differenceValue,
+      unitCost: cost,
+      createdAt: it.createdAt.toISOString(),
+      updatedAt: it.updatedAt.toISOString(),
+    };
+  }
+
+  private buildVarianceSummary(items: StockCountItemRowDto[]): {
+    totalDifferenceUnits: number;
+    totalDifferenceValue: number;
+    itemsWithVariance: number;
+  } {
+    let totalDifferenceUnits = 0;
+    let totalDifferenceValue = 0;
+    let itemsWithVariance = 0;
+    for (const it of items) {
+      if (it.difference !== 0) {
+        itemsWithVariance += 1;
+        totalDifferenceUnits += it.difference;
+        totalDifferenceValue += it.differenceValue ?? 0;
+      }
+    }
+    return {
+      totalDifferenceUnits,
+      totalDifferenceValue: Number(totalDifferenceValue.toFixed(2)),
+      itemsWithVariance,
+    };
+  }
+
+  private async loadSheetRows(
+    organizationId: string,
+    session: {
+      id: string;
+      warehouseId: string;
+      countMode: StockCountMode;
+      filterBrand: string | null;
+      filterCategory: string | null;
+      items: {
+        barcode: string;
+        productName: string | null;
+        systemQuantity: number;
+      }[];
+    },
+  ): Promise<{ barcode: string; productName: string; systemQuantity: number }[]> {
+    if (session.items.length > 0) {
+      return session.items.map((it) => ({
+        barcode: it.barcode,
+        productName: it.productName ?? '—',
+        systemQuantity: it.systemQuantity,
+      }));
+    }
+
+    const entries = await this.prisma.stockEntry.findMany({
+      where: {
+        organizationId,
+        warehouseId: session.warehouseId,
+        platform: null,
+        quantity: { gt: 0 },
+      },
+      orderBy: { barcode: 'asc' },
+      select: { barcode: true, quantity: true, productId: true },
+    });
+
+    const rows: { barcode: string; productName: string; systemQuantity: number }[] = [];
+    for (const entry of entries) {
+      const product = entry.productId
+        ? await this.prisma.product.findFirst({
+            where: { id: entry.productId, organizationId, deletedAt: null },
+          })
+        : await this.resolveProduct(organizationId, entry.barcode);
+      if (
+        session.countMode === StockCountMode.PARTIAL &&
+        product &&
+        !this.matchesPartialFilters(
+          product,
+          session.filterBrand,
+          session.filterCategory,
+        )
+      ) {
+        continue;
+      }
+      rows.push({
+        barcode: entry.barcode,
+        productName: product?.name ?? entry.barcode,
+        systemQuantity: entry.quantity,
+      });
+    }
+    return rows;
+  }
+
+  async exportCountSheet(
+    organizationId: string,
+    sessionId: string,
+  ): Promise<Buffer> {
+    const session = await this.prisma.stockCountSession.findFirst({
+      where: { id: sessionId, organizationId, deletedAt: null },
+      include: {
+        warehouse: { select: { name: true, code: true } },
+        items: { orderBy: { barcode: 'asc' } },
+      },
+    });
+    if (!session) {
+      throw new NotFoundException('Sayım oturumu bulunamadı.');
+    }
+    if (session.status === StockCountSessionStatus.CANCELLED) {
+      throw new BadRequestException('İptal edilmiş oturum için form üretilemez.');
+    }
+
+    const rows = await this.loadSheetRows(organizationId, session);
+    return this.stockCountPdfService.generateCountSheetPdf(
+      {
+        sessionId: session.id,
+        warehouseName: session.warehouse.name,
+        warehouseCode: session.warehouse.code,
+        countMode:
+          session.countMode === StockCountMode.FULL ? 'Tam sayım' : 'Kısmi sayım',
+        startedAt: session.startedAt.toLocaleDateString('tr-TR'),
+      },
+      rows,
+    );
+  }
+
+  async importCountResult(
+    organizationId: string,
+    sessionId: string,
+    csvBuffer: Buffer,
+  ): Promise<{ data: { imported: number; skipped: number } }> {
+    const session = await this.prisma.stockCountSession.findFirst({
+      where: { id: sessionId, organizationId, deletedAt: null },
+    });
+    if (!session) {
+      throw new NotFoundException('Sayım oturumu bulunamadı.');
+    }
+    if (session.status !== StockCountSessionStatus.IN_PROGRESS) {
+      throw new BadRequestException('Yalnızca devam eden oturumlara CSV yüklenebilir.');
+    }
+
+    const parsed = Papa.parse<CsvCountRow>(csvBuffer.toString('utf-8'), {
+      header: true,
+      skipEmptyLines: true,
+    });
+    if (parsed.errors.length > 0) {
+      throw new BadRequestException('CSV dosyası okunamadı.');
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    for (const row of parsed.data) {
+      const barcode = (row.barcode ?? row.Barkod ?? '').trim();
+      const rawQty =
+        row.countedQuantity ?? row['Sayılan'] ?? row.Sayilan ?? row.quantity;
+      const qty =
+        typeof rawQty === 'number'
+          ? rawQty
+          : Number.parseInt(String(rawQty ?? '').trim(), 10);
+      if (!barcode || !Number.isFinite(qty) || qty < 0) {
+        skipped += 1;
+        continue;
+      }
+      await this.upsertItem(organizationId, sessionId, {
+        barcode,
+        countedQuantity: qty,
+      });
+      imported += 1;
+    }
+
+    return { data: { imported, skipped } };
+  }
+
   async createSession(
     organizationId: string,
     userId: string,
@@ -182,12 +408,18 @@ export class StockCountService {
       where: { id: sessionId, organizationId, deletedAt: null },
       include: {
         warehouse: { select: { name: true, code: true } },
-        items: { orderBy: { updatedAt: 'desc' } },
+        items: {
+          orderBy: { updatedAt: 'desc' },
+          include: {
+            product: { select: { costPrice: true } },
+          },
+        },
       },
     });
     if (!session) {
       throw new NotFoundException('Sayım oturumu bulunamadı.');
     }
+    const items = session.items.map((it) => this.mapItemRow(it));
     return {
       data: {
         id: session.id,
@@ -202,18 +434,8 @@ export class StockCountService {
         startedAt: session.startedAt.toISOString(),
         completedAt: session.completedAt?.toISOString() ?? null,
         createdBy: session.createdBy,
-        items: session.items.map((it) => ({
-          id: it.id,
-          barcode: it.barcode,
-          productId: it.productId,
-          productName: it.productName,
-          platformLabel: it.platformLabel,
-          systemQuantity: it.systemQuantity,
-          countedQuantity: it.countedQuantity,
-          difference: it.difference,
-          createdAt: it.createdAt.toISOString(),
-          updatedAt: it.updatedAt.toISOString(),
-        })),
+        items,
+        varianceSummary: this.buildVarianceSummary(items),
       },
     };
   }
@@ -295,21 +517,13 @@ export class StockCountService {
         countedQuantity: dto.countedQuantity,
         difference,
       },
+      include: {
+        product: { select: { costPrice: true } },
+      },
     });
 
     return {
-      data: {
-        id: row.id,
-        barcode: row.barcode,
-        productId: row.productId,
-        productName: row.productName,
-        platformLabel: row.platformLabel,
-        systemQuantity: row.systemQuantity,
-        countedQuantity: row.countedQuantity,
-        difference: row.difference,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-      },
+      data: this.mapItemRow(row),
     };
   }
 

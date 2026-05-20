@@ -14,6 +14,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
+import { WebhookEvent } from '../webhook/webhook-event.enum';
 
 import type { ProductAnalyticsResponse } from './product-analytics.types';
 import {
@@ -351,7 +352,7 @@ export class ProductService {
         },
       });
       await this.cache.invalidateProductsForOrg(organizationId);
-      void this.outboundWebhookService.dispatch(organizationId, 'product.updated', {
+      void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.PRODUCT_UPDATED, {
         productId: id,
       });
       return updated;

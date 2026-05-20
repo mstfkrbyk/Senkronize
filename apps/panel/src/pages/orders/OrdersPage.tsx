@@ -350,6 +350,9 @@ export function OrdersPage(): ReactElement {
           hasActiveFilters={hasActiveOrderFilters}
           onStartSync={pullOrdersForConnections}
           syncLabel="Senkronizasyonu başlat"
+          emptyTitle="Henüz sipariş yok"
+          emptyDescription="Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın."
+          noConnectionDescription="Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın."
         />
       ) : null}
 

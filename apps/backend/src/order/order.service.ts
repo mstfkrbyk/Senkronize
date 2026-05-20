@@ -21,6 +21,7 @@ import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
+import { resolveOrderWebhookEvents } from '../webhook/order-webhook-events.util';
 import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
@@ -270,9 +271,11 @@ export class OrderService {
       include: { items: true },
     });
     if (existing.status !== dto.status) {
-      void this.outboundWebhookService.dispatch(organizationId, 'order.status_changed', {
+      this.dispatchOrderWebhooks(organizationId, {
+        isCreate: false,
+        prevStatus: existing.status,
+        newStatus: dto.status,
         orderId: id,
-        status: dto.status,
       });
     }
     await this.cache.invalidateReportsForOrg(organizationId);
@@ -282,6 +285,30 @@ export class OrderService {
       updated.items,
     );
     return this.serializeOrder(updated, thumbnails);
+  }
+
+  private dispatchOrderWebhooks(
+    organizationId: string,
+    options: {
+      isCreate: boolean;
+      prevStatus?: OrderStatus;
+      newStatus: OrderStatus;
+      orderId: string;
+      order?: Record<string, unknown>;
+    },
+  ): void {
+    const events = resolveOrderWebhookEvents({
+      isCreate: options.isCreate,
+      prevStatus: options.prevStatus,
+      newStatus: options.newStatus,
+    });
+    const basePayload: Record<string, unknown> = options.order ?? {
+      orderId: options.orderId,
+      status: options.newStatus,
+    };
+    for (const event of events) {
+      void this.outboundWebhookService.dispatch(organizationId, event, basePayload);
+    }
   }
 
   async upsertFromPlatform(
@@ -368,32 +395,29 @@ export class OrderService {
         if (!wasInDb && !countedCreated.has(o.platformOrderId)) {
           createdOrders.push(row);
           countedCreated.add(o.platformOrderId);
-          void this.outboundWebhookService.dispatch(
-            organizationId,
-            'order.created',
-            {
-              order: {
-                id: row.id,
-                platform: row.platform,
-                platformOrderId: row.platformOrderId,
-                status: row.status,
-                customerName: row.customerName,
-                totalAmount: row.totalAmount.toString(),
-                currency: row.currency,
-              },
+          this.dispatchOrderWebhooks(organizationId, {
+            isCreate: true,
+            newStatus: row.status,
+            orderId: row.id,
+            order: {
+              id: row.id,
+              platform: row.platform,
+              platformOrderId: row.platformOrderId,
+              status: row.status,
+              customerName: row.customerName,
+              totalAmount: row.totalAmount.toString(),
+              currency: row.currency,
             },
-          );
+          });
         } else if (wasInDb) {
           const prevStatus = prevStatusByPlatformOrderId.get(o.platformOrderId);
           if (prevStatus !== undefined && prevStatus !== row.status) {
-            void this.outboundWebhookService.dispatch(
-              organizationId,
-              'order.status_changed',
-              {
-                orderId: row.id,
-                status: row.status,
-              },
-            );
+            this.dispatchOrderWebhooks(organizationId, {
+              isCreate: false,
+              prevStatus,
+              newStatus: row.status,
+              orderId: row.id,
+            });
           }
         }
       }
@@ -432,9 +456,11 @@ export class OrderService {
       data: { status, syncedAt: new Date() },
     });
     if (before && before.status !== status) {
-      void this.outboundWebhookService.dispatch(organizationId, 'order.status_changed', {
+      this.dispatchOrderWebhooks(organizationId, {
+        isCreate: false,
+        prevStatus: before.status,
+        newStatus: status,
         orderId: before.id,
-        status,
       });
     }
     await this.cache.invalidateReportsForOrg(organizationId);
