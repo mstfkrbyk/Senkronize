@@ -16,31 +16,33 @@ import {
   parseMoney,
 } from '../stub-helpers';
 import {
-  PAZARAMA_CONNECT_BASE,
-  PAZARAMA_OAUTH_TOKEN_PATH,
+  PAZARAMA_API_BASE,
+  PAZARAMA_ORDER_STATUS_CREATED,
   PAZARAMA_ORDERS_PATH,
-  PAZARAMA_UPDATE_PRICE_STOCK_PATH,
-  pazaramaOrderCargoPath,
+  PAZARAMA_PRICE_PATH,
+  PAZARAMA_PRODUCTS_PATH,
+  PAZARAMA_SHIPMENT_PATH,
+  PAZARAMA_STOCK_PATH,
+  PAZARAMA_TOKEN_PATH,
+  pazaramaOrderDetailPath,
 } from './pazarama.constants';
+import type {
+  PazaramaPriceItem,
+  PazaramaShipmentPayload,
+  PazaramaStockItem,
+  PazaramaTokenResponse,
+} from './pazarama.types';
 
-function isRecordLocal(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-export interface PazaramaCargoPayload {
-  cargoTrackingNumber: string;
-  cargoCompanyCode: string;
-}
-
-interface PazaramaTokenResponse {
-  access_token?: string;
-  expires_in?: number;
+interface CachedToken {
+  token: string;
+  expiresAt: number;
 }
 
 @Injectable()
 export class PazaramaAdapter implements IMarketplaceAdapter {
   readonly platform: string = 'PAZARAMA';
   private readonly logger = new Logger(PazaramaAdapter.name);
+  private readonly tokenCache = new Map<string, CachedToken>();
 
   /** Pazarama Premium vb. ek başlıklar */
   protected extraApiHeaders(
@@ -50,11 +52,9 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
     return {};
   }
 
-  private resolveAuthPair(credentials: Record<string, string>): {
+  private resolveCredentials(credentials: Record<string, string>): {
     username: string;
     password: string;
-    clientId: string;
-    clientSecret: string;
   } {
     const username =
       credentials.username?.trim() ??
@@ -64,69 +64,10 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
       credentials.password?.trim() ??
       credentials.apiSecret?.trim() ??
       credentials.clientSecret?.trim();
-    const clientId =
-      credentials.clientId?.trim() ??
-      credentials.apiKey?.trim() ??
-      username;
-    const clientSecret =
-      credentials.clientSecret?.trim() ??
-      credentials.apiSecret?.trim() ??
-      password;
-    if (!username || !password || !clientId || !clientSecret) {
-      throw new Error(
-        'Pazarama: username/password veya apiKey/apiSecret (client_id/client_secret) zorunludur',
-      );
+    if (!username || !password) {
+      throw new Error('Pazarama: username ve password zorunludur');
     }
-    return { username, password, clientId, clientSecret };
-  }
-
-  private basicAuthHeader(username: string, password: string): string {
-    return `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`;
-  }
-
-  private formatApiDate(date: Date): string {
-    return date.toISOString().slice(0, 10);
-  }
-
-  private async getToken(credentials: Record<string, string>): Promise<string> {
-    const { username, password, clientId, clientSecret } =
-      this.resolveAuthPair(credentials);
-    try {
-      const { data } = await axios.post<PazaramaTokenResponse>(
-        `${PAZARAMA_CONNECT_BASE}${PAZARAMA_OAUTH_TOKEN_PATH}`,
-        {
-          grant_type: 'client_credentials',
-          client_id: clientId,
-          client_secret: clientSecret,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: this.basicAuthHeader(username, password),
-          },
-          timeout: 10_000,
-        },
-      );
-      if (typeof data.access_token !== 'string' || data.access_token.length === 0) {
-        throw new Error('access_token alınamadı');
-      }
-      return data.access_token;
-    } catch (error) {
-      throw this.toApiError(error, 'Pazarama token');
-    }
-  }
-
-  private async getApiClient(credentials: Record<string, string>): Promise<AxiosInstance> {
-    const token = await this.getToken(credentials);
-    return axios.create({
-      baseURL: PAZARAMA_CONNECT_BASE,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        ...this.extraApiHeaders(credentials),
-      },
-      timeout: 15_000,
-    });
+    return { username, password };
   }
 
   private toApiError(error: unknown, label: string): Error {
@@ -148,9 +89,69 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
     return new Error(`${label}: istek başarısız`);
   }
 
+  private async getToken(credentials: Record<string, string>): Promise<string> {
+    const { username, password } = this.resolveCredentials(credentials);
+    const cacheKey = username;
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now() + 60_000) {
+      return cached.token;
+    }
+
+    try {
+      const { data } = await axios.post<PazaramaTokenResponse>(
+        `${PAZARAMA_API_BASE}${PAZARAMA_TOKEN_PATH}`,
+        { username, password },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 10_000,
+        },
+      );
+      const token =
+        (typeof data.accessToken === 'string' && data.accessToken) ||
+        (typeof data.access_token === 'string' && data.access_token) ||
+        '';
+      if (token.length === 0) {
+        throw new Error('accessToken alınamadı');
+      }
+      const ttlSec =
+        typeof data.expiresIn === 'number'
+          ? data.expiresIn
+          : typeof data.expires_in === 'number'
+            ? data.expires_in
+            : 3600;
+      this.tokenCache.set(cacheKey, {
+        token,
+        expiresAt: Date.now() + ttlSec * 1000,
+      });
+      return token;
+    } catch (error) {
+      throw this.toApiError(error, 'Pazarama token');
+    }
+  }
+
+  private async getApiClient(credentials: Record<string, string>): Promise<AxiosInstance> {
+    const token = await this.getToken(credentials);
+    return axios.create({
+      baseURL: PAZARAMA_API_BASE,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        ...this.extraApiHeaders(credentials),
+      },
+      timeout: 15_000,
+    });
+  }
+
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      await this.getToken(credentials);
+      const client = await this.getApiClient(credentials);
+      await client.get(PAZARAMA_ORDERS_PATH, {
+        params: {
+          pageSize: 1,
+          pageIndex: 0,
+          status: PAZARAMA_ORDER_STATUS_CREATED,
+        },
+      });
       return true;
     } catch (error) {
       this.logger.warn('Pazarama bağlantı testi başarısız', {
@@ -165,10 +166,8 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const client = await this.getApiClient(credentials);
-    const end = new Date();
-    const start = since ?? new Date(end.getTime() - 7 * 24 * 3600 * 1000);
     const all: MarketplaceOrder[] = [];
-    let pageIndex = 1;
+    let pageIndex = 0;
     const pageSize = 100;
     let hasMore = true;
 
@@ -177,11 +176,9 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
       try {
         const res = await client.get<unknown>(PAZARAMA_ORDERS_PATH, {
           params: {
-            status: 1,
-            startDate: this.formatApiDate(start),
-            endDate: this.formatApiDate(end),
-            pageIndex,
             pageSize,
+            pageIndex,
+            status: PAZARAMA_ORDER_STATUS_CREATED,
           },
         });
         data = res.data;
@@ -191,35 +188,42 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
 
       const rows = normalizeOrdersRows(data);
       for (const [index, row] of rows.entries()) {
-        const o = isRecordLocal(row) ? row : {};
-        const idRaw = o.id ?? o.orderId ?? o.orderNumber;
+        const o = isRecord(row) ? row : {};
+        const idRaw = o.orderNumber ?? o.id ?? o.orderId;
         if (idRaw === undefined || idRaw === null) {
           this.logger.warn('Pazarama sipariş kaydında id eksik', { index });
           continue;
         }
-        const createdRaw = o.createdAt ?? o.orderDate;
+        const createdRaw = o.createdAt ?? o.orderDate ?? o.createdDate;
         const createdAt =
           createdRaw !== undefined && createdRaw !== null
             ? new Date(String(createdRaw)).toISOString()
             : new Date().toISOString();
-        const nameRaw = o.customerName ?? o.buyerName ?? '';
+        if (since && new Date(createdAt).getTime() < since.getTime()) {
+          continue;
+        }
+        const nameRaw = o.customerName ?? o.buyerName ?? o.receiverName ?? '';
         all.push({
           platformOrderId: String(idRaw),
-          status: typeof o.status === 'string' ? o.status : 'NEW',
+          status: typeof o.status === 'string' ? o.status : PAZARAMA_ORDER_STATUS_CREATED,
           customerName:
             typeof nameRaw === 'string' && nameRaw.length > 0 ? nameRaw : '—',
           items: [],
-          totalAmount: parseMoney(o.totalPrice ?? o.totalAmount),
+          totalAmount: parseMoney(o.totalPrice ?? o.totalAmount ?? o.amount),
           currency: 'TRY',
           createdAt,
           cargoTrackingNumber:
-            typeof o.cargoTrackingNumber === 'string'
-              ? o.cargoTrackingNumber
-              : undefined,
+            typeof o.trackingNumber === 'string'
+              ? o.trackingNumber
+              : typeof o.cargoTrackingNumber === 'string'
+                ? o.cargoTrackingNumber
+                : undefined,
           cargoProvider:
-            typeof o.cargoCompanyCode === 'string'
-              ? o.cargoCompanyCode
-              : undefined,
+            typeof o.cargoCode === 'string'
+              ? o.cargoCode
+              : typeof o.cargoCompanyCode === 'string'
+                ? o.cargoCompanyCode
+                : undefined,
         });
       }
 
@@ -230,7 +234,7 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
             ? totalRaw
             : undefined;
         if (typeof total === 'number') {
-          hasMore = pageIndex * pageSize < total;
+          hasMore = (pageIndex + 1) * pageSize < total;
         } else {
           hasMore = rows.length >= pageSize;
         }
@@ -243,16 +247,29 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
     return all;
   }
 
+  /** Sipariş detayı — `GET /orders/{orderNumber}` */
+  async getOrderDetail(
+    credentials: Record<string, string>,
+    orderNumber: string,
+  ): Promise<unknown> {
+    const client = await this.getApiClient(credentials);
+    try {
+      const res = await client.get<unknown>(pazaramaOrderDetailPath(orderNumber));
+      return res.data;
+    } catch (error) {
+      throw this.toApiError(error, 'Pazarama sipariş detayı');
+    }
+  }
+
   async getListings(
     credentials: Record<string, string>,
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const client = await this.getApiClient(credentials);
-    const pageIndex = page + 1;
     let data: unknown;
     try {
-      const res = await client.get<unknown>('/products', {
-        params: { pageIndex, pageSize: 50 },
+      const res = await client.get<unknown>(PAZARAMA_PRODUCTS_PATH, {
+        params: { pageSize: 100, pageIndex: page },
       });
       data = res.data;
     } catch (error) {
@@ -261,8 +278,8 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
 
     const { rows, total } = normalizeProductRows(data);
     const items: MarketplaceListing[] = rows.map((row, i) => {
-      const p = isRecordLocal(row) ? row : {};
-      const codeRaw = p.code ?? p.barcode ?? p.sku ?? p.id;
+      const p = isRecord(row) ? row : {};
+      const codeRaw = p.productCode ?? p.code ?? p.barcode ?? p.sku ?? p.id;
       const code =
         codeRaw !== undefined && codeRaw !== null
           ? String(codeRaw)
@@ -284,7 +301,7 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
         quantity,
         salePrice: sale,
         listPrice: list,
-        approved: statusStr === 'ACTIVE',
+        approved: statusStr === 'ACTIVE' || statusStr === 'APPROVED',
         images: [],
       };
     });
@@ -293,7 +310,7 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
       items,
       total: typeof total === 'number' ? total : items.length,
       page,
-      pageSize: 50,
+      pageSize: 100,
     };
   }
 
@@ -301,52 +318,43 @@ export class PazaramaAdapter implements IMarketplaceAdapter {
     credentials: Record<string, string>,
     updates: StockUpdatePayload[],
   ): Promise<void> {
-    await this.putPriceQuantityItems(
-      credentials,
-      updates.map((u) => ({ code: u.barcode, quantity: u.quantity })),
-    );
+    const client = await this.getApiClient(credentials);
+    const body: PazaramaStockItem[] = updates.map((u) => ({
+      productCode: u.barcode,
+      quantity: u.quantity,
+    }));
+    try {
+      await client.put(PAZARAMA_STOCK_PATH, body);
+    } catch (error) {
+      throw this.toApiError(error, 'Pazarama stok');
+    }
   }
 
   async updatePrice(
     credentials: Record<string, string>,
     updates: PriceUpdatePayload[],
   ): Promise<void> {
-    await this.putPriceQuantityItems(
-      credentials,
-      updates.map((u) => ({
-        code: u.barcode,
-        salePrice: u.salePrice,
-        listPrice: u.listPrice,
-      })),
-    );
-  }
-
-  private async putPriceQuantityItems(
-    credentials: Record<string, string>,
-    items: Array<{
-      code: string;
-      quantity?: number;
-      salePrice?: number;
-      listPrice?: number;
-    }>,
-  ): Promise<void> {
     const client = await this.getApiClient(credentials);
+    const body: PazaramaPriceItem[] = updates.map((u) => ({
+      productCode: u.barcode,
+      salePrice: u.salePrice,
+      listPrice: u.listPrice,
+    }));
     try {
-      await client.put(PAZARAMA_UPDATE_PRICE_STOCK_PATH, { items });
+      await client.put(PAZARAMA_PRICE_PATH, body);
     } catch (error) {
-      throw this.toApiError(error, 'Pazarama fiyat/stok');
+      throw this.toApiError(error, 'Pazarama fiyat');
     }
   }
 
-  /** Kargo bildirimi — `PUT /orders/{orderNumber}/cargo` */
-  async submitCargo(
+  /** Kargo bildirimi — `PUT /orders/shipment` */
+  async submitShipment(
     credentials: Record<string, string>,
-    orderNumber: string,
-    payload: PazaramaCargoPayload,
+    payload: PazaramaShipmentPayload,
   ): Promise<void> {
     const client = await this.getApiClient(credentials);
     try {
-      await client.put(pazaramaOrderCargoPath(orderNumber), payload);
+      await client.put(PAZARAMA_SHIPMENT_PATH, payload);
     } catch (error) {
       throw this.toApiError(error, 'Pazarama kargo');
     }

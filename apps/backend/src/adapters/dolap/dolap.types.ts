@@ -23,4 +23,10 @@ export interface DolapListing {
   stock?: number;
   price?: number;
   active?: boolean;
+  status?: string;
+}
+
+export interface DolapShipPayload {
+  cargo_company: string;
+  tracking_no: string;
 }
