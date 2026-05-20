@@ -1,7 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import type { OrgPlanTier, OrgType } from '@/types/auth';
+import type {
+  AccountingMode,
+  OrgPlanTier,
+  OrgProductLine,
+  OrgType,
+} from '@/types/auth';
 
 export interface AuthUserSnapshot {
   id: string;
@@ -17,6 +22,9 @@ export interface CurrentOrgSnapshot {
   type: OrgType;
   onboardingCompleted: boolean;
   plan: OrgPlanTier;
+  orgProducts: OrgProductLine[];
+  /** /me.organization.accountingMode; yoksa useAccountingMode ERP sayısına bakar */
+  accountingMode?: AccountingMode;
 }
 
 interface AuthState {
@@ -77,6 +85,11 @@ export const useAuthStore = create<AuthState>()(
                   ),
                   plan:
                     (co as Partial<CurrentOrgSnapshot>).plan ?? 'BASLANGIC',
+                  orgProducts:
+                    (co as Partial<CurrentOrgSnapshot>).orgProducts ?? [
+                      'INTEGRATION',
+                      'ACCOUNTING',
+                    ],
                   type:
                     (co as Partial<CurrentOrgSnapshot>).type ?? 'DIRECT',
                 }

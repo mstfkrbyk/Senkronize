@@ -4,7 +4,6 @@ import posthog from 'posthog-js';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   BrowserRouter,
-  Navigate,
   Route,
   Routes,
 } from 'react-router-dom';
@@ -13,6 +12,10 @@ import { AppErrorBoundary, ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useSentryUser } from '@/hooks/useSentryUser';
 import { PageLoader } from '@/components/PageLoader';
+import {
+  ProductAwareDashboardGate,
+  ProductAwareHomeRedirect,
+} from '@/components/ProductAwareHomeRedirect';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { Toaster } from '@/components/ui/sonner';
@@ -188,6 +191,11 @@ const OrderDetailPage = lazy(() =>
 );
 const ReturnsPage = lazy(() =>
   import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
+);
+const AccountingOverviewPage = lazy(() =>
+  import('@/pages/accounting/AccountingOverviewPage').then((m) => ({
+    default: m.AccountingOverviewPage,
+  })),
 );
 const InvoicesPage = lazy(() =>
   import('@/pages/invoices/InvoicesPage').then((m) => ({
@@ -424,7 +432,7 @@ export default function App(): ReactElement {
               <Route path="/payment/callback" element={<PaymentCallbackPage />} />
               <Route path="/payment/success" element={<PaymentSuccessPage />} />
               <Route path="/payment/failure" element={<PaymentFailurePage />} />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<ProductAwareHomeRedirect />} />
               <Route
                 path="/admin"
                 element={
@@ -452,8 +460,15 @@ export default function App(): ReactElement {
                 />
               </Route>
               <Route element={<DashboardLayout />}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route index element={<ProductAwareHomeRedirect />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProductAwareDashboardGate>
+                      <DashboardPage />
+                    </ProductAwareDashboardGate>
+                  }
+                />
                 <Route path="/orders/:id" element={<OrderDetailPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/shipping/:id" element={<ShipmentDetailPage />} />
@@ -462,6 +477,8 @@ export default function App(): ReactElement {
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
                 <Route path="/returns" element={<ReturnsPage />} />
+                <Route path="/accounting/overview" element={<AccountingOverviewPage />} />
+                <Route path="/accounting" element={<AccountingOverviewPage />} />
                 <Route path="/invoices" element={<InvoicesPage />} />
                 <Route path="/listings/:id" element={<ListingDetailPage />} />
                 <Route path="/listings" element={<ListingsPage />} />

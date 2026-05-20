@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Menu, PanelLeft, Search } from 'lucide-react';
 
@@ -21,24 +21,12 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ALL_NAV_ITEMS_FOR_TITLE } from '@/constants/navigation';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/auth.store';
 import { useUiStore } from '@/store/ui.store';
-
-function pageTitleFromPath(
-  pathname: string,
-  t: (key: string) => string,
-): string {
-  const item = ALL_NAV_ITEMS_FOR_TITLE.find(
-    (n) =>
-      pathname === n.path ||
-      (n.path !== '/' && pathname.startsWith(`${n.path}/`)),
-  );
-  return item ? t(item.labelKey) : t('common.panel');
-}
 
 function initials(name: string, email: string): string {
   const trimmed = name.trim();
@@ -54,7 +42,6 @@ function initials(name: string, email: string): string {
 
 export function TopBar(): ReactElement {
   const { t } = useTranslation();
-  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAuth();
@@ -66,7 +53,8 @@ export function TopBar(): ReactElement {
 
   const org = data?.organization ?? storeOrg;
   const user = data?.user ?? storeUser;
-  const title = pageTitleFromPath(location.pathname, t);
+  const { groupLabel, pageLabel } = useActiveNav();
+  const title = pageLabel ?? t('common.panel');
 
   const handleLogout = async (): Promise<void> => {
     const rt = useAuthStore.getState().refreshToken;
@@ -113,7 +101,7 @@ export function TopBar(): ReactElement {
       <Separator orientation="vertical" className="mr-1 h-6" />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-xs text-muted-foreground">
-          {t('common.location')}
+          {groupLabel ?? t('common.location')}
         </span>
         <span className="truncate text-sm font-semibold text-foreground">
           {title}
