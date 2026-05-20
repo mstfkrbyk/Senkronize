@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import path from 'node:path';
 
-import { ensureTestDatabase, getTestDatabaseUrl } from './setup';
+import { ensureTestDatabase, getTestDatabaseUrl } from './test-env';
 
 export default async function globalSetup(): Promise<void> {
   const testUrl = getTestDatabaseUrl();
@@ -17,8 +17,8 @@ export default async function globalSetup(): Promise<void> {
       stdio: 'inherit',
     });
   } catch {
-    // Boş test DB — migration zinciri kırıksa şemayı doğrudan senkronize et
-    execSync('npx prisma db push --skip-generate', {
+    ensureTestDatabase(testUrl);
+    execSync('npx prisma db push --accept-data-loss --skip-generate', {
       cwd: backendRoot,
       env: { ...process.env, DATABASE_URL: testUrl },
       stdio: 'inherit',

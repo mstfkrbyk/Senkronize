@@ -376,8 +376,8 @@ export class ReportsService {
     period: 'default' | '24h' | '7d' | 'month' | undefined,
   ): Promise<DashboardSummaryDto> {
     const p = period ?? 'default';
-    const cacheKey = `${CacheKeys.dashboard(organizationId)}:${p}`;
-    return this.cache.readThrough(cacheKey, 60, async () => {
+    const cacheKey = CacheKeys.dashboardKpis(organizationId, p);
+    return this.cache.readThrough(cacheKey, 300, async () => {
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
     const startOfYesterday = new Date(startOfToday);

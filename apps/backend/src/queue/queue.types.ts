@@ -88,6 +88,12 @@ export interface ListingSyncPriceJobData {
   listingIds: string[];
 }
 
+/** data-import — migration wizard toplu içe aktarma */
+export interface DataImportJobData {
+  sessionId: string;
+  organizationId: string;
+}
+
 /** Giden webhook teslimatı — webhook-delivery kuyruğu */
 export interface WebhookDeliveryJobData {
   endpointId: string;

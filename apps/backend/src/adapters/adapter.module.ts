@@ -2,23 +2,36 @@ import { Global, Module } from '@nestjs/common';
 
 import { AdaptersCommonModule } from './common/adapters-common.module';
 import { AdapterRegistry } from './adapter.registry';
+import { DbaModule } from './dba/dba.module';
+import { DeuxiemeMainModule } from './deuxieme-main/deuxieme-main.module';
 import { EcommerceAdaptersModule } from './ecommerce/ecommerce.module';
 import { AfterpayModule } from './afterpay/afterpay.module';
 import { BerealShopModule } from './bereal-shop/bereal-shop.module';
 import { Brands4lessModule } from './brands4less/brands4less.module';
 import { CloverModule } from './clover/clover.module';
+import { FinnNoModule } from './finn-no/finn-no.module';
+import { FyndiqModule } from './fyndiq/fyndiq.module';
 import { GumroadModule } from './gumroad/gumroad.module';
 import { HarajModule } from './haraj/haraj.module';
 import { KlarnaMerchantModule } from './klarna-merchant/klarna-merchant.module';
 import { OkxTrModule } from './okx-tr/okx-tr.module';
+import { OlxPtModule } from './olx-pt/olx-pt.module';
 import { PaparaModule } from './papara/papara.module';
 import { ParibuModule } from './paribu/paribu.module';
 import { PatreonModule } from './patreon/patreon.module';
+import { PricespyModule } from './pricespy/pricespy.module';
+import { RicardoChModule } from './ricardo-ch/ricardo-ch.module';
 import { SquareOnlineModule } from './square-online/square-online.module';
 import { ThreadsShopModule } from './threads-shop/threads-shop.module';
+import { ToriModule } from './tori/tori.module';
 import { ToslaModule } from './tosla/tosla.module';
+import { TraderaModule } from './tradera/tradera.module';
+import { TuttiChModule } from './tutti-ch/tutti-ch.module';
+import { TweakersModule } from './tweakers/tweakers.module';
+import { TweeDehandsModule } from './twee-dehands/twee-dehands.module';
 import { VendtekModule } from './vendtek/vendtek.module';
 import { VenmoBusinessModule } from './venmo-business/venmo-business.module';
+import { WillhabenModule } from './willhaben/willhaben.module';
 import { XShoppingModule } from './x-shopping/x-shopping.module';
 import { ErpAdaptersModule } from './erp/erp.module';
 import { A101Module } from './a101/a101.module';
@@ -431,6 +444,19 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VendtekModule,
     VenmoBusinessModule,
     XShoppingModule,
+    DbaModule,
+    DeuxiemeMainModule,
+    FinnNoModule,
+    FyndiqModule,
+    OlxPtModule,
+    PricespyModule,
+    RicardoChModule,
+    ToriModule,
+    TraderaModule,
+    TuttiChModule,
+    TweakersModule,
+    TweeDehandsModule,
+    WillhabenModule,
     ErpAdaptersModule,
     EcommerceAdaptersModule,
     A101Module,
@@ -783,6 +809,20 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     VenteExclusiveModule,
     VestiaireModule,
     ZalandoLoungeModule,
+    ChaldalModule,
+    CraftsvillaModule,
+    DarazPkModule,
+    GotoLkModule,
+    JuspayModule,
+    KhaadiModule,
+    LimeroadModule,
+    NykaaModule,
+    PepperfryModule,
+    RazorpayStoreModule,
+    RelianceDigitalModule,
+    ShohozModule,
+    TataCliqModule,
+    UdaanModule,
   ],
   providers: [
     AmazonAdapter,
@@ -1205,6 +1245,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     ShohozModule,
     TataCliqModule,
     UdaanModule,
+    DbaModule,
   ],
 })
 export class AdapterModule {}

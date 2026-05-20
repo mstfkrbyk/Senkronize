@@ -20,6 +20,7 @@ import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 
 import { StockAdjustDto } from './stock.dto';
+import { CacheService } from '../common/cache/cache.service';
 import { StockMovementService } from './stock-movement.service';
 import { StockService } from './stock.service';
 
@@ -83,6 +84,15 @@ describe('StockService', () => {
           provide: WarehouseService,
           useValue: {
             getOrCreateMainWarehouse: jest.fn().mockResolvedValue({ id: 'wh-1' }),
+          },
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            invalidateStockForOrg: jest.fn().mockResolvedValue(undefined),
+            readThrough: jest.fn(
+              (_k: string, _t: number, fn: () => Promise<unknown>) => fn(),
+            ),
           },
         },
       ],

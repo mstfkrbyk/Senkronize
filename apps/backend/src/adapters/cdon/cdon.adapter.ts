@@ -11,7 +11,7 @@ export class CdonAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'CDON',
-      baseUrl: 'https://api.cdon.com/v1',
+      baseUrl: 'https://api.cdon.com/v2',
       loggerContext: CdonAdapter.name,
       rateLimitKey: 'CDON',
       pathProfile: '/merchant/me',

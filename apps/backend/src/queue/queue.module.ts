@@ -65,6 +65,7 @@ function parseRedisUrl(redisUrl: string): {
         },
       },
       { name: constants.QUEUE_LISTING_SYNC },
+      { name: constants.QUEUE_DATA_IMPORT },
     ),
   ],
   exports: [BullModule],

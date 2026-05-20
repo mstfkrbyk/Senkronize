@@ -11,6 +11,7 @@ export const WS_EVENTS = {
   NOTIFICATION_NEW: 'notification:new',
   SYNC_TRIGGER: 'sync:trigger',
   DASHBOARD_UPDATE: 'dashboard:update',
+  MIGRATION_PROGRESS: 'migration:progress',
 } as const;
 
 export type WsEventName = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];

@@ -9,11 +9,12 @@ import type Redis from 'ioredis';
 
 import { REDIS_CACHE } from './cache.constants';
 import { CacheKeys } from './cache-keys';
+import { CACHE_TTL } from './cache-ttl';
 
 @Injectable()
 export class CacheService implements OnModuleDestroy {
   private readonly logger = new Logger(CacheService.name);
-  private readonly defaultTtl = 300; // 5 dakika
+  private readonly defaultTtl: number = CACHE_TTL.DASHBOARD;
 
   constructor(
     @Optional() @Inject(REDIS_CACHE) private readonly redis: Redis | null,
@@ -209,19 +210,36 @@ export class CacheService implements OnModuleDestroy {
     await this.del(CacheKeys.buyboxScore(listingId));
   }
 
+  /** Dashboard KPI + platform performans önbelleği (sipariş sync vb.) */
+  async invalidateDashboardForOrg(organizationId: string): Promise<void> {
+    await Promise.all([
+      this.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
+      this.delPattern(`${CacheKeys.dashboardKpis(organizationId, '*')}`),
+      this.delPattern(`${CacheKeys.platformPerformance(organizationId, '*')}`),
+      this.delPattern(CacheService.key('dashboard', organizationId, '*')),
+    ]);
+  }
+
   /** Rapor + panel özet önbelleğini temizle (sipariş senkronu vb.) */
   async invalidateReportsForOrg(organizationId: string): Promise<void> {
     await Promise.all([
-      this.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
+      this.invalidateDashboardForOrg(organizationId),
       this.delPattern(CacheService.key('reports', '*', organizationId, '*')),
       this.delPattern(CacheService.key('reports', organizationId, '*')),
-      this.delPattern(CacheService.key('dashboard', organizationId, '*')),
     ]);
   }
 
   /** Ürün listesi önbelleğini temizle */
   async invalidateProductsForOrg(organizationId: string): Promise<void> {
-    await this.delPattern(CacheService.key('products', organizationId, '*'));
+    await Promise.all([
+      this.delPattern(CacheService.key('products', organizationId, '*')),
+      this.delPattern(`${CacheKeys.productsList(organizationId, '*')}`),
+    ]);
+  }
+
+  /** Stok özeti önbelleğini temizle */
+  async invalidateStockForOrg(organizationId: string): Promise<void> {
+    await this.del(CacheKeys.stockSummary(organizationId));
   }
 
   /** Listeleme listesi önbelleğini temizle */

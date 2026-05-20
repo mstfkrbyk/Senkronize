@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Marketplace, OrderStatus, Prisma } from '@prisma/client';
 
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CACHE_TTL } from '../common/cache/cache-ttl';
+import { CacheService } from '../common/cache/cache.service';
 import { BuyBoxService } from '../pricing/buybox.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -136,6 +139,7 @@ export class DashboardService {
     private readonly buyBox: BuyBoxService,
     private readonly users: UsersService,
     private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
   ) {}
 
   async getSummary(
@@ -208,6 +212,17 @@ export class DashboardService {
   }
 
   async getKpis(
+    organizationId: string,
+    period: DashboardPeriod,
+  ): Promise<DashboardKpisResponse> {
+    return this.cache.readThrough(
+      CacheKeys.dashboardKpis(organizationId, period),
+      CACHE_TTL.DASHBOARD,
+      () => this.computeKpis(organizationId, period),
+    );
+  }
+
+  private async computeKpis(
     organizationId: string,
     period: DashboardPeriod,
   ): Promise<DashboardKpisResponse> {
@@ -308,6 +323,17 @@ export class DashboardService {
   }
 
   async getPlatformPerformance(
+    organizationId: string,
+    period: DashboardPeriod,
+  ): Promise<DashboardPlatformPerformanceRow[]> {
+    return this.cache.readThrough(
+      CacheKeys.platformPerformance(organizationId, period),
+      CACHE_TTL.DASHBOARD,
+      () => this.computePlatformPerformance(organizationId, period),
+    );
+  }
+
+  private async computePlatformPerformance(
     organizationId: string,
     period: DashboardPeriod,
   ): Promise<DashboardPlatformPerformanceRow[]> {

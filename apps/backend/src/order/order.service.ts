@@ -17,9 +17,9 @@ import type { MarketplaceOrder } from '@senkronize/shared';
 import type { Queue } from 'bull';
 
 import { PostHogService } from '../analytics/posthog.service';
-import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MARKETPLACE_ORDER_BATCH_SIZE } from '../queue/queue-worker.config';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
@@ -148,15 +148,13 @@ export class OrderService {
       }),
     };
 
+    const skip = (page - 1) * limit;
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.order.findMany({
         where,
-        include: {
-          items: true,
-          _count: { select: { items: true } },
-        },
+        include: { items: true },
         orderBy: { platformCreatedAt: 'desc' },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.order.count({ where }),
@@ -647,7 +645,7 @@ export class OrderService {
     const countedCreated = new Set<string>();
     const createdOrders: Order[] = [];
 
-    const chunkSize = 12;
+    const chunkSize = MARKETPLACE_ORDER_BATCH_SIZE;
     for (let i = 0; i < orders.length; i += chunkSize) {
       const chunk = orders.slice(i, i + chunkSize);
       const rows = await Promise.all(
@@ -728,10 +726,7 @@ export class OrderService {
       }
     }
 
-    await Promise.all([
-      this.cache.invalidateReportsForOrg(organizationId),
-      this.cache.delPattern(`${CacheKeys.dashboard(organizationId)}*`),
-    ]);
+    await this.cache.invalidateReportsForOrg(organizationId);
     return { createdOrders };
   }
 
@@ -1049,12 +1044,11 @@ export class OrderService {
   }
 
   private serializeOrder(
-    order: Order & { items: OrderItem[] } & { _count?: { items: number } },
+    order: Order & { items: OrderItem[] },
     thumbnailByKey?: Map<string, string | null>,
   ): SerializedOrder {
-    const { _count: _ignoredOrderItemCount, ...orderRest } = order;
     return {
-      ...orderRest,
+      ...order,
       totalAmount: order.totalAmount.toString(),
       cancellationRequestedAt:
         order.cancellationRequestedAt?.toISOString() ?? null,

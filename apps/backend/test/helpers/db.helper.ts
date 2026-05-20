@@ -23,14 +23,15 @@ export async function cleanupTestUsersByEmail(
     where: { email: normalized },
     select: { id: true, organizationId: true },
   });
-  if (!user) {
+  if (!user?.organizationId) {
     return;
   }
+  const organizationId = user.organizationId;
 
   await prisma.$transaction(async (tx) => {
     await tx.refreshToken.deleteMany({ where: { userId: user.id } });
     await tx.product.updateMany({
-      where: { organizationId: user.organizationId },
+      where: { organizationId },
       data: { deletedAt: new Date() },
     });
     await tx.user.update({
@@ -38,7 +39,7 @@ export async function cleanupTestUsersByEmail(
       data: { deletedAt: new Date() },
     });
     await tx.organization.update({
-      where: { id: user.organizationId },
+      where: { id: organizationId },
       data: { deletedAt: new Date() },
     });
   });

@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { StockMovementService } from '../stock/stock-movement.service';
 import {
   JOB_DEFAULT_OPTIONS,
+  JOB_PULL_ORDERS_OPTIONS,
   QUEUE_MARKETPLACE_PULL,
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
@@ -54,11 +55,21 @@ function normalizeStringArray(value: unknown): string[] {
   );
 }
 
+export type ListingListProduct = {
+  id: string;
+  name: string;
+  barcode: string;
+  sku: string | null;
+  category: string | null;
+  brand: string | null;
+};
+
 export type SerializedListing = Omit<Listing, 'salePrice' | 'listPrice'> & {
   salePrice: string;
   listPrice: string;
   isActive: boolean;
   status: ListingStatus;
+  product?: ListingListProduct | null;
 };
 
 export interface ListingSummaryDto {
@@ -168,6 +179,16 @@ const listingFindAllSelect = {
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
+  product: {
+    select: {
+      id: true,
+      name: true,
+      barcode: true,
+      sku: true,
+      category: true,
+      brand: true,
+    },
+  },
 } satisfies Prisma.ListingSelect;
 
 type ListingFindAllRow = Prisma.ListingGetPayload<{
@@ -188,10 +209,27 @@ export class ListingService {
     private readonly stockMovementService: StockMovementService,
   ) {}
 
-  private serializeListing(row: Listing | ListingFindAllRow): SerializedListing {
+  private serializeListing(
+    row: Listing | ListingFindAllRow | (ListingFindAllRow & { product?: ListingListProduct | null }),
+  ): SerializedListing {
     const isActive = 'isActive' in row ? row.isActive : true;
+    const product =
+      'product' in row && row.product != null
+        ? {
+            id: row.product.id,
+            name: row.product.name,
+            barcode: row.product.barcode,
+            sku: row.product.sku,
+            category: row.product.category,
+            brand: row.product.brand,
+          }
+        : undefined;
+    const { product: _productJoin, ...listingFields } = row as ListingFindAllRow & {
+      product?: ListingListProduct | null;
+    };
     return {
-      ...row,
+      ...listingFields,
+      ...(product !== undefined ? { product } : {}),
       salePrice: row.salePrice.toString(),
       listPrice: row.listPrice.toString(),
       isActive,
@@ -764,7 +802,11 @@ export class ListingService {
         });
       }
     });
-    await this.cache.invalidateListingsForOrg(organizationId);
+    await Promise.all([
+      this.cache.invalidateListingsForOrg(organizationId),
+      this.cache.invalidateStockForOrg(organizationId),
+      this.cache.invalidateProductsForOrg(organizationId),
+    ]);
   }
 
   async findListingIdByPlatformProduct(
@@ -1130,7 +1172,7 @@ export class ListingService {
           type: 'orders',
           ...(since ? { since } : {}),
         },
-        JOB_DEFAULT_OPTIONS,
+        JOB_PULL_ORDERS_OPTIONS,
       );
       return { jobId: String(job.id) };
     }

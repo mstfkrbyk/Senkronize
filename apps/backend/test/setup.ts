@@ -1,4 +1,3 @@
-import { execSync } from 'node:child_process';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import {
@@ -9,49 +8,16 @@ import {
   UserRole,
 } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PrismaClient } from '@prisma/client';
 
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
-const DEFAULT_TEST_DB = 'senkronize_test';
+import { getTestDatabaseUrl } from './test-env';
+export { getTestDatabaseUrl, ensureTestDatabase } from './test-env';
+export { truncateAllTables } from './db-cleanup';
 
 let sharedPrisma: PrismaService | null = null;
-
-export function getTestDatabaseUrl(): string {
-  if (process.env.TEST_DATABASE_URL) {
-    return process.env.TEST_DATABASE_URL;
-  }
-  const base = process.env.DATABASE_URL;
-  if (!base) {
-    throw new Error('DATABASE_URL veya TEST_DATABASE_URL tanımlı olmalıdır');
-  }
-  const parsed = new URL(base);
-  parsed.pathname = `/${DEFAULT_TEST_DB}`;
-  return parsed.toString();
-}
-
-export function ensureTestDatabase(testUrl: string): void {
-  const parsed = new URL(testUrl);
-  const dbName = parsed.pathname.replace(/^\//, '');
-  const host = parsed.hostname;
-  const port = parsed.port || '5432';
-  const user = decodeURIComponent(parsed.username);
-  const password = decodeURIComponent(parsed.password);
-  const env = { ...process.env, PGPASSWORD: password };
-
-  execSync(
-    `psql -h ${host} -p ${port} -U ${user} -d postgres -c "DROP DATABASE IF EXISTS \\"${dbName}\\" WITH (FORCE);"`,
-    { stdio: 'pipe', env },
-  );
-  execSync(
-    `psql -h ${host} -p ${port} -U ${user} -d postgres -c "CREATE DATABASE \\"${dbName}\\";"`,
-    { stdio: 'pipe', env },
-  );
-}
-
-function pathJoinBackend(): string {
-  return `${__dirname}/..`;
-}
 
 export async function getPrismaClient(): Promise<PrismaService> {
   if (sharedPrisma) {
@@ -66,24 +32,6 @@ export async function getPrismaClient(): Promise<PrismaService> {
   return prisma;
 }
 
-export async function truncateAllTables(): Promise<void> {
-  process.env.DATABASE_URL = getTestDatabaseUrl();
-  const prisma = await getPrismaClient();
-  const rows = await prisma.$queryRaw<Array<{ tablename: string }>>`
-    SELECT tablename
-    FROM pg_tables
-    WHERE schemaname = 'public'
-      AND tablename <> '_prisma_migrations'
-  `;
-
-  if (rows.length === 0) {
-    return;
-  }
-
-  const tableList = rows.map((r) => `"${r.tablename}"`).join(', ');
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} CASCADE`);
-}
-
 export interface TestSeedResult {
   organizationId: string;
   userId: string;
@@ -96,7 +44,8 @@ export interface TestSeedResult {
 export async function seedTestData(
   overrides: Partial<{ email: string; password: string; plan: PlanTier }> = {},
 ): Promise<TestSeedResult> {
-  const prisma = await getPrismaClient();
+  process.env.DATABASE_URL = getTestDatabaseUrl();
+  const prisma = new PrismaClient();
   const suffix = Date.now().toString().slice(-8);
   const email = (overrides.email ?? `seed-${suffix}@senkronize.test`).toLowerCase();
   const password = overrides.password ?? 'TestPassword123!';
@@ -143,6 +92,8 @@ export async function seedTestData(
       organizationId: org.id,
     },
   });
+
+  await prisma.$disconnect();
 
   if (!org.subscription) {
     throw new Error('Seed abonelik oluşturulamadı');

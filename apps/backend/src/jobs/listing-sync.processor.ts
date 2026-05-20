@@ -10,6 +10,7 @@ import { WS_EVENTS } from '../event/event.types';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { QUEUE_LISTING_SYNC } from '../queue/queue.constants';
+import { QUEUE_WORKER_CONCURRENCY } from '../queue/queue-worker.config';
 import type {
   ListingSyncPriceJobData,
   ListingSyncPushProductJobData,
@@ -36,7 +37,10 @@ export class ListingSyncProcessor {
     private readonly warehouseService: WarehouseService,
   ) {}
 
-  @Process('push-product')
+  @Process({
+    name: 'push-product',
+    concurrency: QUEUE_WORKER_CONCURRENCY.listingSync,
+  })
   async pushProduct(
     job: Job<ListingSyncPushProductJobData>,
   ): Promise<void> {

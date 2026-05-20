@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StockMovementType, type StockMovement } from '@prisma/client';
 
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CACHE_TTL } from '../common/cache/cache-ttl';
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 
@@ -47,11 +50,12 @@ export class StockMovementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly warehouseService: WarehouseService,
+    private readonly cache: CacheService,
   ) {}
 
   async record(params: StockMovementRecordParams): Promise<StockMovement> {
     const client = params.tx ?? this.prisma;
-    return client.stockMovement.create({
+    const row = await client.stockMovement.create({
       data: {
         organizationId: params.organizationId,
         barcode: params.barcode,
@@ -65,6 +69,10 @@ export class StockMovementService {
         note: params.note ?? null,
       },
     });
+    if (!params.tx) {
+      void this.cache.invalidateStockForOrg(params.organizationId);
+    }
+    return row;
   }
 
   async getHistory(
@@ -199,23 +207,26 @@ export class StockMovementService {
     from: Date,
     to: Date,
   ): Promise<MovementSummary> {
-    const rows = await this.prisma.stockMovement.groupBy({
-      by: ['movementType'],
-      where: {
-        organizationId,
-        createdAt: { gte: from, lte: to },
-      },
-      _sum: { quantity: true },
+    const cacheKey = `${CacheKeys.stockSummary(organizationId)}:${from.toISOString()}:${to.toISOString()}`;
+    return this.cache.readThrough(cacheKey, CACHE_TTL.PRODUCT_STOCK, async () => {
+      const rows = await this.prisma.stockMovement.groupBy({
+        by: ['movementType'],
+        where: {
+          organizationId,
+          createdAt: { gte: from, lte: to },
+        },
+        _sum: { quantity: true },
+      });
+      const byType: Record<string, number> = {};
+      for (const r of rows) {
+        byType[r.movementType] = r._sum.quantity ?? 0;
+      }
+      return {
+        from: from.toISOString(),
+        to: to.toISOString(),
+        byType,
+      };
     });
-    const byType: Record<string, number> = {};
-    for (const r of rows) {
-      byType[r.movementType] = r._sum.quantity ?? 0;
-    }
-    return {
-      from: from.toISOString(),
-      to: to.toISOString(),
-      byType,
-    };
   }
 
   async adjustStock(

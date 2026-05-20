@@ -435,6 +435,19 @@ enum Marketplace {
   SHOHOZ
   JUSPAY
   RAZORPAY_STORE
+  FYNDIQ
+  PRICESPY
+  FINN_NO
+  DBA
+  TORI
+  TRADERA
+  TWEE_DEHANDS
+  DEUXIEME_MAIN
+  TWEAKERS
+  WILLHABEN
+  RICARDO_CH
+  TUTTI_CH
+  OLX_PT
 }
 
 enum PricingStrategy {
@@ -1441,6 +1454,8 @@ model Product {
   @@index([organizationId])
   @@index([organizationId, createdAt])
   @@index([organizationId, categoryId])
+  @@index([organizationId, isActive])
+  @@index([sku])
 }
 
 model ProductVariant {
@@ -1495,6 +1510,8 @@ model Listing {
   @@unique([organizationId, platform, platformProductId])
   @@index([organizationId])
   @@index([organizationId, platform])
+  @@index([organizationId, platform, isActive])
+  @@index([productId, platform])
   @@index([barcode, organizationId])
   @@index([barcode, organizationId, deletedAt])
 }
@@ -1592,6 +1609,8 @@ model StockMovement {
 
   @@index([organizationId, barcode, createdAt])
   @@index([organizationId, movementType, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([barcode, warehouseId])
 }
 
 model StockCountSession {
@@ -1675,6 +1694,8 @@ model Order {
   @@index([organizationId, createdAt])
   @@index([organizationId, status, createdAt(sort: Desc)])
   @@index([organizationId, platform, status])
+  @@index([organizationId, platform, createdAt])
+  @@index([createdAt])
   @@index([platformOrderId, organizationId])
 }
 

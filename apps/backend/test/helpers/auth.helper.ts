@@ -74,7 +74,7 @@ export async function registerTestUser(
     where: { email: dto.email.toLowerCase(), deletedAt: null },
     select: { id: true, organizationId: true },
   });
-  if (!user) {
+  if (!user || !user.organizationId) {
     throw new Error('Kayıt sonrası kullanıcı bulunamadı');
   }
 

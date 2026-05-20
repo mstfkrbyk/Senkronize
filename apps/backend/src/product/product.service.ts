@@ -15,6 +15,8 @@ import {
 import type { Queue } from 'bull';
 
 import { Cacheable } from '../common/cache/cache.decorator';
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CACHE_TTL } from '../common/cache/cache-ttl';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
@@ -60,7 +62,7 @@ function productListCacheKey(
     sortBy: query.sortBy ?? null,
     sortOrder: query.sortOrder ?? null,
   });
-  return CacheService.key('products', organizationId, cachePayload);
+  return CacheKeys.productsList(organizationId, cachePayload);
 }
 
 const productListSelect = {
@@ -84,28 +86,22 @@ const productListSelect = {
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
 
-const productListListingSelect = {
-  platform: true,
-  salePrice: true,
-  quantity: true,
-  isActive: true,
-} satisfies Prisma.ListingSelect;
-
-const productListWithRelationsSelect = {
+const productListWithCountsSelect = {
   ...productListSelect,
-  listings: {
-    where: { deletedAt: null },
-    select: productListListingSelect,
-  },
-  variants: {
-    where: { deletedAt: null },
-    orderBy: { createdAt: 'asc' as const },
+  _count: {
+    select: {
+      variants: { where: { deletedAt: null } },
+      listings: { where: { deletedAt: null } },
+    },
   },
 } satisfies Prisma.ProductSelect;
 
 export type ProductListItem = Prisma.ProductGetPayload<{
-  select: typeof productListWithRelationsSelect;
-}>;
+  select: typeof productListWithCountsSelect;
+}> & {
+  imageCount: number;
+  totalStock: number;
+};
 
 export interface ProductDetailListing {
   id: string;
@@ -177,7 +173,7 @@ export class ProductService {
   @Cacheable(
     (organizationId: string, query: ProductQueryDto) =>
       productListCacheKey(organizationId, query),
-    60,
+    CACHE_TTL.PRODUCT_STOCK,
   )
   async findAll(
     organizationId: string,
@@ -220,16 +216,33 @@ export class ProductService {
     const where = this.buildProductWhere(organizationId, query);
     const orderBy = this.buildProductOrderBy(query);
 
-    const [items, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        select: productListWithRelationsSelect,
+        select: productListWithCountsSelect,
         orderBy,
         skip: (page - 1) * limit,
         take: limit,
       }),
       this.prisma.product.count({ where }),
     ]);
+
+    const barcodes = [...new Set(rows.map((r) => r.barcode))];
+    const stockByBarcode =
+      barcodes.length > 0
+        ? await this.aggregateAvailableStockByBarcode(organizationId, barcodes)
+        : new Map<string, number>();
+
+    const items: ProductListItem[] = rows.map((row) => {
+      const { _count, imageUrls, ...rest } = row;
+      return {
+        ...rest,
+        imageUrls,
+        imageCount: imageUrls.length,
+        totalStock: stockByBarcode.get(row.barcode) ?? 0,
+        _count,
+      };
+    });
 
     return { items, total };
   }
@@ -533,10 +546,14 @@ export class ProductService {
 
   private async aggregateAvailableStockByBarcode(
     organizationId: string,
+    barcodes?: string[],
   ): Promise<Map<string, number>> {
     const rows = await this.prisma.stockEntry.groupBy({
       by: ['barcode'],
-      where: { organizationId },
+      where: {
+        organizationId,
+        ...(barcodes && barcodes.length > 0 ? { barcode: { in: barcodes } } : {}),
+      },
       _sum: { quantity: true, reservedQty: true },
     });
     const map = new Map<string, number>();
