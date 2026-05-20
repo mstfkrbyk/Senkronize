@@ -42,6 +42,24 @@ export interface ReportScheduleItem {
   updatedAt: string;
 }
 
+export type ReportScheduleType = 'SALES' | 'VAT' | 'PROFIT' | 'CUSTOM';
+
+export type ReportScheduleFrequencyUi = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+
+export type ReportScheduleFormat = 'PDF' | 'EXCEL';
+
+export interface UnifiedReportSchedule {
+  id: string;
+  source: 'standard' | 'custom';
+  reportType: ReportScheduleType;
+  frequency: ReportScheduleFrequencyUi;
+  format: ReportScheduleFormat;
+  emails: string[];
+  lastRunAt: string | null;
+  isActive: boolean;
+  name?: string;
+}
+
 export interface PlatformReportData {
   platform: string;
   totalOrders: number;

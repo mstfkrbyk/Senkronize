@@ -42,7 +42,7 @@ export interface SavedReportSchedule {
   cron: string;
   emails: string[];
   format?: 'csv' | 'json';
-  frequency?: 'daily' | 'weekly';
+  frequency?: 'daily' | 'weekly' | 'monthly';
 }
 
 export interface SavedReportListItem {
@@ -59,4 +59,12 @@ export interface SavedReportListItem {
   createdBy: string;
   creatorName: string;
   creatorEmail: string;
+}
+
+export interface ScheduledCustomReportItem {
+  id: string;
+  name: string;
+  schedule: SavedReportSchedule;
+  lastRunAt: string | null;
+  createdAt: string;
 }

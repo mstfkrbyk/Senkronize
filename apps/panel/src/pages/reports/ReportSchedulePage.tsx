@@ -1,258 +1,161 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import {
-  addDays,
-  eachDayOfInterval,
-  endOfMonth,
-  format,
-  getDay,
-  isSameDay,
-  isSameMonth,
-  startOfMonth,
-  startOfWeek,
-} from 'date-fns';
+import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarClock, Loader2, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import type { SavedReportListItem } from '@/types/custom-report';
+import { Switch } from '@/components/ui/switch';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { api } from '@/lib/api';
+import type { ScheduledCustomReportItem } from '@/types/custom-report';
+import type { ReportScheduleItem, UnifiedReportSchedule } from '@/types/report';
 
-import { useSavedReportsList } from './hooks/useCustomReports';
+import {
+  mapCustomSchedules,
+  mapStandardSchedules,
+  useToggleReportSchedule,
+} from './hooks/useReportScheduleMutations';
 import { useReportSchedules } from './hooks/useReportSchedules';
 import { ReportScheduleModal } from './ReportScheduleModal';
 
-type EventKind = 'SALES' | 'STOCK' | 'PROFIT' | 'CUSTOM';
-
-interface CalendarEvent {
-  id: string;
-  date: Date;
-  title: string;
-  kind: EventKind;
-  detail: string;
-}
-
-const KIND_STYLES: Record<EventKind, string> = {
-  SALES: 'bg-sky-500 text-white',
-  STOCK: 'bg-emerald-600 text-white',
-  PROFIT: 'bg-orange-500 text-white',
-  CUSTOM: 'bg-violet-600 text-white',
-};
-
-const KIND_LABELS: Record<EventKind, string> = {
+const TYPE_LABELS: Record<UnifiedReportSchedule['reportType'], string> = {
   SALES: 'Satış',
-  STOCK: 'Stok',
-  PROFIT: 'Kâr',
+  VAT: 'KDV',
+  PROFIT: 'Kâr-Zarar',
   CUSTOM: 'Özel',
 };
 
-function kindFromReportKind(k: string): EventKind {
-  if (k === 'STOCK') return 'STOCK';
-  if (k === 'PROFIT') return 'PROFIT';
-  if (k === 'SALES') return 'SALES';
-  return 'CUSTOM';
-}
+const FREQ_LABELS: Record<UnifiedReportSchedule['frequency'], string> = {
+  DAILY: 'Günlük',
+  WEEKLY: 'Haftalık',
+  MONTHLY: 'Aylık',
+};
 
-function eventsForMonth(
-  month: Date,
-  standard: Array<{ id: string; reportKind: string; frequency: string; emails: string[] }>,
-  saved: SavedReportListItem[],
-): CalendarEvent[] {
-  const start = startOfMonth(month);
-  const end = endOfMonth(month);
-  const days = eachDayOfInterval({ start, end });
-  const events: CalendarEvent[] = [];
-
-  for (const day of days) {
-    const dow = getDay(day);
-    const dom = day.getDate();
-
-    for (const s of standard) {
-      if (s.emails.length === 0) continue;
-      const should =
-        s.frequency === 'WEEKLY' ? dow === 1 : dom === 1;
-      if (!should) continue;
-      events.push({
-        id: `std-${s.id}-${format(day, 'yyyy-MM-dd')}`,
-        date: day,
-        title: `${KIND_LABELS[kindFromReportKind(s.reportKind)]} raporu`,
-        kind: kindFromReportKind(s.reportKind),
-        detail: `${s.emails.length} alıcı · ${s.frequency === 'WEEKLY' ? 'Haftalık' : 'Aylık'}`,
-      });
-    }
-
-    for (const r of saved) {
-      const sch = r.schedule;
-      if (!sch || sch.emails.length === 0) continue;
-      const freq = sch.frequency === 'weekly' ? 'weekly' : 'daily';
-      const should = freq === 'weekly' ? dow === 1 : true;
-      if (!should) continue;
-      events.push({
-        id: `custom-${r.id}-${format(day, 'yyyy-MM-dd')}`,
-        date: day,
-        title: r.name,
-        kind: 'CUSTOM',
-        detail: `${sch.emails.length} alıcı · ${freq === 'weekly' ? 'Haftalık' : 'Günlük'}`,
-      });
-    }
-  }
-
-  return events;
+function useScheduledCustomReports() {
+  return useQuery({
+    queryKey: ['reports', 'scheduled'],
+    queryFn: async (): Promise<ScheduledCustomReportItem[]> => {
+      const { data } = await api.get<ScheduledCustomReportItem[]>('/reports/scheduled');
+      return data;
+    },
+  });
 }
 
 export function ReportSchedulePage(): ReactElement {
-  const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [scheduleOpen, setScheduleOpen] = useState(false);
-
   const schedulesQuery = useReportSchedules();
-  const savedQuery = useSavedReportsList();
+  const customQuery = useScheduledCustomReports();
+  const toggleMutation = useToggleReportSchedule();
 
-  const events = useMemo(() => {
-    const std = (schedulesQuery.data ?? []).map((s) => ({
-      id: s.id,
-      reportKind: s.reportKind,
-      frequency: s.frequency,
-      emails: s.emails,
-    }));
-    return eventsForMonth(cursor, std, savedQuery.data ?? []);
-  }, [cursor, schedulesQuery.data, savedQuery.data]);
+  const items = useMemo((): UnifiedReportSchedule[] => {
+    const standard = mapStandardSchedules((schedulesQuery.data ?? []) as ReportScheduleItem[]);
+    const custom = mapCustomSchedules(customQuery.data ?? []);
+    return [...standard, ...custom].sort((a, b) => {
+      const aTime = a.lastRunAt ? new Date(a.lastRunAt).getTime() : 0;
+      const bTime = b.lastRunAt ? new Date(b.lastRunAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [schedulesQuery.data, customQuery.data]);
 
-  const gridStart = startOfWeek(startOfMonth(cursor), { weekStartsOn: 1 });
-  const cells = eachDayOfInterval({
-    start: gridStart,
-    end: startOfWeek(addDays(endOfMonth(cursor), 7), { weekStartsOn: 1 }),
-  }).slice(0, 42);
-
-  const isLoading = schedulesQuery.isLoading || savedQuery.isLoading;
+  const isLoading = schedulesQuery.isLoading || customQuery.isLoading;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Planlanmış rapor gönderimleri takvimde gösterilir.
+          Otomatik rapor gönderimlerini yönetin.
         </p>
         <Button type="button" variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
-          <CalendarClock className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-4 w-4" />
           Yeni zamanlama
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-3 text-xs">
-        <span className="flex items-center gap-1">
-          <span className={cn('h-3 w-3 rounded', KIND_STYLES.SALES)} /> Satış
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={cn('h-3 w-3 rounded', KIND_STYLES.STOCK)} /> Stok
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={cn('h-3 w-3 rounded', KIND_STYLES.PROFIT)} /> Kâr
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={cn('h-3 w-3 rounded', KIND_STYLES.CUSTOM)} /> Özel
-        </span>
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">
-            {format(cursor, 'MMMM yyyy', { locale: tr })}
-          </CardTitle>
-          <div className="flex gap-1">
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              onClick={() => setCursor((d) => addDays(startOfMonth(d), -1))}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant="outline"
-              onClick={() => setCursor((d) => addDays(endOfMonth(d), 1))}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-80 w-full" />
-          ) : (
-            <>
-              <div className="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-                {['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'].map((d) => (
-                  <div key={d}>{d}</div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((day) => {
-                  const dayEvents = events.filter((e) => isSameDay(e.date, day));
-                  const inMonth = isSameMonth(day, cursor);
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={cn(
-                        'min-h-[88px] rounded-md border p-1 text-xs',
-                        inMonth ? 'bg-card' : 'bg-muted/30 text-muted-foreground',
-                      )}
-                    >
-                      <div className="mb-1 font-medium">{format(day, 'd')}</div>
-                      <div className="space-y-0.5">
-                        {dayEvents.slice(0, 3).map((ev) => (
-                          <div
-                            key={ev.id}
-                            className={cn('truncate rounded px-1 py-0.5', KIND_STYLES[ev.kind])}
-                            title={`${ev.title} — ${ev.detail}`}
-                          >
-                            {ev.title}
-                          </div>
-                        ))}
-                        {dayEvents.length > 3 ? (
-                          <span className="text-[10px] text-muted-foreground">
-                            +{dayEvents.length - 3}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Yaklaşan gönderimler</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CalendarClock className="h-4 w-4" />
+            Zamanlanmış raporlar
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Bu ay için planlı rapor yok.</p>
+        <CardContent className="overflow-x-auto">
+          {isLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : items.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Henüz zamanlanmış rapor yok. Yeni zamanlama oluşturun.
+            </p>
           ) : (
-            events
-              .filter((e) => e.date >= new Date())
-              .sort((a, b) => a.date.getTime() - b.date.getTime())
-              .slice(0, 8)
-              .map((ev) => (
-                <div
-                  key={ev.id}
-                  className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-                >
-                  <div>
-                    <span className={cn('mr-2 inline-block h-2 w-2 rounded-full', KIND_STYLES[ev.kind])} />
-                    <span className="font-medium">{ev.title}</span>
-                    <span className="ml-2 text-muted-foreground">{ev.detail}</span>
-                  </div>
-                  <span className="tabular-nums text-muted-foreground">
-                    {format(ev.date, 'dd MMM yyyy', { locale: tr })}
-                  </span>
-                </div>
-              ))
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Rapor tipi</TableHead>
+                  <TableHead>Sıklık</TableHead>
+                  <TableHead>Format</TableHead>
+                  <TableHead>Son gönderim</TableHead>
+                  <TableHead>Alıcılar</TableHead>
+                  <TableHead className="text-right">Aktif</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.map((item) => (
+                  <TableRow key={`${item.source}-${item.id}`}>
+                    <TableCell>
+                      <div className="font-medium">
+                        {item.name ?? TYPE_LABELS[item.reportType]}
+                      </div>
+                      {!item.isActive ? (
+                        <Badge variant="secondary" className="mt-1">
+                          Duraklatıldı
+                        </Badge>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>{FREQ_LABELS[item.frequency]}</TableCell>
+                    <TableCell>{item.format}</TableCell>
+                    <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
+                      {item.lastRunAt
+                        ? format(new Date(item.lastRunAt), 'dd MMM yyyy HH:mm', { locale: tr })
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {item.emails.length > 0
+                          ? item.emails.join(', ')
+                          : '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {toggleMutation.isPending &&
+                      toggleMutation.variables?.item.id === item.id ? (
+                        <Loader2 className="ml-auto h-4 w-4 animate-spin" />
+                      ) : (
+                        <Switch
+                          checked={item.isActive}
+                          onCheckedChange={(checked) =>
+                            toggleMutation.mutate({ item, active: checked })
+                          }
+                          aria-label={`${TYPE_LABELS[item.reportType]} zamanlamasını ${
+                            item.isActive ? 'kapat' : 'aç'
+                          }`}
+                        />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>

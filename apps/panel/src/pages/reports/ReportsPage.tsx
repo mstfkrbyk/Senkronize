@@ -1,72 +1,55 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { CalendarClock } from 'lucide-react';
 
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
+import { AnalyticsPage } from './AnalyticsPage';
 import { CustomReportPage } from './CustomReportPage';
 import { ProfitReportPage } from './ProfitReportPage';
-import { ReportScheduleModal } from './ReportScheduleModal';
 import { ReportSchedulePage } from './ReportSchedulePage';
 import { SalesReportTab } from './SalesReportTab';
 import { SavedReportsList } from './SavedReportsList';
+import { TaxReportPage } from './TaxReportPage';
 
 export function ReportsPage(): ReactElement {
   usePageTitle('Raporlar');
-  const [mainTab, setMainTab] = useState<'standard' | 'custom' | 'schedule'>('standard');
-  const [standardTab, setStandardTab] = useState('sales');
+  const [tab, setTab] = useState('sales');
   const [customSubTab, setCustomSubTab] = useState<'builder' | 'saved'>('builder');
-  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">Raporlar</h1>
-          <p className="text-muted-foreground">
-            Satış, kâr/zarar, özel raporlar ve zamanlanmış gönderimler.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => setScheduleOpen(true)}
-        >
-          <CalendarClock className="mr-2 h-4 w-4" />
-          Rapor Planla
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">Raporlar</h1>
+        <p className="text-muted-foreground">
+          Satış, kâr/zarar, vergi, analitik, özel raporlar ve zamanlanmış gönderimler.
+        </p>
       </div>
 
-      <ReportScheduleModal open={scheduleOpen} onOpenChange={setScheduleOpen} />
-
-      <Tabs
-        value={mainTab}
-        onValueChange={(v) => setMainTab(v as 'standard' | 'custom' | 'schedule')}
-        className="space-y-4"
-      >
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="standard">Standart raporlar</TabsTrigger>
-          <TabsTrigger value="custom">Özel raporlar</TabsTrigger>
-          <TabsTrigger value="schedule">Rapor takvimi</TabsTrigger>
+          <TabsTrigger value="sales">Satış Raporu</TabsTrigger>
+          <TabsTrigger value="profit">Kâr/Zarar</TabsTrigger>
+          <TabsTrigger value="tax">Vergi</TabsTrigger>
+          <TabsTrigger value="analytics">Analitik</TabsTrigger>
+          <TabsTrigger value="custom">Özel Raporlar</TabsTrigger>
+          <TabsTrigger value="schedule">Zamanlama</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="standard" className="space-y-4">
-          <Tabs value={standardTab} onValueChange={setStandardTab} className="space-y-4">
-            <TabsList className="flex h-auto flex-wrap gap-1">
-              <TabsTrigger value="sales">Satış raporu</TabsTrigger>
-              <TabsTrigger value="profit">Kâr / zarar</TabsTrigger>
-            </TabsList>
-            <TabsContent value="sales">
-              <SalesReportTab />
-            </TabsContent>
-            <TabsContent value="profit">
-              <ProfitReportPage />
-            </TabsContent>
-          </Tabs>
+        <TabsContent value="sales">
+          <SalesReportTab />
+        </TabsContent>
+
+        <TabsContent value="profit">
+          <ProfitReportPage />
+        </TabsContent>
+
+        <TabsContent value="tax">
+          <TaxReportPage />
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <AnalyticsPage />
         </TabsContent>
 
         <TabsContent value="custom" className="space-y-4">

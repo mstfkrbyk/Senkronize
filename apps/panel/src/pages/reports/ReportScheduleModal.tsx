@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -21,104 +20,134 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useQueryClient } from '@tanstack/react-query';
+import type {
+  ReportScheduleFormat,
+  ReportScheduleFrequencyUi,
+  ReportScheduleType,
+} from '@/types/report';
 
-import { api, getApiErrorMessage } from '@/lib/api';
+import { useCreateReportSchedule } from './hooks/useReportScheduleMutations';
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  defaultReportKind?: 'SALES' | 'STOCK' | 'PROFIT';
+  defaultReportType?: ReportScheduleType;
 }
 
 export function ReportScheduleModal({
   open,
   onOpenChange,
-  defaultReportKind = 'SALES',
+  defaultReportType = 'SALES',
 }: Props): ReactElement {
-  const queryClient = useQueryClient();
-  const [frequency, setFrequency] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
-  const [reportKind, setReportKind] = useState<'SALES' | 'STOCK' | 'PROFIT'>(
-    defaultReportKind,
-  );
+  const createMutation = useCreateReportSchedule();
+  const [frequency, setFrequency] = useState<ReportScheduleFrequencyUi>('WEEKLY');
+  const [reportType, setReportType] = useState<ReportScheduleType>(defaultReportType);
+  const [format, setFormat] = useState<ReportScheduleFormat>('PDF');
   const [emailsText, setEmailsText] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState('');
 
   useEffect(() => {
     if (open) {
-      setReportKind(defaultReportKind);
+      setReportType(defaultReportType);
     }
-  }, [open, defaultReportKind]);
+  }, [open, defaultReportType]);
 
-  async function handleSave(): Promise<void> {
+  function handleSave(): void {
     const emails = emailsText
       .split(/[,;\n]+/)
       .map((e) => e.trim())
       .filter(Boolean);
-    if (emails.length === 0) {
-      toast.error('En az bir e-posta adresi girin.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.post('/reports/schedule', {
-        reportKind,
+    createMutation.mutate(
+      {
+        reportType,
         frequency,
+        format,
         emails,
-      });
-      toast.success('Rapor zamanlaması kaydedildi.');
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'schedules'] });
-      onOpenChange(false);
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+        name: reportType === 'CUSTOM' || reportType === 'VAT' ? name : undefined,
+      },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          setEmailsText('');
+          setName('');
+        },
+      },
+    );
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Rapor Planla</DialogTitle>
+          <DialogTitle>Rapor zamanla</DialogTitle>
           <DialogDescription>
             Seçtiğiniz rapor belirtilen sıklıkta e-posta ile gönderilir.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-2">
           <div className="space-y-2">
+            <Label htmlFor="schedule-type">Rapor tipi</Label>
+            <Select
+              value={reportType}
+              onValueChange={(v) => setReportType(v as ReportScheduleType)}
+            >
+              <SelectTrigger id="schedule-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SALES">Satış</SelectItem>
+                <SelectItem value="VAT">KDV</SelectItem>
+                <SelectItem value="PROFIT">Kâr-Zarar</SelectItem>
+                <SelectItem value="CUSTOM">Özel</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {(reportType === 'CUSTOM' || reportType === 'VAT') && (
+            <div className="space-y-2">
+              <Label htmlFor="schedule-name">Rapor adı</Label>
+              <Input
+                id="schedule-name"
+                placeholder={
+                  reportType === 'VAT' ? 'Aylık KDV raporu' : 'Özel rapor adı'
+                }
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+          )}
+          <div className="space-y-2">
             <Label htmlFor="schedule-frequency">Sıklık</Label>
             <Select
               value={frequency}
-              onValueChange={(v) => setFrequency(v as 'WEEKLY' | 'MONTHLY')}
+              onValueChange={(v) => setFrequency(v as ReportScheduleFrequencyUi)}
             >
               <SelectTrigger id="schedule-frequency">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="WEEKLY">Haftalık (Pazartesi)</SelectItem>
-                <SelectItem value="MONTHLY">Aylık (ayın 1&apos;i)</SelectItem>
+                <SelectItem value="DAILY">Günlük</SelectItem>
+                <SelectItem value="WEEKLY">Haftalık</SelectItem>
+                <SelectItem value="MONTHLY">Aylık</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="schedule-kind">Rapor tipi</Label>
+            <Label htmlFor="schedule-format">Format</Label>
             <Select
-              value={reportKind}
-              onValueChange={(v) => setReportKind(v as 'SALES' | 'STOCK' | 'PROFIT')}
+              value={format}
+              onValueChange={(v) => setFormat(v as ReportScheduleFormat)}
             >
-              <SelectTrigger id="schedule-kind">
+              <SelectTrigger id="schedule-format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SALES">Satış</SelectItem>
-                <SelectItem value="STOCK">Stok</SelectItem>
-                <SelectItem value="PROFIT">Kâr</SelectItem>
+                <SelectItem value="PDF">PDF</SelectItem>
+                <SelectItem value="EXCEL">Excel</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="schedule-emails">E-posta adresleri</Label>
+            <Label htmlFor="schedule-emails">Alıcı e-postalar</Label>
             <Input
               id="schedule-emails"
               placeholder="ornek@sirket.com, muhasebe@sirket.com"
@@ -134,8 +163,12 @@ export function ReportScheduleModal({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             İptal
           </Button>
-          <Button type="button" disabled={saving} onClick={() => void handleSave()}>
-            {saving ? (
+          <Button
+            type="button"
+            disabled={createMutation.isPending}
+            onClick={handleSave}
+          >
+            {createMutation.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Kaydediliyor…
