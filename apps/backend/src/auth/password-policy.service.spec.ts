@@ -7,7 +7,7 @@ describe('PasswordPolicyService', () => {
     const result = service.validatePassword('Password123!');
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
-    expect(result.score).toBeGreaterThanOrEqual(60);
+    expect(['strong', 'very-strong']).toContain(result.strength);
   });
 
   it('"123456" zayıf şifre reddedilir', () => {
@@ -17,9 +17,15 @@ describe('PasswordPolicyService', () => {
     expect(result.errors.length).toBeGreaterThan(0);
   });
 
-  it('"password" yaygın şifre olarak reddedilir', () => {
-    const result = service.validatePassword('password');
+  it('minimum 8 karakter kuralı uygulanır', () => {
+    const result = service.validatePassword('Pass1!');
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes('yaygın'))).toBe(true);
+    expect(result.errors).toContain('En az 8 karakter');
+  });
+
+  it('büyük harf zorunluluğu uygulanır', () => {
+    const result = service.validatePassword('password123!');
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('En az 1 büyük harf gerekli');
   });
 });

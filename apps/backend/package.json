@@ -5,10 +5,10 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
-    "test": "jest --config ./jest.config.ts --passWithNoTests",
-    "test:unit": "jest --config ./jest.config.ts --passWithNoTests",
-    "test:cov": "jest --config ./jest.config.ts --coverage --passWithNoTests --runInBand",
-    "test:ci": "jest --config ./jest.config.ts --passWithNoTests --forceExit --detectOpenHandles --runInBand",
+    "test": "jest --passWithNoTests",
+    "test:unit": "jest --passWithNoTests",
+    "test:cov": "jest --coverage --passWithNoTests",
+    "test:ci": "jest --passWithNoTests --forceExit --detectOpenHandles --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json --runInBand",
     "lint": "eslint src --ext .ts",
     "type-check": "pnpm --filter @senkronize/shared run build && tsc --noEmit -p tsconfig.build.json",
@@ -69,6 +69,25 @@
     "typescript": "^5.7.2",
     "web-push": "^3.6.7",
     "xml2js": "^0.6.2"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": "<rootDir>/../tsconfig.spec.json"
+        }
+      ]
+    },
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node",
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

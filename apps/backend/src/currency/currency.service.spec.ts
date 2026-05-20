@@ -31,35 +31,32 @@ describe('CurrencyService', () => {
     );
   });
 
-  it('USD → TRY dönüşümü doğru hesaplanır', async () => {
+  it('USD → TRY dönüşümü rate * amount döner', async () => {
+    const rate = 34.5;
+    const amount = 10;
     prisma.organization.findFirst.mockResolvedValue({
       currencyPreferManualRates: true,
       currencyTcmbEnabled: false,
-      currencyManualRates: { USD: 34.5 },
+      currencyManualRates: { USD: rate },
     });
 
     const result = await service.convert(
-      new Decimal(10),
+      new Decimal(amount),
       'USD',
       'TRY',
       new Date(),
       'org-1',
     );
 
-    expect(Number(result)).toBe(345);
+    expect(Number(result)).toBe(rate * amount);
   });
 
-  it('bilinmeyen para birimi hata fırlatır', async () => {
-    await expect(
-      service.convert(new Decimal(1), 'XXX', 'TRY'),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('kur yoksa fallback değer kullanılır', async () => {
+  it('bilinmeyen para birimi için fallback kullanır', async () => {
     prisma.exchangeRate.findFirst.mockResolvedValue(null);
 
+    const amount = 250;
     const result = await service.orderAmountToTryForReport(
-      new Decimal(250),
+      new Decimal(amount),
       'USD',
       new Date(),
       {
@@ -70,6 +67,12 @@ describe('CurrencyService', () => {
     );
 
     expect(result.usedDirect).toBe(true);
-    expect(result.tryAmount).toBe(250);
+    expect(result.tryAmount).toBe(amount);
+  });
+
+  it('desteklenmeyen para birimi hata fırlatır', async () => {
+    await expect(
+      service.convert(new Decimal(1), 'XXX', 'TRY'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
