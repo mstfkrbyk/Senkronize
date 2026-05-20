@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
 
+import { AnimatedCounter } from '@/components/home/AnimatedCounter';
+
 const AVATAR_COLORS = [
   'bg-indigo-500',
   'bg-violet-500',
@@ -27,8 +29,8 @@ export function SocialProofSection(): ReactElement {
           ))}
         </div>
         <p className="text-center text-base font-medium text-foreground sm:text-lg">
-          <span className="font-bold text-primary">500+</span> satıcı Senkronize&apos;a
-          güveniyor
+          <AnimatedCounter target={1000} suffix="+" /> e-ticaret mağazası
+          Senkronize&apos;a güveniyor
         </p>
       </div>
     </section>

@@ -4,7 +4,7 @@ import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { TrendyolHbIntegrationBody } from '@/lib/blog-content/trendyol-hb-rehber';
 import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
-import { buildBlogMetadata } from '@/lib/blog-metadata';
+import { createBlogGenerateMetadata } from '@/lib/blog-metadata';
 
 const slug = 'trendyol-hepsiburada-entegrasyon-rehberi';
 const path = `/blog/${slug}`;
@@ -12,7 +12,7 @@ const title = 'Trendyol ve Hepsiburada Entegrasyonu: Adım Adım Rehber';
 const description =
   'Trendyol ve Hepsiburada API anahtarı, stok senkronizasyonu, sipariş yönetimi ve sorun giderme — uygulanabilir entegrasyon rehberi.';
 
-export const metadata = buildBlogMetadata({
+export const generateMetadata = createBlogGenerateMetadata({
   title,
   description,
   path,

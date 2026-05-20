@@ -4,7 +4,7 @@ import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { Buybox2026ArticleBody } from '@/lib/blog-content/buybox-2026';
 import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
-import { buildBlogMetadata } from '@/lib/blog-metadata';
+import { createBlogGenerateMetadata } from '@/lib/blog-metadata';
 
 const slug = 'e-ticarette-buybox-kazanma-stratejileri';
 const path = `/blog/${slug}`;
@@ -12,7 +12,7 @@ const title = 'E-Ticarette BuyBox Nasıl Kazanılır? 2026 Stratejileri';
 const description =
   'BuyBox nedir, Trendyol vs Amazon farkları, fiyat-stok dengesi ve Senkronize ile otomatik BuyBox optimizasyonu — 2026 kapsamlı rehber.';
 
-export const metadata = buildBlogMetadata({
+export const generateMetadata = createBlogGenerateMetadata({
   title,
   description,
   path,

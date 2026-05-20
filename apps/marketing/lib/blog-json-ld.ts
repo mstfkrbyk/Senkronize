@@ -8,26 +8,33 @@ export interface BlogArticleJsonLdInput {
   /** ISO 8601 date; defaults to datePublished when omitted */
   dateModified?: string;
   wordCount?: number;
+  /** Absolute or site-relative image; defaults to OG route */
+  image?: string;
 }
 
 export function buildBlogArticleJsonLd(
   input: BlogArticleJsonLdInput,
 ): Record<string, unknown> {
   const base = getSiteUrl();
-  const imageUrl = `${base}/blog/${input.slug}/opengraph-image`;
+  const defaultImage = `${base}/blog/${input.slug}/opengraph-image`;
+  const imageUrl = input.image
+    ? input.image.startsWith('http')
+      ? input.image
+      : `${base}${input.image}`
+    : defaultImage;
   const dateModified = input.dateModified ?? input.datePublished;
 
   const article: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     headline: input.headline,
     description: input.description,
     datePublished: input.datePublished,
     dateModified,
     inLanguage: 'tr-TR',
     author: {
-      '@type': 'Person',
-      name: 'Senkronize Ekibi',
+      '@type': 'Organization',
+      name: 'Senkronize',
     },
     publisher: {
       '@type': 'Organization',

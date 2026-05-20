@@ -2,46 +2,41 @@ import type { ReactElement } from 'react';
 
 import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
 import { JsonLd } from '@/components/seo/JsonLd';
-import { TrendyolSpApiGuideBody } from '@/lib/blog-content/trendyol-sp-api-guide';
+import { ErpEntegrasyonNedirBody } from '@/lib/blog-content/erp-entegrasyon-nedir';
 import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
 import { createBlogGenerateMetadata } from '@/lib/blog-metadata';
 
-const slug = 'trendyol-entegrasyon-rehberi';
+const slug = 'erp-entegrasyon-nedir';
 const path = `/blog/${slug}`;
-const title = 'Trendyol Mağaza Entegrasyonunun Eksiksiz Rehberi 2026';
+const title = 'ERP Entegrasyonu Nedir? E-Ticarette Neden Kritik?';
 const description =
-  'Trendyol SP-API kurulumu, ürün yükleme, stok yönetimi, sipariş çekme ve sık karşılaşılan hatalar: 2026 eksiksiz entegrasyon rehberi.';
-const image = '/images/blog/trendyol-guide.jpg';
+  'ERP tanımı, pazaryeri-ERP köprüsü, Logo/Mikro/BizimHesap karşılaştırması ve ROI analizi: e-ticarette ERP entegrasyonu rehberi.';
 
-const metadataInput = {
+export const generateMetadata = createBlogGenerateMetadata({
   title,
   description,
   path,
   slug,
   publishedTime: '2026-05-20',
   keywords: [
-    'Trendyol entegrasyonu',
-    'Trendyol SP-API',
-    'Trendyol API',
-    'stok yönetimi',
-    'sipariş çekme',
-    'pazaryeri otomasyon',
-    '2026',
+    'ERP entegrasyonu',
+    'e-ticaret ERP',
+    'Logo entegrasyon',
+    'Mikro entegrasyon',
+    'BizimHesap',
+    'pazaryeri ERP köprüsü',
+    'ROI',
   ],
   readMinutes: 12,
-  image,
-};
+});
 
-export const generateMetadata = createBlogGenerateMetadata(metadataInput);
-
-export default function TrendyolEntegrasyonRehberi2026Page(): ReactElement {
+export default function ErpEntegrasyonNedirPage(): ReactElement {
   const articleLd = buildBlogArticleJsonLd({
     headline: title,
     description,
     datePublished: '2026-05-20',
     slug,
     wordCount: 1500,
-    image,
   });
 
   return (
@@ -55,7 +50,7 @@ export default function TrendyolEntegrasyonRehberi2026Page(): ReactElement {
         currentSlug={slug}
         canonicalPath={path}
       >
-        <TrendyolSpApiGuideBody />
+        <ErpEntegrasyonNedirBody />
       </BlogArticleShell>
     </>
   );

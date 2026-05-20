@@ -4,7 +4,7 @@ import { BlogArticleShell } from '@/components/blog/BlogArticleShell';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { OmnichannelManagementBody } from '@/lib/blog-content/omnichannel-yonetim';
 import { buildBlogArticleJsonLd } from '@/lib/blog-json-ld';
-import { buildBlogMetadata } from '@/lib/blog-metadata';
+import { createBlogGenerateMetadata } from '@/lib/blog-metadata';
 
 const slug = 'cok-kanalli-e-ticaret-yonetimi';
 const path = `/blog/${slug}`;
@@ -12,7 +12,7 @@ const title = 'Çok Kanallı E-Ticaret Yönetimi: Neden ve Nasıl?';
 const description =
   'Çok kanallı satışın avantajları, entegrasyonsuz tuzaklar ve merkezi stok-fiyat-sipariş yönetimi ile sürdürülebilir büyüme.';
 
-export const metadata = buildBlogMetadata({
+export const generateMetadata = createBlogGenerateMetadata({
   title,
   description,
   path,

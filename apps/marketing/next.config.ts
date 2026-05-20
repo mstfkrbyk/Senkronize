@@ -20,6 +20,11 @@ const nextConfig: NextConfig = {
         hostname: 'app.senkronize.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.senkronize.com',
+        pathname: '/**',
+      },
     ],
   },
   async headers() {

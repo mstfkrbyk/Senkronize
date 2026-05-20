@@ -8,6 +8,7 @@ import { FeaturesSection } from '@/components/FeaturesSection';
 import { HeroSection } from '@/components/HeroSection';
 import { BetaCountdownSection } from '@/components/home/BetaCountdownSection';
 import { DemoVideoSection } from '@/components/home/DemoVideoSection';
+import { HomeFaqSection } from '@/components/home/HomeFaqSection';
 import { SocialProofSection } from '@/components/home/SocialProofSection';
 import { StickyCtaBar } from '@/components/home/StickyCtaBar';
 import { PlatformLogoMarquee } from '@/components/PlatformLogoMarquee';
@@ -93,6 +94,7 @@ export default function HomePage(): ReactElement {
         <FeaturesSection />
         <PricingSection variant="teaser" />
         <TestimonialsSection />
+        <HomeFaqSection />
         <CTASection />
         <ExitIntentNewsletter />
       </main>

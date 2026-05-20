@@ -8,16 +8,23 @@ export interface BlogPageMetadataInput {
   publishedTime: string;
   keywords: string[];
   readMinutes: number;
+  /** Site-relative or absolute OG image; defaults to dynamic OG route */
+  image?: string;
+}
+
+function resolveOgImage(input: BlogPageMetadataInput): string {
+  return input.image ?? `/blog/${input.slug}/opengraph-image`;
 }
 
 export function buildBlogMetadata(input: BlogPageMetadataInput): Metadata {
   const absoluteTitle = `${input.title} | Senkronize`;
+  const ogImage = resolveOgImage(input);
 
   return {
     title: { absolute: absoluteTitle },
     description: input.description,
     keywords: input.keywords,
-    authors: [{ name: 'Senkronize Ekibi' }],
+    authors: [{ name: 'Senkronize' }],
     alternates: { canonical: input.path },
     openGraph: {
       title: absoluteTitle,
@@ -26,10 +33,10 @@ export function buildBlogMetadata(input: BlogPageMetadataInput): Metadata {
       locale: 'tr_TR',
       url: input.path,
       publishedTime: input.publishedTime,
-      authors: ['Senkronize Ekibi'],
+      authors: ['Senkronize'],
       images: [
         {
-          url: `/blog/${input.slug}/opengraph-image`,
+          url: ogImage,
           width: 1200,
           height: 630,
           alt: input.title,
@@ -41,7 +48,14 @@ export function buildBlogMetadata(input: BlogPageMetadataInput): Metadata {
       title: input.title,
       description: input.description,
       site: '@senkronize',
-      images: [`/blog/${input.slug}/opengraph-image`],
+      images: [ogImage],
     },
   };
+}
+
+/** App Router `generateMetadata()` için statik blog meta üreticisi */
+export function createBlogGenerateMetadata(
+  input: BlogPageMetadataInput,
+): () => Metadata {
+  return () => buildBlogMetadata(input);
 }

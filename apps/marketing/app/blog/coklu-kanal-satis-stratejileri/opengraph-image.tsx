@@ -1,9 +1,9 @@
 import { blogOpenGraphImage } from '@/lib/blog-og-image';
 
-export const alt = 'Trendyol mağaza entegrasyon rehberi 2026 — Senkronize Blog';
+export const alt = '2026 çok kanallı satış stratejileri — Senkronize Blog';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default function OpenGraphImage() {
-  return blogOpenGraphImage('Trendyol Mağaza Entegrasyonunun Eksiksiz Rehberi 2026');
+  return blogOpenGraphImage("2026'da Çok Kanallı Satışın 10 Altın Kuralı");
 }
