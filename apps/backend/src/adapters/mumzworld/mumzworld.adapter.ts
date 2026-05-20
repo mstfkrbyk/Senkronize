@@ -11,7 +11,7 @@ export class MumzworldAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'MUMZWORLD',
-      baseUrl: 'https://api.mumzworld.com/seller/v1',
+      baseUrl: 'https://api.mumzworld.com/v1',
       loggerContext: MumzworldAdapter.name,
       rateLimitKey: 'MUMZWORLD',
       pathProfile: '/merchant/me',

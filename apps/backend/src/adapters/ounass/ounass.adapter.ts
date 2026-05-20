@@ -11,7 +11,7 @@ export class OunassAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'OUNASS',
-      baseUrl: 'https://api.ounass.com/seller/v1',
+      baseUrl: 'https://api.ounass.ae/v1',
       loggerContext: OunassAdapter.name,
       rateLimitKey: 'OUNASS',
       pathProfile: '/merchant/me',

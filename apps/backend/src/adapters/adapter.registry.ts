@@ -185,6 +185,7 @@ import { MediamarktTrAdapter } from './mediamarkt-tr/mediamarkt-tr.adapter';
 import { MeeshoAdapter } from './meesho/meesho.adapter';
 import { MercadolibreAdapter } from './mercadolibre/mercadolibre.adapter';
 import { MercariAdapter } from './mercari/mercari.adapter';
+import { MeqasaAdapter } from './meqasa/meqasa.adapter';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { MikroBulutAdapter } from './mikro-bulut/mikro-bulut.adapter';
 import { MigrosAdapter } from './migros/migros.adapter';
@@ -244,6 +245,8 @@ import { SapB1Adapter } from './sapb1/sapb1.adapter';
 import { SahibindenPremiumAdapter } from './sahibinden-premium/sahibinden-premium.adapter';
 import { SendoAdapter } from './sendo/sendo.adapter';
 import { SheinAdapter } from './shein/shein.adapter';
+import { ShopandsendAdapter } from './shopandsend/shopandsend.adapter';
+import { ShukranAdapter } from './shukran/shukran.adapter';
 import { SivviAdapter } from './sivvi/sivvi.adapter';
 import { SharafDgAdapter } from './sharaf-dg/sharaf-dg.adapter';
 import { SahibindenB2bAdapter } from './sahibinden-b2b/sahibinden-b2b.adapter';
@@ -326,8 +329,10 @@ import { ZaraTrAdapter } from './zara-tr/zara-tr.adapter';
 import { ZirveAdapter } from './zirve/zirve.adapter';
 import { AfterpayAdapter } from './afterpay/afterpay.adapter';
 import { BerealShopAdapter } from './bereal-shop/bereal-shop.adapter';
+import { Brands4lessAdapter } from './brands4less/brands4less.adapter';
 import { CloverAdapter } from './clover/clover.adapter';
 import { GumroadAdapter } from './gumroad/gumroad.adapter';
+import { HarajAdapter } from './haraj/haraj.adapter';
 import { KlarnaMerchantAdapter } from './klarna-merchant/klarna-merchant.adapter';
 import { OkxTrAdapter } from './okx-tr/okx-tr.adapter';
 import { PaparaAdapter } from './papara/papara.adapter';
@@ -336,8 +341,21 @@ import { PatreonAdapter } from './patreon/patreon.adapter';
 import { SquareOnlineAdapter } from './square-online/square-online.adapter';
 import { ThreadsShopAdapter } from './threads-shop/threads-shop.adapter';
 import { ToslaAdapter } from './tosla/tosla.adapter';
+import { VendtekAdapter } from './vendtek/vendtek.adapter';
 import { VenmoBusinessAdapter } from './venmo-business/venmo-business.adapter';
 import { XShoppingAdapter } from './x-shopping/x-shopping.adapter';
+import { ZandoAdapter } from './zando/zando.adapter';
+import { KakaoCommerceAdapter } from './kakao-commerce/kakao-commerce.adapter';
+import { KoganAdapter } from './kogan/kogan.adapter';
+import { LazadaMyAdapter } from './lazada-my/lazada-my.adapter';
+import { MercariJpAdapter } from './mercari-jp/mercari-jp.adapter';
+import { PgmallAdapter } from './pgmall/pgmall.adapter';
+import { ShopeeSgAdapter } from './shopee-sg/shopee-sg.adapter';
+import { ShopeeThAdapter } from './shopee-th/shopee-th.adapter';
+import { ThemarketNzAdapter } from './themarket-nz/themarket-nz.adapter';
+import { YahooAuctionsJpAdapter } from './yahoo-auctions-jp/yahoo-auctions-jp.adapter';
+import { ZaloraMyAdapter } from './zalora-my/zalora-my.adapter';
+import { ZozotownAdapter } from './zozotown/zozotown.adapter';
 import { ErpAdapterRegistry } from './erp/erp-adapter.registry';
 import { EcommerceAdapterRegistry } from './ecommerce/ecommerce-adapter.registry';
 
@@ -623,6 +641,7 @@ export class AdapterRegistry {
     private readonly laredoute: LaredouteAdapter,
     private readonly mercadolibre: MercadolibreAdapter,
     private readonly mercari: MercariAdapter,
+    private readonly meqasa: MeqasaAdapter,
     private readonly getirYemek: GetirYemekAdapter,
     private readonly letgo: LetgoAdapter,
     private readonly logoCommerce: LogoCommerceAdapter,
@@ -634,6 +653,8 @@ export class AdapterRegistry {
     private readonly spocket: SpocketAdapter,
     private readonly sendo: SendoAdapter,
     private readonly shein: SheinAdapter,
+    private readonly shopandsend: ShopandsendAdapter,
+    private readonly shukran: ShukranAdapter,
     private readonly sivvi: SivviAdapter,
     private readonly sharafDg: SharafDgAdapter,
     private readonly shopiverse: ShopiverseAdapter,
@@ -673,8 +694,10 @@ export class AdapterRegistry {
     private readonly ticimaxMp: TicimaxMpAdapter,
     private readonly afterpay: AfterpayAdapter,
     private readonly berealShop: BerealShopAdapter,
+    private readonly brands4less: Brands4lessAdapter,
     private readonly clover: CloverAdapter,
     private readonly gumroad: GumroadAdapter,
+    private readonly haraj: HarajAdapter,
     private readonly klarnaMerchant: KlarnaMerchantAdapter,
     private readonly okxTr: OkxTrAdapter,
     private readonly papara: PaparaAdapter,
@@ -683,8 +706,21 @@ export class AdapterRegistry {
     private readonly squareOnline: SquareOnlineAdapter,
     private readonly threadsShop: ThreadsShopAdapter,
     private readonly tosla: ToslaAdapter,
+    private readonly vendtek: VendtekAdapter,
     private readonly venmoBusiness: VenmoBusinessAdapter,
     private readonly xShopping: XShoppingAdapter,
+    private readonly zando: ZandoAdapter,
+    private readonly kakaoCommerce: KakaoCommerceAdapter,
+    private readonly kogan: KoganAdapter,
+    private readonly lazadaMy: LazadaMyAdapter,
+    private readonly mercariJp: MercariJpAdapter,
+    private readonly pgmall: PgmallAdapter,
+    private readonly shopeeSg: ShopeeSgAdapter,
+    private readonly shopeeTh: ShopeeThAdapter,
+    private readonly themarketNz: ThemarketNzAdapter,
+    private readonly yahooAuctionsJp: YahooAuctionsJpAdapter,
+    private readonly zaloraMy: ZaloraMyAdapter,
+    private readonly zozotown: ZozotownAdapter,
     private readonly erpAdapterRegistry: ErpAdapterRegistry,
     private readonly ecommerceAdapterRegistry: EcommerceAdapterRegistry,
   ) {
@@ -931,6 +967,7 @@ export class AdapterRegistry {
       ['LAZADA_PH', lazadaPh],
       ['MERCADOLIBRE', mercadolibre],
       ['MERCARI', mercari],
+      ['MEQASA', meqasa],
       ['WALMART', walmart],
       ['TARGET_PLUS', targetPlus],
       ['TAZE_DIREKT', tazeDirekt],
@@ -949,6 +986,8 @@ export class AdapterRegistry {
       ['TRENDYOL_SECOND_HAND', trendyolSecondHand],
       ['SENDO', sendo],
       ['SHEIN', shein],
+      ['SHOPANDSEND', shopandsend],
+      ['SHUKRAN', shukran],
       ['SIVVI', sivvi],
       ['TEDARIKCI', tedarikci],
       ['TIKI', tiki],
@@ -991,8 +1030,10 @@ export class AdapterRegistry {
       ['MALL_CZ', mallCz],
       ['AFTERPAY', afterpay],
       ['BEREAL_SHOP', berealShop],
+      ['BRANDS4LESS', brands4less],
       ['CLOVER', clover],
       ['GUMROAD', gumroad],
+      ['HARAJ', haraj],
       ['KLARNA_MERCHANT', klarnaMerchant],
       ['OKX_TR', okxTr],
       ['PAPARA', papara],
@@ -1001,8 +1042,21 @@ export class AdapterRegistry {
       ['SQUARE_ONLINE', squareOnline],
       ['THREADS_SHOP', threadsShop],
       ['TOSLA', tosla],
+      ['VENDTEK', vendtek],
       ['VENMO_BUSINESS', venmoBusiness],
       ['X_SHOPPING', xShopping],
+      ['ZANDO', zando],
+      ['KAKAO_COMMERCE', kakaoCommerce],
+      ['KOGAN', kogan],
+      ['LAZADA_MY', lazadaMy],
+      ['MERCARI_JP', mercariJp],
+      ['PGMALL', pgmall],
+      ['SHOPEE_SG', shopeeSg],
+      ['SHOPEE_TH', shopeeTh],
+      ['THEMARKET_NZ', themarketNz],
+      ['YAHOO_AUCTIONS_JP', yahooAuctionsJp],
+      ['ZALORA_MY', zaloraMy],
+      ['ZOZOTOWN', zozotown],
       ['TICIMAX_MP', ticimaxMp],
     ]);
     this.erpAdapters = new Map<string, IErpAdapter>([

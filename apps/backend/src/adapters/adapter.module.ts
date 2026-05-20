@@ -5,8 +5,10 @@ import { AdapterRegistry } from './adapter.registry';
 import { EcommerceAdaptersModule } from './ecommerce/ecommerce.module';
 import { AfterpayModule } from './afterpay/afterpay.module';
 import { BerealShopModule } from './bereal-shop/bereal-shop.module';
+import { Brands4lessModule } from './brands4less/brands4less.module';
 import { CloverModule } from './clover/clover.module';
 import { GumroadModule } from './gumroad/gumroad.module';
+import { HarajModule } from './haraj/haraj.module';
 import { KlarnaMerchantModule } from './klarna-merchant/klarna-merchant.module';
 import { OkxTrModule } from './okx-tr/okx-tr.module';
 import { PaparaModule } from './papara/papara.module';
@@ -15,6 +17,7 @@ import { PatreonModule } from './patreon/patreon.module';
 import { SquareOnlineModule } from './square-online/square-online.module';
 import { ThreadsShopModule } from './threads-shop/threads-shop.module';
 import { ToslaModule } from './tosla/tosla.module';
+import { VendtekModule } from './vendtek/vendtek.module';
 import { VenmoBusinessModule } from './venmo-business/venmo-business.module';
 import { XShoppingModule } from './x-shopping/x-shopping.module';
 import { ErpAdaptersModule } from './erp/erp.module';
@@ -198,6 +201,7 @@ import { MediamarktTrModule } from './mediamarkt-tr/mediamarkt-tr.module';
 import { MeeshoModule } from './meesho/meesho.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MercariModule } from './mercari/mercari.module';
+import { MeqasaModule } from './meqasa/meqasa.module';
 import { MikroAdapter } from './mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
@@ -254,6 +258,8 @@ import { RossmannTrModule } from './rossmann-tr/rossmann-tr.module';
 import { SahibindenPremiumModule } from './sahibinden-premium/sahibinden-premium.module';
 import { SendoModule } from './sendo/sendo.module';
 import { SheinModule } from './shein/shein.module';
+import { ShopandsendModule } from './shopandsend/shopandsend.module';
+import { ShukranModule } from './shukran/shukran.module';
 import { SivviModule } from './sivvi/sivvi.module';
 import { SharafDgModule } from './sharaf-dg/sharaf-dg.module';
 import { ObiTrModule } from './obi-tr/obi-tr.module';
@@ -334,6 +340,18 @@ import { YoutubeShopModule } from './youtube-shop/youtube-shop.module';
 import { YemeksepetiModule } from './yemeksepeti/yemeksepeti.module';
 import { ZalandoModule } from './zalando/zalando.module';
 import { YandexMarketModule } from './yandex-market/yandex-market.module';
+import { ZandoModule } from './zando/zando.module';
+import { KakaoCommerceModule } from './kakao-commerce/kakao-commerce.module';
+import { KoganModule } from './kogan/kogan.module';
+import { LazadaMyModule } from './lazada-my/lazada-my.module';
+import { MercariJpModule } from './mercari-jp/mercari-jp.module';
+import { PgmallModule } from './pgmall/pgmall.module';
+import { ShopeeSgModule } from './shopee-sg/shopee-sg.module';
+import { ShopeeThModule } from './shopee-th/shopee-th.module';
+import { ThemarketNzModule } from './themarket-nz/themarket-nz.module';
+import { YahooAuctionsJpModule } from './yahoo-auctions-jp/yahoo-auctions-jp.module';
+import { ZaloraMyModule } from './zalora-my/zalora-my.module';
+import { ZozotownModule } from './zozotown/zozotown.module';
 import { ZaraModule } from './zara/zara.module';
 import { ZaraTrModule } from './zara-tr/zara-tr.module';
 import { ZirveAdapter } from './zirve/zirve.adapter';
@@ -344,8 +362,10 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     AdaptersCommonModule,
     AfterpayModule,
     BerealShopModule,
+    Brands4lessModule,
     CloverModule,
     GumroadModule,
+    HarajModule,
     KlarnaMerchantModule,
     OkxTrModule,
     PaparaModule,
@@ -354,6 +374,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SquareOnlineModule,
     ThreadsShopModule,
     ToslaModule,
+    VendtekModule,
     VenmoBusinessModule,
     XShoppingModule,
     ErpAdaptersModule,
@@ -535,6 +556,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MeeshoModule,
     MercadolibreModule,
     MercariModule,
+    MeqasaModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
@@ -585,6 +607,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
+    ShopandsendModule,
+    ShukranModule,
     SivviModule,
     SharafDgModule,
     SefamerveModule,
@@ -651,8 +675,20 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     YemeksepetiModule,
     YandexMarketModule,
     ZalandoModule,
+    ZandoModule,
     ZaraModule,
     ZaraTrModule,
+    KakaoCommerceModule,
+    KoganModule,
+    LazadaMyModule,
+    MercariJpModule,
+    PgmallModule,
+    ShopeeSgModule,
+    ShopeeThModule,
+    ThemarketNzModule,
+    YahooAuctionsJpModule,
+    ZaloraMyModule,
+    ZozotownModule,
   ],
   providers: [
     AmazonAdapter,
@@ -874,6 +910,7 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     MeeshoModule,
     MercadolibreModule,
     MercariModule,
+    MeqasaModule,
     MikroBulutModule,
     MigrosModule,
     MigroshemenModule,
@@ -924,6 +961,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SahibindenPremiumModule,
     SendoModule,
     SheinModule,
+    ShopandsendModule,
+    ShukranModule,
     SivviModule,
     SharafDgModule,
     SefamerveModule,
@@ -989,11 +1028,14 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     YoutubeShopModule,
     YemeksepetiModule,
     ZalandoModule,
+    ZandoModule,
     ZaraModule,
     AfterpayModule,
     BerealShopModule,
+    Brands4lessModule,
     CloverModule,
     GumroadModule,
+    HarajModule,
     KlarnaMerchantModule,
     OkxTrModule,
     PaparaModule,
@@ -1002,9 +1044,21 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     SquareOnlineModule,
     ThreadsShopModule,
     ToslaModule,
+    VendtekModule,
     VenmoBusinessModule,
     XShoppingModule,
     ZaraTrModule,
+    KakaoCommerceModule,
+    KoganModule,
+    LazadaMyModule,
+    MercariJpModule,
+    PgmallModule,
+    ShopeeSgModule,
+    ShopeeThModule,
+    ThemarketNzModule,
+    YahooAuctionsJpModule,
+    ZaloraMyModule,
+    ZozotownModule,
   ],
 })
 export class AdapterModule {}

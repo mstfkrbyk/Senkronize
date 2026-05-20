@@ -11,7 +11,7 @@ export class TakealotAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'TAKEALOT',
-      baseUrl: 'https://seller-api.takealot.com/v2',
+      baseUrl: 'https://api.takealot.com/v1',
       loggerContext: TakealotAdapter.name,
       rateLimitKey: 'TAKEALOT',
       pathProfile: '/seller/me',

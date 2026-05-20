@@ -11,7 +11,7 @@ export class WadiAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'WADI',
-      baseUrl: 'https://api.wadi.com/seller/v1',
+      baseUrl: 'https://api.wadi.com/v2',
       loggerContext: WadiAdapter.name,
       rateLimitKey: 'WADI',
       pathProfile: '/merchant/me',

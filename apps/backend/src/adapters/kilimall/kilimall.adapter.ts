@@ -11,7 +11,7 @@ export class KilimallAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'KILIMALL',
-      baseUrl: 'https://api.kilimall.com/seller/v1',
+      baseUrl: 'https://api.kilimall.com/v1',
       loggerContext: KilimallAdapter.name,
       rateLimitKey: 'KILIMALL',
       pathProfile: '/merchant/me',

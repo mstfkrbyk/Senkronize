@@ -11,7 +11,7 @@ export class AwokAdapter extends RestStubMarketplaceAdapter {
   constructor(encryptionService: EncryptionService) {
     const opts: RestStubMarketplaceOptions = {
       platform: 'AWOK',
-      baseUrl: 'https://api.awok.com/seller/v1',
+      baseUrl: 'https://api.awok.com/v2',
       loggerContext: AwokAdapter.name,
       rateLimitKey: 'AWOK',
       pathProfile: '/merchant/me',

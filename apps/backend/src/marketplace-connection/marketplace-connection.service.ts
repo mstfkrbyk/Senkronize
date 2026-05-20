@@ -217,17 +217,29 @@ export class MarketplaceConnectionService {
       platform === Marketplace.ALIBABA ||
       platform === Marketplace.LAZADA ||
       platform === Marketplace.DARAZ ||
-      platform === Marketplace.LAZADA_PH
+      platform === Marketplace.LAZADA_PH ||
+      platform === Marketplace.LAZADA_MY
     ) {
-      return creds.appKey ?? null;
+      return creds.appKey ?? creds.apiKey ?? null;
     }
     if (platform === Marketplace.SHOPEE) {
       return creds.partnerId ?? null;
     }
     if (
+      platform === Marketplace.SHOPEE_SG ||
+      platform === Marketplace.SHOPEE_TH
+    ) {
+      return creds.partnerId ?? creds.apiKey ?? null;
+    }
+    if (
       platform === Marketplace.MADEINCHINA ||
       platform === Marketplace.SPORTIVE ||
       platform === Marketplace.MEESHO ||
+      platform === Marketplace.ZOZOTOWN ||
+      platform === Marketplace.ZALORA_MY ||
+      platform === Marketplace.PGMALL ||
+      platform === Marketplace.KOGAN ||
+      platform === Marketplace.THEMARKET_NZ ||
       platform === Marketplace.ENPARA
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
@@ -391,7 +403,20 @@ export class MarketplaceConnectionService {
       platform === Marketplace.TOSLA ||
       platform === Marketplace.PARIBU ||
       platform === Marketplace.BEREAL_SHOP ||
-      platform === Marketplace.GUMROAD
+      platform === Marketplace.GUMROAD ||
+      platform === Marketplace.SHUKRAN ||
+      platform === Marketplace.BRANDS4LESS ||
+      platform === Marketplace.HARAJ ||
+      platform === Marketplace.ZANDO ||
+      platform === Marketplace.MEQASA ||
+      platform === Marketplace.VENDTEK ||
+      platform === Marketplace.SHOPANDSEND ||
+      platform === Marketplace.WADI ||
+      platform === Marketplace.TAKEALOT ||
+      platform === Marketplace.KILIMALL ||
+      platform === Marketplace.BIDORBUY ||
+      platform === Marketplace.MUMZWORLD ||
+      platform === Marketplace.AWOK
     ) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
@@ -418,7 +443,10 @@ export class MarketplaceConnectionService {
     }
     if (
       platform === Marketplace.GAMEFLIP ||
-      platform === Marketplace.MERCARI
+      platform === Marketplace.MERCARI ||
+      platform === Marketplace.MERCARI_JP ||
+      platform === Marketplace.YAHOO_AUCTIONS_JP ||
+      platform === Marketplace.KAKAO_COMMERCE
     ) {
       return creds.accessToken
         ? `${creds.accessToken.slice(0, 6)}...`

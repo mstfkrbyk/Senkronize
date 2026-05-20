@@ -312,7 +312,25 @@ export type Marketplace =
   | 'THREADS_SHOP'
   | 'X_SHOPPING'
   | 'GUMROAD'
-  | 'PATREON';
+  | 'PATREON'
+  | 'SHUKRAN'
+  | 'BRANDS4LESS'
+  | 'HARAJ'
+  | 'ZANDO'
+  | 'MEQASA'
+  | 'VENDTEK'
+  | 'SHOPANDSEND'
+  | 'MERCARI_JP'
+  | 'YAHOO_AUCTIONS_JP'
+  | 'ZOZOTOWN'
+  | 'KAKAO_COMMERCE'
+  | 'SHOPEE_SG'
+  | 'SHOPEE_TH'
+  | 'LAZADA_MY'
+  | 'ZALORA_MY'
+  | 'PGMALL'
+  | 'KOGAN'
+  | 'THEMARKET_NZ';
 
 /** Prisma `ErpType` ile uyumlu */
 export type ErpType =
@@ -407,7 +425,19 @@ export type EcommerceType =
   | 'IDEASOFT'
   | 'WOOCOMMERCE'
   | 'SQUARESPACE'
-  | 'WIX_STORES';
+  | 'WIX_STORES'
+  | 'COMMERCEJS'
+  | 'CRYSTALLIZE'
+  | 'NACELLE'
+  | 'ELASTIC_PATH'
+  | 'VTEX'
+  | 'SHOPIFY_TR'
+  | 'PAZARYOLU'
+  | 'EPTTAVM'
+  | 'GITTIGIDIYOR_SHOP'
+  | 'BAGISTO'
+  | 'AIMEOS'
+  | 'REACTION_COMMERCE';
 
 /** Prisma `CargoProvider` ile uyumlu */
 export type CargoProvider =
