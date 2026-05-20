@@ -66,7 +66,6 @@ import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
 import { AmazonGlobalModule } from './amazon-global/amazon-global.module';
 import { AllegroModule } from './allegro/allegro.module';
 import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
-import { LogoErpAdapter } from './erp/logo-erp.adapter';
 import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
 import { BoutiqaatModule } from './boutiqaat/boutiqaat.module';
@@ -218,7 +217,6 @@ import { KmartAuModule } from './kmart-au/kmart-au.module';
 import { KilimallModule } from './kilimall/kilimall.module';
 import { KhaadiModule } from './khaadi/khaadi.module';
 import { KoctasModule } from './koctas/koctas.module';
-import { KolaybiAdapter } from './kolaybi/kolaybi.adapter';
 import { KongaModule } from './konga/konga.module';
 import { KotonModule } from './koton/koton.module';
 import { LazadaModule } from './lazada/lazada.module';
@@ -254,7 +252,6 @@ import { MegatradeModule } from './megatrade/megatrade.module';
 import { MercadolibreModule } from './mercadolibre/mercadolibre.module';
 import { MercariModule } from './mercari/mercari.module';
 import { MeqasaModule } from './meqasa/meqasa.module';
-import { MikroErpAdapter } from './erp/mikro/mikro.adapter';
 import { MikroBulutModule } from './mikro-bulut/mikro-bulut.module';
 import { MigrosModule } from './migros/migros.module';
 import { MigrosHizliModule } from './migros-hizli/migros-hizli.module';
@@ -273,7 +270,6 @@ import { N11ProModule } from './n11-pro/n11-pro.module';
 import { NykaaModule } from './nykaa/nykaa.module';
 import { NotinoModule } from './notino/notino.module';
 import { NamshiModule } from './namshi/namshi.module';
-import { NetsisAdapter } from './netsis/netsis.adapter';
 import { NetworkModule } from './network/network.module';
 import { NjuskaloModule } from './njuskalo/njuskalo.module';
 import { NebimAdapter } from './nebim/nebim.adapter';
@@ -883,8 +879,6 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IdeasoftAdapter,
     BizimHesapErpAdapter,
     ParasutErpAdapter,
-    LogoErpAdapter,
-    MikroErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,
@@ -894,10 +888,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaAdapter,
     WoocommerceAdapter,
     ShopifyAdapter,
-    NetsisAdapter,
     EtaAdapter,
     IsnetAdapter,
-    KolaybiAdapter,
     NebimAdapter,
     SapB1Adapter,
     ZirveAdapter,
@@ -913,8 +905,6 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     IdeasoftAdapter,
     BizimHesapErpAdapter,
     ParasutErpAdapter,
-    LogoErpAdapter,
-    MikroErpAdapter,
     LucaAdapter,
     TsoftAdapter,
     TsoftErpAdapter,
@@ -924,10 +914,8 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     PazaramaAdapter,
     WoocommerceAdapter,
     ShopifyAdapter,
-    NetsisAdapter,
     EtaAdapter,
     IsnetAdapter,
-    KolaybiAdapter,
     NebimAdapter,
     SapB1Adapter,
     ZirveAdapter,
