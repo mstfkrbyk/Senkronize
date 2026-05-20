@@ -3,20 +3,24 @@ import type { ReactElement } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Banknote,
   Building2,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  FileText,
   Loader2,
   Package,
+  Percent,
   Sparkles,
   Store,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { ProductSelectionCards } from '@/components/ProductSelectionCards';
 import { SearchableCombobox } from '@/components/SearchableCombobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,8 +31,22 @@ import { useAuth } from '@/hooks/useAuth';
 import type { ErpConnectionDto } from '@/hooks/useErpConnections';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { resolveOrgHomePath } from '@/lib/org-products';
+import {
+  PRODUCT_SELECTION_OPTIONS,
+  productSelectionFromOrgProducts,
+  readStoredProductSelection,
+  resolveOnboardingProductSelection,
+  writeStoredProductSelection,
+  type ProductSelection,
+} from '@/lib/product-selection';
 import { cn } from '@/lib/utils';
 import { completeOnboarding } from '@/pages/onboarding/onboarding.api';
+import {
+  buildOnboardingSteps,
+  quickStartItemsForSelection,
+  type OnboardingWizardStepId,
+} from '@/pages/onboarding/onboarding-flow';
 import { ERP_OPTIONS, MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import {
   ONBOARDING_MARKETPLACE_IDS,
@@ -46,28 +64,29 @@ import type { OrganizationDetail } from '@/types/organization';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 import type { PlanTier } from '@/types/subscription';
 
-const STEP_COUNT = 5;
-const STEP_LABELS = [
-  'Firma Bilgileri',
-  'ERP Seçimi',
-  'Pazaryerleri',
-  'Paket',
-  'Tamamlandı',
-] as const;
+const ACCOUNTING_ERP_IDS = new Set(['BIZIMHESAP', 'PARASUT']);
 
-const QUICK_START_ITEMS: readonly {
-  label: string;
-  href: string;
+const ACCOUNTING_HIGHLIGHTS: readonly {
+  title: string;
+  description: string;
+  icon: typeof FileText;
 }[] = [
-  { label: 'İlk ürünü ekle', href: '/products' },
-  { label: 'Pazaryeri bağla', href: '/connections' },
-  { label: 'ERP kur', href: '/connections/erp/setup' },
-  { label: 'Ekip üyesi davet et', href: '/settings?tab=team' },
+  {
+    title: 'Fatura oluşturma',
+    description: 'Satış ve alış faturalarını tek panelden yönetin.',
+    icon: FileText,
+  },
+  {
+    title: 'Cari hesap',
+    description: 'Müşteri ve tedarikçi bakiyelerini takip edin.',
+    icon: Banknote,
+  },
+  {
+    title: 'KDV takibi',
+    description: 'Dönemsel KDV özetlerine hızlıca ulaşın.',
+    icon: Percent,
+  },
 ] as const;
-
-function formatTry(amount: number): string {
-  return amount.toLocaleString('tr-TR');
-}
 
 export function OnboardingWizardPage(): ReactElement {
   const navigate = useNavigate();
@@ -75,7 +94,7 @@ export function OnboardingWizardPage(): ReactElement {
   const { data: me } = useAuth();
   const setOrg = useAuthStore((s) => s.setOrg);
 
-  const [currentStep, setCurrentStep] = useState(1);
+  const [stepIndex, setStepIndex] = useState(0);
   const [hasErp, setHasErp] = useState(false);
   const [erpType, setErpType] = useState<string | null>(null);
   const [stockMgmt, setStockMgmt] = useState<StockManagementMethod | null>(null);
@@ -83,6 +102,10 @@ export function OnboardingWizardPage(): ReactElement {
   const [showAllMarketplaces, setShowAllMarketplaces] = useState(false);
   const [mpSearch, setMpSearch] = useState('');
   const [selectedPlan, setSelectedPlan] = useState<PlanTier | null>(null);
+  const [productSelection, setProductSelection] = useState<ProductSelection | null>(
+    () => readStoredProductSelection(),
+  );
+  const [accountingErpType, setAccountingErpType] = useState<string | null>(null);
   const confettiFired = useRef(false);
 
   const orgQuery = useQuery({
@@ -93,6 +116,36 @@ export function OnboardingWizardPage(): ReactElement {
     },
     enabled: Boolean(me),
   });
+
+  const orgProducts = me?.organization.orgProducts;
+  const selectionFromOrg = useMemo(
+    () => productSelectionFromOrgProducts(orgProducts),
+    [orgProducts],
+  );
+  const selectionLocked = selectionFromOrg !== null;
+
+  useEffect(() => {
+    if (!me) {
+      return;
+    }
+    const resolved = resolveOnboardingProductSelection(
+      readStoredProductSelection(),
+      me.organization.orgProducts,
+    );
+    if (!resolved) {
+      return;
+    }
+    setProductSelection(resolved);
+    writeStoredProductSelection(resolved);
+  }, [me]);
+
+  const steps = useMemo(
+    () => buildOnboardingSteps(productSelection),
+    [productSelection],
+  );
+  const stepCount = steps.length;
+  const currentStepId: OnboardingWizardStepId | undefined = steps[stepIndex]?.id;
+  const currentStepLabel = steps[stepIndex]?.label ?? '';
 
   useEffect(() => {
     document.title = 'Kurulum — Senkronize';
@@ -117,10 +170,18 @@ export function OnboardingWizardPage(): ReactElement {
     }
   }, [recommendedPlan, selectedPlan]);
 
-  const progressPercent = useMemo(
-    () => Math.round((currentStep / STEP_COUNT) * 100),
-    [currentStep],
-  );
+  useEffect(() => {
+    if (stepIndex >= stepCount && stepCount > 0) {
+      setStepIndex(stepCount - 1);
+    }
+  }, [stepIndex, stepCount]);
+
+  const progressPercent = useMemo(() => {
+    if (stepCount === 0) {
+      return 0;
+    }
+    return Math.round(((stepIndex + 1) / stepCount) * 100);
+  }, [stepIndex, stepCount]);
 
   const featuredMarketplaces = useMemo(
     () =>
@@ -152,6 +213,16 @@ export function OnboardingWizardPage(): ReactElement {
         logo: e.logo,
       })),
     [],
+  );
+
+  const accountingErpOptions = useMemo(
+    () => erpComboboxOptions.filter((e) => ACCOUNTING_ERP_IDS.has(e.value)),
+    [erpComboboxOptions],
+  );
+
+  const quickStartItems = useMemo(
+    () => quickStartItemsForSelection(productSelection),
+    [productSelection],
   );
 
   const planMutation = useMutation({
@@ -191,6 +262,8 @@ export function OnboardingWizardPage(): ReactElement {
         type: fresh.organization.type,
         onboardingCompleted: fresh.organization.onboardingCompleted,
         plan: fresh.organization.plan,
+        orgProducts: fresh.organization.orgProducts,
+        accountingMode: fresh.organization.accountingMode,
       });
     },
     onSuccess: async () => {
@@ -213,13 +286,17 @@ export function OnboardingWizardPage(): ReactElement {
         connectedPlatforms,
         recommendedPlan,
         selectedPlan: selectedPlan ?? recommendedPlan,
+        productSelection: productSelection ?? undefined,
         marketplaces,
         hasErp,
         erpType,
         stockMgmt,
+        accountingErpType,
       });
       toast.success('Kurulum tamamlandı.');
-      navigate('/dashboard', { replace: true });
+      const freshMe = queryClient.getQueryData<MeResponse>(['auth', 'me']);
+      const home = resolveOrgHomePath(freshMe?.organization.orgProducts);
+      navigate(home, { replace: true });
     },
     onError: (error: unknown) => {
       toast.error(getApiErrorMessage(error));
@@ -245,7 +322,7 @@ export function OnboardingWizardPage(): ReactElement {
   });
 
   useEffect(() => {
-    if (currentStep !== STEP_COUNT || confettiFired.current) {
+    if (currentStepId !== 'complete' || confettiFired.current) {
       return;
     }
     confettiFired.current = true;
@@ -255,7 +332,7 @@ export function OnboardingWizardPage(): ReactElement {
       origin: { y: 0.55 },
       colors: ['#38bdf8', '#fbbf24', '#34d399', '#fb7185', '#a78bfa'],
     });
-  }, [currentStep]);
+  }, [currentStepId]);
 
   function toggleMarketplace(id: string): void {
     setMarketplaces((prev) =>
@@ -264,16 +341,20 @@ export function OnboardingWizardPage(): ReactElement {
   }
 
   function canProceed(): boolean {
-    switch (currentStep) {
-      case 1:
+    switch (currentStepId) {
+      case 'company':
         return Boolean(orgQuery.data?.name?.trim());
-      case 2:
+      case 'accounting':
+        return true;
+      case 'erp':
         return hasErp ? erpType !== null : stockMgmt !== null;
-      case 3:
+      case 'marketplace':
         return marketplaces.length > 0;
-      case 4:
-        return selectedPlan !== null;
-      case 5:
+      case 'connections-bundle':
+        return true;
+      case 'product-plan':
+        return productSelection !== null && selectedPlan !== null;
+      case 'complete':
         return true;
       default:
         return false;
@@ -284,11 +365,11 @@ export function OnboardingWizardPage(): ReactElement {
     if (!canProceed()) {
       return;
     }
-    setCurrentStep((s) => Math.min(STEP_COUNT, s + 1));
+    setStepIndex((s) => Math.min(stepCount - 1, s + 1));
   }
 
   function goBack(): void {
-    setCurrentStep((s) => Math.max(1, s - 1));
+    setStepIndex((s) => Math.max(0, s - 1));
   }
 
   if (!me) {
@@ -304,10 +385,12 @@ export function OnboardingWizardPage(): ReactElement {
 
   const orgName = orgQuery.data?.name ?? me.organization.name;
   const taxNumber = orgQuery.data?.taxNumber ?? null;
+  const selectedProductLabel =
+    PRODUCT_SELECTION_OPTIONS.find((o) => o.id === productSelection)?.title ?? null;
 
   const stepContent = (() => {
-    switch (currentStep) {
-      case 1:
+    switch (currentStepId) {
+      case 'company':
         return (
           <Card className="border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-1 px-0 md:px-6">
@@ -348,6 +431,12 @@ export function OnboardingWizardPage(): ReactElement {
                       </span>
                     </dd>
                   </div>
+                  {selectedProductLabel ? (
+                    <div className="flex justify-between gap-4 border-t pt-3">
+                      <dt className="text-muted-foreground">Ürün hattı</dt>
+                      <dd className="font-medium text-foreground">{selectedProductLabel}</dd>
+                    </div>
+                  ) : null}
                 </dl>
               )}
               <Button variant="link" className="h-auto p-0" asChild>
@@ -359,7 +448,60 @@ export function OnboardingWizardPage(): ReactElement {
             </CardContent>
           </Card>
         );
-      case 2:
+      case 'accounting':
+        return (
+          <Card className="border-0 shadow-none md:border md:shadow-sm">
+            <CardHeader className="space-y-1 px-0 md:px-6">
+              <CardTitle className="text-2xl">Ön muhasebe özeti</CardTitle>
+              <CardDescription className="text-base">
+                Fatura, cari ve KDV işlemlerinizi pazaryeri kurmadan yönetebilirsiniz.
+                Bağlantıları istediğiniz zaman ekleyebilirsiniz.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 px-0 md:px-6">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {ACCOUNTING_HIGHLIGHTS.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={item.title}
+                      className="rounded-lg border bg-sky-50/40 p-4 dark:bg-sky-950/20"
+                    >
+                      <Icon className="mb-2 h-6 w-6 text-sky-500" aria-hidden />
+                      <p className="font-medium text-foreground">{item.title}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="space-y-2 rounded-lg border px-4 py-4">
+                <Label htmlFor="accounting-erp" className="font-medium">
+                  Muhasebe programı (isteğe bağlı)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Paraşüt veya Bizim Hesap bağlantısını kurulumdan sonra da
+                  ekleyebilirsiniz.
+                </p>
+                <SearchableCombobox
+                  id="accounting-erp"
+                  options={accountingErpOptions}
+                  value={accountingErpType}
+                  onChange={setAccountingErpType}
+                  placeholder="Şimdilik atla veya seçin…"
+                  searchPlaceholder="Program ara…"
+                  emptyLabel="Program bulunamadı."
+                />
+              </div>
+              <Button variant="outline" asChild>
+                <Link to="/accounting">
+                  Ön muhasebe panelini önizle
+                  <ExternalLink className="ml-2 h-4 w-4" aria-hidden />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        );
+      case 'erp':
         return (
           <Card className="border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-1 px-0 md:px-6">
@@ -427,7 +569,7 @@ export function OnboardingWizardPage(): ReactElement {
             </CardContent>
           </Card>
         );
-      case 3:
+      case 'marketplace':
         return (
           <Card className="border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-1 px-0 md:px-6">
@@ -528,80 +670,175 @@ export function OnboardingWizardPage(): ReactElement {
             </CardContent>
           </Card>
         );
-      case 4:
+      case 'connections-bundle':
+        return (
+          <Card className="border-0 shadow-none md:border md:shadow-sm">
+            <CardHeader className="space-y-1 px-0 md:px-6">
+              <CardTitle className="text-2xl">Bağlantılar (isteğe bağlı)</CardTitle>
+              <CardDescription className="text-base">
+                Paket kullanıcıları için kısa önizleme. ERP ve pazaryeri bağlantılarını
+                şimdi atlayıp panelden sonra da kurabilirsiniz.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 px-0 md:px-6">
+              <div className="rounded-lg border px-4 py-3">
+                <div className="flex items-center justify-between gap-4">
+                  <Label htmlFor="bundle-has-erp" className="cursor-pointer font-medium">
+                    ERP kullanıyorum
+                  </Label>
+                  <Switch
+                    id="bundle-has-erp"
+                    checked={hasErp}
+                    onCheckedChange={(checked) => {
+                      setHasErp(checked);
+                      if (!checked) {
+                        setErpType(null);
+                      }
+                    }}
+                  />
+                </div>
+                {hasErp ? (
+                  <div className="mt-3">
+                    <SearchableCombobox
+                      id="bundle-erp-select"
+                      options={erpComboboxOptions}
+                      value={erpType}
+                      onChange={setErpType}
+                      placeholder="ERP seçin (isteğe bağlı)…"
+                      searchPlaceholder="ERP ara…"
+                      emptyLabel="ERP bulunamadı."
+                    />
+                  </div>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Pazaryerleri (isteğe bağlı)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {featuredMarketplaces.slice(0, 4).map((mp) => {
+                    const selected = marketplaces.includes(mp.id);
+                    return (
+                      <button
+                        key={mp.id}
+                        type="button"
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors',
+                          selected
+                            ? 'border-primary bg-primary/5 font-medium'
+                            : 'border-border hover:border-primary/40',
+                        )}
+                        onClick={() => toggleMarketplace(mp.id)}
+                      >
+                        <span aria-hidden>{mp.logo}</span>
+                        {mp.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                İleri ile devam edebilirsiniz; bağlantı kurulumu zorunlu değildir.
+              </p>
+            </CardContent>
+          </Card>
+        );
+      case 'product-plan':
         return (
           <Card className="border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-1 px-0 md:px-6">
               <CardTitle className="flex items-center gap-2 text-2xl">
                 <Package className="h-7 w-7 text-sky-500" aria-hidden />
-                Paket önerisi
+                {selectionLocked ? 'Paket seçimi' : 'Ürün ve paket'}
               </CardTitle>
               <CardDescription className="text-base">
-                Seçimlerinize göre önerilen paket:{' '}
+                {selectionLocked && selectedProductLabel
+                  ? `${selectedProductLabel} hattı için abonelik paketinizi seçin. Önerilen: `
+                  : 'Kullanım amacınızı ve abonelik paketinizi seçin. Önerilen: '}
                 <span className="font-semibold text-foreground">
                   {PLAN_LABELS[recommendedPlan]}
                 </span>
-                . Yıllık faturalandırma; 14 günlük ücretsiz deneme dahil.
+                .
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 px-0 md:px-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {PLAN_TIERS.map((tier) => {
-                  const prices = PLAN_ANNUAL_PRICES[tier];
-                  const isRecommended = tier === recommendedPlan;
-                  const isSelected = (selectedPlan ?? recommendedPlan) === tier;
-                  return (
-                    <div
-                      key={tier}
-                      className={cn(
-                        'relative flex flex-col rounded-xl border p-5 transition-colors',
-                        isSelected
-                          ? 'border-sky-400 ring-2 ring-sky-400/30'
-                          : 'border-border',
-                        isRecommended && 'bg-sky-50/40 dark:bg-sky-950/20',
-                      )}
-                    >
-                      <div className="mb-2 flex flex-wrap items-center gap-2">
-                        {isRecommended ? (
-                          <Badge className="bg-sky-500 text-white hover:bg-sky-500">
-                            Önerilen
-                          </Badge>
-                        ) : null}
-                        <Badge variant="secondary">14 günlük ücretsiz deneme</Badge>
-                      </div>
-                      <h3 className="text-lg font-semibold">{PLAN_LABELS[tier]}</h3>
-                      <p className="mt-1 text-2xl font-bold text-foreground">
-                        ₺{formatTry(prices.yearly)}
-                        <span className="text-sm font-normal text-muted-foreground">
-                          {' '}
-                          / yıl
-                        </span>
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        ~₺{formatTry(prices.monthlyHint)} / ay
-                      </p>
-                      <p className="mt-3 flex-1 text-sm text-muted-foreground">
-                        {PLAN_DESCRIPTIONS[tier]}
-                      </p>
-                      <Button
-                        type="button"
-                        className="mt-4 w-full"
-                        variant={isSelected ? 'default' : 'outline'}
-                        disabled={selectPlanMutation.isPending}
-                        onClick={() => selectPlanMutation.mutate(tier)}
+            <CardContent className="space-y-8 px-0 md:px-6">
+              {selectionLocked && selectedProductLabel ? (
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+                  <span className="text-muted-foreground">Ürün hattı:</span>
+                  <span className="font-medium">{selectedProductLabel}</span>
+                  <Badge variant="secondary">Kayıt ile belirlendi</Badge>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Label className="text-base">Ne için kullanacaksınız?</Label>
+                  <ProductSelectionCards
+                    value={productSelection}
+                    onChange={(id) => {
+                      setProductSelection(id);
+                      writeStoredProductSelection(id);
+                      setStepIndex(0);
+                    }}
+                  />
+                </div>
+              )}
+              <div className="space-y-3">
+                <Label className="text-base">Abonelik paketi</Label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {PLAN_TIERS.map((tier) => {
+                    const prices = PLAN_ANNUAL_PRICES[tier];
+                    const isRecommended = tier === recommendedPlan;
+                    const isSelected = (selectedPlan ?? recommendedPlan) === tier;
+                    return (
+                      <div
+                        key={tier}
+                        className={cn(
+                          'relative flex flex-col rounded-xl border p-5 transition-colors',
+                          isSelected
+                            ? 'border-sky-400 ring-2 ring-sky-400/30'
+                            : 'border-border',
+                          isRecommended && 'bg-sky-50/40 dark:bg-sky-950/20',
+                        )}
                       >
-                        {selectPlanMutation.isPending && isSelected
-                          ? 'Seçiliyor…'
-                          : 'Bu paketi seç'}
-                      </Button>
-                    </div>
-                  );
-                })}
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {isRecommended ? (
+                            <Badge className="bg-sky-500 text-white hover:bg-sky-500">
+                              Önerilen
+                            </Badge>
+                          ) : null}
+                          <Badge variant="secondary">14 günlük ücretsiz deneme</Badge>
+                        </div>
+                        <h3 className="text-lg font-semibold">{PLAN_LABELS[tier]}</h3>
+                        <p className="mt-1 text-2xl font-bold text-foreground">
+                          ₺{formatTry(prices.yearly)}
+                          <span className="text-sm font-normal text-muted-foreground">
+                            {' '}
+                            / yıl
+                          </span>
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          ~₺{formatTry(prices.monthlyHint)} / ay
+                        </p>
+                        <p className="mt-3 flex-1 text-sm text-muted-foreground">
+                          {PLAN_DESCRIPTIONS[tier]}
+                        </p>
+                        <Button
+                          type="button"
+                          className="mt-4 w-full"
+                          variant={isSelected ? 'default' : 'outline'}
+                          disabled={selectPlanMutation.isPending}
+                          onClick={() => selectPlanMutation.mutate(tier)}
+                        >
+                          {selectPlanMutation.isPending && isSelected
+                            ? 'Seçiliyor…'
+                            : 'Bu paketi seç'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </CardContent>
           </Card>
         );
-      case 5:
+      case 'complete':
         return (
           <Card className="relative overflow-hidden border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-2 text-center">
@@ -610,12 +847,15 @@ export function OnboardingWizardPage(): ReactElement {
                 Kurulum tamamlandı!
               </CardTitle>
               <CardDescription className="text-base">
-                {orgName} için paneliniz hazır. Aşağıdaki adımlarla hızlıca başlayın.
+                {orgName} için paneliniz hazır.
+                {productSelection === 'ACCOUNTING'
+                  ? ' Ön muhasebe panelinden başlayabilirsiniz.'
+                  : ' Aşağıdaki adımlarla hızlıca başlayın.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="mx-auto flex max-w-md flex-col items-stretch gap-6">
               <ul className="space-y-3 text-sm">
-                {QUICK_START_ITEMS.map((item) => (
+                {quickStartItems.map((item) => (
                   <li key={item.href}>
                     <Link
                       to={item.href}
@@ -653,20 +893,27 @@ export function OnboardingWizardPage(): ReactElement {
     }
   })();
 
+  const isLastContentStep = currentStepId === 'complete';
+  const showNavNext = !isLastContentStep;
+
   return (
     <div className="min-h-screen bg-background px-4 py-8 md:py-12">
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <header className="space-y-2 text-center md:text-left">
           <p className="text-sm font-medium text-muted-foreground">İlk kurulum</p>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            Hesabınızı birkaç adımda hazırlayın
+            {productSelection === 'ACCOUNTING'
+              ? 'Ön muhasebe kurulumunuzu tamamlayın'
+              : productSelection === 'INTEGRATION'
+                ? 'Entegrasyon kurulumunuzu tamamlayın'
+                : 'Hesabınızı birkaç adımda hazırlayın'}
           </h1>
         </header>
 
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
-              Adım {currentStep} / {STEP_COUNT} — {STEP_LABELS[currentStep - 1]}
+              Adım {stepIndex + 1} / {stepCount} — {currentStepLabel}
             </span>
             <span>{progressPercent}%</span>
           </div>
@@ -685,11 +932,11 @@ export function OnboardingWizardPage(): ReactElement {
         </div>
 
         <ol className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-          {Array.from({ length: STEP_COUNT }, (_, i) => i + 1).map((step) => {
-            const done = currentStep > step;
-            const active = currentStep === step;
+          {steps.map((step, i) => {
+            const done = stepIndex > i;
+            const active = stepIndex === i;
             return (
-              <li key={step} className="flex items-center gap-2">
+              <li key={step.id} className="flex items-center gap-2">
                 <span
                   className={cn(
                     'flex h-9 w-9 items-center justify-center rounded-full border text-sm font-medium',
@@ -697,11 +944,11 @@ export function OnboardingWizardPage(): ReactElement {
                     active && !done && 'border-primary bg-primary text-primary-foreground',
                     !active && !done && 'border-muted-foreground/30 text-muted-foreground',
                   )}
-                  title={STEP_LABELS[step - 1]}
+                  title={step.label}
                 >
-                  {done ? <Check className="h-4 w-4" aria-hidden /> : step}
+                  {done ? <Check className="h-4 w-4" aria-hidden /> : i + 1}
                 </span>
-                {step < STEP_COUNT ? (
+                {i < stepCount - 1 ? (
                   <span className="hidden h-px w-4 bg-border sm:block" aria-hidden />
                 ) : null}
               </li>
@@ -712,7 +959,7 @@ export function OnboardingWizardPage(): ReactElement {
         <div>{stepContent}</div>
 
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-          {currentStep > 1 && currentStep < STEP_COUNT ? (
+          {stepIndex > 0 && !isLastContentStep ? (
             <Button type="button" variant="outline" onClick={goBack}>
               <ChevronLeft className="mr-1 h-4 w-4" aria-hidden />
               Geri
@@ -720,7 +967,7 @@ export function OnboardingWizardPage(): ReactElement {
           ) : (
             <span />
           )}
-          {currentStep < STEP_COUNT && currentStep !== 5 ? (
+          {showNavNext ? (
             <Button type="button" onClick={goNext} disabled={!canProceed()}>
               İleri
               <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
@@ -730,4 +977,8 @@ export function OnboardingWizardPage(): ReactElement {
       </div>
     </div>
   );
+}
+
+function formatTry(amount: number): string {
+  return amount.toLocaleString('tr-TR');
 }
