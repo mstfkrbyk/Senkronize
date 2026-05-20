@@ -16,6 +16,7 @@ import {
 import type { MarketplaceOrder } from '@senkronize/shared';
 import type { Queue } from 'bull';
 
+import { PostHogService } from '../analytics/posthog.service';
 import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -57,7 +58,21 @@ export class OrderService {
     private readonly invoiceService: InvoiceService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
+    private readonly posthog: PostHogService,
   ) {}
+
+  recordOrdersSynced(
+    organizationId: string,
+    platform: Marketplace,
+    count: number,
+    durationMs: number,
+  ): void {
+    this.posthog.groupCapture(organizationId, 'orders_synced', {
+      platform,
+      count,
+      duration: durationMs,
+    });
+  }
 
   async findAll(
     organizationId: string,

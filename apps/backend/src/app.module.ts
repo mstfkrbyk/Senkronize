@@ -8,6 +8,7 @@ import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 import { AuditModule } from './audit/audit.module';
 import { AdminModule } from './admin/admin.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { PostHogModule } from './analytics/posthog.module';
 import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
@@ -71,6 +72,7 @@ import { WebhookModule } from './webhook/webhook.module';
       isGlobal: true,
       envFilePath: ['../../.env', '.env'],
     }),
+    PostHogModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([
       { name: 'default', ttl: 60_000, limit: 100 },

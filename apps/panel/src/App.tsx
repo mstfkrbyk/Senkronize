@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { lazy, Suspense } from 'react';
+import posthog from 'posthog-js';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   BrowserRouter,
@@ -18,6 +19,22 @@ import { Toaster } from '@/components/ui/sonner';
 import { AuthLayout } from '@/layouts/AuthLayout';
 import { DashboardLayout } from '@/layouts/DashboardLayout';
 import { queryClient } from '@/lib/queryClient';
+
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST ?? 'https://eu.i.posthog.com',
+    capture_pageview: false,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage',
+    loaded: (ph) => {
+      if (import.meta.env.DEV) {
+        ph.debug();
+      }
+    },
+  });
+}
+
 const LoginPage = lazy(() =>
   import('@/pages/auth/LoginPage').then((m) => ({ default: m.LoginPage })),
 );

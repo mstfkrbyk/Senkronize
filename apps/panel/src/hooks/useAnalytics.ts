@@ -1,8 +1,9 @@
 import * as Sentry from '@sentry/react';
-import { useEffect, useRef } from 'react';
+import posthog from 'posthog-js';
+import { useCallback, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { identifyUser, resetAnalytics, trackPageView } from '@/lib/analytics';
+import { resetAnalytics, trackPageView } from '@/lib/analytics';
 import { useAuthStore } from '@/store/auth.store';
 
 /** Sayfa yükleme süresi izleme */
@@ -26,13 +27,33 @@ export function trackApiError(endpoint: string, status: number): void {
   });
 }
 
-/** Route değişiminde sayfa görüntüleme; oturumda kullanıcı kimliği / çıkışta sıfırlama. */
-export function useAnalytics(): void {
+export function useAnalytics(): {
+  identify: (userId: string, orgId: string, plan: string) => void;
+  track: (event: string, properties?: object) => void;
+} {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const currentOrg = useAuthStore((s) => s.currentOrg);
   const lastTrackedPath = useRef<string>('');
   const navigationStart = useRef<number>(performance.now());
+
+  const identify = useCallback(
+    (userId: string, orgId: string, plan: string): void => {
+      if (!import.meta.env.VITE_POSTHOG_KEY) {
+        return;
+      }
+      posthog.identify(userId, { orgId, plan });
+      posthog.group('organization', orgId, { plan });
+    },
+    [],
+  );
+
+  const track = useCallback((event: string, properties?: object): void => {
+    if (!import.meta.env.VITE_POSTHOG_KEY) {
+      return;
+    }
+    posthog.capture(event, properties);
+  }, []);
 
   useEffect(() => {
     const path = `${location.pathname}${location.search}`;
@@ -53,12 +74,11 @@ export function useAnalytics(): void {
       return;
     }
     if (user && currentOrg) {
-      identifyUser(user.id, {
-        orgId: currentOrg.id,
-        plan: currentOrg.plan,
-      });
+      identify(user.id, currentOrg.id, currentOrg.plan);
     } else {
       resetAnalytics();
     }
-  }, [user, currentOrg]);
+  }, [user, currentOrg, identify]);
+
+  return { identify, track };
 }

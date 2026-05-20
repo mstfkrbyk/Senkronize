@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Marketplace, type MarketplaceConnection } from '@prisma/client';
 
+import { PostHogService } from '../analytics/posthog.service';
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -33,6 +34,7 @@ export class MarketplaceConnectionService {
     private readonly encryptionService: EncryptionService,
     private readonly adapterRegistry: AdapterRegistry,
     private readonly subscriptionService: SubscriptionService,
+    private readonly posthog: PostHogService,
   ) {}
 
   private parseCredentialsRecord(
@@ -453,6 +455,8 @@ export class MarketplaceConnectionService {
     const credentialsEnc = this.encryptionService.encrypt(
       JSON.stringify(dto.credentials),
     );
+    const isFirst = activeCount === 0;
+
     if (existing) {
       const row = await this.prisma.marketplaceConnection.update({
         where: { id: existing.id },
@@ -465,6 +469,10 @@ export class MarketplaceConnectionService {
           lastErrorMessage: null,
         },
       });
+      this.posthog.groupCapture(organizationId, 'marketplace_connected', {
+        platform: dto.platform,
+        isFirst,
+      });
       return this.toPublic(row);
     }
     const row = await this.prisma.marketplaceConnection.create({
@@ -473,6 +481,10 @@ export class MarketplaceConnectionService {
         platform: dto.platform,
         credentialsEnc,
       },
+    });
+    this.posthog.groupCapture(organizationId, 'marketplace_connected', {
+      platform: dto.platform,
+      isFirst,
     });
     return this.toPublic(row);
   }

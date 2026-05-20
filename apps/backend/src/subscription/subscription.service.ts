@@ -15,6 +15,7 @@ import {
   type Subscription,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { PostHogService } from '../analytics/posthog.service';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { EmailService } from '../notifications/email/email.service';
@@ -167,6 +168,7 @@ export class SubscriptionService {
     private readonly partnerService: PartnerService,
     private readonly inAppNotificationService: InAppNotificationService,
     private readonly config: ConfigService,
+    private readonly posthog: PostHogService,
   ) {}
 
   /** Panel taban URL (e-posta bağlantıları) */
@@ -303,6 +305,13 @@ export class SubscriptionService {
         });
     }
 
+    if (PLAN_TIER_RANK[newPlan] > PLAN_TIER_RANK[previousPlan]) {
+      this.posthog.capture(actorUserId, 'subscription_upgraded', {
+        from: previousPlan,
+        to: newPlan,
+      });
+    }
+
     await this.invalidateSubscriptionCache(organizationId);
     return updated;
   }
@@ -409,6 +418,11 @@ export class SubscriptionService {
           });
         });
     }
+
+    this.posthog.capture(actorUserId, 'subscription_cancelled', {
+      plan: sub.plan,
+      reason: trimmedReason,
+    });
 
     await this.invalidateSubscriptionCache(organizationId);
   }

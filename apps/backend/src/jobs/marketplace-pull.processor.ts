@@ -72,6 +72,7 @@ export class MarketplacePullProcessor {
       },
       async () => {
     const { organizationId, platform, since, type } = job.data;
+    const syncStartedAt = Date.now();
     const marketplace = platform as Marketplace;
     const syncLog = await this.syncLogService.startLog(
       organizationId,
@@ -183,6 +184,12 @@ export class MarketplacePullProcessor {
         timestamp: new Date().toISOString(),
       });
       await this.platformHealth.recordSuccess(platform, organizationId);
+      this.orderService.recordOrdersSynced(
+        organizationId,
+        marketplace,
+        orders.length,
+        Date.now() - syncStartedAt,
+      );
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Bilinmeyen hata';

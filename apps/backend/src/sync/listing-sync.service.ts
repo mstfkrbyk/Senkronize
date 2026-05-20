@@ -3,6 +3,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Marketplace } from '@prisma/client';
 import type { Queue } from 'bull';
 
+import { PostHogService } from '../analytics/posthog.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   LISTING_SYNC_JOB_OPTIONS,
@@ -35,6 +36,7 @@ export class ListingSyncService {
     >,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue,
+    private readonly posthog: PostHogService,
   ) {}
 
   async pushProductToAllPlatforms(
@@ -111,6 +113,10 @@ export class ListingSyncService {
         { orgId, productId, platform },
         LISTING_SYNC_JOB_OPTIONS,
       );
+      this.posthog.groupCapture(orgId, 'products_pushed', {
+        platform,
+        count: 1,
+      });
       return {
         platform,
         success: true,
@@ -219,6 +225,13 @@ export class ListingSyncService {
         LISTING_SYNC_JOB_OPTIONS,
       );
       jobIds.push(String(job.id));
+    }
+
+    if (seenProducts.size > 0) {
+      this.posthog.groupCapture(orgId, 'products_pushed', {
+        platform,
+        count: seenProducts.size,
+      });
     }
 
     return {
