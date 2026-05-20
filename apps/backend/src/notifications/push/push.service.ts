@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import type { PushSubscription as WebPushSubscription } from 'web-push';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import type { NotificationEvent } from '../notification.types';
 import type { SubscribePushDto } from './push.dto';
 
 export interface PushNotificationPayload {
@@ -92,6 +93,34 @@ export class PushService implements OnModuleInit {
       where: { userId },
     });
     return count > 0;
+  }
+
+  async send(userId: string, event: NotificationEvent): Promise<void> {
+    const subs = await this.prisma.pushSubscription.findMany({
+      where: { userId },
+    });
+    const panelBase =
+      this.config.get<string>('PANEL_URL') ?? 'https://app.senkronize.com';
+    const url = event.link
+      ? `${panelBase}${event.link.startsWith('/') ? event.link : `/${event.link}`}`
+      : panelBase;
+
+    const payload: PushNotificationPayload = {
+      title: event.title,
+      body: event.message,
+      url,
+    };
+
+    for (const sub of subs) {
+      const keys = sub.keys as { p256dh: string; auth: string };
+      await this.sendToSubscription(
+        {
+          endpoint: sub.endpoint,
+          keys: { p256dh: keys.p256dh, auth: keys.auth },
+        },
+        payload,
+      );
+    }
   }
 
   async sendToSubscription(

@@ -1,3 +1,23 @@
+export interface DigestNotificationRow {
+  eventType: string;
+  title: string;
+  message: string;
+  link: string | null;
+  createdAt: string;
+}
+
+export interface DigestEmailData {
+  recipientName: string;
+  periodLabel: string;
+  totalCount: number;
+  ordersSection: string;
+  stockSection: string;
+  syncSection: string;
+  otherSection: string;
+  panelUrl: string;
+  settingsUrl: string;
+}
+
 export interface WelcomeEmailData {
   name: string;
 }

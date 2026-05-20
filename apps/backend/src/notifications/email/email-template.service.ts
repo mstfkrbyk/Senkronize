@@ -5,6 +5,8 @@ import { join } from 'path';
 
 import type {
   CriticalStockForecastEmailData,
+  DigestEmailData,
+  DigestNotificationRow,
   EmailPreviewTemplate,
   InvoiceEmailData,
   LowStockEmailData,
@@ -245,6 +247,94 @@ export class EmailTemplateService {
       nextPaymentDate: escapeHtml(data.nextPaymentDate),
       unsubscribeUrl: escapeHtml(this.unsubscribeUrl()),
     });
+  }
+
+  buildDigestEmailData(
+    recipientName: string,
+    period: string,
+    notifications: DigestNotificationRow[],
+  ): DigestEmailData {
+    const panelUrl = this.panelBaseUrl();
+    const periodLabel =
+      period === 'weekly' ? 'Haftalık bildirim özeti' : 'Günlük bildirim özeti';
+
+    const orderItems = notifications.filter((n) => n.eventType === 'new_order');
+    const stockItems = notifications.filter((n) =>
+      ['low_stock', 'stock_out'].includes(n.eventType),
+    );
+    const syncItems = notifications.filter((n) => n.eventType === 'sync_error');
+    const otherItems = notifications.filter(
+      (n) =>
+        !['new_order', 'low_stock', 'stock_out', 'sync_error'].includes(
+          n.eventType,
+        ),
+    );
+
+    return {
+      recipientName: escapeHtml(recipientName),
+      periodLabel: escapeHtml(periodLabel),
+      totalCount: notifications.length,
+      ordersSection: this.buildDigestSection('Yeni siparişler', orderItems, panelUrl),
+      stockSection: this.buildDigestSection('Stok uyarıları', stockItems, panelUrl),
+      syncSection: this.buildDigestSection('Senkron hataları', syncItems, panelUrl),
+      otherSection: this.buildDigestSection('Diğer', otherItems, panelUrl),
+      panelUrl: escapeHtml(panelUrl),
+      settingsUrl: escapeHtml(this.unsubscribeUrl()),
+    };
+  }
+
+  renderDigest(data: DigestEmailData): string {
+    return this.renderTemplate('digest', {
+      recipientName: data.recipientName,
+      periodLabel: data.periodLabel,
+      totalCount: String(data.totalCount),
+      ordersSection: data.ordersSection,
+      stockSection: data.stockSection,
+      syncSection: data.syncSection,
+      otherSection: data.otherSection,
+      panelUrl: data.panelUrl,
+      settingsUrl: data.settingsUrl,
+    });
+  }
+
+  private buildDigestSection(
+    heading: string,
+    items: DigestNotificationRow[],
+    panelBase: string,
+  ): string {
+    if (items.length === 0) {
+      return '';
+    }
+    const rows = items
+      .map((item) => {
+        const href = item.link
+          ? `${panelBase}${item.link.startsWith('/') ? item.link : `/${item.link}`}`
+          : panelBase;
+        return `
+        <tr>
+          <td style="padding:12px 16px;border-top:1px solid #e2e8f0;font-family:Arial,Helvetica,sans-serif;">
+            <div style="font-size:14px;font-weight:700;color:#0f172a;">${escapeHtml(item.title)}</div>
+            <div style="font-size:13px;color:#64748b;margin-top:4px;">${escapeHtml(item.message)}</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:6px;">${escapeHtml(item.createdAt)}</div>
+            <a href="${escapeHtml(href)}" style="display:inline-block;margin-top:8px;font-size:13px;color:#38bdf8;text-decoration:none;font-weight:600;">Panele Git →</a>
+          </td>
+        </tr>`;
+      })
+      .join('');
+
+    return `
+    <tr>
+      <td style="padding:16px 24px 0 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;color:#334155;">
+        ${escapeHtml(heading)} (${String(items.length)})
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:8px 24px 16px 24px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+          ${rows}
+        </table>
+      </td>
+    </tr>`;
   }
 
   renderPartnerInvite(data: PartnerInviteData): string {

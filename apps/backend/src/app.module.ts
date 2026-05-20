@@ -14,6 +14,7 @@ import { CommonModule } from './common/common.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DemoModeGuard } from './common/guards/demo-mode.guard';
 import { IpBlockGuard } from './common/guards/ip-block.guard';
+import { CampaignModule } from './campaign/campaign.module';
 import { CategoryModule } from './category/category.module';
 import { CargoModule } from './cargo/cargo.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
@@ -32,6 +33,7 @@ import { MarketplaceConnectionModule } from './marketplace-connection/marketplac
 import { NotificationModule } from './notification/notification.module';
 import { InAppNotificationModule } from './notifications/in-app/in-app-notification.module';
 import { EmailModule } from './notifications/email/email.module';
+import { NotificationsModule } from './notifications/notification.module';
 import { PushModule } from './notifications/push/push.module';
 import { SmsModule } from './notifications/sms/sms.module';
 import { OrderModule } from './order/order.module';
@@ -77,6 +79,7 @@ import { WebhookModule } from './webhook/webhook.module';
     EmailModule,
     SmsModule,
     PushModule,
+    NotificationsModule,
     CommonModule,
     CacheModule,
     CargoModule,
@@ -100,6 +103,7 @@ import { WebhookModule } from './webhook/webhook.module';
     CategoryModule,
     PurchaseOrderModule,
     PricingModule,
+    CampaignModule,
     StockModule,
     SupplierModule,
     WarehouseModule,

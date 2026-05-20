@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
+import type { NotificationEvent } from '../notification.types';
 import type {
   CriticalStockForecastEmailData,
   InvoiceEmailData,
@@ -538,6 +539,82 @@ export class EmailService {
         <a href="${esc(data.adminUrl)}"
            style="background:#0ea5e9;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px">
           Tüm talepleri gör
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendEventEmail(to: string, event: NotificationEvent): Promise<void> {
+    const base = this.panelBaseUrl();
+    const link = event.link
+      ? `${base}${event.link.startsWith('/') ? event.link : `/${event.link}`}`
+      : base;
+    const esc = (s: string): string =>
+      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    await this.send(
+      to,
+      event.title,
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>${esc(event.title)}</h2>
+        <p>${esc(event.message)}</p>
+        <a href="${esc(link)}"
+           style="background:#38bdf8;color:#0f172a;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px;font-weight:600">
+          Panele Git
+        </a>
+      </div>
+    `,
+    );
+  }
+
+  async sendDigestEmail(
+    to: string,
+    data: {
+      period: string;
+      notifications: {
+        eventType: string;
+        title: string;
+        message: string;
+        link: string | null;
+        createdAt: Date;
+      }[];
+    },
+  ): Promise<void> {
+    const rows = data.notifications.map((n) => ({
+      eventType: n.eventType,
+      title: n.title,
+      message: n.message,
+      link: n.link,
+      createdAt: n.createdAt.toLocaleString('tr-TR', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      }),
+    }));
+    const digestData = this.templateService.buildDigestEmailData(
+      'Merhaba',
+      data.period,
+      rows,
+    );
+    const html = this.templateService.renderDigest(digestData);
+    const subject =
+      data.period === 'weekly'
+        ? 'Haftalık bildirim özeti — Senkronize'
+        : 'Günlük bildirim özeti — Senkronize';
+    await this.send(to, subject, html);
+  }
+
+  async sendTestNotification(to: string): Promise<void> {
+    await this.send(
+      to,
+      'Senkronize test bildirimi',
+      `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>Test e-postası</h2>
+        <p>Bildirim ayarlarınız çalışıyor. Bu bir test mesajıdır.</p>
+        <a href="${this.panelBaseUrl()}/settings"
+           style="background:#38bdf8;color:#0f172a;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:16px;font-weight:600">
+          Ayarlara dön
         </a>
       </div>
     `,

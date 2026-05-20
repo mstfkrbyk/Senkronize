@@ -155,6 +155,16 @@ enum Marketplace {
   MANOMANO
   VEEPEE
   TRENDYOL_INT
+  MIGROS_SANAL
+  CARREFOURSA
+  BIM_ONLINE
+  SOK_MARKET
+  TAZE_DIREKT
+  GORILLAS
+  INSTACART
+  ALIBABA_TR
+  TRENDYOL_MILLA
+  SAHIBINDEN_PREMIUM
 }
 
 enum PricingStrategy {
@@ -188,6 +198,10 @@ enum ErpType {
   PROTEL
   SIMPRA
   LOGO_COMMERCE
+  BIZIM_MUHASEBE
+  LOGO_CLOUD
+  FINANS_MUHASEBE
+  MIKRO_BULUT
 }
 
 enum EcommerceType {
@@ -201,6 +215,12 @@ enum EcommerceType {
   AKINON
   IKAS
   SHOPIVERSE
+  SHOPIROLL
+  MEDUSA
+  VENDURE
+  SALEOR
+  IYZICO
+  STRIPE
 }
 
 enum CargoProvider {
@@ -216,6 +236,8 @@ enum CargoProvider {
   SENDEO
   HEPSIJET
   TRENDYOL_EXPRESS
+  NETLOG
+  HOROZ
 }
 
 enum PartnerStatus {
@@ -410,6 +432,7 @@ model Organization {
   webhookEvents             WebhookEvent[]
   webhookLogs               WebhookLog[]
   notificationPreferences   NotificationPreference[]
+  notificationDigestItems   NotificationDigestItem[]
   inAppNotifications        InAppNotification[]
   apiKeys                   ApiKey[]
   userInvites               UserInvite[]
@@ -423,6 +446,7 @@ model Organization {
   webhookEndpoints          WebhookEndpoint[]
   syncConflicts             SyncConflict[]
   supportTickets            SupportTicket[]
+  campaigns                 Campaign[]
 }
 
 /// TCMB ve manuel sistem döviz kurları (kiracıdan bağımsız)
@@ -560,8 +584,9 @@ model User {
   sessions      UserSession[]
   sentInvites   UserInvite[] @relation("UserInvitesSent")
 
-  notificationPreference NotificationPreference?
-  pushSubscriptions      PushSubscription[]
+  notificationPreference  NotificationPreference?
+  notificationDigestItems NotificationDigestItem[]
+  pushSubscriptions       PushSubscription[]
   inAppNotifications       InAppNotification[]
   savedReports             SavedReport[]
   stockCountSessionsStarted StockCountSession[] @relation("StockCountSessionCreatedBy")
@@ -607,15 +632,53 @@ model NotificationPreference {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String       @unique
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  newOrder       Boolean      @default(true)
-  stockAlert     Boolean      @default(true)
-  paymentAlert   Boolean      @default(true)
-  syncError      Boolean      @default(true)
-  emailEnabled   Boolean      @default(true)
-  smsEnabled     Boolean      @default(false)
-  pushEnabled    Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+
+  emailEnabled      Boolean @default(true)
+  emailNewOrder     Boolean @default(true)
+  emailLowStock     Boolean @default(true)
+  emailStockOut     Boolean @default(false)
+  emailSyncError    Boolean @default(true)
+  emailWeeklyReport Boolean @default(true)
+  emailTicketReply  Boolean @default(true)
+  emailPlanExpiry   Boolean @default(true)
+
+  pushEnabled   Boolean @default(false)
+  pushNewOrder  Boolean @default(true)
+  pushLowStock  Boolean @default(false)
+  pushSyncError Boolean @default(true)
+
+  inAppEnabled      Boolean @default(true)
+  inAppSoundEnabled Boolean @default(false)
+
+  digestFrequency String @default("daily")
+  digestHour      Int    @default(9)
+
+  newOrder     Boolean @default(true)
+  stockAlert   Boolean @default(true)
+  paymentAlert Boolean @default(true)
+  syncError    Boolean @default(true)
+  smsEnabled   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model NotificationDigestItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  eventType      String
+  title          String
+  message        String
+  link           String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([organizationId])
 }
 
 model Subscription {
@@ -1469,4 +1532,57 @@ model TicketMessage {
   user   User          @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([ticketId])
+}
+
+enum CampaignType {
+  FLASH_SALE
+  SEASONAL
+  CLEARANCE
+  BUNDLE
+  LOYALTY
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+model Campaign {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  type           CampaignType
+  status         CampaignStatus
+
+  startDate DateTime
+  endDate   DateTime?
+
+  platforms   String[]
+  productIds  String[]
+  categoryIds String[]
+
+  discountType  String
+  discountValue Decimal  @db.Decimal(10, 2)
+  minPrice      Decimal? @db.Decimal(10, 2)
+
+  minOrderAmount Decimal? @db.Decimal(10, 2)
+  maxUses        Int?
+
+  usageCount  Int @default(0)
+  impressions Int @default(0)
+
+  /// Aktivasyon öncesi fiyat anlık görüntüleri: { [listingId]: { salePrice, listPrice } }
+  originalPrices Json?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, deletedAt])
 }

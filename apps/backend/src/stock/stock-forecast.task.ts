@@ -69,7 +69,8 @@ export class StockForecastTask {
         where: { userId: admin.id },
       });
       const emailAllowed =
-        pref == null || (pref.emailEnabled && pref.stockAlert);
+        pref == null ||
+        (pref.emailEnabled && (pref.emailLowStock || pref.stockAlert));
 
       const samples = critical.slice(0, 12);
       const forecastUrl = `${this.panelBaseUrl()}/stock/forecast`;
