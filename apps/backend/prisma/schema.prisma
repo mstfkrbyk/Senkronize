@@ -262,6 +262,17 @@ enum ErpType {
   SAGE50
   LIGHTSPEED
   VEND_POS
+  ZIRVE_BULUT
+  MIKRO_ERP
+  ISBIR_ERP
+  ALICI_ERP
+  HIZLI_MUHASEBE
+  IDEASOFT_ERP
+  VETASSOFT
+  PROBIL
+  ETRADE_ERP
+  ZOHO_BOOKS
+  FRESHBOOKS
 }
 
 enum EcommerceType {
@@ -544,6 +555,7 @@ model Organization {
   productMatches            ProductMatch[]
   webhookEndpoints          WebhookEndpoint[]
   syncConflicts             SyncConflict[]
+  syncLogs                  SyncLog[]
   supportTickets            SupportTicket[]
   campaigns                 Campaign[]
   priceAlerts               PriceAlert[]

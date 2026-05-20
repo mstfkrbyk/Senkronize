@@ -3,7 +3,7 @@ import type { ReactElement } from 'react';
 
 import { FaqAccordion } from '@/components/faq/FaqAccordion';
 import { JsonLd } from '@/components/seo/JsonLd';
-import { FAQ_PAGE_CATEGORIES } from '@/lib/faq-page-data';
+import { FAQ_PAGE_CATEGORIES, FAQ_PAGE_FLAT } from '@/lib/faq-page-data';
 
 const ogDescription =
   'Senkronize hakkında sık sorulan sorular: genel bilgiler, fiyatlandırma, teknik konular ve partner programı.';
@@ -29,16 +29,14 @@ export const metadata: Metadata = {
 const faqPageLd: Record<string, unknown> = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
-  mainEntity: FAQ_PAGE_CATEGORIES.flatMap((category) =>
-    category.questions.map((item) => ({
-      '@type': 'Question',
-      name: item.q,
-      acceptedAnswer: {
-        '@type': 'Answer',
-        text: item.a,
-      },
-    })),
-  ),
+  mainEntity: FAQ_PAGE_FLAT.map((item) => ({
+    '@type': 'Question',
+    name: item.q,
+    acceptedAnswer: {
+      '@type': 'Answer',
+      text: item.a,
+    },
+  })),
 };
 
 export default function FaqPage(): ReactElement {

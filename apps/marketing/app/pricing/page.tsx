@@ -2,13 +2,14 @@ import type { Metadata } from 'next';
 import type { ReactElement } from 'react';
 import { Suspense } from 'react';
 
+import { PricingEarlyAccess } from '@/components/pricing/PricingEarlyAccess';
 import { PricingPageViewTracker } from '@/components/pricing/PricingPageViewTracker';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { PLANS, PRICING_FAQ } from '@/lib/site-content';
 
 const ogDescription =
-  'Başlangıç, Gelişim, Pro ve Kurumsal planlarıyla şeffaf yıllık fiyatlandırma, 14 gün ücretsiz deneme, karşılaştırma tablosu ve SSS.';
+  'Başlangıç, Gelişim, Pro ve Kurumsal planları — yıllık faturalama, karşılaştırma tablosu, erken kayıt listesi ve 14 gün ücretsiz deneme.';
 
 export const metadata: Metadata = {
   title: 'Fiyatlandırma — Paketler ve Karşılaştırma',
@@ -39,7 +40,7 @@ const pricingProductsLd: Record<string, unknown> = {
   '@graph': PLANS.map((plan) => ({
     '@type': 'Product',
     name: `Senkronize ${plan.name}`,
-    description: `Senkronize ${plan.name} planı — yıllık abonelik (KDV hariç).`,
+    description: plan.features.join('. '),
     brand: {
       '@type': 'Brand',
       name: 'Senkronize',
@@ -48,14 +49,10 @@ const pricingProductsLd: Record<string, unknown> = {
       '@type': 'Offer',
       url: 'https://senkronize.com/pricing',
       priceCurrency: 'TRY',
-      price: String(plan.yearlyPrice),
-      availability: 'https://schema.org/InStock',
-      priceSpecification: {
-        '@type': 'UnitPriceSpecification',
-        price: String(plan.yearlyPrice),
-        priceCurrency: 'TRY',
-        billingDuration: 'P1Y',
-      },
+      availability: plan.isEnterprise
+        ? 'https://schema.org/PreOrder'
+        : 'https://schema.org/PreOrder',
+      description: plan.isEnterprise ? plan.priceLabel : `${plan.priceLabel} — ${plan.status}`,
     },
   })),
 };
@@ -69,6 +66,7 @@ export default function PricingPage(): ReactElement {
       </Suspense>
       <main>
         <PricingSection spacious showComparison />
+        <PricingEarlyAccess />
         <section className="border-t border-border bg-[#F9FAFB] py-16 sm:py-20">
           <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
             <h2 className="text-center text-2xl font-bold text-[#111827] sm:text-3xl">

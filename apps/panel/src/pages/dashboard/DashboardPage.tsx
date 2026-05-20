@@ -1,20 +1,15 @@
-import { LayoutGrid, PlugZap, ShoppingCart, TrendingUp, AlertTriangle, Trophy } from 'lucide-react';
+import { LayoutGrid, PlugZap, Plus, RotateCcw, Save } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-import { ActivityFeedWidget } from '@/components/widgets/ActivityFeedWidget';
-import { ForecastCriticalWidget } from '@/components/widgets/ForecastCriticalWidget';
-import { KpiWidget } from '@/components/widgets/KpiWidget';
 import { LowStockWidget } from '@/components/widgets/LowStockWidget';
-import { OrdersTrendWidget } from '@/components/widgets/OrdersTrendWidget';
 import { PlatformDistributionWidget } from '@/components/widgets/PlatformDistributionWidget';
 import { RecentOrdersWidget } from '@/components/widgets/RecentOrdersWidget';
 import { RevenueChartWidget } from '@/components/widgets/RevenueChartWidget';
-import { SyncStatusWidget } from '@/components/widgets/SyncStatusWidget';
 import { EmptyState } from '@/components/EmptyState';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,10 +22,14 @@ import { saveOfflineSnapshot } from '@/lib/offline-cache';
 import type { DashboardApiSummary } from '@/types/dashboard-widgets';
 import type { WidgetType } from '@/types/dashboard-widgets';
 
-import { DashboardCustomizeSheet } from './DashboardCustomizeSheet';
-import { widgetGridClass } from './widget-meta';
-
-type KpiPeriod = 'default' | '24h' | '7d' | 'month';
+import { DashboardAddWidgetDialog } from './DashboardAddWidgetDialog';
+import { DashboardKpiRow } from './DashboardKpiRow';
+import { DashboardWidgetGrid } from './DashboardWidgetGrid';
+import { ALL_WIDGET_TYPES } from './widget-meta';
+import { BuyboxRateWidget } from './widgets/BuyboxRateWidget';
+import { OrdersSummaryWidget } from './widgets/OrdersSummaryWidget';
+import { SyncStatusWidget } from './widgets/SyncStatusWidget';
+import { TopProductsWidget } from './widgets/TopProductsWidget';
 
 function formatTry(amount: number): string {
   return new Intl.NumberFormat('tr-TR', {
@@ -47,15 +46,32 @@ export function DashboardPage(): ReactElement {
   const { socket } = useSocket();
   useDashboardRealtime();
 
-  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>('default');
-  const [customizeOpen, setCustomizeOpen] = useState(false);
-  const { widgets, enabledTypes, saveWidgets } = useDashboardWidgets();
+  const [editMode, setEditMode] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  const {
+    widgets: savedWidgets,
+    saveWidgets,
+    resetToDefault,
+    removeWidget,
+    addWidget,
+  } = useDashboardWidgets();
+
+  const [draftWidgets, setDraftWidgets] = useState(savedWidgets);
+
+  useEffect(() => {
+    if (!editMode) {
+      setDraftWidgets(savedWidgets);
+    }
+  }, [editMode, savedWidgets]);
+
+  const displayWidgets = editMode ? draftWidgets : savedWidgets;
 
   const summaryQuery = useQuery({
-    queryKey: ['dashboard', 'summary', kpiPeriod],
+    queryKey: ['dashboard', 'summary', 'default'],
     queryFn: async (): Promise<DashboardApiSummary> => {
       const { data } = await api.get<DashboardApiSummary>('/dashboard/summary', {
-        params: { period: kpiPeriod },
+        params: { period: 'default' },
       });
       return data;
     },
@@ -77,18 +93,6 @@ export function DashboardPage(): ReactElement {
     });
   }, [dash]);
 
-  const ordersTitle =
-    kpiPeriod === 'default'
-      ? t('dashboard.ordersToday')
-      : kpiPeriod === '24h'
-        ? t('dashboard.orders24h')
-        : kpiPeriod === '7d'
-          ? t('dashboard.orders7d')
-          : t('dashboard.ordersMonth');
-
-  const ordersDeltaCaption =
-    kpiPeriod === 'default' ? 'düne göre' : 'önceki döneme göre';
-
   useEffect(() => {
     if (!socket) {
       return undefined;
@@ -108,81 +112,53 @@ export function DashboardPage(): ReactElement {
       toast.success('Yeni sipariş', { description, duration: 5000 });
     };
     socket.on('order:new', onOrderNew);
+    socket.on('order:created', onOrderNew);
     return (): void => {
       socket.off('order:new', onOrderNew);
+      socket.off('order:created', onOrderNew);
     };
   }, [socket]);
 
+  const availableToAdd = useMemo(() => {
+    const enabled = new Set(displayWidgets.map((w) => w.type));
+    return ALL_WIDGET_TYPES.filter((type) => !enabled.has(type));
+  }, [displayWidgets]);
+
   const renderWidget = (type: WidgetType): ReactElement | null => {
     switch (type) {
-      case 'kpi_orders':
-        return (
-          <KpiWidget
-            title={ordersTitle}
-            value={dash?.todayOrders ?? '—'}
-            change={dash?.todayOrdersDelta ?? 0}
-            changeCaption={ordersDeltaCaption}
-            icon={ShoppingCart}
-            color="blue"
-            loading={kpiLoading}
-          />
-        );
-      case 'kpi_revenue':
-        return (
-          <KpiWidget
-            title="Gelir"
-            value={dash ? formatTry(dash.revenueTry) : '—'}
-            change={dash?.revenueDeltaPct ?? 0}
-            changeCaption={ordersDeltaCaption}
-            icon={TrendingUp}
-            color="green"
-            loading={kpiLoading}
-          />
-        );
-      case 'kpi_stock_alerts':
-        return (
-          <KpiWidget
-            title={t('dashboard.lowStock')}
-            value={dash?.lowStockCount ?? '—'}
-            change={0}
-            changeCaption="stok 1–5 arası"
-            icon={AlertTriangle}
-            color="yellow"
-            href="/listings?stockTier=LOW"
-            loading={kpiLoading}
-          />
-        );
-      case 'kpi_buybox_rate':
-        return (
-          <KpiWidget
-            title="BuyBox oranı"
-            value={dash ? `${String(dash.buyboxWinRatePct)}%` : '—'}
-            change={dash?.buyboxWinRateDeltaPct ?? 0}
-            changeCaption="son 7 güne göre"
-            icon={Trophy}
-            color="purple"
-            href="/pricing"
-            loading={kpiLoading}
-          />
-        );
-      case 'chart_orders':
-        return <OrdersTrendWidget />;
-      case 'chart_revenue':
+      case 'revenue-chart':
         return <RevenueChartWidget />;
-      case 'chart_platform':
+      case 'orders-summary':
+        return <OrdersSummaryWidget />;
+      case 'platform-breakdown':
         return <PlatformDistributionWidget />;
-      case 'table_recent_orders':
-        return <RecentOrdersWidget />;
-      case 'table_low_stock':
+      case 'stock-alerts':
         return <LowStockWidget />;
-      case 'activity_feed':
-        return <ActivityFeedWidget />;
-      case 'sync_status':
+      case 'sync-status':
         return <SyncStatusWidget />;
-      case 'forecast_critical':
-        return <ForecastCriticalWidget />;
+      case 'top-products':
+        return <TopProductsWidget />;
+      case 'recent-orders':
+        return <RecentOrdersWidget />;
+      case 'buybox-rate':
+        return <BuyboxRateWidget />;
       default:
         return null;
+    }
+  };
+
+  const handleSaveLayout = (): void => {
+    saveWidgets(draftWidgets);
+    setEditMode(false);
+    toast.success('Dashboard düzeni kaydedildi.');
+  };
+
+  const handleResetDefault = (): void => {
+    const defaults = resetToDefault();
+    setDraftWidgets(defaults);
+    if (!editMode) {
+      saveWidgets(defaults);
+      toast.success('Varsayılan düzen yüklendi.');
     }
   };
 
@@ -196,41 +172,67 @@ export function DashboardPage(): ReactElement {
           <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex flex-wrap gap-1">
-            {(
-              [
-                { id: 'default' as const, label: 'Bugün' },
-                { id: '24h' as const, label: '24s' },
-                { id: '7d' as const, label: '7g' },
-                { id: 'month' as const, label: 'Ay' },
-              ] as const
-            ).map((p) => (
+          {editMode ? (
+            <>
               <Button
-                key={p.id}
                 type="button"
                 size="sm"
-                variant={kpiPeriod === p.id ? 'default' : 'outline'}
+                variant="outline"
                 onClick={() => {
-                  setKpiPeriod(p.id);
+                  setAddDialogOpen(true);
                 }}
               >
-                {p.label}
+                <Plus className="mr-1.5 h-4 w-4" aria-hidden />
+                Widget Ekle
               </Button>
-            ))}
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setCustomizeOpen(true);
-            }}
-          >
-            <LayoutGrid className="mr-1.5 h-4 w-4" aria-hidden />
-            Düzenle
-          </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleResetDefault}
+              >
+                <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden />
+                Varsayılana Döndür
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                onClick={handleSaveLayout}
+              >
+                <Save className="mr-1.5 h-4 w-4" aria-hidden />
+                Kaydet
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDraftWidgets(savedWidgets);
+                  setEditMode(false);
+                }}
+              >
+                İptal
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setDraftWidgets(savedWidgets);
+                setEditMode(true);
+              }}
+            >
+              <LayoutGrid className="mr-1.5 h-4 w-4" aria-hidden />
+              Düzenle
+            </Button>
+          )}
         </div>
       </div>
+
+      <DashboardKpiRow dash={dash} loading={kpiLoading} />
 
       {!kpiLoading && dash && dash.totalConnections === 0 ? (
         <Card className="border-dashed bg-muted/20">
@@ -256,20 +258,23 @@ export function DashboardPage(): ReactElement {
         </Card>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 auto-rows-min">
-        {widgets.map((widget) => (
-          <div key={widget.id} className={widgetGridClass(widget.size)}>
-            {renderWidget(widget.type)}
-          </div>
-        ))}
-      </div>
+      <DashboardWidgetGrid
+        widgets={displayWidgets}
+        editMode={editMode}
+        onReorder={setDraftWidgets}
+        onRemove={(type) => {
+          setDraftWidgets((prev) => removeWidget(prev, type));
+        }}
+        renderWidget={renderWidget}
+      />
 
-      <DashboardCustomizeSheet
-        open={customizeOpen}
-        onOpenChange={setCustomizeOpen}
-        enabledTypes={enabledTypes}
-        widgets={widgets}
-        onSave={saveWidgets}
+      <DashboardAddWidgetDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        availableTypes={availableToAdd}
+        onAdd={(type) => {
+          setDraftWidgets((prev) => addWidget(prev, type));
+        }}
       />
     </div>
   );

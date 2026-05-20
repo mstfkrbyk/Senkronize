@@ -1,5 +1,6 @@
 import type { FaqCategory } from '@/components/faq/FaqAccordion';
 
+/** SSS sayfası — 15 soru (JSON-LD için düz liste: FAQ_PAGE_FLAT) */
 export const FAQ_PAGE_CATEGORIES: FaqCategory[] = [
   {
     category: 'Genel',
@@ -9,60 +10,81 @@ export const FAQ_PAGE_CATEGORIES: FaqCategory[] = [
         a: 'Senkronize, e-ticaret mağazanızı Trendyol, Hepsiburada, N11 gibi pazaryerleri ve BizimHesap, Paraşüt gibi ERP sistemleri ile entegre eden bulut tabanlı bir SaaS platformudur.',
       },
       {
-        q: 'Hangi pazaryerlerini destekliyorsunuz?',
-        a: 'Trendyol, Hepsiburada, N11, Çiçeksepeti, Amazon.com.tr, PTT AVM ve Pazarama desteklenmektedir. Yeni platformlar sürekli eklenmektedir.',
+        q: 'Sözleşme var mı?',
+        a: 'Hayır. Aylık veya yıllık abonelik modeliyle çalışıyoruz; uzun süreli bağlayıcı sözleşme zorunluluğu yoktur. İstediğiniz zaman iptal edebilirsiniz.',
       },
       {
-        q: 'Deneme süresi var mı?',
-        a: '14 gün ücretsiz deneme sunuyoruz. Kredi kartı bilgisi gerekmez.',
+        q: '14 gün deneme nasıl çalışır?',
+        a: 'Kayıt sonrası 14 gün boyunca seçtiğiniz planın özelliklerini ücretsiz deneyebilirsiniz. Kredi kartı gerekmez; süre bitiminde devam etmek için sizden onay alınır.',
+      },
+      {
+        q: 'Hangi pazaryerlerini destekliyorsunuz?',
+        a: 'Trendyol, Hepsiburada, N11, Çiçeksepeti, Amazon.com.tr, PTT AVM ve Pazarama desteklenmektedir. Yeni platformlar yol haritamıza göre eklenmektedir.',
+      },
+      {
+        q: 'ERP entegrasyonu nedir?',
+        a: 'Sipariş onaylandığında faturalama ve stok hareketleri BizimHesap, Paraşüt, Logo Tiger, Mikro ERP, Luca gibi sistemlere otomatik aktarılır; manuel veri girişi ortadan kalkar.',
       },
     ],
   },
   {
-    category: 'Fiyatlandırma',
+    category: 'Ürün ve Güvenlik',
+    questions: [
+      {
+        q: 'BuyBox nedir, nasıl çalışır?',
+        a: 'BuyBox, pazaryerinde aynı ürünü satan satıcılar arasında öne çıkan teklif kutusudur. Pro plandaki BuyBox AI, marj kurallarınızı koruyarak fiyat önerileri sunar ve görünürlüğünüzü artırmayı hedefler.',
+      },
+      {
+        q: 'Verilerim güvende mi?',
+        a: 'API anahtarları ve ERP şifreleri AES-256-GCM ile şifrelenir. Verileriniz Türkiye ve AB GDPR uyumlu veri merkezlerinde saklanır; hassas bilgiler loglara yazılmaz.',
+      },
+      {
+        q: 'Desktop uygulaması ne işe yarar?',
+        a: 'Windows ve macOS için Tauri tabanlı masaüstü uygulama, şirket içi veya kapalı ağdaki ERP sistemlerine güvenli köprü sağlar; bulut paneli ile birlikte çalışır.',
+      },
+      {
+        q: 'Gerçek zamanlı senkronizasyon nasıl çalışır?',
+        a: 'Webhook ve WebSocket mimarisi ile stok, fiyat ve sipariş değişiklikleri saniyeler içinde tüm bağlı kanallara yansır.',
+      },
+    ],
+  },
+  {
+    category: 'Fiyatlandırma ve Destek',
     questions: [
       {
         q: 'Ücretlendirme nasıl çalışıyor?',
-        a: 'Aylık veya yıllık abonelik modeliyle çalışıyoruz. Yıllık planlar %20 indirimlidir.',
-      },
-      {
-        q: 'Ödeme aldıktan sonra iptal edebilir miyim?',
-        a: 'Ödeme gerçekleştikten sonra iade yapılmamaktadır. Aboneliğinizi iptal ederseniz, kalan süre boyunca hizmeti kullanmaya devam edebilirsiniz.',
+        a: 'Paketler yıllık faturalama ile sunulur (KDV hariç). Aylık eşdeğer tutarlar karşılaştırma amaçlıdır; fiyatlar resmi lansman öncesi erken kayıt listesinden duyurulacaktır.',
       },
       {
         q: 'Plan değişikliği yapabilir miyim?',
-        a: 'Evet, dilediğiniz zaman planınızı yükseltebilirsiniz.',
-      },
-    ],
-  },
-  {
-    category: 'Teknik',
-    questions: [
-      {
-        q: 'Verilerimi güvende mi?',
-        a: "Tüm veriler AES-256-GCM şifreleme ile korunmaktadır. Sunucularımız Türkiye'de ve AB GDPR uyumlu veri merkezlerinde yer almaktadır.",
+        a: 'Evet. Dilediğiniz zaman planınızı yükseltebilirsiniz; fark ücreti dönem sonuna göre hesaplanır.',
       },
       {
-        q: 'On-premise ERP sistemleri destekleniyor mu?',
-        a: 'Evet! Logo Tiger, Mikro ve Netsis gibi on-premise ERP sistemleri için masaüstü uygulamanızı kurarak entegrasyon sağlayabilirsiniz.',
+        q: 'Teknik destek var mı?',
+        a: 'Tüm planlarda e-posta desteği sunulur. Gelişim ve üzeri planlarda öncelikli destek; Pro ve Kurumsal planlarda genişletilmiş SLA seçenekleri mevcuttur.',
       },
       {
         q: 'API erişimi var mı?',
-        a: 'PRO plan aboneleri API anahtarı oluşturabilir ve tüm özelliklerimize REST API üzerinden erişebilir.',
+        a: 'Pro ve Kurumsal plan aboneleri API anahtarı oluşturabilir ve REST API ile sipariş, stok ve katalog işlemlerine erişebilir.',
       },
     ],
   },
   {
-    category: 'Partner Sistemi',
+    category: 'Partner',
     questions: [
       {
-        q: 'Partner programı nedir?',
-        a: 'E-ticaret ajansları ve danışmanlar partner olarak müşterilerini Senkronize üzerinden yönetebilir ve her abonelikten komisyon kazanabilir.',
+        q: 'Partner / bayi sistemi nedir?',
+        a: 'E-ticaret ajansları ve danışmanlar, müşteri organizasyonlarına güvenli erişimle hizmet verir. Impersonation ve denetim kayıtları audit log ile izlenir.',
       },
       {
         q: 'Partner olmak için ne gerekiyor?',
-        a: 'Hesabınızı oluşturduktan sonra partner başvurusu yapabilirsiniz. Onay sonrasında müşteri daveti gönderebilirsiniz.',
+        a: 'Hesap oluşturduktan sonra partner başvurusu yapabilirsiniz. Onay sonrası müşteri daveti göndererek çoklu organizasyon yönetimi kullanabilirsiniz.',
       },
     ],
   },
 ];
+
+/** JSON-LD FAQPage — tüm sorular */
+export const FAQ_PAGE_FLAT: { q: string; a: string }[] = FAQ_PAGE_CATEGORIES.flatMap(
+  (c) => c.questions,
+);

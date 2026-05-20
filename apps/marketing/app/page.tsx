@@ -6,6 +6,10 @@ import { CTASection } from '@/components/CTASection';
 import { ExitIntentNewsletter } from '@/components/ExitIntentNewsletter';
 import { FeaturesSection } from '@/components/FeaturesSection';
 import { HeroSection } from '@/components/HeroSection';
+import { BetaCountdownSection } from '@/components/home/BetaCountdownSection';
+import { DemoVideoSection } from '@/components/home/DemoVideoSection';
+import { SocialProofSection } from '@/components/home/SocialProofSection';
+import { StickyCtaBar } from '@/components/home/StickyCtaBar';
 import { PlatformLogoMarquee } from '@/components/PlatformLogoMarquee';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
@@ -25,12 +29,9 @@ const homeSoftwareLd: Record<string, unknown> = {
     'Trendyol, Hepsiburada ve tüm pazaryerlerinizi tek panelden yönetin',
   offers: {
     '@type': 'Offer',
-    price: '2900',
+    price: '0',
     priceCurrency: 'TRY',
-    priceSpecification: {
-      '@type': 'UnitPriceSpecification',
-      billingDuration: 'P1Y',
-    },
+    description: '14 gün ücretsiz deneme',
   },
   aggregateRating: {
     '@type': 'AggregateRating',
@@ -83,15 +84,19 @@ export default function HomePage(): ReactElement {
       <JsonLd data={homeSoftwareLd} />
       <main>
         <HeroSection />
+        <SocialProofSection />
         <PlatformLogoMarquee />
         <StatsSection />
+        <DemoVideoSection />
         <ComparisonTableSection />
+        <BetaCountdownSection />
         <FeaturesSection />
         <PricingSection variant="teaser" />
         <TestimonialsSection />
         <CTASection />
         <ExitIntentNewsletter />
       </main>
+      <StickyCtaBar />
     </>
   );
 }

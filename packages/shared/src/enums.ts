@@ -213,7 +213,28 @@ export type ErpType =
   | 'BIZIM_MUHASEBE'
   | 'LOGO_CLOUD'
   | 'FINANS_MUHASEBE'
-  | 'MIKRO_BULUT';
+  | 'MIKRO_BULUT'
+  | 'NETSUITE'
+  | 'DYNAMICS365'
+  | 'ODOO'
+  | 'EPICOR'
+  | 'IQRA_ERP'
+  | 'QUICKBOOKS'
+  | 'XERO'
+  | 'SAGE50'
+  | 'LIGHTSPEED'
+  | 'VEND_POS'
+  | 'ZIRVE_BULUT'
+  | 'MIKRO_ERP'
+  | 'ISBIR_ERP'
+  | 'ALICI_ERP'
+  | 'HIZLI_MUHASEBE'
+  | 'IDEASOFT_ERP'
+  | 'VETASSOFT'
+  | 'PROBIL'
+  | 'ETRADE_ERP'
+  | 'ZOHO_BOOKS'
+  | 'FRESHBOOKS';
 
 /** Prisma `EcommerceType` ile uyumlu */
 export type EcommerceType =

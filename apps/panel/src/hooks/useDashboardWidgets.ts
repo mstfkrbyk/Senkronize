@@ -3,9 +3,12 @@ import { useCallback, useMemo, useState } from 'react';
 import {
   DEFAULT_WIDGETS,
   WIDGET_STORAGE_KEY,
+  parseStoredWidgets,
   type Widget,
   type WidgetType,
 } from '@/types/dashboard-widgets';
+
+import { WIDGET_DEFAULT_SIZE } from '@/pages/dashboard/widget-meta';
 
 function loadWidgets(): Widget[] {
   try {
@@ -13,11 +16,7 @@ function loadWidgets(): Widget[] {
     if (!raw) {
       return DEFAULT_WIDGETS;
     }
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      return DEFAULT_WIDGETS;
-    }
-    return parsed as Widget[];
+    return parseStoredWidgets(JSON.parse(raw) as unknown);
   } catch {
     return DEFAULT_WIDGETS;
   }
@@ -30,9 +29,11 @@ function sortByPosition(widgets: Widget[]): Widget[] {
 export function useDashboardWidgets(): {
   widgets: Widget[];
   enabledTypes: Set<WidgetType>;
-  toggleWidget: (type: WidgetType, enabled: boolean) => void;
   saveWidgets: (draft: Widget[]) => void;
-  resetToDefault: () => void;
+  resetToDefault: () => Widget[];
+  removeWidget: (widgets: Widget[], type: WidgetType) => Widget[];
+  addWidget: (widgets: Widget[], type: WidgetType) => Widget[];
+  reorderWidgets: (widgets: Widget[], activeId: string, overId: string) => Widget[];
 } {
   const [widgets, setWidgets] = useState<Widget[]>(() => sortByPosition(loadWidgets()));
 
@@ -42,43 +43,12 @@ export function useDashboardWidgets(): {
   );
 
   const persist = useCallback((next: Widget[]): void => {
-    const sorted = sortByPosition(next);
+    const sorted = sortByPosition(
+      next.map((w, index) => ({ ...w, position: index })),
+    );
     setWidgets(sorted);
     localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(sorted));
   }, []);
-
-  const toggleWidget = useCallback(
-    (type: WidgetType, enabled: boolean): void => {
-      setWidgets((prev) => {
-        const has = prev.some((w) => w.type === type);
-        if (enabled && has) {
-          return prev;
-        }
-        if (!enabled && !has) {
-          return prev;
-        }
-        if (!enabled) {
-          const next = prev.filter((w) => w.type !== type);
-          localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(sortByPosition(next)));
-          return next;
-        }
-        const meta = DEFAULT_WIDGETS.find((w) => w.type === type);
-        const maxPos = prev.reduce((m, w) => Math.max(m, w.position), -1);
-        const next: Widget[] = [
-          ...prev,
-          {
-            id: meta?.id ?? `w-${type}`,
-            type,
-            size: meta?.size ?? '1x1',
-            position: maxPos + 1,
-          },
-        ];
-        localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(sortByPosition(next)));
-        return next;
-      });
-    },
-    [],
-  );
 
   const saveWidgets = useCallback(
     (draft: Widget[]): void => {
@@ -87,15 +57,52 @@ export function useDashboardWidgets(): {
     [persist],
   );
 
-  const resetToDefault = useCallback((): void => {
-    persist(DEFAULT_WIDGETS);
-  }, [persist]);
+  const resetToDefault = useCallback((): Widget[] => {
+    return sortByPosition(DEFAULT_WIDGETS);
+  }, []);
+
+  const removeWidget = useCallback((list: Widget[], type: WidgetType): Widget[] => {
+    return sortByPosition(list.filter((w) => w.type !== type));
+  }, []);
+
+  const addWidget = useCallback((list: Widget[], type: WidgetType): Widget[] => {
+    if (list.some((w) => w.type === type)) {
+      return list;
+    }
+    const maxPos = list.reduce((m, w) => Math.max(m, w.position), -1);
+    return sortByPosition([
+      ...list,
+      {
+        id: `w-${type}-${String(Date.now())}`,
+        type,
+        size: WIDGET_DEFAULT_SIZE[type],
+        position: maxPos + 1,
+      },
+    ]);
+  }, []);
+
+  const reorderWidgets = useCallback(
+    (list: Widget[], activeId: string, overId: string): Widget[] => {
+      const oldIndex = list.findIndex((w) => w.id === activeId);
+      const newIndex = list.findIndex((w) => w.id === overId);
+      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
+        return list;
+      }
+      const next = [...list];
+      const [moved] = next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, moved);
+      return sortByPosition(next.map((w, index) => ({ ...w, position: index })));
+    },
+    [],
+  );
 
   return {
     widgets: sortByPosition(widgets),
     enabledTypes,
-    toggleWidget,
     saveWidgets,
     resetToDefault,
+    removeWidget,
+    addWidget,
+    reorderWidgets,
   };
 }

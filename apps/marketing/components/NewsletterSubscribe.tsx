@@ -4,7 +4,7 @@ import { useCallback, useState, type FormEvent, type ReactElement } from 'react'
 
 import { Button } from '@/components/ui/button';
 
-export type NewsletterSubscribeVariant = 'footer' | 'exit';
+export type NewsletterSubscribeVariant = 'footer' | 'exit' | 'pricing';
 
 export interface NewsletterSubscribeProps {
   variant: NewsletterSubscribeVariant;
@@ -60,13 +60,16 @@ export function NewsletterSubscribe({
   );
 
   const isFooter = variant === 'footer';
+  const isPricing = variant === 'pricing';
 
   return (
     <div
       className={
         isFooter
           ? 'rounded-xl border border-border bg-card p-5 shadow-sm'
-          : 'space-y-3'
+          : isPricing
+            ? 'rounded-xl border border-border bg-card p-6 shadow-sm'
+            : 'space-y-3'
       }
     >
       {isFooter ? (
@@ -78,6 +81,11 @@ export function NewsletterSubscribe({
             E-ticaret entegrasyonu, BuyBox ve operasyon ipuçları doğrudan gelen kutunuza.
           </p>
         </>
+      ) : null}
+      {isPricing ? (
+        <p className="mb-4 text-sm text-muted-foreground">
+          E-posta adresinizi bırakın; fiyatlar açıklandığında ilk siz haberdar olun.
+        </p>
       ) : null}
       <form onSubmit={onSubmit} className="flex flex-col gap-2 sm:flex-row">
         <label className="sr-only" htmlFor={`newsletter-email-${variant}`}>
@@ -95,7 +103,11 @@ export function NewsletterSubscribe({
           className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
         <Button type="submit" disabled={status === 'loading'} className="shrink-0">
-          {status === 'loading' ? 'Gönderiliyor…' : 'Kaydol'}
+          {status === 'loading'
+            ? 'Gönderiliyor…'
+            : isPricing
+              ? 'Listeye Katıl'
+              : 'Kaydol'}
         </Button>
       </form>
       {message ? (

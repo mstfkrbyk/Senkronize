@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Check, Minus } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, type ReactElement } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -22,11 +23,6 @@ import {
   type ComparisonCell,
   type PlanColumnKey,
 } from '@/lib/site-content';
-import Link from 'next/link';
-
-function formatTry(amount: number): string {
-  return amount.toLocaleString('tr-TR');
-}
 
 function renderComparisonCell(value: ComparisonCell): ReactElement {
   if (value === 'check') {
@@ -43,11 +39,8 @@ function renderComparisonCell(value: ComparisonCell): ReactElement {
 }
 
 interface PricingSectionProps {
-  /** Daha geniş üst boşluk (tam sayfa kullanımı için) */
   spacious?: boolean;
-  /** Karşılaştırma tablosu (fiyatlandırma sayfası) */
   showComparison?: boolean;
-  /** Ana sayfa: 3 kartlı teaser (Yakında / Bize Ulaşın) */
   variant?: 'full' | 'teaser';
 }
 
@@ -66,7 +59,8 @@ export function PricingSection({
   const panel = getPanelUrl();
 
   const planKeys = useMemo(
-    () => ['baslangic', 'gelisim', 'pro', 'kurumsal'] as const satisfies readonly PlanColumnKey[],
+    () =>
+      ['baslangic', 'gelisim', 'pro', 'kurumsal'] as const satisfies readonly PlanColumnKey[],
     [],
   );
 
@@ -89,7 +83,7 @@ export function PricingSection({
               ulaşın.
             </p>
           </div>
-          <div className="mt-12 grid gap-8 md:grid-cols-3">
+          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {HOMEPAGE_PRICING_TEASER.map((plan, index) => (
               <motion.div
                 key={plan.name}
@@ -123,6 +117,14 @@ export function PricingSection({
               </motion.div>
             ))}
           </div>
+          <p className="mt-8 text-center">
+            <Link
+              href="/pricing"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Tüm planları ve karşılaştırmayı görün →
+            </Link>
+          </p>
         </motion.div>
       </section>
     );
@@ -141,11 +143,11 @@ export function PricingSection({
           transition={{ duration: 0.45 }}
         >
           <h2 className="text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
-            Sade, Şeffaf Fiyatlandırma
+            Paketler — Yıllık Faturalama
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Tüm planlar yıllık faturalamadır. 14 gün ücretsiz deneme ile başlayın; kredi kartı
-            gerekmez.
+            Resmi fiyatlar yakında açıklanacak. 14 gün ücretsiz deneme ile başlayın;
+            kredi kartı gerekmez.
           </p>
         </motion.div>
 
@@ -156,75 +158,66 @@ export function PricingSection({
         </div>
 
         <div className="mt-12 grid gap-8 sm:grid-cols-2 xl:grid-cols-4">
-          {PLANS.map((plan, index) => {
-            return (
-              <motion.div
-                key={plan.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.06 }}
-                className={plan.highlighted ? 'xl:-mt-2 xl:mb-2' : ''}
+          {PLANS.map((plan, index) => (
+            <motion.div
+              key={plan.name}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.4, delay: index * 0.06 }}
+              className={plan.highlighted ? 'xl:-mt-2 xl:mb-2' : ''}
+            >
+              <Card
+                className={`relative flex h-full flex-col ${
+                  plan.highlighted
+                    ? 'border-2 border-primary shadow-lg ring-2 ring-primary/10'
+                    : 'border-border'
+                }`}
               >
-                <Card
-                  className={`relative flex h-full flex-col ${
-                    plan.highlighted
-                      ? 'border-2 border-primary shadow-lg ring-2 ring-primary/10'
-                      : 'border-border'
-                  }`}
-                >
-                  {plan.badge ? (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge>{plan.badge}</Badge>
+                {plan.badge ? (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <Badge>{plan.badge}</Badge>
+                  </div>
+                ) : null}
+                <CardHeader className="pb-4 pt-8 text-center">
+                  <CardTitle className="text-xl">{plan.name}</CardTitle>
+                  <p className="mt-3 text-sm font-medium text-primary">{plan.status}</p>
+                  <div className="mt-4 flex items-baseline justify-center gap-1">
+                    <span className="text-4xl font-bold tracking-tight text-foreground">
+                      {plan.priceLabel}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{plan.billingNote}</p>
+                </CardHeader>
+                <CardContent className="flex-1 space-y-3 px-6">
+                  {plan.features.map((f) => (
+                    <div key={f} className="flex gap-3 text-sm">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                        aria-hidden
+                      />
+                      <span className="text-muted-foreground">{f}</span>
                     </div>
-                  ) : null}
-                  <CardHeader className="pb-4 pt-8 text-center">
-                    <CardTitle className="text-xl">{plan.name}</CardTitle>
-                    <div className="mt-4 flex items-baseline justify-center gap-1">
-                      <span className="text-4xl font-bold tracking-tight text-foreground">
-                        ₺{formatTry(plan.yearlyPrice)}
-                      </span>
-                      <span className="text-muted-foreground">/yıl</span>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Aylık {formatTry(plan.monthlyEquivalent)} ₺&apos;ye eşdeğer
-                    </p>
-                    <p className="mt-2 text-xs text-muted-foreground">KDV dahil değildir.</p>
-                  </CardHeader>
-                  <CardContent className="flex-1 space-y-3 px-6">
-                    {plan.features.map((f) => (
-                      <div key={f} className="flex gap-3 text-sm">
-                        <Check
-                          className="mt-0.5 h-4 w-4 shrink-0 text-primary"
-                          aria-hidden
-                        />
-                        <span className="text-muted-foreground">{f}</span>
-                      </div>
-                    ))}
-                  </CardContent>
-                  <CardFooter className="pt-2">
+                  ))}
+                </CardContent>
+                <CardFooter className="pt-2">
+                  {plan.isEnterprise ? (
+                    <Button className="w-full" variant="outline" asChild>
+                      <Link href={plan.ctaHref ?? '/contact'}>{plan.cta}</Link>
+                    </Button>
+                  ) : (
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? 'default' : 'outline'}
-                      asChild
+                      disabled
                     >
-                      <a
-                        href={`${panel}/register`}
-                        onClick={() => {
-                          track('cta_clicked', {
-                            location: 'pricing_section',
-                            plan: plan.name,
-                          });
-                        }}
-                      >
-                        {plan.cta}
-                      </a>
+                      {plan.cta}
                     </Button>
-                  </CardFooter>
-                </Card>
-              </motion.div>
-            );
-          })}
+                  )}
+                </CardFooter>
+              </Card>
+            </motion.div>
+          ))}
         </div>
 
         {showComparison ? (
@@ -239,7 +232,7 @@ export function PricingSection({
               Plan Karşılaştırması
             </h3>
             <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-muted-foreground">
-              Özellikleri yan yana görün; büyüyen işletmeniz için doğru planı seçin.
+              Tüm özellikleri planlar arasında yan yana görün.
             </p>
             <div className="mt-10 overflow-x-auto rounded-xl border border-border shadow-sm">
               <table className="w-full min-w-[720px] border-collapse text-left text-sm">
@@ -266,9 +259,7 @@ export function PricingSection({
                   {PRICING_COMPARISON.map((row, rowIndex) => (
                     <tr
                       key={row.label}
-                      className={
-                        rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                      }
+                      className={rowIndex % 2 === 0 ? 'bg-background' : 'bg-muted/20'}
                     >
                       <th
                         scope="row"
@@ -289,6 +280,18 @@ export function PricingSection({
                 </tbody>
               </table>
             </div>
+            <p className="mt-6 text-center">
+              <Button asChild>
+                <a
+                  href={`${panel}/register`}
+                  onClick={() => {
+                    track('cta_clicked', { location: 'pricing_comparison', plan: 'trial' });
+                  }}
+                >
+                  14 Gün Ücretsiz Dene
+                </a>
+              </Button>
+            </p>
           </motion.div>
         ) : null}
       </div>

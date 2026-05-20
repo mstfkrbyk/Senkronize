@@ -139,11 +139,6 @@ const OrderDetailPage = lazy(() =>
     default: m.OrderDetailPage,
   })),
 );
-const OrderDetailPage = lazy(() =>
-  import('@/pages/orders/OrderDetailPage').then((m) => ({
-    default: m.OrderDetailPage,
-  })),
-);
 const ReturnsPage = lazy(() =>
   import('@/pages/returns/ReturnsPage').then((m) => ({ default: m.ReturnsPage })),
 );

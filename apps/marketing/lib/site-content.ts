@@ -59,24 +59,31 @@ export const HOMEPAGE_PRICING_TEASER: {
   highlighted?: boolean;
 }[] = [
   {
-    name: 'Starter',
+    name: 'Başlangıç',
     status: 'Yakında',
-    description: 'Küçük işletmeler için temel pazaryeri senkronizasyonu.',
-    cta: 'Bildirim Al',
-    href: '/contact',
+    description: '500 sipariş/ay, 1 pazaryeri, 1 ERP, 2 kullanıcı.',
+    cta: 'Erken Kayıt',
+    href: '/pricing',
+  },
+  {
+    name: 'Gelişim',
+    status: 'Yakında',
+    description: '2.000 sipariş/ay, 3 pazaryeri, 2 ERP, 5 kullanıcı.',
+    cta: 'Erken Kayıt',
+    href: '/pricing',
+    highlighted: true,
   },
   {
     name: 'Pro',
     status: 'Yakında',
-    description: 'Büyüyen markalar için AI BuyBox ve gelişmiş otomasyon.',
-    cta: 'Bildirim Al',
-    href: '/contact',
-    highlighted: true,
+    description: '10.000 sipariş/ay, BuyBox AI ve partner araçları.',
+    cta: 'Erken Kayıt',
+    href: '/pricing',
   },
   {
-    name: 'Enterprise',
-    status: 'Özel teklif',
-    description: 'Yüksek hacim, SLA ve özel entegrasyon ihtiyaçları.',
+    name: 'Kurumsal',
+    status: 'Bize Ulaşın',
+    description: 'Sınırsız kapasite, özel entegrasyon ve SLA.',
     cta: 'Bize Ulaşın',
     href: '/contact',
   },
@@ -128,84 +135,87 @@ export const FEATURE_PAGE_SECTIONS: {
 
 export interface Plan {
   name: string;
-  /** Yıllık fiyat (KDV hariç), TRY */
-  yearlyPrice: number;
-  /** Aylık eşdeğer gösterimi için (yıllık / 12, yuvarlanmış) */
-  monthlyEquivalent: number;
+  /** Kart üstü durum etiketi */
+  status: string;
+  /** Fiyat satırı (yakında: ₺X/ay veya Özel) */
+  priceLabel: string;
+  /** Yıllık faturalama notu */
+  billingNote: string;
   features: string[];
   cta: string;
+  ctaHref?: string;
   highlighted: boolean;
   badge?: string;
-}
-
-function monthlyEq(yearly: number): number {
-  return Math.round(yearly / 12);
+  /** Kurumsal — özel teklif akışı */
+  isEnterprise?: boolean;
 }
 
 export const PLANS: Plan[] = [
   {
     name: 'Başlangıç',
-    yearlyPrice: 2900,
-    monthlyEquivalent: monthlyEq(2900),
+    status: 'Yakında',
+    priceLabel: '₺X/ay',
+    billingNote: 'Yıllık faturalama (KDV hariç)',
     features: [
-      '1 pazaryeri bağlantısı',
       '500 sipariş / ay',
-      'Temel stok senkronizasyonu',
+      '1 pazaryeri bağlantısı',
+      '1 ERP bağlantısı',
       '2 kullanıcı',
+      'Temel stok senkronizasyonu',
       'E-posta desteği',
     ],
-    cta: '14 Gün Ücretsiz Dene',
+    cta: 'Yakında',
     highlighted: false,
   },
   {
     name: 'Gelişim',
-    yearlyPrice: 5900,
-    monthlyEquivalent: monthlyEq(5900),
+    status: 'Yakında',
+    priceLabel: '₺X/ay',
+    billingNote: 'Yıllık faturalama (KDV hariç)',
     features: [
-      '3 pazaryeri bağlantısı',
       '2.000 sipariş / ay',
-      'Gerçek zamanlı webhook senkronizasyonu',
+      '3 pazaryeri bağlantısı',
       '2 ERP bağlantısı',
       '5 kullanıcı',
-      'Öncelikli destek',
-      'Raporlama',
+      'Gerçek zamanlı webhook senkronizasyonu',
+      'Öncelikli destek ve raporlama',
     ],
-    cta: '14 Gün Ücretsiz Dene',
+    cta: 'Yakında',
     highlighted: true,
     badge: 'En Popüler',
   },
   {
     name: 'Pro',
-    yearlyPrice: 9900,
-    monthlyEquivalent: monthlyEq(9900),
+    status: 'Yakında',
+    priceLabel: '₺X/ay',
+    billingNote: 'Yıllık faturalama (KDV hariç)',
     features: [
-      '10 pazaryeri bağlantısı',
       '10.000 sipariş / ay',
-      'AI BuyBox optimizasyonu',
+      '10 pazaryeri bağlantısı',
       '3 ERP bağlantısı',
       '15 kullanıcı',
-      'Partner / bayi sistemi',
-      'API erişimi',
-      '7/24 öncelikli destek',
+      'BuyBox AI optimizasyonu',
+      'Partner / bayi sistemi ve API erişimi',
     ],
-    cta: '14 Gün Ücretsiz Dene',
+    cta: 'Yakında',
     highlighted: false,
   },
   {
     name: 'Kurumsal',
-    yearlyPrice: 19_900,
-    monthlyEquivalent: monthlyEq(19_900),
+    status: 'Bize Ulaşın',
+    priceLabel: 'Özel',
+    billingNote: 'Sözleşmeli kurulum ve SLA',
     features: [
-      '50 pazaryeri bağlantısı',
-      '100.000 sipariş / ay',
-      'Gelişmiş güvenlik ve SLA',
-      '10 ERP bağlantısı',
-      '100 kullanıcı',
+      'Sınırsız sipariş ve kanal',
       'Özel entegrasyon danışmanlığı',
-      'Sözleşmeli kurulum ve e-fatura',
+      'Dedicated SLA ve destek',
+      'Gelişmiş güvenlik ve denetim',
+      'E-fatura ve kurumsal faturalama',
     ],
-    cta: '14 Gün Ücretsiz Dene',
+    cta: 'Bize Ulaşın',
+    ctaHref: '/contact',
     highlighted: false,
+    isEnterprise: true,
   },
 ];
 
@@ -224,18 +234,32 @@ export interface PricingComparisonRow {
 
 export const PRICING_COMPARISON: PricingComparisonRow[] = [
   {
-    label: 'Pazaryeri bağlantısı',
-    baslangic: '1',
-    gelisim: '3',
-    pro: '10',
-    kurumsal: '50',
-  },
-  {
     label: 'Sipariş / ay',
     baslangic: '500',
     gelisim: '2.000',
     pro: '10.000',
-    kurumsal: '100.000',
+    kurumsal: 'Sınırsız',
+  },
+  {
+    label: 'Pazaryeri bağlantısı',
+    baslangic: '1',
+    gelisim: '3',
+    pro: '10',
+    kurumsal: 'Sınırsız',
+  },
+  {
+    label: 'ERP bağlantısı',
+    baslangic: '1',
+    gelisim: '2',
+    pro: '3',
+    kurumsal: 'Sınırsız',
+  },
+  {
+    label: 'Kullanıcı',
+    baslangic: '2',
+    gelisim: '5',
+    pro: '15',
+    kurumsal: 'Sınırsız',
   },
   {
     label: 'Gerçek zamanlı webhook senk.',
@@ -245,20 +269,6 @@ export const PRICING_COMPARISON: PricingComparisonRow[] = [
     kurumsal: 'check',
   },
   {
-    label: 'ERP bağlantısı',
-    baslangic: '1',
-    gelisim: '2',
-    pro: '3',
-    kurumsal: '10',
-  },
-  {
-    label: 'Kullanıcı',
-    baslangic: '2',
-    gelisim: '5',
-    pro: '15',
-    kurumsal: '100',
-  },
-  {
     label: 'Raporlama',
     baslangic: 'dash',
     gelisim: 'check',
@@ -266,7 +276,7 @@ export const PRICING_COMPARISON: PricingComparisonRow[] = [
     kurumsal: 'check',
   },
   {
-    label: 'AI BuyBox optimizasyonu',
+    label: 'BuyBox AI',
     baslangic: 'dash',
     gelisim: 'dash',
     pro: 'check',
@@ -287,11 +297,25 @@ export const PRICING_COMPARISON: PricingComparisonRow[] = [
     kurumsal: 'check',
   },
   {
-    label: 'Destek',
-    baslangic: 'E-posta',
-    gelisim: 'Öncelikli',
-    pro: '7/24 öncelikli',
-    kurumsal: 'Dedicated',
+    label: 'Özel entegrasyon',
+    baslangic: 'dash',
+    gelisim: 'dash',
+    pro: 'dash',
+    kurumsal: 'check',
+  },
+  {
+    label: 'SLA',
+    baslangic: 'dash',
+    gelisim: 'dash',
+    pro: 'dash',
+    kurumsal: 'check',
+  },
+  {
+    label: '14 gün ücretsiz deneme',
+    baslangic: 'check',
+    gelisim: 'check',
+    pro: 'check',
+    kurumsal: 'dash',
   },
 ];
 
