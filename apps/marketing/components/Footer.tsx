@@ -13,6 +13,7 @@ const footerColumns: {
       { href: '/features', label: 'Özellikler' },
       { href: '/pricing', label: 'Fiyatlandırma' },
       { href: '/blog', label: 'Blog' },
+      { href: '/case-studies', label: 'Vaka Çalışmaları' },
     ],
   },
   {

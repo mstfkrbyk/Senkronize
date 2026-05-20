@@ -3,8 +3,11 @@ import {
   BarChart3,
   Code2,
   Laptop,
+  LayoutGrid,
   Package,
+  Receipt,
   Sparkles,
+  Users,
   Zap,
 } from 'lucide-react';
 

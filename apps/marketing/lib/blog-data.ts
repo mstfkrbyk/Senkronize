@@ -9,6 +9,33 @@ export interface BlogPostListItem {
 
 export const BLOG_POSTS: BlogPostListItem[] = [
   {
+    slug: 'e-ticarette-buybox-kazanma-stratejileri',
+    title: 'E-Ticarette BuyBox Nasıl Kazanılır? 2026 Stratejileri',
+    date: '20 Mayıs 2026',
+    excerpt:
+      'BuyBox nedir, Trendyol vs Amazon farkı, fiyat-stok dengesi ve Senkronize ile otomatik optimizasyon — 2026 stratejileri.',
+    readMinutes: 12,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'trendyol-hepsiburada-entegrasyon-rehberi',
+    title: 'Trendyol ve Hepsiburada Entegrasyonu: Adım Adım Rehber',
+    date: '20 Mayıs 2026',
+    excerpt:
+      'API anahtarı alma, stok senkronizasyonu, sipariş yönetimi ve sorun giderme: iki büyük pazaryeri için pratik rehber.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
+    slug: 'cok-kanalli-e-ticaret-yonetimi',
+    title: 'Çok Kanallı E-Ticaret Yönetimi: Neden ve Nasıl?',
+    date: '20 Mayıs 2026',
+    excerpt:
+      'Çok kanallı satışın nedenleri, entegrasyonsuz tuzaklar ve merkezi yönetimle sürdürülebilir büyüme.',
+    readMinutes: 10,
+    author: 'Senkronize Ekibi',
+  },
+  {
     slug: 'trendyol-entegrasyon-rehberi',
     title: 'Trendyol Entegrasyonu: Kapsamlı Satıcı Rehberi 2025',
     date: '18 Mayıs 2026',
