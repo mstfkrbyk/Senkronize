@@ -2,16 +2,24 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Marketplace } from '@prisma/client';
 
+import { refreshAllegroAccessToken } from '../adapters/allegro/allegro.oauth';
 import { refreshIdeasoftAccessToken } from '../adapters/ecommerce/ideasoft/ideasoft.oauth';
+import { refreshEbayAccessToken } from '../adapters/ebay/ebay.oauth';
 import { refreshEtsyAccessToken } from '../adapters/etsy/etsy.oauth';
+import { refreshLazadaAccessToken } from '../adapters/lazada/lazada.oauth';
+import { refreshShopeeAccessToken } from '../adapters/shopee/shopee.oauth';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const OAUTH_PLATFORMS: Marketplace[] = [
+  Marketplace.ALLEGRO,
+  Marketplace.EBAY,
   Marketplace.ETSY,
   Marketplace.GITTIGIDIYOR,
   Marketplace.IDEASOFT,
+  Marketplace.LAZADA,
+  Marketplace.SHOPEE,
 ];
 
 function parseCredentialsRecord(
@@ -140,13 +148,111 @@ export class TokenRefreshService {
     platform: Marketplace,
     credentials: Record<string, string>,
   ): Promise<Record<string, string>> {
+    if (platform === Marketplace.EBAY) {
+      return this.refreshEbay(credentials);
+    }
+    if (platform === Marketplace.ALLEGRO) {
+      return this.refreshAllegro(credentials);
+    }
     if (platform === Marketplace.ETSY) {
       return this.refreshEtsy(credentials);
     }
     if (platform === Marketplace.IDEASOFT) {
       return refreshIdeasoftAccessToken(credentials);
     }
+    if (platform === Marketplace.LAZADA) {
+      return this.refreshLazada(credentials);
+    }
+    if (platform === Marketplace.SHOPEE) {
+      return this.refreshShopee(credentials);
+    }
     return credentials;
+  }
+
+  private async refreshLazada(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const appKey = credentials.appKey?.trim() ?? credentials.apiKey?.trim() ?? '';
+    const appSecret =
+      credentials.appSecret?.trim() ??
+      credentials.apiSecret?.trim() ??
+      credentials.secretKey?.trim() ??
+      '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    if (!appKey || !appSecret || !refreshToken) {
+      throw new Error('Lazada: appKey, appSecret ve refreshToken zorunludur');
+    }
+    const tokens = await refreshLazadaAccessToken(appKey, appSecret, refreshToken);
+    return {
+      ...credentials,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      tokenExpiresAt: String(tokens.tokenExpiresAt),
+    };
+  }
+
+  private async refreshShopee(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const partnerId = credentials.partnerId?.trim() ?? '';
+    const partnerKey =
+      credentials.partnerKey?.trim() ??
+      credentials.apiSecret?.trim() ??
+      credentials.secretKey?.trim() ??
+      '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    const shopId = credentials.shopId?.trim() ?? '';
+    if (!partnerId || !partnerKey || !refreshToken || !shopId) {
+      throw new Error('Shopee: partnerId, partnerKey, refreshToken ve shopId zorunludur');
+    }
+    const tokens = await refreshShopeeAccessToken(
+      partnerId,
+      partnerKey,
+      refreshToken,
+      shopId,
+    );
+    return {
+      ...credentials,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      tokenExpiresAt: String(tokens.tokenExpiresAt),
+    };
+  }
+
+  private async refreshEbay(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const clientId = credentials.clientId?.trim() ?? '';
+    const clientSecret = credentials.clientSecret?.trim() ?? '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error('eBay: clientId, clientSecret ve refreshToken zorunludur');
+    }
+    const tokens = await refreshEbayAccessToken(clientId, clientSecret, refreshToken);
+    return {
+      ...credentials,
+      ...tokensToCredentialPatch(tokens),
+    };
+  }
+
+  private async refreshAllegro(
+    credentials: Record<string, string>,
+  ): Promise<Record<string, string>> {
+    const clientId = credentials.clientId?.trim() ?? '';
+    const clientSecret = credentials.clientSecret?.trim() ?? '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error('Allegro: clientId, clientSecret ve refreshToken zorunludur');
+    }
+    const tokens = await refreshAllegroAccessToken(
+      clientId,
+      clientSecret,
+      refreshToken,
+    );
+    return {
+      ...credentials,
+      ...tokensToCredentialPatch(tokens),
+    };
   }
 
   private async refreshEtsy(

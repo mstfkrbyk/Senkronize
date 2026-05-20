@@ -15,13 +15,17 @@ import {
   withRateLimit,
 } from '../../common/utils/http-retry';
 import { parseMoney, throwSyncFailed } from '../stub-helpers';
-import { ALLEGRO_ACCEPT, ALLEGRO_API_BASE, ALLEGRO_TOKEN_URL } from './allegro.constants';
+import { ALLEGRO_ACCEPT, ALLEGRO_API_BASE } from './allegro.constants';
+import { refreshAllegroAccessToken } from './allegro.oauth';
 import type {
   AllegroCheckoutForm,
   AllegroCheckoutFormsResponse,
+  AllegroFulfillmentPayload,
   AllegroOffersListingResponse,
-  AllegroTokenResponse,
 } from './allegro.types';
+
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const CHECKOUT_PAGE_SIZE = 20;
 
 @Injectable()
 export class AllegroAdapter implements IMarketplaceAdapter {
@@ -42,40 +46,45 @@ export class AllegroAdapter implements IMarketplaceAdapter {
     };
   }
 
+  private resolveOAuthCredentials(credentials: Record<string, string>): {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  } {
+    const clientId = credentials.clientId?.trim() ?? '';
+    const clientSecret = credentials.clientSecret?.trim() ?? '';
+    const refreshToken = credentials.refreshToken?.trim() ?? '';
+    if (!clientId || !clientSecret || !refreshToken) {
+      throw new Error(
+        'Allegro: clientId, clientSecret ve refreshToken (veya geçerli accessToken) zorunludur',
+      );
+    }
+    return { clientId, clientSecret, refreshToken };
+  }
+
   private async getAccessToken(credentials: Record<string, string>): Promise<string> {
-    const cached = credentials.accessToken?.trim();
-    if (cached) {
-      return cached;
+    const direct = credentials.accessToken?.trim();
+    const expiresRaw = credentials.tokenExpiresAt?.trim();
+    if (direct && expiresRaw) {
+      const expiresAt = Number.parseInt(expiresRaw, 10);
+      if (Number.isFinite(expiresAt) && Date.now() < expiresAt - TOKEN_REFRESH_BUFFER_MS) {
+        return direct;
+      }
+    } else if (direct && !credentials.refreshToken?.trim()) {
+      return direct;
     }
-    const clientId = credentials.clientId?.trim();
-    const clientSecret = credentials.clientSecret?.trim();
-    if (!clientId || !clientSecret) {
-      throw new Error('Allegro: clientId ve clientSecret zorunludur');
-    }
-    const scope = credentials.scope?.trim();
-    const basic = Buffer.from(`${clientId}:${clientSecret}`, 'utf8').toString('base64');
-    const body = new URLSearchParams({ grant_type: 'client_credentials' });
-    if (scope) {
-      body.set('scope', scope);
-    }
-    const data = await axiosWithRetry<AllegroTokenResponse>(
-      {
-        method: 'POST',
-        url: ALLEGRO_TOKEN_URL,
-        headers: {
-          Authorization: `Basic ${basic}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        data: body.toString(),
-        timeout: 20_000,
-      },
-      {},
+
+    const { clientId, clientSecret, refreshToken } =
+      this.resolveOAuthCredentials(credentials);
+    const tokens = await refreshAllegroAccessToken(
+      clientId,
+      clientSecret,
+      refreshToken,
     );
-    const token = typeof data.access_token === 'string' ? data.access_token : '';
-    if (!token) {
-      throw new Error('Allegro: access_token alınamadı');
-    }
-    return token;
+    credentials.accessToken = tokens.accessToken;
+    credentials.refreshToken = tokens.refreshToken;
+    credentials.tokenExpiresAt = String(tokens.tokenExpiresAt);
+    return tokens.accessToken;
   }
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
@@ -136,33 +145,74 @@ export class AllegroAdapter implements IMarketplaceAdapter {
     };
   }
 
+  async getCheckoutForm(
+    credentials: Record<string, string>,
+    orderId: string,
+  ): Promise<AllegroCheckoutForm | null> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      return await withRateLimit('ALLEGRO', this.rpm(), async () => {
+        return await axiosWithRetry<AllegroCheckoutForm>(
+          {
+            method: 'GET',
+            url: `${ALLEGRO_API_BASE}/order/checkout-forms/${encodeURIComponent(orderId)}`,
+            timeout: 20_000,
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 1 },
+        );
+      });
+    } catch (error) {
+      this.logger.warn('Allegro sipariş detayı alınamadı', {
+        orderId,
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata',
+      });
+      return null;
+    }
+  }
+
   async getOrders(
     credentials: Record<string, string>,
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     try {
       const token = await this.getAccessToken(credentials);
-      return await withRateLimit('ALLEGRO', this.rpm(), async () => {
-        const data = await axiosWithRetry<AllegroCheckoutFormsResponse>(
-          {
-            method: 'GET',
-            url: `${ALLEGRO_API_BASE}/order/checkout-forms`,
-            timeout: 25_000,
-            params: {
-              status: 'READY_FOR_PROCESSING',
-              ...(since !== undefined
-                ? { 'updatedAt.gte': since.toISOString() }
-                : {}),
+      const all: MarketplaceOrder[] = [];
+      let offset = 0;
+
+      await withRateLimit('ALLEGRO', this.rpm(), async () => {
+        for (;;) {
+          const data = await axiosWithRetry<AllegroCheckoutFormsResponse>(
+            {
+              method: 'GET',
+              url: `${ALLEGRO_API_BASE}/order/checkout-forms`,
+              timeout: 25_000,
+              params: {
+                limit: CHECKOUT_PAGE_SIZE,
+                offset,
+                status: 'READY_FOR_PROCESSING',
+                ...(since !== undefined
+                  ? { 'updatedAt.gte': since.toISOString() }
+                  : {}),
+              },
+              ...this.authHeaders(token),
             },
-            ...this.authHeaders(token),
-          },
-          {},
-        );
-        const forms = Array.isArray(data.checkoutForms) ? data.checkoutForms : [];
-        return forms
-          .map((f) => this.mapOrder(f))
-          .filter((x): x is MarketplaceOrder => x !== null);
+            {},
+          );
+          const forms = Array.isArray(data.checkoutForms) ? data.checkoutForms : [];
+          for (const form of forms) {
+            const mapped = this.mapOrder(form);
+            if (mapped) {
+              all.push(mapped);
+            }
+          }
+          if (forms.length < CHECKOUT_PAGE_SIZE) {
+            break;
+          }
+          offset += CHECKOUT_PAGE_SIZE;
+        }
       });
+      return all;
     } catch (error) {
       throwSyncFailed('ALLEGRO', 'getOrders', error);
     }
@@ -282,6 +332,33 @@ export class AllegroAdapter implements IMarketplaceAdapter {
       });
     } catch (error) {
       throwSyncFailed('ALLEGRO', 'updatePrice', error);
+    }
+  }
+
+  /** Kargo / gönderim bildirimi — PUT checkout-forms/{orderId}/fulfillment */
+  async submitFulfillment(
+    credentials: Record<string, string>,
+    payload: AllegroFulfillmentPayload,
+  ): Promise<void> {
+    try {
+      const token = await this.getAccessToken(credentials);
+      await withRateLimit('ALLEGRO', this.rpm(), async () => {
+        await axiosWithRetry<unknown>(
+          {
+            method: 'PUT',
+            url: `${ALLEGRO_API_BASE}/order/checkout-forms/${encodeURIComponent(payload.orderId)}/fulfillment`,
+            timeout: 25_000,
+            data: {
+              status: 'SENT',
+              shipmentSummary: { lineItemsSent: 'ALL' },
+            },
+            ...this.authHeaders(token),
+          },
+          { maxRetries: 2 },
+        );
+      });
+    } catch (error) {
+      throwSyncFailed('ALLEGRO', 'submitFulfillment', error);
     }
   }
 }
