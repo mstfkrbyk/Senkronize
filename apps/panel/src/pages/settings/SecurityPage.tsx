@@ -4,6 +4,7 @@ import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Monitor, Smartphone, Tablet } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -45,6 +46,12 @@ import { useAuthStore } from '@/store/auth.store';
 import { useAuditLog } from './hooks/useAuditLog';
 import { TwoFactorSettings } from './TwoFactorSettings';
 import { AuditLogTable } from './tabs/AuditLogTable';
+import {
+  auditEntriesToLoginHistory,
+  LoginHistoryTable,
+  mergeLoginHistory,
+  sessionsToLoginHistory,
+} from './tabs/LoginHistoryTable';
 
 const SECURITY_ACTION_PREFIXES = [
   'auth.',
@@ -108,6 +115,7 @@ function DeviceIcon({
 }
 
 export function SecurityPage(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const currentSessionId = useAuthStore((s) => s.sessionId);
   const authQuery = useAuth();
@@ -138,6 +146,20 @@ export function SecurityPage(): ReactElement {
       return data;
     },
   });
+
+  const loginHistory = useMemo(() => {
+    const fromAudit = auditEntriesToLoginHistory(auditQuery.data ?? []);
+    const fromSessions = sessionsToLoginHistory(
+      (sessionsQuery.data ?? []).map((s) => ({
+        id: s.id,
+        createdAt: s.createdAt,
+        ipAddress: s.ipAddress,
+        device: s.device,
+        deviceType: s.deviceType,
+      })),
+    );
+    return mergeLoginHistory(fromSessions, fromAudit, 10);
+  }, [auditQuery.data, sessionsQuery.data]);
 
   const passwordForm = useForm<PasswordForm>({
     resolver: zodFormResolver(passwordSchema),
@@ -174,7 +196,20 @@ export function SecurityPage(): ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
-      toast.success('Diğer oturumlar sonlandırıldı.');
+      toast.success(t('settings.security.revokeOthersSuccess'));
+    },
+    onError: (e: unknown) => {
+      toast.error(getApiErrorMessage(e));
+    },
+  });
+
+  const revokeAllSessionsMutation = useMutation({
+    mutationFn: async (): Promise<void> => {
+      await api.delete('/auth/sessions');
+    },
+    onSuccess: () => {
+      toast.success(t('settings.security.revokeAllSuccess'));
+      useAuthStore.getState().logout();
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -187,7 +222,7 @@ export function SecurityPage(): ReactElement {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['auth', 'sessions'] });
-      toast.success('Oturum sonlandırıldı.');
+      toast.success(t('settings.security.revokeSessionSuccess'));
     },
     onError: (e: unknown) => {
       toast.error(getApiErrorMessage(e));
@@ -316,22 +351,34 @@ export function SecurityPage(): ReactElement {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div>
-            <CardTitle className="text-base">Aktif oturumlar</CardTitle>
-            <CardDescription>
-              Cihaz, IP ve konum bilgisiyle oturumlarınızı yönetin.
-            </CardDescription>
+            <CardTitle className="text-base">{t('settings.security.sessionsTitle')}</CardTitle>
+            <CardDescription>{t('settings.security.sessionsDescription')}</CardDescription>
           </div>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            disabled={
-              revokeAllOthersMutation.isPending || otherSessionCount === 0
-            }
-            onClick={() => revokeAllOthersMutation.mutate()}
-          >
-            Tüm Diğer Oturumları Sonlandır
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={
+                revokeAllOthersMutation.isPending || otherSessionCount === 0
+              }
+              onClick={() => revokeAllOthersMutation.mutate()}
+            >
+              {t('settings.security.revokeOthers')}
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={
+                revokeAllSessionsMutation.isPending ||
+                (sessionsQuery.data?.length ?? 0) === 0
+              }
+              onClick={() => revokeAllSessionsMutation.mutate()}
+            >
+              {t('settings.security.revokeAll')}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {sessionsQuery.isLoading ? (
@@ -394,7 +441,7 @@ export function SecurityPage(): ReactElement {
                               disabled={revokeSessionMutation.isPending}
                               onClick={() => revokeSessionMutation.mutate(s.id)}
                             >
-                              Sonlandır
+                              {t('settings.security.revokeSession')}
                             </Button>
                           ) : null}
                         </TableCell>
@@ -410,10 +457,25 @@ export function SecurityPage(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Güvenlik günlüğü</CardTitle>
-          <CardDescription>
-            Son 10 güvenlik olayı: giriş, başarısız giriş, şifre değişimi, 2FA.
-          </CardDescription>
+          <CardTitle className="text-base">{t('settings.security.loginHistoryTitle')}</CardTitle>
+          <CardDescription>{t('settings.security.loginHistoryDescription')}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {auditQuery.isLoading || sessionsQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : (
+            <LoginHistoryTable entries={loginHistory} />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('settings.security.auditLogTitle')}</CardTitle>
+          <CardDescription>{t('settings.security.auditLogDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {auditQuery.isError ? (
