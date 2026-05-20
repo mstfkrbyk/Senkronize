@@ -124,6 +124,16 @@ export class ReportsController {
     });
   }
 
+  @Get('schedules')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Standart rapor zamanlamalarını listele' })
+  @ApiResponse({ status: 200, description: 'Zamanlama listesi' })
+  async listReportSchedules(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<ReportScheduleItem[]> {
+    return this.reportScheduleService.listSchedules(org.id);
+  }
+
   @Post('schedule')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Standart rapor zamanlaması kaydet' })

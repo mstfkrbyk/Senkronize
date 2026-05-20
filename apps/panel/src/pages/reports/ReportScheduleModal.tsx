@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useQueryClient } from '@tanstack/react-query';
+
 import { api, getApiErrorMessage } from '@/lib/api';
 
 interface Props {
@@ -34,6 +36,7 @@ export function ReportScheduleModal({
   onOpenChange,
   defaultReportKind = 'SALES',
 }: Props): ReactElement {
+  const queryClient = useQueryClient();
   const [frequency, setFrequency] = useState<'WEEKLY' | 'MONTHLY'>('WEEKLY');
   const [reportKind, setReportKind] = useState<'SALES' | 'STOCK' | 'PROFIT'>(
     defaultReportKind,
@@ -64,6 +67,7 @@ export function ReportScheduleModal({
         emails,
       });
       toast.success('Rapor zamanlaması kaydedildi.');
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'schedules'] });
       onOpenChange(false);
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err));

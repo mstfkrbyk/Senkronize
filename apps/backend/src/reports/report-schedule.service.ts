@@ -52,6 +52,14 @@ export class ReportScheduleService {
     private readonly notificationService: NotificationService,
   ) {}
 
+  async listSchedules(organizationId: string): Promise<ReportScheduleItem[]> {
+    const rows = await this.prisma.reportSchedule.findMany({
+      where: { organizationId, deletedAt: null },
+      orderBy: { reportKind: 'asc' },
+    });
+    return rows.map((row) => this.toItem(row));
+  }
+
   async saveSchedule(
     organizationId: string,
     userId: string,

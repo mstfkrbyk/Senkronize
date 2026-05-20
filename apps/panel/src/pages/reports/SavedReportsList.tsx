@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { Download, Loader2, Play, Trash2, CalendarClock } from 'lucide-react';
+import { Download, FileText, Loader2, Play, Trash2, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getApiErrorMessage } from '@/lib/api';
+import { printReport } from '@/lib/pdf-export';
+import type { ReportResult } from '@/types/custom-report';
 
 import { REPORT_TYPE_LABELS } from './customReportColumns';
 import {
@@ -61,6 +63,16 @@ export function SavedReportsList(): ReactElement {
   const [scheduleId, setScheduleId] = useState<string | null>(null);
   const [emails, setEmails] = useState('');
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily');
+  const [pdfResult, setPdfResult] = useState<ReportResult | null>(null);
+  const [pdfTitle, setPdfTitle] = useState('');
+  const pdfPending = useRef(false);
+
+  useEffect(() => {
+    if (!pdfPending.current || !pdfResult) return;
+    pdfPending.current = false;
+    printReport('saved-report-pdf', pdfTitle);
+    setPdfResult(null);
+  }, [pdfResult, pdfTitle]);
 
   async function onDownload(id: string): Promise<void> {
     try {
@@ -75,6 +87,18 @@ export function SavedReportsList(): ReactElement {
     try {
       await runMut.mutateAsync(id);
       toast.success('Rapor çalıştırıldı.');
+    } catch (e) {
+      toast.error(getApiErrorMessage(e));
+    }
+  }
+
+  async function onPdf(id: string, name: string): Promise<void> {
+    try {
+      const result = await runMut.mutateAsync(id);
+      setPdfTitle(name);
+      pdfPending.current = true;
+      setPdfResult(result);
+      toast.success('PDF yazdırma penceresi açılıyor.');
     } catch (e) {
       toast.error(getApiErrorMessage(e));
     }
@@ -147,9 +171,9 @@ export function SavedReportsList(): ReactElement {
           <TableHeader>
             <TableRow>
               <TableHead>Ad</TableHead>
+              <TableHead>Oluşturulma</TableHead>
+              <TableHead>Son çalıştırma</TableHead>
               <TableHead>Tip</TableHead>
-              <TableHead>Son çalışma</TableHead>
-              <TableHead>Oluşturan</TableHead>
               <TableHead className="text-right">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
@@ -164,12 +188,9 @@ export function SavedReportsList(): ReactElement {
               rows.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.name}</TableCell>
-                  <TableCell>{REPORT_TYPE_LABELS[r.reportType] ?? r.reportType}</TableCell>
+                  <TableCell>{fmtDate(r.createdAt)}</TableCell>
                   <TableCell>{fmtDate(r.lastRunAt)}</TableCell>
-                  <TableCell>
-                    <span className="text-sm">{r.creatorName}</span>
-                    <span className="block text-xs text-muted-foreground">{r.creatorEmail}</span>
-                  </TableCell>
+                  <TableCell>{REPORT_TYPE_LABELS[r.reportType] ?? r.reportType}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex flex-wrap justify-end gap-1">
                       <Button
@@ -191,9 +212,21 @@ export function SavedReportsList(): ReactElement {
                         size="sm"
                         variant="secondary"
                         onClick={() => void onDownload(r.id)}
+                        title="CSV indir"
                       >
                         <Download className="h-4 w-4 sm:mr-1" />
-                        <span className="sr-only sm:not-sr-only">İndir</span>
+                        <span className="sr-only sm:not-sr-only">CSV</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={runMut.isPending}
+                        onClick={() => void onPdf(r.id, r.name)}
+                        title="PDF (yazdır)"
+                      >
+                        <FileText className="h-4 w-4 sm:mr-1" />
+                        <span className="sr-only sm:not-sr-only">PDF</span>
                       </Button>
                       <Button
                         type="button"
@@ -224,6 +257,29 @@ export function SavedReportsList(): ReactElement {
           </TableBody>
         </Table>
       </div>
+
+      {pdfResult ? (
+        <div id="saved-report-pdf" className="sr-only">
+          <table>
+            <thead>
+              <tr>
+                {pdfResult.columns.map((c) => (
+                  <th key={c}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pdfResult.rows.slice(0, 200).map((row, i) => (
+                <tr key={i}>
+                  {pdfResult.columns.map((c) => (
+                    <td key={c}>{String(row[c] ?? '')}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
 
       <Dialog open={scheduleId !== null} onOpenChange={(o) => !o && setScheduleId(null)}>
         <DialogContent>

@@ -9,7 +9,37 @@ export interface ReportFilters {
   startDate?: string;
   endDate?: string;
   platform?: string;
+  platforms?: string[];
   groupBy?: 'day' | 'week' | 'month';
+}
+
+export interface SalesDetailRow {
+  period: string;
+  platform: string;
+  orders: number;
+  revenue: number;
+  returns: number;
+  netRevenue: number;
+}
+
+export interface ProfitPlatformRow {
+  platform: string;
+  revenue: number;
+  shippingCost: number;
+  vatAmount: number;
+  productCost: number;
+  profit: number;
+  marginPct: number;
+}
+
+export interface ReportScheduleItem {
+  id: string;
+  reportKind: 'SALES' | 'STOCK' | 'PROFIT';
+  frequency: 'WEEKLY' | 'MONTHLY';
+  emails: string[];
+  lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PlatformReportData {
