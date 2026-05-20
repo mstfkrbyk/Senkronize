@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import { XMLParser } from 'fast-xml-parser';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
@@ -199,21 +199,21 @@ export class IsnetAdapter implements IErpAdapter {
     return typeof raw === 'string' ? raw : String(raw);
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     const baseUrl = resolveIsnetApiRoot(credentials);
     if (!baseUrl) {
-      return false;
+      return { success: false };
     }
     if (this.usesXmlApi(credentials)) {
       try {
         const inner = `<Products><Filter><IsActive>1</IsActive></Filter></Products>`;
         await this.postServiceXml(credentials, ISNET_PATH_PRODUCT_LIST, inner);
-        return true;
+        return { success: true };
       } catch (error) {
         this.logger.warn('İşnet XML bağlantı testi başarısız', {
           error: error instanceof Error ? error.message : 'Bilinmeyen hata',
         });
-        return false;
+        return { success: false };
       }
     }
     try {
@@ -226,7 +226,7 @@ export class IsnetAdapter implements IErpAdapter {
         },
         { maxRetries: 1, retryOn: [429, 500, 502, 503, 504] },
       );
-      return true;
+      return { success: true };
     } catch {
       try {
         await axiosWithRetry<unknown>(
@@ -239,12 +239,12 @@ export class IsnetAdapter implements IErpAdapter {
           },
           { maxRetries: 1, retryOn: [429, 500, 502, 503, 504] },
         );
-        return true;
+        return { success: true };
       } catch (error) {
         this.logger.warn('İşnet bağlantı testi başarısız', {
           error: error instanceof Error ? error.message : 'Bilinmeyen hata',
         });
-        return false;
+        return { success: false };
       }
     }
   }

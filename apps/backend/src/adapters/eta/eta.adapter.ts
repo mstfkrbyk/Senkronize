@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
 import { ETA_API_PREFIX } from './eta.constants';
@@ -159,13 +159,13 @@ export class EtaAdapter implements IErpAdapter {
     return this.getEtaLegacyToken(credentials);
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const token = await this.resolveAccessToken(credentials);
       if (usesEtaV8(credentials)) {
         const root = resolveEtaV8Root(credentials);
         if (!root) {
-          return false;
+          return { success: false };
         }
         await axiosWithRetry<unknown>(
           {
@@ -176,11 +176,11 @@ export class EtaAdapter implements IErpAdapter {
           },
           { maxRetries: 1 },
         );
-        return true;
+        return { success: true };
       }
       const root = resolveEtaBaseUrl(credentials);
       if (!root) {
-        return false;
+        return { success: false };
       }
       await axiosWithRetry<unknown>(
         {
@@ -195,12 +195,12 @@ export class EtaAdapter implements IErpAdapter {
         },
         { maxRetries: 1 },
       );
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('ETA bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

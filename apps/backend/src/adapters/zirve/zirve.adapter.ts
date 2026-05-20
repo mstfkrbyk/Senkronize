@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
 import { ZIRVE_API_PATH, ZIRVE_DEFAULT_PORT } from './zirve.constants';
@@ -143,11 +143,11 @@ export class ZirveAdapter implements IErpAdapter {
     }
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const baseUrl = resolveZirveApiRoot(credentials);
       if (!baseUrl) {
-        return false;
+        return { success: false };
       }
       const headers = await this.buildAuthHeaders(credentials);
       const firmNo = (credentials.firmNo ?? credentials.firmno ?? '1').trim();
@@ -161,12 +161,12 @@ export class ZirveAdapter implements IErpAdapter {
         },
         { maxRetries: 1 },
       );
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Zirve bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

@@ -57,7 +57,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
         return false;
       }
       const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(token, this.config.spBaseUrl);
+      const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -73,7 +73,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token, this.config.spBaseUrl);
+    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
     const marketplaceId = this.resolveMarketplaceId(credentials);
     const currency = this.resolveCurrency(credentials);
     return await amazonGetOrdersForMarketplace(
@@ -89,7 +89,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token, this.config.spBaseUrl);
+    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     return await amazonGetListingsForMarketplace(
@@ -105,7 +105,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token, this.config.spBaseUrl);
+    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     await amazonUpdateStockForMarketplace(
@@ -127,7 +127,7 @@ export class AmazonBaseAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token, this.config.spBaseUrl);
+    const client = amazonCreateSpClient(credentials, token, this.config.spBaseUrl);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveMarketplaceId(credentials);
     const currency = this.resolveCurrency(credentials);

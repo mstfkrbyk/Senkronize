@@ -58,7 +58,7 @@ export class AmazonEuAdapter implements IMarketplaceAdapter {
       }
       this.resolveEuMarketplaceId(credentials);
       const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(token);
+      const client = amazonCreateSpClient(credentials, token);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -74,7 +74,7 @@ export class AmazonEuAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const marketplaceId = this.resolveEuMarketplaceId(credentials);
     const currency = this.resolveCurrency(marketplaceId, credentials);
     return await amazonGetOrdersForMarketplace(
@@ -90,7 +90,7 @@ export class AmazonEuAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveEuMarketplaceId(credentials);
     return await amazonGetListingsForMarketplace(client, sellerId, marketplaceId, page);
@@ -101,7 +101,7 @@ export class AmazonEuAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveEuMarketplaceId(credentials);
     await amazonUpdateStockForMarketplace(
@@ -120,7 +120,7 @@ export class AmazonEuAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = this.resolveEuMarketplaceId(credentials);
     const currency = this.resolveCurrency(marketplaceId, credentials);

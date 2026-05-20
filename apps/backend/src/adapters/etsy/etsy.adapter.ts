@@ -28,7 +28,7 @@ import type {
   EtsyTransaction,
 } from './etsy.types';
 
-const ETSY_BASE = 'https://openapi.etsy.com/v3';
+const ETSY_BASE = 'https://openapi.etsy.com/v3/application';
 const ETSY_TOKEN_URL = 'https://api.etsy.com/v3/public/oauth/token';
 
 @Injectable()
@@ -105,13 +105,13 @@ export class EtsyAdapter implements IMarketplaceAdapter {
       if (!shopId) {
         return false;
       }
-      const url = `${ETSY_BASE}/application/shops/${shopId}/listings/active`;
+      const url = `${ETSY_BASE}/shops/${shopId}/listings/active`;
       await axiosWithRetry<unknown>(
         {
           method: 'GET',
           url,
           timeout: 12_000,
-          params: { limit: 1 },
+          params: { limit: 1, includes: 'MainImage,Inventory' },
           ...this.headers(apiKey, token),
         },
         { maxRetries: 1 },
@@ -217,7 +217,7 @@ export class EtsyAdapter implements IMarketplaceAdapter {
         throw new Error('Etsy: apiKey ve shopId zorunludur');
       }
       const token = await this.getAccessToken(credentials);
-      const url = `${ETSY_BASE}/application/shops/${shopId}/receipts`;
+      const url = `${ETSY_BASE}/shops/${shopId}/receipts`;
       const sinceMs = since ? since.getTime() : undefined;
       let rows: MarketplaceOrder[] = [];
       await withRateLimit('ETSY', this.rpm(), async () => {
@@ -228,6 +228,8 @@ export class EtsyAdapter implements IMarketplaceAdapter {
             timeout: 25_000,
             params: {
               limit: 100,
+              was_paid: true,
+              was_shipped: false,
               ...(sinceMs !== undefined
                 ? { min_created: Math.floor(sinceMs / 1000) }
                 : {}),
@@ -258,15 +260,19 @@ export class EtsyAdapter implements IMarketplaceAdapter {
         throw new Error('Etsy: apiKey ve shopId zorunludur');
       }
       const token = await this.getAccessToken(credentials);
-      const url = `${ETSY_BASE}/application/shops/${shopId}/listings/active`;
-      const offset = page * 50;
+      const url = `${ETSY_BASE}/shops/${shopId}/listings/active`;
+      const offset = page * 100;
       const { rows, total } = await withRateLimit('ETSY', this.rpm(), async () => {
         const data = await axiosWithRetry<unknown>(
           {
             method: 'GET',
             url,
             timeout: 20_000,
-            params: { limit: 50, offset },
+            params: {
+              limit: 100,
+              offset,
+              includes: 'MainImage,Inventory',
+            },
             ...this.headers(apiKey, token),
           },
           {},
@@ -323,7 +329,7 @@ export class EtsyAdapter implements IMarketplaceAdapter {
         items,
         total: typeof total === 'number' ? total : items.length,
         page,
-        pageSize: 50,
+        pageSize: 100,
       };
     } catch (error) {
       throwSyncFailed('ETSY', 'getListings', error);
@@ -344,13 +350,25 @@ export class EtsyAdapter implements IMarketplaceAdapter {
       await withRateLimit('ETSY', this.rpm(), async () => {
         for (const u of updates) {
           const listingId = u.barcode;
-          const url = `${ETSY_BASE}/application/listings/${listingId}/inventory`;
+          const url = `${ETSY_BASE}/listings/${listingId}/inventory`;
           await axiosWithRetry<unknown>(
             {
               method: 'PUT',
               url,
               timeout: 20_000,
-              data: { products: [{ sku: u.barcode, offerings: [{ quantity: u.quantity }] }] },
+              data: {
+                products: [
+                  {
+                    sku: u.barcode,
+                    offerings: [
+                      {
+                        quantity: Math.max(0, Math.round(u.quantity)),
+                        is_enabled: u.quantity > 0,
+                      },
+                    ],
+                  },
+                ],
+              },
               ...this.headers(apiKey, token),
             },
             { maxRetries: 2 },
@@ -376,7 +394,7 @@ export class EtsyAdapter implements IMarketplaceAdapter {
       await withRateLimit('ETSY', this.rpm(), async () => {
         for (const u of updates) {
           const listingId = u.barcode;
-          const url = `${ETSY_BASE}/application/shops/${shopId}/listings/${listingId}`;
+          const url = `${ETSY_BASE}/shops/${shopId}/listings/${listingId}`;
           await axiosWithRetry<unknown>(
             {
               method: 'PATCH',

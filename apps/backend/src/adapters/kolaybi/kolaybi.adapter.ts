@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
 import { KOLAYBI_BASE_URL } from './kolaybi.constants';
@@ -60,10 +60,10 @@ export class KolaybiAdapter implements IErpAdapter {
     };
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     const apiKey = credentials.apiKey;
     if (!apiKey) {
-      return false;
+      return { success: false };
     }
     try {
       await axiosWithRetry<unknown>(
@@ -76,12 +76,12 @@ export class KolaybiAdapter implements IErpAdapter {
         },
         { maxRetries: 2, retryOn: [429, 500, 502, 503, 504] },
       );
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Kolaybi bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

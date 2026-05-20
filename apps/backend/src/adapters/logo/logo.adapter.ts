@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
 import { LOGO_API_PATH } from './logo.constants';
@@ -102,15 +102,15 @@ export class LogoAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       await this.getToken(credentials);
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Logo bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

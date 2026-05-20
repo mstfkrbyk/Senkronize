@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
 import { EBA_DEFAULT_API_BASE, EBA_DEFAULT_TOKEN_PATH } from './eba.constants';
@@ -111,7 +111,7 @@ export class EbaAdapter implements IErpAdapter {
     return data.access_token;
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const token = await this.getAccessToken(credentials);
       const apiBase = resolveApiBase(credentials);
@@ -128,12 +128,12 @@ export class EbaAdapter implements IErpAdapter {
         },
         { maxRetries: 2 },
       );
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('eBA bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

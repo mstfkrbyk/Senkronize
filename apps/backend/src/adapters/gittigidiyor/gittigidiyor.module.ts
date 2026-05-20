@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
 
 import { CommonModule } from '../../common/common.module';
-import { EbayModule } from '../ebay/ebay.module';
 import { GittigidiyorAdapter } from './gittigidiyor.adapter';
 
 @Module({
-  imports: [CommonModule, EbayModule],
+  imports: [CommonModule],
   providers: [GittigidiyorAdapter],
   exports: [GittigidiyorAdapter],
 })

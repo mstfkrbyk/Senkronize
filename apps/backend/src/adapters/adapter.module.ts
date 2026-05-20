@@ -19,7 +19,9 @@ import { AmazonAeModule } from './amazon-ae/amazon-ae.module';
 import { AmazonEuModule } from './amazon-eu/amazon-eu.module';
 import { AmazonGlobalModule } from './amazon-global/amazon-global.module';
 import { AllegroModule } from './allegro/allegro.module';
-import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
+import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
+import { LogoErpAdapter } from './erp/logo-erp.adapter';
+import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeModule } from './bizim-muhasebe/bizim-muhasebe.module';
 import { BanabiModule } from './banabi/banabi.module';
 import { BestbuyModule } from './bestbuy/bestbuy.module';
@@ -102,7 +104,6 @@ import { LidyanaModule } from './lidyana/lidyana.module';
 import { LinioModule } from './linio/linio.module';
 import { LogoCommerceModule } from './logo-commerce/logo-commerce.module';
 import { LogoCloudModule } from './logo-cloud/logo-cloud.module';
-import { LogoAdapter } from './logo/logo.adapter';
 import { LucaAdapter } from './luca/luca.adapter';
 import { MadeinchinaModule } from './madeinchina/madeinchina.module';
 import { MagaluModule } from './magalu/magalu.module';
@@ -141,7 +142,6 @@ import { OpencartModule } from './opencart/opencart.module';
 import { OpensooqModule } from './opensooq/opensooq.module';
 import { OverstockModule } from './overstock/overstock.module';
 import { OzonModule } from './ozon/ozon.module';
-import { ParasutAdapter } from './parasut/parasut.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumModule } from './pazarama-premium/pazarama-premium.module';
 import { PorlandModule } from './porland/porland.module';
@@ -190,6 +190,8 @@ import { TrendyolSecondHandModule } from './trendyol-second-hand/trendyol-second
 import { TrendyolYemekModule } from './trendyol-yemek/trendyol-yemek.module';
 import { TazeDirektModule } from './taze-direkt/taze-direkt.module';
 import { TargetPlusModule } from './target-plus/target-plus.module';
+import { TicimaxErpAdapter } from './erp/ticimax-erp.adapter';
+import { TsoftErpAdapter } from './erp/tsoft-erp.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TicimaxMpModule } from './ticimax-mp/ticimax-mp.module';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
@@ -417,13 +419,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11Adapter,
     CiceksepetiAdapter,
     IdeasoftAdapter,
-    BizimHesapAdapter,
-    ParasutAdapter,
-    LogoAdapter,
+    BizimHesapErpAdapter,
+    ParasutErpAdapter,
+    LogoErpAdapter,
     MikroAdapter,
     LucaAdapter,
     TsoftAdapter,
+    TsoftErpAdapter,
     TicimaxAdapter,
+    TicimaxErpAdapter,
     PttavmAdapter,
     PazaramaAdapter,
     WoocommerceAdapter,
@@ -445,13 +449,15 @@ import { ZirveAdapter } from './zirve/zirve.adapter';
     N11Adapter,
     CiceksepetiAdapter,
     IdeasoftAdapter,
-    BizimHesapAdapter,
-    ParasutAdapter,
-    LogoAdapter,
+    BizimHesapErpAdapter,
+    ParasutErpAdapter,
+    LogoErpAdapter,
     MikroAdapter,
     LucaAdapter,
     TsoftAdapter,
+    TsoftErpAdapter,
     TicimaxAdapter,
+    TicimaxErpAdapter,
     PttavmAdapter,
     PazaramaAdapter,
     WoocommerceAdapter,

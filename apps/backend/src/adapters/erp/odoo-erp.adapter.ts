@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios from 'axios';
 
 import type { ErpInventoryPushItem, ErpOrder } from './erp-adapter.types';
@@ -121,15 +121,15 @@ export class OdooErpAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       await this.callKw<number>(credentials, 'product.product', 'search_count', [[]]);
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Odoo bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

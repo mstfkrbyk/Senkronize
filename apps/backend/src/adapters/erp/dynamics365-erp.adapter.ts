@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
@@ -120,19 +120,19 @@ export class Dynamics365ErpAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = await this.getClient(credentials);
       await client.get(`${this.companyPath(credentials)}/items`, {
         params: { $top: 1 },
         timeout: 12_000,
       });
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Dynamics 365 bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

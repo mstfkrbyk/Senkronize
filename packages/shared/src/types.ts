@@ -218,10 +218,18 @@ export interface ErpProduct {
   purchasePrice?: number;
 }
 
+/** ERP bağlantı testi sonucu */
+export interface ERPConnectionResult {
+  success: boolean;
+  companyName?: string;
+  version?: string;
+  productCount?: number;
+}
+
 /** ERP adaptörü — bulut API (BizimHesap vb.) */
 export interface IErpAdapter {
   erpType: string;
-  testConnection(credentials: Record<string, string>): Promise<boolean>;
+  testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult>;
   getProducts(credentials: Record<string, string>): Promise<ErpProduct[]>;
   createInvoice(
     credentials: Record<string, string>,

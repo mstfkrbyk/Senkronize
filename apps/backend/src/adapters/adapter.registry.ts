@@ -23,7 +23,9 @@ import { ArcelikAdapter } from './arcelik/arcelik.adapter';
 import { BanabiAdapter } from './banabi/banabi.adapter';
 import { BestbuyAdapter } from './bestbuy/bestbuy.adapter';
 import { BidorbuyAdapter } from './bidorbuy/bidorbuy.adapter';
-import { BizimHesapAdapter } from './bizimhesap/bizimhesap.adapter';
+import { BizimHesapErpAdapter } from './erp/bizimhesap-erp.adapter';
+import { LogoErpAdapter } from './erp/logo-erp.adapter';
+import { ParasutErpAdapter } from './erp/parasut-erp.adapter';
 import { BizimMuhasebeAdapter } from './bizim-muhasebe/bizim-muhasebe.adapter';
 import { BimOnlineAdapter } from './bim-online/bim-online.adapter';
 import { BimakilliAdapter } from './bimakilli/bimakilli.adapter';
@@ -99,7 +101,6 @@ import { LidyanaAdapter } from './lidyana/lidyana.adapter';
 import { LinioAdapter } from './linio/linio.adapter';
 import { LogoCommerceAdapter } from './logo-commerce/logo-commerce.adapter';
 import { LogoCloudAdapter } from './logo-cloud/logo-cloud.adapter';
-import { LogoAdapter } from './logo/logo.adapter';
 import { LazadaAdapter } from './lazada/lazada.adapter';
 import { LazadaPhAdapter } from './lazada-ph/lazada-ph.adapter';
 import { LaredouteAdapter } from './laredoute/laredoute.adapter';
@@ -142,7 +143,6 @@ import { OverstockAdapter } from './overstock/overstock.adapter';
 import { OttoAdapter } from './otto/otto.adapter';
 import { OunassAdapter } from './ounass/ounass.adapter';
 import { OzonAdapter } from './ozon/ozon.adapter';
-import { ParasutAdapter } from './parasut/parasut.adapter';
 import { PazaramaAdapter } from './pazarama/pazarama.adapter';
 import { PazaramaPremiumAdapter } from './pazarama-premium/pazarama-premium.adapter';
 import { PorlandAdapter } from './porland/porland.adapter';
@@ -183,6 +183,8 @@ import { StripeAdapter } from './stripe/stripe.adapter';
 import { SpartooAdapter } from './spartoo/spartoo.adapter';
 import { TeknosaAdapter } from './teknosa/teknosa.adapter';
 import { TemuAdapter } from './temu/temu.adapter';
+import { TicimaxErpAdapter } from './erp/ticimax-erp.adapter';
+import { TsoftErpAdapter } from './erp/tsoft-erp.adapter';
 import { TicimaxAdapter } from './ticimax/ticimax.adapter';
 import { TicimaxMpAdapter } from './ticimax-mp/ticimax-mp.adapter';
 import { TrendyolAdapter } from './trendyol/trendyol.adapter';
@@ -249,13 +251,15 @@ export class AdapterRegistry {
     private readonly n11: N11Adapter,
     private readonly ciceksepeti: CiceksepetiAdapter,
     private readonly ideasoft: IdeasoftAdapter,
-    private readonly bizimhesap: BizimHesapAdapter,
-    private readonly parasut: ParasutAdapter,
-    private readonly logo: LogoAdapter,
+    private readonly bizimhesap: BizimHesapErpAdapter,
+    private readonly parasut: ParasutErpAdapter,
+    private readonly logo: LogoErpAdapter,
     private readonly mikro: MikroAdapter,
     private readonly luca: LucaAdapter,
     private readonly tsoft: TsoftAdapter,
+    private readonly tsoftErp: TsoftErpAdapter,
     private readonly ticimax: TicimaxAdapter,
+    private readonly ticimaxErp: TicimaxErpAdapter,
     private readonly pttavm: PttavmAdapter,
     private readonly pazarama: PazaramaAdapter,
     private readonly woocommerce: WoocommerceAdapter,
@@ -647,8 +651,8 @@ export class AdapterRegistry {
       ['LOGO', logo],
       ['MIKRO', mikro],
       ['LUCA', luca],
-      ['TSOFT', tsoft],
-      ['TICIMAX', ticimax],
+      ['TSOFT', tsoftErp],
+      ['TICIMAX', ticimaxErp],
       ['NETSIS', netsis],
       ['ETA', eta],
       ['ISNET', isnet],

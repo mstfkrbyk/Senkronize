@@ -52,6 +52,13 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   ],
   AMAZON_TR: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    { key: 'clientId', label: 'LWA Client ID', type: 'text', required: true },
+    {
+      key: 'clientSecret',
+      label: 'LWA Client Secret',
+      type: 'password',
+      required: true,
+    },
     { key: 'accessKeyId', label: 'Access Key', type: 'text', required: true },
     {
       key: 'secretAccessKey',
@@ -353,6 +360,13 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
   UZUM: [{ key: 'apiKey', label: 'API Key', type: 'password', required: true }],
   AMAZON_EU: [
     { key: 'sellerId', label: 'Satıcı ID', type: 'text', required: true },
+    { key: 'accessKeyId', label: 'Access Key', type: 'text', required: true },
+    {
+      key: 'secretAccessKey',
+      label: 'Secret Key',
+      type: 'password',
+      required: true,
+    },
     { key: 'clientId', label: 'LWA Client ID', type: 'text', required: true },
     {
       key: 'clientSecret',
@@ -638,24 +652,20 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
   ],
   GITTIGIDIYOR: [
-    { key: 'clientId', label: 'Client ID', type: 'text', required: true },
+    { key: 'apiKey', label: 'API Key', type: 'text', required: true },
+    { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
     {
-      key: 'clientSecret',
-      label: 'Client Secret',
-      type: 'password',
+      key: 'roleUsername',
+      label: 'Role Kullanıcı Adı',
+      type: 'text',
       required: true,
     },
     {
-      key: 'refreshToken',
-      label: 'Refresh Token',
+      key: 'rolePassword',
+      label: 'Role Şifre',
       type: 'password',
       required: true,
-    },
-    {
-      key: 'accessToken',
-      label: 'Access Token (opsiyonel)',
-      type: 'password',
-      required: false,
+      hint: 'API isteğinde MD5 hash olarak gönderilir',
     },
   ],
   KITAPYURDU: [

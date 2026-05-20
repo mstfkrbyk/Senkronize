@@ -3,6 +3,11 @@ import { Module } from '@nestjs/common';
 import { AliciErpAdapter } from './alici-erp.adapter';
 import { Dynamics365ErpAdapter } from './dynamics365-erp.adapter';
 import { EpicorErpAdapter } from './epicor-erp.adapter';
+import { BizimHesapErpAdapter } from './bizimhesap-erp.adapter';
+import { LogoErpAdapter } from './logo-erp.adapter';
+import { ParasutErpAdapter } from './parasut-erp.adapter';
+import { TicimaxErpAdapter } from './ticimax-erp.adapter';
+import { TsoftErpAdapter } from './tsoft-erp.adapter';
 import { ErpAdapterRegistry } from './erp-adapter.registry';
 import { EtradeErpAdapter } from './etrade-erp.adapter';
 import { FreshbooksErpAdapter } from './freshbooks-erp.adapter';
@@ -25,6 +30,11 @@ import { ZirveBulutErpAdapter } from './zirve-bulut-erp.adapter';
 import { ZohoBooksErpAdapter } from './zoho-books-erp.adapter';
 
 const erpAdapters = [
+  BizimHesapErpAdapter,
+  ParasutErpAdapter,
+  LogoErpAdapter,
+  TsoftErpAdapter,
+  TicimaxErpAdapter,
   NetsuiteErpAdapter,
   Dynamics365ErpAdapter,
   OdooErpAdapter,

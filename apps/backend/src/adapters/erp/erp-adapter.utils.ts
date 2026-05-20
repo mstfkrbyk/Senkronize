@@ -95,6 +95,27 @@ export async function getOAuth2ClientCredentialsToken(
   return token;
 }
 
+export interface JsonApiResource {
+  id: string;
+  type?: string;
+  attributes: Record<string, unknown>;
+}
+
+export interface JsonApiResponse {
+  data: JsonApiResource | JsonApiResource[];
+  meta?: Record<string, unknown>;
+}
+
+export function parseJsonApi<T extends object>(
+  response: JsonApiResponse,
+): Array<T & { id: string }> {
+  const rows = Array.isArray(response.data) ? response.data : [response.data];
+  return rows.map((item) => ({
+    id: item.id,
+    ...(item.attributes as T),
+  }));
+}
+
 export function stubInvoice(
   invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
 ): ErpInvoice {

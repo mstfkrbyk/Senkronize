@@ -25,6 +25,7 @@ import { CustomerModule } from './customer/customer.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { EventModule } from './event/event.module';
 import { ErpConnectionModule } from './erp-connection/erp-connection.module';
+import { ErpModule } from './erp/erp.module';
 import { HealthModule } from './health/health.module';
 import { ImageModule } from './image/image.module';
 import { InvoiceModule } from './invoice/invoice.module';
@@ -90,6 +91,7 @@ import { WebhookModule } from './webhook/webhook.module';
     AdapterModule,
     MarketplaceConnectionModule,
     ErpConnectionModule,
+    ErpModule,
     JobsModule,
     QueueModule,
     EventModule,

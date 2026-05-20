@@ -26,12 +26,12 @@ export class AmazonAdapter implements IMarketplaceAdapter {
 
   async testConnection(credentials: Record<string, string>): Promise<boolean> {
     try {
-      const { clientId, clientSecret, refreshToken, sellerId } = credentials;
-      if (!clientId || !clientSecret || !refreshToken || !sellerId) {
+      const { refreshToken, sellerId, accessKeyId, secretAccessKey } = credentials;
+      if (!refreshToken || !sellerId || !accessKeyId || !secretAccessKey) {
         return false;
       }
       const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(token);
+      const client = amazonCreateSpClient(credentials, token);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -47,7 +47,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
       AMAZON_TR_MARKETPLACE_ID,
@@ -65,7 +65,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -79,7 +79,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -101,7 +101,7 @@ export class AmazonAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,

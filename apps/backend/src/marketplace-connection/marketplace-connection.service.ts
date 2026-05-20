@@ -243,7 +243,7 @@ export class MarketplaceConnectionService {
       return creds.clientId ?? (creds.accessToken ? `${creds.accessToken.slice(0, 6)}...` : null);
     }
     if (platform === Marketplace.GITTIGIDIYOR) {
-      return creds.clientId ?? creds.sellerId ?? null;
+      return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
     }
     if (
       platform === Marketplace.NAMSHI ||

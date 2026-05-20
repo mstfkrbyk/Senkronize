@@ -34,7 +34,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
         return false;
       }
       const token = await amazonGetLwaToken(credentials);
-      const client = amazonCreateSpClient(token);
+      const client = amazonCreateSpClient(credentials, token);
       await client.get('/sellers/v1/marketplaceParticipations');
       return true;
     } catch (error) {
@@ -50,7 +50,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     since?: Date,
   ): Promise<MarketplaceOrder[]> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
       AMAZON_AE_MARKETPLACE_ID,
@@ -68,7 +68,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     page = 0,
   ): Promise<PaginatedResult<MarketplaceListing>> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -82,7 +82,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     updates: StockUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,
@@ -104,7 +104,7 @@ export class AmazonAeAdapter implements IMarketplaceAdapter {
     updates: PriceUpdatePayload[],
   ): Promise<void> {
     const token = await amazonGetLwaToken(credentials);
-    const client = amazonCreateSpClient(token);
+    const client = amazonCreateSpClient(credentials, token);
     const sellerId = credentials.sellerId;
     const marketplaceId = amazonResolveMarketplaceId(
       credentials,

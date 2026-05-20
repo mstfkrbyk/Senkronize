@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios from 'axios';
 
 import { axiosWithRetry } from '../../common/utils/http-retry';
@@ -253,26 +253,26 @@ export class NebimAdapter implements IErpAdapter {
     return sid;
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     if (usesNebimV3Rest(credentials)) {
       try {
         await this.ensureNebimV3Token(credentials);
-        return true;
+        return { success: true };
       } catch (error) {
         this.logger.warn('Nebim V3 REST bağlantı testi başarısız', {
           error: error instanceof Error ? error.message : 'Bilinmeyen hata',
         });
-        return false;
+        return { success: false };
       }
     }
     try {
       await this.openSession(credentials);
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Nebim bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

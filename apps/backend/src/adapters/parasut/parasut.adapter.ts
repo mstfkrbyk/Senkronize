@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { AxiosInstance } from 'axios';
 
 import { PARASUT_AUTH_URL, PARASUT_BASE_URL } from './parasut.constants';
@@ -65,16 +65,16 @@ export class ParasutAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = await this.getClient(credentials);
       await client.get('/me');
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Paraşüt bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

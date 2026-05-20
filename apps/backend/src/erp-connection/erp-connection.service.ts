@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ErpType, type ErpConnection } from '@prisma/client';
+import type { ERPConnectionResult } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EncryptionService } from '../common/encryption/encryption.service';
@@ -231,7 +232,7 @@ export class ErpConnectionService {
   async testConnection(
     organizationId: string,
     dto: TestErpConnectionDto,
-  ): Promise<{ connected: boolean }> {
+  ): Promise<ERPConnectionResult & { connected: boolean }> {
     if (dto.connectionId) {
       const row = await this.prisma.erpConnection.findFirst({
         where: { id: dto.connectionId, organizationId, deletedAt: null },
@@ -240,15 +241,15 @@ export class ErpConnectionService {
         throw new NotFoundException('ERP bağlantısı bulunamadı');
       }
       if (!this.adapterRegistry.hasErpAdapter(row.erpType)) {
-        return { connected: false };
+        return { success: false, connected: false };
       }
       const creds = this.parseCredentialsRecord(row.credentialsEnc);
       if (!creds) {
-        return { connected: false };
+        return { success: false, connected: false };
       }
       const adapter = this.adapterRegistry.getErp(row.erpType);
-      const connected = await adapter.testConnection(creds);
-      return { connected };
+      const result = await adapter.testConnection(creds);
+      return { ...result, connected: result.success };
     }
     if (dto.erpType === undefined || dto.credentials === undefined) {
       throw new BadRequestException(
@@ -256,11 +257,11 @@ export class ErpConnectionService {
       );
     }
     if (!this.adapterRegistry.hasErpAdapter(dto.erpType)) {
-      return { connected: false };
+      return { success: false, connected: false };
     }
     const adapter = this.adapterRegistry.getErp(dto.erpType);
-    const connected = await adapter.testConnection(dto.credentials);
-    return { connected };
+    const result = await adapter.testConnection(dto.credentials);
+    return { ...result, connected: result.success };
   }
 
   async update(

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { AxiosInstance } from 'axios';
 
 import { BIZIMHESAP_BASE_URL } from './bizimhesap.constants';
@@ -63,16 +63,16 @@ export class BizimHesapAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = await this.getClient(credentials);
       await client.get('/company');
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('BizimHesap bağlantı testi başarısız', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

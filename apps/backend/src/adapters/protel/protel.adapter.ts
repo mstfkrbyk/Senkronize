@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
 function normalizeBaseUrl(baseUrl: string): string {
@@ -30,21 +30,21 @@ export class ProtelAdapter implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = this.getClient(credentials);
       await client.get('/health', { timeout: 12_000 });
-      return true;
+      return { success: true };
     } catch {
       try {
         const client = this.getClient(credentials);
         await client.get('/me', { timeout: 12_000 });
-        return true;
+        return { success: true };
       } catch (error) {
         this.logger.warn('Protel bağlantı testi başarısız', {
           error: error instanceof Error ? error.message : 'Bilinmeyen hata',
         });
-        return false;
+        return { success: false };
       }
     }
   }

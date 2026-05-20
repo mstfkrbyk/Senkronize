@@ -3,7 +3,6 @@ import axios, { type AxiosInstance } from 'axios';
 import type {
   ErpInvoice,
   ErpProduct,
-  IErpAdapter,
   IMarketplaceAdapter,
   MarketplaceListing,
   MarketplaceOrder,
@@ -83,7 +82,7 @@ function totalFromPayload(payload: unknown, itemsLen: number): number {
 }
 
 @Injectable()
-export class TsoftAdapter implements IMarketplaceAdapter, IErpAdapter {
+export class TsoftAdapter implements IMarketplaceAdapter {
   readonly platform = 'TSOFT';
   readonly erpType = 'TSOFT';
   private readonly logger = new Logger(TsoftAdapter.name);

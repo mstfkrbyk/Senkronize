@@ -19,6 +19,26 @@ export interface AmazonOrderPayload {
   PurchaseDate?: string;
 }
 
+export interface AmazonOrderItemPayload {
+  OrderItemId?: string;
+  ASIN?: string;
+  SellerSKU?: string;
+  Title?: string;
+  QuantityOrdered?: number;
+  ItemPrice?: {
+    Amount?: string;
+    CurrencyCode?: string;
+  };
+}
+
+export interface AmazonOrderItemsListPayload {
+  OrderItems?: AmazonOrderItemPayload[];
+}
+
+export interface AmazonOrderItemsResponse {
+  payload?: AmazonOrderItemsListPayload;
+}
+
 export interface AmazonOrdersListPayload {
   Orders?: AmazonOrderPayload[];
   NextToken?: string;
@@ -56,4 +76,30 @@ export interface AmazonListingItem {
 export interface AmazonListingsListResponse {
   items?: AmazonListingItem[];
   pagination?: { nextPageToken?: string };
+}
+
+/** Catalog Items API */
+export interface AmazonCatalogItemSummary {
+  itemName?: string;
+  mainImage?: { link?: string };
+}
+
+export interface AmazonCatalogItem {
+  asin?: string;
+  summaries?: AmazonCatalogItemSummary[];
+}
+
+export interface AmazonCatalogItemsResponse {
+  items?: AmazonCatalogItem[];
+  pagination?: { nextToken?: string };
+}
+
+/** Feeds API */
+export interface AmazonFeedDocumentResponse {
+  feedDocumentId: string;
+  url: string;
+}
+
+export interface AmazonFeedResponse {
+  feedId: string;
 }

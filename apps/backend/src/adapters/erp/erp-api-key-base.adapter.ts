@@ -1,5 +1,10 @@
 import { Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type {
+  ERPConnectionResult,
+  ErpInvoice,
+  ErpProduct,
+  IErpAdapter,
+} from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
 import type { ErpInventoryPushItem, ErpOrder } from './erp-adapter.types';
@@ -107,16 +112,16 @@ export abstract class ApiKeyErpAdapterBase implements IErpAdapter {
     });
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = this.getClient(credentials);
       await client.get('/products', { params: { limit: 1 }, timeout: 12_000 });
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn(`${this.config.label} bağlantı testi başarısız`, {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return false;
+      return { success: false };
     }
   }
 

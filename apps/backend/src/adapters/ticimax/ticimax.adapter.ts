@@ -3,7 +3,6 @@ import axios, { type AxiosInstance } from 'axios';
 import type {
   ErpInvoice,
   ErpProduct,
-  IErpAdapter,
   IMarketplaceAdapter,
   MarketplaceListing,
   MarketplaceOrder,
@@ -71,7 +70,7 @@ function totalFromPayload(payload: unknown, itemsLen: number): number {
 }
 
 @Injectable()
-export class TicimaxAdapter implements IMarketplaceAdapter, IErpAdapter {
+export class TicimaxAdapter implements IMarketplaceAdapter {
   readonly platform = 'TICIMAX';
   readonly erpType = 'TICIMAX';
   private readonly logger = new Logger(TicimaxAdapter.name);

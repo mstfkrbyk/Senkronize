@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
+import type { ERPConnectionResult, ErpInvoice, ErpProduct, IErpAdapter } from '@senkronize/shared';
 import axios, { type AxiosInstance } from 'axios';
 
 import type { ErpInventoryPushItem, ErpOrder } from './erp-adapter.types';
@@ -64,16 +64,16 @@ export class Sage50ErpAdapter implements IErpAdapter {
     return [];
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<boolean> {
+  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
     try {
       const client = this.getClient(credentials);
       await client.get('/health', { timeout: 8_000, validateStatus: () => true });
-      return true;
+      return { success: true };
     } catch (error) {
       this.logger.warn('Sage 50 bağlantı testi (stub)', {
         error: error instanceof Error ? error.message : 'Bilinmeyen hata',
       });
-      return Boolean(credentials.baseUrl?.trim() && credentials.apiKey?.trim());
+      return { success: Boolean(credentials.baseUrl?.trim() && credentials.apiKey?.trim()) };
     }
   }
 
