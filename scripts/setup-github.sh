@@ -12,29 +12,22 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
-SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_senkronize}"
-
 if ! gh auth status >/dev/null 2>&1; then
-  echo "GitHub oturumu yok. Tarayıcıda cihaz kodu ile giriş:"
-  echo "  gh auth login -h github.com -p ssh -w"
+  echo "GitHub oturumu yok. Tek komut:"
+  echo "  ./scripts/github-login-once.sh"
   exit 1
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [ ! -f "${SSH_KEY}" ]; then
-  echo "SSH anahtarı oluşturuluyor: ${SSH_KEY}"
-  ssh-keygen -t ed25519 -C "senkronize-github" -f "${SSH_KEY}" -N "" -q
-fi
+gh auth setup-git
 
-if ! ssh -T git@github.com 2>&1 | grep -qi "successfully authenticated"; then
-  echo "GitHub hesabına SSH anahtarı ekleniyor..."
-  gh ssh-key add "${SSH_KEY}.pub" -t "Senkronize Mac" || true
-fi
+REMOTE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}.git"
 
 if git remote get-url origin >/dev/null 2>&1; then
-  echo "origin zaten tanımlı: $(git remote get-url origin)"
+  echo "origin güncelleniyor: ${REMOTE_URL}"
+  git remote set-url origin "${REMOTE_URL}"
 else
   if ! gh repo view "${REPO_OWNER}/${REPO_NAME}" >/dev/null 2>&1; then
     echo "Private repo oluşturuluyor: ${REPO_OWNER}/${REPO_NAME}"
@@ -45,12 +38,16 @@ else
       --description "Senkronize — pazaryeri / ERP entegrasyon SaaS"
   else
     echo "Repo mevcut, origin ekleniyor..."
-    git remote add origin "git@github.com:${REPO_OWNER}/${REPO_NAME}.git"
+    git remote add origin "${REMOTE_URL}"
   fi
 fi
 
 echo "Ortak davet ediliyor: ${COLLABORATOR}"
-gh repo invite-collaborator "${REPO_OWNER}/${REPO_NAME}" "${COLLABORATOR}" --permission push || true
+gh api \
+  -X PUT \
+  "repos/${REPO_OWNER}/${REPO_NAME}/collaborators/${COLLABORATOR}" \
+  -f permission=push \
+  >/dev/null 2>&1 || true
 
 echo "main dalı push ediliyor..."
 git push -u origin main
