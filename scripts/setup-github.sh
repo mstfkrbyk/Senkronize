@@ -12,14 +12,26 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519_senkronize}"
+
 if ! gh auth status >/dev/null 2>&1; then
-  echo "GitHub oturumu yok. Önce giriş yapın:"
+  echo "GitHub oturumu yok. Tarayıcıda cihaz kodu ile giriş:"
   echo "  gh auth login -h github.com -p ssh -w"
   exit 1
 fi
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+if [ ! -f "${SSH_KEY}" ]; then
+  echo "SSH anahtarı oluşturuluyor: ${SSH_KEY}"
+  ssh-keygen -t ed25519 -C "senkronize-github" -f "${SSH_KEY}" -N "" -q
+fi
+
+if ! ssh -T git@github.com 2>&1 | grep -qi "successfully authenticated"; then
+  echo "GitHub hesabına SSH anahtarı ekleniyor..."
+  gh ssh-key add "${SSH_KEY}.pub" -t "Senkronize Mac" || true
+fi
 
 if git remote get-url origin >/dev/null 2>&1; then
   echo "origin zaten tanımlı: $(git remote get-url origin)"

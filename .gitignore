@@ -17,3 +17,4 @@ target/
 # Desktop (Tauri / embed)
 desktop/app-icon.png
 desktop/public/panel/
+.gh-config/
