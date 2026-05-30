@@ -40,6 +40,12 @@ const DEMO_LOGIN_BY_SLUG: Record<
     description: 'Pazaryeri siparişleri ve katalog',
     productLineHint: 'Entegrasyon',
   },
+  'demo-hepsiburada': {
+    email: 'demo-hepsiburada@senkronize.com',
+    label: 'Hepsiburada',
+    description: 'Hepsiburada entegrasyon ve sipariş örnekleri',
+    productLineHint: 'Entegrasyon · Hepsiburada',
+  },
   'demo-paket': {
     email: 'demo-paket@senkronize.com',
     label: 'Tam paket',

@@ -105,13 +105,24 @@ function formatDemoAccountingMode(mode: AccountingMode | null): string {
 const DEMO_INTEGRATION_SEED: Partial<
   Record<
     string,
-    { orderCount: number; orderPrefix: string; useFullCatalog: boolean }
+    {
+      orderCount: number;
+      orderPrefix: string;
+      useFullCatalog: boolean;
+      platforms?: Marketplace[];
+    }
   >
 > = {
   'demo-entegrasyon': {
     orderCount: 30,
     orderPrefix: 'ENT',
     useFullCatalog: true,
+  },
+  'demo-hepsiburada': {
+    orderCount: 24,
+    orderPrefix: 'HB',
+    useFullCatalog: true,
+    platforms: [Marketplace.HEPSIBURADA],
   },
   'demo-paket': {
     orderCount: 12,
@@ -181,6 +192,14 @@ const DEMO_ORG_PROFILES: DemoOrgProfile[] = [
     name: 'Demo Entegrasyon A.Ş.',
     email: 'demo-entegrasyon@senkronize.com',
     userName: 'Demo Entegrasyon',
+    productLines: ['INTEGRATION'],
+    accountingMode: null,
+  },
+  {
+    slug: 'demo-hepsiburada',
+    name: 'Demo Hepsiburada Mağaza',
+    email: 'demo-hepsiburada@senkronize.com',
+    userName: 'Demo Hepsiburada',
     productLines: ['INTEGRATION'],
     accountingMode: null,
   },
@@ -786,12 +805,12 @@ async function seedIntegrationOrders(
   productRows: DemoProductRow[],
   orderCount: number,
   idPrefix: string,
-): Promise<void> {
-  const platforms: Marketplace[] = [
+  platforms: Marketplace[] = [
     Marketplace.TRENDYOL,
     Marketplace.HEPSIBURADA,
     Marketplace.N11,
-  ];
+  ],
+): Promise<void> {
   const statuses: OrderStatus[] = [
     OrderStatus.NEW,
     OrderStatus.PICKING,
@@ -1289,6 +1308,7 @@ async function seedDemoSampleData(
         products,
         integrationSeed.orderCount,
         integrationSeed.orderPrefix,
+        integrationSeed.platforms,
       );
     }
 
