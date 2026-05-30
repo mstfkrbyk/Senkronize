@@ -21,6 +21,8 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# CI workflow dosyaları push için workflow scope gerekir
+gh auth refresh -h github.com -s repo,workflow,read:org,gist 2>/dev/null || true
 gh auth setup-git
 
 REMOTE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}.git"
