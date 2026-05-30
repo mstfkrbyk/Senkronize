@@ -1,6 +1,7 @@
 export const DEMO_ORG_SLUGS = [
   'demo-muhasebe',
   'demo-entegrasyon',
+  'demo-hepsiburada',
   'demo-paket',
   'demo-external-erp',
   'demo-partner',
@@ -15,6 +16,8 @@ const DEMO_BANNER_MESSAGES: Record<DemoOrgSlug, string> = {
     'Ön Muhasebe demo hesabındasınız. Müşteri, fatura ve KDV verileri örnektir.',
   'demo-entegrasyon':
     'Entegrasyon demo hesabındasınız. Pazaryeri siparişleri ve katalog verileri örnektir.',
+  'demo-hepsiburada':
+    'Hepsiburada demo hesabındasınız. Sipariş ve katalog verileri yalnızca Hepsiburada kanalı içindir.',
   'demo-paket':
     'Tam paket demo hesabındasınız. Entegrasyon ve muhasebe verileri birlikte örnektir.',
   'demo-external-erp':

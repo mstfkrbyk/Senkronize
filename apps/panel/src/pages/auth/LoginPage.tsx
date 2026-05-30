@@ -26,6 +26,10 @@ import {
   getDemoLoginPassword,
   isDemoMode,
 } from '@/lib/demo-login';
+import {
+  getHepsiburadaQuickLoginCredentials,
+  isHepsiburadaQuickLoginEnabled,
+} from '@/lib/hepsiburada-quick-login';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { resolveAppHomePath } from '@/lib/app-home';
 import { useAuthStore } from '@/store/auth.store';
@@ -462,12 +466,30 @@ export function LoginPage(): ReactElement {
                 <AlertDescription>{formError}</AlertDescription>
               </Alert>
             ) : null}
+            {isHepsiburadaQuickLoginEnabled() ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                disabled={loginMutation.isPending}
+                onClick={() => {
+                  const credentials = getHepsiburadaQuickLoginCredentials();
+                  form.setValue('email', credentials.email);
+                  form.setValue('password', credentials.password);
+                  loginMutation.mutate(credentials);
+                }}
+              >
+                Hepsiburada
+              </Button>
+            ) : null}
             {isDemoMode() ? (
               <>
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Demo hesapları</p>
                   <div className="flex flex-col gap-2">
-                    {DEMO_LOGIN_ACCOUNTS.map((account) => (
+                    {DEMO_LOGIN_ACCOUNTS.filter(
+                      (account) => account.slug !== 'demo-hepsiburada',
+                    ).map((account) => (
                       <Button
                         key={account.slug}
                         type="button"
