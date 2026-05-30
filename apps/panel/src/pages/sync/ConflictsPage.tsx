@@ -3,9 +3,13 @@ import { useMemo, useState } from 'react';
 
 import { format } from 'date-fns';
 import { AlertTriangle, RefreshCw, Wand2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
+import { SyncAccountingModeBanner } from '@/components/sync/SyncAccountingModeBanner';
+import { SyncContextCards } from '@/components/sync/SyncContextCards';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,8 +35,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
+import { formatConflictValue } from '@/lib/sync-conflict-values';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type {
   ConflictResolution,
@@ -64,26 +70,6 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
 };
 
 const PIE_COLORS = ['#0f172a', '#38bdf8', '#94a3b8', '#22c55e', '#f97316'];
-
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined) {
-    return '—';
-  }
-  if (typeof value === 'object') {
-    const o = value as Record<string, unknown>;
-    if (typeof o.quantity === 'number') {
-      return `Stok: ${o.quantity.toLocaleString('tr-TR')}`;
-    }
-    if (typeof o.salePrice === 'number') {
-      return `Fiyat: ${Number(o.salePrice).toLocaleString('tr-TR', {
-        style: 'currency',
-        currency: 'TRY',
-      })}`;
-    }
-    return JSON.stringify(value);
-  }
-  return String(value);
-}
 
 function statusBadge(conflict: SyncConflictDto): ReactElement {
   if (conflict.resolution === null) {
@@ -153,7 +139,11 @@ function ConflictActions({
 }
 
 export function ConflictsPage(): ReactElement {
-  usePageTitle('Senkronizasyon çakışmaları');
+  const { t } = useTranslation();
+  const { mode: accountingMode } = useAccountingMode();
+  const showErpContext = accountingMode === 'EXTERNAL_ERP';
+
+  usePageTitle(t('sync.conflicts.title'));
 
   const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -192,50 +182,50 @@ export function ConflictsPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Senkronizasyon çakışmaları
-          </h1>
-          <p className="text-muted-foreground">
-            Platform ile yerel veri arasındaki uyuşmazlıkları yönetin.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={detectMutation.isPending}
-            onClick={() =>
-              detectMutation.mutate(undefined, {
-                onSuccess: (rows) =>
-                  toast.success(`${rows.length} yeni çakışma tespit edildi`),
-                onError: (e) => toast.error(getApiErrorMessage(e)),
-              })
-            }
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Taramayı başlat
-          </Button>
-          <Button
-            disabled={
-              autoResolveMutation.isPending ||
-              (statsQuery.data?.pending ?? 0) === 0
-            }
-            onClick={() =>
-              autoResolveMutation.mutate(undefined, {
-                onSuccess: (r) =>
-                  toast.success(
-                    `${r.resolved} çözüldü, ${r.ignored} yoksayıldı`,
-                  ),
-                onError: (e) => toast.error(getApiErrorMessage(e)),
-              })
-            }
-          >
-            <Wand2 className="mr-2 h-4 w-4" />
-            Tümünü otomatik çöz
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('sync.conflicts.title')}
+        description={t('sync.conflicts.subtitle')}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={detectMutation.isPending}
+              onClick={() =>
+                detectMutation.mutate(undefined, {
+                  onSuccess: (rows) =>
+                    toast.success(`${rows.length} yeni çakışma tespit edildi`),
+                  onError: (e) => toast.error(getApiErrorMessage(e)),
+                })
+              }
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Taramayı başlat
+            </Button>
+            <Button
+              disabled={
+                autoResolveMutation.isPending ||
+                (statsQuery.data?.pending ?? 0) === 0
+              }
+              onClick={() =>
+                autoResolveMutation.mutate(undefined, {
+                  onSuccess: (r) =>
+                    toast.success(
+                      `${r.resolved} çözüldü, ${r.ignored} yoksayıldı`,
+                    ),
+                  onError: (e) => toast.error(getApiErrorMessage(e)),
+                })
+              }
+            >
+              <Wand2 className="mr-2 h-4 w-4" />
+              Tümünü otomatik çöz
+            </Button>
+          </div>
+        }
+      />
+
+      <SyncAccountingModeBanner />
+
+      <SyncContextCards showErpContext={showErpContext} />
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -392,10 +382,10 @@ export function ConflictsPage(): ReactElement {
                           {CONFLICT_TYPE_LABELS[row.conflictType]}
                         </TableCell>
                         <TableCell className="text-sm tabular-nums">
-                          {formatValue(row.localValue)}
+                          {formatConflictValue(row.conflictType, row.localValue)}
                         </TableCell>
                         <TableCell className="text-sm tabular-nums">
-                          {formatValue(row.remoteValue)}
+                          {formatConflictValue(row.conflictType, row.remoteValue)}
                         </TableCell>
                         <TableCell>{statusBadge(row)}</TableCell>
                         <TableCell className="whitespace-nowrap text-sm text-muted-foreground">

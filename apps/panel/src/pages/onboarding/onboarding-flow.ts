@@ -2,6 +2,7 @@ import type { ProductSelection } from '@/lib/product-selection';
 
 export type OnboardingWizardStepId =
   | 'company'
+  | 'product-match'
   | 'accounting'
   | 'erp'
   | 'marketplace'
@@ -16,11 +17,12 @@ export interface OnboardingStepMeta {
 
 const STEP_LABELS: Record<OnboardingWizardStepId, string> = {
   company: 'Firma Bilgileri',
-  accounting: 'Ön Muhasebe',
+  'product-match': 'Ürün eşleştirme',
+  accounting: 'Muhasebe modu',
   erp: 'ERP Seçimi',
   marketplace: 'Pazaryerleri',
   'connections-bundle': 'Bağlantılar',
-  'product-plan': 'Paket',
+  'product-plan': 'Ürün ve paket',
   complete: 'Tamamlandı',
 };
 
@@ -33,6 +35,7 @@ export function buildOnboardingSteps(
     case 'ACCOUNTING':
       return [
         { id: 'company', label: STEP_LABELS.company },
+        { id: 'product-match', label: STEP_LABELS['product-match'] },
         { id: 'accounting', label: STEP_LABELS.accounting },
         { id: 'product-plan', label: STEP_LABELS['product-plan'] },
         { id: 'complete', label: STEP_LABELS.complete },
@@ -40,6 +43,7 @@ export function buildOnboardingSteps(
     case 'INTEGRATION':
       return [
         { id: 'company', label: STEP_LABELS.company },
+        { id: 'product-match', label: STEP_LABELS['product-match'] },
         { id: 'erp', label: STEP_LABELS.erp },
         { id: 'marketplace', label: STEP_LABELS.marketplace },
         { id: 'product-plan', label: STEP_LABELS['product-plan'] },
@@ -48,6 +52,7 @@ export function buildOnboardingSteps(
     case 'BUNDLE':
       return [
         { id: 'company', label: STEP_LABELS.company },
+        { id: 'product-match', label: STEP_LABELS['product-match'] },
         { id: 'accounting', label: STEP_LABELS.accounting },
         { id: 'connections-bundle', label: STEP_LABELS['connections-bundle'] },
         { id: 'product-plan', label: STEP_LABELS['product-plan'] },

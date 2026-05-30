@@ -91,7 +91,12 @@ export function buildProductFilterWhere(
     ...(andClauses.length > 0 && { AND: andClauses }),
     ...(query.isActive !== undefined && { isActive: query.isActive }),
     ...('category' in query &&
-      query.category !== undefined && { category: query.category }),
+      query.category !== undefined && {
+        category: {
+          contains: query.category,
+          mode: Prisma.QueryMode.insensitive,
+        },
+      }),
     ...(query.categoryId !== undefined && { categoryId: query.categoryId }),
     ...(costRange && { costPrice: costRange }),
     ...(stockRange && {

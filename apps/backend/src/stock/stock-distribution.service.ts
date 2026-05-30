@@ -14,6 +14,8 @@ import { WarehouseService } from '../warehouse/warehouse.service';
 import type {
   DistributionPreview,
   DistributionResult,
+  ErpStockBreakdown,
+  ErpStockSourceRow,
   StockDistributionStrategy,
 } from './stock-distribution.types';
 
@@ -33,6 +35,45 @@ export class StockDistributionService {
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
   ) {}
+
+  async getErpStockBreakdown(
+    organizationId: string,
+    barcode: string,
+  ): Promise<ErpStockBreakdown> {
+    const trimmed = barcode.trim();
+    const rows = await this.prisma.erpStockEntry.findMany({
+      where: { organizationId, barcode: trimmed },
+      include: {
+        erpConnection: {
+          select: { id: true, erpType: true, displayName: true, role: true },
+        },
+        warehouse: { select: { code: true, name: true } },
+      },
+      orderBy: [{ erpConnection: { role: 'asc' } }, { updatedAt: 'desc' }],
+    });
+
+    const sources: ErpStockSourceRow[] = rows.map((row) => ({
+      erpConnectionId: row.erpConnectionId,
+      erpType: row.erpConnection.erpType,
+      displayName: row.erpConnection.displayName,
+      role: row.erpConnection.role,
+      quantity: row.quantity,
+      warehouseCode: row.warehouse.code,
+      warehouseName: row.warehouse.name,
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+
+    const centralRows = await this.prisma.stockEntry.findMany({
+      where: { organizationId, barcode: trimmed, platform: null },
+      select: { quantity: true, reservedQty: true },
+    });
+    const mergedTotal = centralRows.reduce(
+      (sum, row) => sum + Math.max(0, row.quantity - row.reservedQty),
+      0,
+    );
+
+    return { barcode: trimmed, mergedTotal, sources };
+  }
 
   async getCurrentDistribution(
     organizationId: string,

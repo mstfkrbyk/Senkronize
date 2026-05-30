@@ -118,6 +118,20 @@ export interface MigrationExecuteResponse {
   sessionId: string;
 }
 
+export interface MigrationHistoryItem {
+  id: string;
+  createdAt: string;
+  sourceFormat: MigrationSourceFormat;
+  sourceLabel: string;
+  dataType: MigrationDataType;
+  fileName: string;
+  total: number;
+  success: number;
+  failed: number;
+  status: MigrationSessionStatus;
+  errors?: MigrationFieldIssue[];
+}
+
 export type MigrationNormalizedRow =
   | ProductImportDto
   | OrderImportDto

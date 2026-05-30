@@ -164,6 +164,7 @@ export class TicimaxWebhookService {
       platform,
       existing.platformOrderId,
       statusRaw,
+      { fromPlatformWebhook: true },
     );
 
     const after = await this.prisma.order.findFirst({

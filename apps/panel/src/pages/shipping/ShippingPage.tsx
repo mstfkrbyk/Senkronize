@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -17,9 +18,11 @@ import {
 import { toast } from 'sonner';
 import type { CargoProvider } from '@senkronize/shared';
 
+import { PageHeader } from '@/components/PageHeader';
 import { BulkShipModal } from '@/components/shipping/BulkShipModal';
 import { CargoConnectionWizard } from '@/components/shipping/CargoConnectionWizard';
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,8 +46,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useCargoConnections } from '@/hooks/useUnifiedConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { api, getApiErrorMessage } from '@/lib/api';
 import {
   CONNECTION_STATUS_BADGE,
@@ -52,6 +57,11 @@ import {
   getCargoDisplay,
 } from '@/lib/cargo-display';
 import { CARGO_PROVIDER_OPTIONS } from '@/lib/cargo-providers';
+import {
+  isKnownOrderStatus,
+  orderStatusLabel,
+  orderStatusTone,
+} from '@/lib/order-status';
 import type { CargoPriceQuote } from '@/types/shipping';
 import type { Order } from '@/types/order';
 
@@ -86,7 +96,6 @@ function downloadBlob(blob: Blob, filename: string): void {
 }
 
 function CargoConnectionsTab(): ReactElement {
-  const navigate = useNavigate();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const connectionsQuery = useCargoConnections();
@@ -122,17 +131,12 @@ function CargoConnectionsTab(): ReactElement {
 
   if (connectionsQuery.isError) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-6 text-center">
-        <p className="text-sm text-destructive">{getApiErrorMessage(connectionsQuery.error)}</p>
-        <Button
-          type="button"
-          variant="outline"
-          className="mt-4"
-          onClick={() => void connectionsQuery.refetch()}
-        >
-          Tekrar dene
-        </Button>
-      </div>
+      <QueryErrorAlert
+        error={connectionsQuery.error}
+        onRetry={() => {
+          void connectionsQuery.refetch();
+        }}
+      />
     );
   }
 
@@ -205,25 +209,20 @@ function CargoConnectionsTab(): ReactElement {
                   )}
                   Test et
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => navigate('/connections')}
-                >
-                  <Settings className="mr-1 h-4 w-4" aria-hidden />
-                  Ayarlar
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <Link to="/connections?tab=cargo">
+                    <Settings className="mr-1 h-4 w-4" aria-hidden />
+                    Ayarlar
+                  </Link>
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    toast.info('Kargo bağlantısı kaldırma yakında panelden yapılabilecek.');
-                  }}
-                >
-                  <Trash2 className="mr-1 h-4 w-4" aria-hidden />
-                  Kaldır
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <Link
+                    to="/connections?tab=cargo"
+                    title="Kargo bağlantısını Entegrasyonlar sayfasındaki Kargo sekmesinden kaldırın"
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" aria-hidden />
+                    Entegrasyonlarda kaldır
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
@@ -336,7 +335,12 @@ function CargoCompareTab(): ReactElement {
         ) : null}
 
         {submitted && compareQuery.isError ? (
-          <p className="text-sm text-destructive">{getApiErrorMessage(compareQuery.error)}</p>
+          <QueryErrorAlert
+            error={compareQuery.error}
+            onRetry={() => {
+              void compareQuery.refetch();
+            }}
+          />
         ) : null}
 
         {submitted && !compareQuery.isPending && !compareQuery.isError && rows.length === 0 ? (
@@ -559,7 +563,12 @@ function CargoLabelsTab(): ReactElement {
           ) : null}
 
           {ordersQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(ordersQuery.error)}</p>
+            <QueryErrorAlert
+              error={ordersQuery.error}
+              onRetry={() => {
+                void ordersQuery.refetch();
+              }}
+            />
           ) : null}
 
           {!ordersQuery.isLoading && !ordersQuery.isError && orders.length === 0 ? (
@@ -603,7 +612,14 @@ function CargoLabelsTab(): ReactElement {
                       <TableCell className="font-medium">{o.platformOrderId}</TableCell>
                       <TableCell>{o.customerName}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{o.status}</Badge>
+                        <Badge
+                          variant="outline"
+                          className={
+                            isKnownOrderStatus(o.status) ? orderStatusTone(o.status) : undefined
+                          }
+                        >
+                          {orderStatusLabel(o.status)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
@@ -638,17 +654,21 @@ function CargoLabelsTab(): ReactElement {
 }
 
 export function ShippingPage(): ReactElement {
-  usePageTitle('Kargo Yönetimi');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.shipping'));
+  usePageTitle(t('nav.shipping'));
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">Kargo Yönetimi</h1>
-        <p className="text-muted-foreground">
-          Kargo bağlantıları, fiyat karşılaştırma ve etiket işlemleri.
-        </p>
-      </div>
+      <PageHeader
+        title="Kargo"
+        description="Kargo entegrasyonları ve gönderi yönetimi."
+        context={navContextLine}
+      />
 
+      <Card>
+        <CardContent className="pt-6">
       <Tabs defaultValue="connections">
         <TabsList className="flex h-auto flex-wrap gap-1">
           <TabsTrigger value="connections">Kargo Bağlantıları</TabsTrigger>
@@ -665,6 +685,8 @@ export function ShippingPage(): ReactElement {
           <CargoLabelsTab />
         </TabsContent>
       </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }

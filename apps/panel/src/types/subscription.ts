@@ -11,6 +11,7 @@ export interface UsageOverview {
     orders: UsageStatBucket;
     users: UsageStatBucket;
     warehouses: UsageStatBucket;
+    erpConnections: UsageStatBucket;
     apiCallsToday: UsageStatBucket;
   };
   renewsAt: string | null;
@@ -78,6 +79,8 @@ export interface Payment {
   createdAt: string;
   periodStart: string | null;
   periodEnd: string | null;
+  /** Ödeme sağlayıcısı makbuzu (Payment kaydında varsa) */
+  receiptUrl?: string | null;
 }
 
 /** @deprecated Payment ile aynı — geriye dönük uyumluluk */

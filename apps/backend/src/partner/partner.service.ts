@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AccountingMode,
   ClientOnboarding,
   CommissionLedger,
   CommissionType,
@@ -22,6 +23,9 @@ import {
 } from '@prisma/client';
 import { randomBytes } from 'crypto';
 
+import { resolveOrganizationAccountingMode } from '../common/accounting-mode';
+import { ensureArray, ensureFiniteNumber } from '../common/ensure-array.util';
+import { resolveOrgProductLines } from '../common/product-lines';
 import { ImpersonationService } from '../impersonation/impersonation.service';
 import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,11 +36,29 @@ import type {
   UpdateRelationshipDto,
   UpdateWhiteLabelDto,
 } from './partner.dto';
+import {
+  normalizeAdminPartnerRows,
+  normalizePartnerCommissionSummaryResponse,
+  normalizePartnerCommissionsPageResponse,
+  normalizePartnerDashboardResponse,
+} from './partner-response.util';
+import {
+  ADMIN_PARTNER_PAYOUT_APPROVE_ACTION,
+  ADMIN_PARTNER_PAYOUT_REJECT_ACTION,
+  mapAuditLogToPayoutRequest,
+  parsePayoutRequestMetadata,
+  PARTNER_PAYOUT_REQUEST_ACTION,
+} from './partner-payout.util';
 import type {
   AdminPartnerRow,
   CommissionReport,
+  PartnerPayoutRequestRow,
+  PartnerPayoutRequestStatus,
   PartnerPerformance,
 } from './partner.types';
+
+/** Partner dashboard — editable commission note (future); API field reserved. */
+const PARTNER_COMMISSION_NOTE_PLACEHOLDER: string | null = null;
 
 @Injectable()
 export class PartnerService {
@@ -99,14 +121,23 @@ export class PartnerService {
       orderBy: { name: 'asc' },
     });
 
-    return partners.map((p) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      commissionRate: Number(p.partnerProfile?.commissionRate ?? 10),
-      activeClientCount: p._count.partnerRelationships,
-      createdAt: p.createdAt,
-    }));
+    return normalizeAdminPartnerRows(
+      ensureArray(partners).map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        commissionRate: ensureFiniteNumber(
+          Number(p.partnerProfile?.commissionRate ?? 10),
+          10,
+        ),
+        activeClientCount: ensureFiniteNumber(
+          p._count.partnerRelationships,
+          0,
+        ),
+        createdAt: p.createdAt,
+        isDemo: p.slug === 'demo-partner' || p.slug.startsWith('demo-'),
+      })),
+    );
   }
 
   async assertPartnerOrg(partnerOrgId: string): Promise<void> {
@@ -126,6 +157,7 @@ export class PartnerService {
     Array<
       Omit<PartnerRelationship, 'inviteToken'> & {
         inviteUrl: string | null;
+        orders30d: number;
       }
     >
   > {
@@ -137,18 +169,66 @@ export class PartnerService {
       },
       include: {
         clientOrg: {
-          select: { id: true, name: true, slug: true, createdAt: true },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            createdAt: true,
+            productLines: true,
+            accountingMode: true,
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    const clientIds = rows
+      .map((r) => r.clientOrgId)
+      .filter((id): id is string => id != null);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+    const orderGroups =
+      clientIds.length > 0
+        ? await this.prisma.order.groupBy({
+            by: ['organizationId'],
+            where: {
+              organizationId: { in: clientIds },
+              deletedAt: null,
+              createdAt: { gte: thirtyDaysAgo },
+            },
+            _count: { _all: true },
+          })
+        : [];
+    const orderMap = new Map(
+      orderGroups.map((g) => [g.organizationId, g._count._all]),
+    );
+
+    const clientOrgs = rows
+      .map((r) => r.clientOrg)
+      .filter((org): org is NonNullable<typeof org> => org != null);
+    const accountingModeByOrgId =
+      await this.resolveAccountingModesForOrgs(clientOrgs);
+
     const baseUrl =
       this.config.get<string>('APP_URL')?.trim() || 'http://localhost:5173';
     const root = baseUrl.replace(/\/$/, '');
-    return rows.map((r) => {
-      const { inviteToken, ...rest } = r;
+    return ensureArray(rows).map((r) => {
+      const { inviteToken, clientOrg, ...rest } = r;
       return {
         ...rest,
+        orders30d: ensureFiniteNumber(
+          r.clientOrgId ? orderMap.get(r.clientOrgId) : undefined,
+          0,
+        ),
+        clientOrg: clientOrg
+          ? {
+              id: clientOrg.id,
+              name: clientOrg.name,
+              slug: clientOrg.slug,
+              createdAt: clientOrg.createdAt,
+              orgProducts: resolveOrgProductLines(clientOrg.productLines),
+              accountingMode: accountingModeByOrgId.get(clientOrg.id),
+            }
+          : null,
         inviteUrl: inviteToken ? `${root}/invite/${inviteToken}` : null,
       };
     });
@@ -442,16 +522,16 @@ export class PartnerService {
       }),
     ]);
 
-    const pendingAmount = Number(pendingSum._sum.amount ?? 0);
-    const settledAmount = Number(settledSum._sum.amount ?? 0);
+    const pendingAmount = ensureFiniteNumber(pendingSum._sum.amount, 0);
+    const settledAmount = ensureFiniteNumber(settledSum._sum.amount, 0);
 
-    return {
+    return normalizePartnerCommissionSummaryResponse({
       totalEarned: pendingAmount + settledAmount,
       pendingAmount,
       settledAmount,
-      activeClients,
-      ledger,
-    };
+      activeClients: ensureFiniteNumber(activeClients, 0),
+      ledger: ensureArray(ledger),
+    });
   }
 
   async getDashboard(partnerOrgId: string): Promise<{
@@ -460,6 +540,8 @@ export class PartnerService {
     monthlyCommission: number;
     totalCommission: number;
     commissionPctSummary: { min: number; max: number; unique: number[] };
+    /** Reserved for partner-specific commission explanation (not persisted yet). */
+    commissionNote: string | null;
     recentActivities: Array<{
       happenedAt: string;
       title: string;
@@ -475,6 +557,8 @@ export class PartnerService {
       canImpersonate: boolean;
       connectionCount: number;
       orders30d: number;
+      orgProducts: ReturnType<typeof resolveOrgProductLines>;
+      accountingMode: AccountingMode;
     }>;
   }> {
     await this.assertPartnerOrg(partnerOrgId);
@@ -482,7 +566,15 @@ export class PartnerService {
     const relationships = await this.prisma.partnerRelationship.findMany({
       where: { partnerOrgId, status: PartnerStatus.ACTIVE },
       include: {
-        clientOrg: { select: { id: true, name: true, slug: true } },
+        clientOrg: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            productLines: true,
+            accountingMode: true,
+          },
+        },
       },
     });
 
@@ -579,6 +671,10 @@ export class PartnerService {
     const activeClients30d = [...orderMap.values()].filter((c) => c > 0)
       .length;
 
+    const accountingModeByOrgId = await this.resolveAccountingModesForOrgs(
+      withClient.map((r) => r.clientOrg),
+    );
+
     const clients = withClient.map((r) => ({
       relationshipId: r.id,
       clientOrgId: r.clientOrgId,
@@ -589,6 +685,9 @@ export class PartnerService {
       canImpersonate: r.canImpersonate,
       connectionCount: connMap.get(r.clientOrgId) ?? 0,
       orders30d: orderMap.get(r.clientOrgId) ?? 0,
+      orgProducts: resolveOrgProductLines(r.clientOrg.productLines),
+      accountingMode:
+        accountingModeByOrgId.get(r.clientOrgId) ?? AccountingMode.NATIVE,
     }));
 
     type Activity = {
@@ -626,15 +725,20 @@ export class PartnerService {
       )
       .slice(0, 5);
 
-    return {
+    return normalizePartnerDashboardResponse({
       totalClients,
       activeClients30d,
-      monthlyCommission: Number(monthlyAgg._sum.amount ?? 0),
-      totalCommission: Number(totalAgg._sum.amount ?? 0),
-      commissionPctSummary,
-      recentActivities: merged,
-      clients,
-    };
+      monthlyCommission: ensureFiniteNumber(monthlyAgg._sum.amount, 0),
+      totalCommission: ensureFiniteNumber(totalAgg._sum.amount, 0),
+      commissionPctSummary: {
+        min: ensureFiniteNumber(commissionPctSummary.min, 0),
+        max: ensureFiniteNumber(commissionPctSummary.max, 0),
+        unique: ensureArray(commissionPctSummary.unique),
+      },
+      commissionNote: PARTNER_COMMISSION_NOTE_PLACEHOLDER,
+      recentActivities: ensureArray(merged),
+      clients: ensureArray(clients),
+    });
   }
 
   async getCommissions(
@@ -681,13 +785,13 @@ export class PartnerService {
       }),
     ]);
 
-    return {
-      items,
-      total,
+    return normalizePartnerCommissionsPageResponse({
+      items: ensureArray(items),
+      total: ensureFiniteNumber(total, 0),
       page: safePage,
       limit: safeLimit,
-      currentMonthTotal: Number(monthAgg._sum.amount ?? 0),
-    };
+      currentMonthTotal: ensureFiniteNumber(monthAgg._sum.amount, 0),
+    });
   }
 
   async getClientDetail(
@@ -901,7 +1005,7 @@ export class PartnerService {
       this.config.get<string>('APP_URL')?.trim() || 'http://localhost:5173';
     const root = baseUrl.replace(/\/$/, '');
     const now = new Date();
-    return rows.map((r) => {
+    return ensureArray(rows).map((r) => {
       const { inviteToken: _tok, ...rest } = r;
       void _tok;
       const expired = r.inviteExpiresAt < now && r.status === 'INVITED';
@@ -971,6 +1075,9 @@ export class PartnerService {
       throw new BadRequestException('Bu davet artık kullanılamaz.');
     }
 
+    const profile = await this.getPartnerProfile(row.organizationId);
+    const commissionPct = profile.commissionRate;
+
     await db.clientOnboarding.update({
       where: { id: row.id },
       data: {
@@ -991,12 +1098,13 @@ export class PartnerService {
         partnerOrgId: row.organizationId,
         clientOrgId,
         status: PartnerStatus.ACTIVE,
-        commissionPct: new Prisma.Decimal(10),
+        commissionPct,
         canImpersonate: true,
         acceptedAt: new Date(),
       },
       update: {
         status: PartnerStatus.ACTIVE,
+        commissionPct,
         acceptedAt: new Date(),
         inviteToken: null,
         invitedEmail: null,
@@ -1176,12 +1284,15 @@ export class PartnerService {
     return {
       year,
       month,
-      rows,
-      monthTotal,
-      previousMonthTotal,
-      lifetimePending: Number(pendingAgg._sum.amount ?? 0),
-      lifetimeSettled: Number(settledAgg._sum.amount ?? 0),
-      trendLast6Months,
+      rows: ensureArray(rows),
+      monthTotal: ensureFiniteNumber(monthTotal, 0),
+      previousMonthTotal: ensureFiniteNumber(previousMonthTotal, 0),
+      lifetimePending: ensureFiniteNumber(pendingAgg._sum.amount, 0),
+      lifetimeSettled: ensureFiniteNumber(settledAgg._sum.amount, 0),
+      trendLast6Months: ensureArray(trendLast6Months).map((t) => ({
+        ...t,
+        total: ensureFiniteNumber(t.total, 0),
+      })),
     };
   }
 
@@ -1237,37 +1348,265 @@ export class PartnerService {
     });
   }
 
+  async listPayoutRequests(
+    partnerOrgId: string,
+  ): Promise<PartnerPayoutRequestRow[]> {
+    await this.assertPartnerOrg(partnerOrgId);
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        actorOrgId: partnerOrgId,
+        action: PARTNER_PAYOUT_REQUEST_ACTION,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return logs.map((log) => mapAuditLogToPayoutRequest(log));
+  }
+
+  async listPayoutRequestsForAdmin(
+    status?: PartnerPayoutRequestStatus,
+  ): Promise<PartnerPayoutRequestRow[]> {
+    const logs = await this.prisma.auditLog.findMany({
+      where: { action: PARTNER_PAYOUT_REQUEST_ACTION },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const partnerOrgIds = [...new Set(logs.map((l) => l.actorOrgId))];
+    const partners =
+      partnerOrgIds.length > 0
+        ? await this.prisma.organization.findMany({
+            where: { id: { in: partnerOrgIds }, deletedAt: null },
+            select: { id: true, name: true },
+          })
+        : [];
+    const nameById = new Map(partners.map((p) => [p.id, p.name]));
+
+    const rows = logs.map((log) =>
+      mapAuditLogToPayoutRequest(log, nameById.get(log.actorOrgId)),
+    );
+    if (!status) {
+      return rows;
+    }
+    return rows.filter((row) => row.status === status);
+  }
+
   async requestPayout(
     partnerOrgId: string,
     actorUserId: string,
     amount: number,
-  ): Promise<void> {
+  ): Promise<PartnerPayoutRequestRow> {
     await this.assertPartnerOrg(partnerOrgId);
-    if (!Number.isFinite(amount) || amount < 1) {
+    const roundedAmount = Math.round(amount * 100) / 100;
+    if (!Number.isFinite(roundedAmount) || roundedAmount < 1) {
       throw new BadRequestException('Geçersiz tutar.');
     }
+
     const pending = await this.prisma.commissionLedger.aggregate({
       where: { partnerOrgId, status: LedgerStatus.PENDING },
       _sum: { amount: true },
     });
     const pendingAmount = Number(pending._sum.amount ?? 0);
-    if (amount > pendingAmount) {
+    if (roundedAmount > pendingAmount) {
       throw new BadRequestException(
         'Talep tutarı bekleyen komisyon bakiyesinden fazla olamaz.',
       );
     }
-    await this.prisma.auditLog.create({
+
+    const latestRequest = await this.prisma.auditLog.findFirst({
+      where: {
+        actorOrgId: partnerOrgId,
+        action: PARTNER_PAYOUT_REQUEST_ACTION,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (latestRequest) {
+      const meta = parsePayoutRequestMetadata(latestRequest.metadata);
+      if (meta.status === 'PENDING') {
+        throw new BadRequestException(
+          'Bekleyen bir ödeme talebiniz zaten var. Onay veya red sonrası yeni talep oluşturabilirsiniz.',
+        );
+      }
+    }
+
+    const log = await this.prisma.auditLog.create({
       data: {
         actorUserId,
         actorOrgId: partnerOrgId,
-        action: 'partner.payout_request',
+        action: PARTNER_PAYOUT_REQUEST_ACTION,
         resourceType: 'Partner',
         resourceId: partnerOrgId,
         metadata: {
-          amountTRY: amount,
+          amountTRY: roundedAmount,
+          status: 'PENDING',
         },
       },
     });
+    return mapAuditLogToPayoutRequest(log);
+  }
+
+  async approvePayoutRequest(
+    auditLogId: string,
+    actorUserId: string,
+    actorOrgId: string,
+  ): Promise<PartnerPayoutRequestRow> {
+    const log = await this.prisma.auditLog.findFirst({
+      where: { id: auditLogId, action: PARTNER_PAYOUT_REQUEST_ACTION },
+    });
+    if (!log) {
+      throw new NotFoundException('Ödeme talebi bulunamadı.');
+    }
+    const meta = parsePayoutRequestMetadata(log.metadata);
+    if (meta.status !== 'PENDING') {
+      throw new BadRequestException('Bu talep zaten işlenmiş.');
+    }
+    if (meta.amountTRY < 1) {
+      throw new BadRequestException('Geçersiz talep tutarı.');
+    }
+
+    const partnerOrgId = log.actorOrgId;
+    await this.assertPartnerOrg(partnerOrgId);
+
+    const pendingAgg = await this.prisma.commissionLedger.aggregate({
+      where: { partnerOrgId, status: LedgerStatus.PENDING },
+      _sum: { amount: true },
+    });
+    const pendingAmount = Number(pendingAgg._sum.amount ?? 0);
+    if (meta.amountTRY > pendingAmount) {
+      throw new BadRequestException(
+        'Onay tutarı partner bekleyen bakiyesinden fazla.',
+      );
+    }
+
+    const reviewedAt = new Date().toISOString();
+    await this.prisma.$transaction(async (tx) => {
+      await this.settlePendingLedgerFifo(
+        tx,
+        partnerOrgId,
+        meta.amountTRY,
+      );
+      await tx.auditLog.update({
+        where: { id: auditLogId },
+        data: {
+          metadata: {
+            amountTRY: meta.amountTRY,
+            status: 'APPROVED',
+            reviewedAt,
+            reviewedByUserId: actorUserId,
+          },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId,
+          action: ADMIN_PARTNER_PAYOUT_APPROVE_ACTION,
+          resourceType: 'PartnerPayoutRequest',
+          resourceId: auditLogId,
+          metadata: {
+            partnerOrgId,
+            amountTRY: meta.amountTRY,
+          },
+        },
+      });
+    });
+
+    const updated = await this.prisma.auditLog.findFirstOrThrow({
+      where: { id: auditLogId },
+    });
+    const partner = await this.prisma.organization.findFirst({
+      where: { id: partnerOrgId, deletedAt: null },
+      select: { name: true },
+    });
+    return mapAuditLogToPayoutRequest(updated, partner?.name);
+  }
+
+  async rejectPayoutRequest(
+    auditLogId: string,
+    actorUserId: string,
+    actorOrgId: string,
+    note?: string,
+  ): Promise<PartnerPayoutRequestRow> {
+    const log = await this.prisma.auditLog.findFirst({
+      where: { id: auditLogId, action: PARTNER_PAYOUT_REQUEST_ACTION },
+    });
+    if (!log) {
+      throw new NotFoundException('Ödeme talebi bulunamadı.');
+    }
+    const meta = parsePayoutRequestMetadata(log.metadata);
+    if (meta.status !== 'PENDING') {
+      throw new BadRequestException('Bu talep zaten işlenmiş.');
+    }
+
+    const reviewedAt = new Date().toISOString();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.auditLog.update({
+        where: { id: auditLogId },
+        data: {
+          metadata: {
+            amountTRY: meta.amountTRY,
+            status: 'REJECTED',
+            reviewedAt,
+            reviewedByUserId: actorUserId,
+            note: note?.trim() || null,
+          },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId,
+          actorOrgId,
+          action: ADMIN_PARTNER_PAYOUT_REJECT_ACTION,
+          resourceType: 'PartnerPayoutRequest',
+          resourceId: auditLogId,
+          metadata: {
+            partnerOrgId: log.actorOrgId,
+            amountTRY: meta.amountTRY,
+            note: note?.trim() || null,
+          },
+        },
+      });
+    });
+
+    const updated = await this.prisma.auditLog.findFirstOrThrow({
+      where: { id: auditLogId },
+    });
+    const partner = await this.prisma.organization.findFirst({
+      where: { id: log.actorOrgId, deletedAt: null },
+      select: { name: true },
+    });
+    return mapAuditLogToPayoutRequest(updated, partner?.name);
+  }
+
+  private async settlePendingLedgerFifo(
+    tx: Prisma.TransactionClient,
+    partnerOrgId: string,
+    amountTRY: number,
+  ): Promise<void> {
+    const rows = await tx.commissionLedger.findMany({
+      where: { partnerOrgId, status: LedgerStatus.PENDING },
+      orderBy: { createdAt: 'asc' },
+    });
+    let remaining = amountTRY;
+    const now = new Date();
+    for (const row of rows) {
+      if (remaining < 0.01) {
+        break;
+      }
+      const rowAmount = Number(row.amount);
+      if (rowAmount <= remaining + 0.001) {
+        await tx.commissionLedger.update({
+          where: { id: row.id },
+          data: { status: LedgerStatus.SETTLED, settledAt: now },
+        });
+        remaining = Math.round((remaining - rowAmount) * 100) / 100;
+      }
+    }
+    if (remaining > 0.01) {
+      throw new BadRequestException(
+        'Bekleyen komisyon kayıtları talep tutarını karşılamıyor.',
+      );
+    }
   }
 
   async getPartnerPerformance(partnerOrgId: string): Promise<PartnerPerformance> {
@@ -1330,10 +1669,48 @@ export class PartnerService {
       .slice(0, 8);
 
     return {
-      totalActiveClients,
-      newClientsThisMonth: newOnboardings,
-      avgCommissionPerClientTRY,
-      topProfitableClients,
+      totalActiveClients: ensureFiniteNumber(totalActiveClients, 0),
+      newClientsThisMonth: ensureFiniteNumber(newOnboardings, 0),
+      avgCommissionPerClientTRY: ensureFiniteNumber(avgCommissionPerClientTRY, 0),
+      topProfitableClients: ensureArray(topProfitableClients).map((c) => ({
+        ...c,
+        commissionThisMonthTRY: ensureFiniteNumber(
+          c.commissionThisMonthTRY,
+          0,
+        ),
+      })),
     };
+  }
+
+  private async resolveAccountingModesForOrgs(
+    orgs: Array<{ id: string; accountingMode: AccountingMode | null }>,
+  ): Promise<Map<string, AccountingMode>> {
+    const ids = orgs.map((o) => o.id);
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    const erpGroups = await this.prisma.erpConnection.groupBy({
+      by: ['organizationId'],
+      where: {
+        organizationId: { in: ids },
+        deletedAt: null,
+        isActive: true,
+      },
+      _count: { _all: true },
+    });
+    const erpCountByOrg = new Map(
+      erpGroups.map((g) => [g.organizationId, g._count._all]),
+    );
+
+    return new Map(
+      orgs.map((org) => [
+        org.id,
+        resolveOrganizationAccountingMode(
+          org.accountingMode,
+          erpCountByOrg.get(org.id) ?? 0,
+        ),
+      ]),
+    );
   }
 }

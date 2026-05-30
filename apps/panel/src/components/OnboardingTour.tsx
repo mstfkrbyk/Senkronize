@@ -2,13 +2,11 @@ import type { ReactElement } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  ONBOARDING_TOUR_STEPS,
-  useOnboardingTour,
-} from '@/hooks/useOnboardingTour';
+import { useOnboardingTour } from '@/hooks/useOnboardingTour';
 
 export function OnboardingTour(): ReactElement | null {
-  const { visible, stepIndex, step, isLast, finish, goNext } = useOnboardingTour();
+  const { visible, stepIndex, step, stepCount, isLast, finish, goNext } =
+    useOnboardingTour();
 
   if (!visible || !step) {
     return null;
@@ -24,7 +22,7 @@ export function OnboardingTour(): ReactElement | null {
       <Card className="pointer-events-auto w-full max-w-md border-border shadow-lg">
         <CardHeader className="pb-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Adım {stepIndex + 1} / {ONBOARDING_TOUR_STEPS.length}
+            Adım {stepIndex + 1} / {stepCount}
           </p>
           <CardTitle id="onboarding-tour-title" className="text-lg">
             Panel turu

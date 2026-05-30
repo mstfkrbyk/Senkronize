@@ -61,10 +61,13 @@ function normalizePlatformRow(
   };
 }
 
-export function useSalesReport(filters: ReportFilters) {
+export function useSalesReport(
+  filters: ReportFilters,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: ['reports', 'sales', filters],
-    enabled: true,
+    enabled: options?.enabled ?? true,
     queryFn: async (): Promise<SalesReportQueryState> => {
       try {
         const { data } = await api.get<SalesReportData[]>('/reports/sales', {

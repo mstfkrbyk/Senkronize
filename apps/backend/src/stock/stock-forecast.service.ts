@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveProductStockKey } from '../common/product-match-key';
 
 import type {
   ProductStockForecastResultDto,
@@ -147,7 +148,11 @@ export class StockForecastService {
     const product =
       productRow ??
       (await this.prisma.product.findFirst({
-        where: { organizationId, barcode, deletedAt: null },
+        where: {
+          organizationId,
+          deletedAt: null,
+          OR: [{ barcode }, { sku: barcode }],
+        },
         select: {
           id: true,
           name: true,
@@ -234,10 +239,14 @@ export class StockForecastService {
 
     const out: StockoutEstimateDto[] = [];
     for (const p of products) {
-      const v = velocityByBarcode.get(p.barcode) ?? 0;
+      const stockKey = resolveProductStockKey(p);
+      if (!stockKey) {
+        continue;
+      }
+      const v = velocityByBarcode.get(stockKey) ?? 0;
       const est = await this.estimateStockout(
         organizationId,
-        p.barcode,
+        stockKey,
         p,
         stockMap,
         v,
@@ -345,6 +354,7 @@ export class StockForecastService {
       select: {
         id: true,
         barcode: true,
+        sku: true,
         reorderPoint: true,
       },
     });
@@ -352,20 +362,25 @@ export class StockForecastService {
       throw new NotFoundException('Ürün bulunamadı');
     }
 
+    const stockKey = resolveProductStockKey(product);
+    if (!stockKey) {
+      throw new NotFoundException('Ürün barkod veya SKU içermiyor');
+    }
+
     const velocity = await this.calculateVelocity(
       organizationId,
-      product.barcode,
+      stockKey,
     );
     const seasonality = await this.analyzeSeasonality(
       organizationId,
-      product.barcode,
+      stockKey,
     );
     const forecastVelocity =
       Math.round(velocity * seasonality.seasonalityIndex * 10_000) / 10_000;
 
     const currentStock = await this.getCurrentStock(
       organizationId,
-      product.barcode,
+      stockKey,
     );
     const reorderPoint = product.reorderPoint ?? 0;
 
@@ -405,7 +420,7 @@ export class StockForecastService {
 
     return {
       productId: product.id,
-      barcode: product.barcode,
+      barcode: stockKey,
       currentStock,
       dailySalesAvg: Math.round(velocity * 10_000) / 10_000,
       dailySales: Math.round(velocity * 10_000) / 10_000,

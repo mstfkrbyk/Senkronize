@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Ban,
+  Coins,
   Package,
   ShoppingCart,
 } from 'lucide-react';
@@ -14,9 +15,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import type { StockKpiMetrics } from '../hooks/useStockKpis';
 
+function formatTry(amount: number): string {
+  return new Intl.NumberFormat('tr-TR', {
+    style: 'currency',
+    currency: 'TRY',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 interface Props {
   metrics: StockKpiMetrics;
   loading: boolean;
+  errorMessage?: string;
 }
 
 interface KpiCardProps {
@@ -64,11 +74,30 @@ function KpiCard({
   );
 }
 
-export function StockKpiRow({ metrics, loading }: Props): ReactElement {
+export function StockKpiRow({
+  metrics,
+  loading,
+  errorMessage,
+}: Props): ReactElement {
   const { t } = useTranslation();
+  const kpiCount = metrics.showTotalStockValue ? 5 : 4;
+
+  if (errorMessage) {
+    return (
+      <p className="text-destructive text-sm" role="alert">
+        {errorMessage}
+      </p>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div
+      className={
+        kpiCount === 5
+          ? 'grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5'
+          : 'grid grid-cols-2 gap-4 lg:grid-cols-4'
+      }
+    >
       <KpiCard
         title={t('stock.kpi.totalSku')}
         value={loading ? '—' : metrics.totalSkuCount.toLocaleString('tr-TR')}
@@ -113,6 +142,19 @@ export function StockKpiRow({ metrics, loading }: Props): ReactElement {
         tone="text-amber-600 dark:text-amber-400"
         loading={loading}
       />
+      {metrics.showTotalStockValue ? (
+        <KpiCard
+          title={t('stock.kpi.totalStockValue')}
+          value={
+            loading || metrics.totalStockValue <= 0
+              ? '—'
+              : formatTry(metrics.totalStockValue)
+          }
+          icon={Coins}
+          tone="text-emerald-600 dark:text-emerald-400"
+          loading={loading}
+        />
+      ) : null}
     </div>
   );
 }

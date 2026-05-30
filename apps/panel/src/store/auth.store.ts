@@ -22,9 +22,19 @@ export interface CurrentOrgSnapshot {
   type: OrgType;
   onboardingCompleted: boolean;
   plan: OrgPlanTier;
+  internalAccount?: boolean;
+  billingExempt?: boolean;
   orgProducts: OrgProductLine[];
   /** /me.organization.accountingMode; yoksa useAccountingMode ERP sayısına bakar */
   accountingMode?: AccountingMode;
+}
+
+function normalizePersistedOrgType(type: unknown): OrgType {
+  if (type === 'PARTNER' || type === 'DIRECT') {
+    return type;
+  }
+  // Eski localStorage snapshot'larında type yoktu; PARTNER org /auth/me ile düzeltilir.
+  return 'DIRECT';
 }
 
 interface AuthState {
@@ -90,8 +100,9 @@ export const useAuthStore = create<AuthState>()(
                       'INTEGRATION',
                       'ACCOUNTING',
                     ],
-                  type:
-                    (co as Partial<CurrentOrgSnapshot>).type ?? 'DIRECT',
+                  type: normalizePersistedOrgType(
+                    (co as Partial<CurrentOrgSnapshot>).type,
+                  ),
                 }
               : null,
         };

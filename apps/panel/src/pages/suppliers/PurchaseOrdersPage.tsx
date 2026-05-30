@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -329,36 +330,32 @@ export function PurchaseOrdersPage(): ReactElement {
       : 0;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Satın alma siparişleri
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Taslak oluşturun, onaylayın ve mal teslim alın
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!listQuery.data?.data.length}
-            onClick={() => {
-              if (listQuery.data?.data.length) {
-                downloadPoCsv(listQuery.data.data);
-              }
-            }}
-          >
-            <Download className="mr-2 size-4" />
-            CSV
-          </Button>
-          <Button type="button" onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Yeni sipariş
-          </Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Satın Alma Siparişleri"
+        description="Taslak oluşturun, onaylayın ve mal teslim alın."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!listQuery.data?.data.length}
+              onClick={() => {
+                if (listQuery.data?.data.length) {
+                  downloadPoCsv(listQuery.data.data);
+                }
+              }}
+            >
+              <Download className="mr-2 size-4" />
+              CSV
+            </Button>
+            <Button type="button" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-2 size-4" />
+              Yeni sipariş
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
@@ -395,7 +392,9 @@ export function PurchaseOrdersPage(): ReactElement {
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="w-full space-y-1 sm:w-52">
           <Label>Tedarikçi</Label>
           <Select
@@ -510,7 +509,7 @@ export function PurchaseOrdersPage(): ReactElement {
         />
       ) : (
         <>
-          <div className="rounded-lg border bg-card">
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -589,6 +588,8 @@ export function PurchaseOrdersPage(): ReactElement {
           </div>
         </>
       )}
+        </CardContent>
+      </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">

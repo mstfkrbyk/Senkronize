@@ -17,8 +17,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
 import { EmptyState } from '@/components/EmptyState';
-import { CreateTicketModal } from '@/components/support/CreateTicketModal';
 import {
   TICKET_CATEGORY_OPTIONS,
   TicketPriorityBadge,
@@ -46,8 +46,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActiveNav } from '@/hooks/useActiveNav';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { fetchHelpArticles } from '@/lib/help-api';
+import { formatSupportNavContext } from '@/lib/support-nav-context';
 import { fetchSupportTickets } from '@/lib/support-api';
 import {
   HELP_CATEGORY_OPTIONS,
@@ -114,8 +117,10 @@ function computeKpis(tickets: { status: TicketStatus }[]): {
 
 export function SupportPage(): ReactElement {
   const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatSupportNavContext(groupLabel, t('nav.support'));
+  usePageTitle(t('nav.support'));
   const navigate = useNavigate();
-  const [createOpen, setCreateOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -153,22 +158,18 @@ export function SupportPage(): ReactElement {
   const kpis = useMemo(() => computeKpis(data ?? []), [data]);
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <LifeBuoy className="size-7 text-sky-500" aria-hidden />
-            {t('support.title')}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('support.subtitle')}
-          </p>
-        </div>
-        <Button type="button" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 size-4" aria-hidden />
-          Yeni Ticket
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={t('nav.support')}
+        description={t('support.subtitle')}
+        context={navContextLine}
+        actions={
+          <Button type="button" onClick={() => navigate('/support/new')}>
+            <Plus className="mr-2 size-4" aria-hidden />
+            {t('support.newTicket')}
+          </Button>
+        }
+      />
 
       <Tabs defaultValue="tickets">
         <TabsList>
@@ -270,12 +271,13 @@ export function SupportPage(): ReactElement {
               title={t('support.empty')}
               description="Yeni bir talep oluşturarak destek ekibimizle iletişime geçebilirsiniz."
               action={{
-                label: 'Yeni Ticket',
-                onClick: () => setCreateOpen(true),
+                label: t('support.newTicket'),
+                onClick: () => navigate('/support/new'),
               }}
             />
           ) : (
-            <div className="rounded-lg border bg-card">
+            <Card>
+              <CardContent className="pt-6">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -324,7 +326,8 @@ export function SupportPage(): ReactElement {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -421,8 +424,6 @@ export function SupportPage(): ReactElement {
           )}
         </TabsContent>
       </Tabs>
-
-      <CreateTicketModal open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

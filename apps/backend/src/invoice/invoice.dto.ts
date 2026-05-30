@@ -1,5 +1,5 @@
 import { InvoiceStatus } from '@prisma/client';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -143,6 +143,32 @@ export class InvoiceQueryDto {
   @IsString()
   @MaxLength(200)
   search?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  orderId?: string;
+
+  @IsOptional()
+  @Transform(({ value }) => parseOrderIdsCsv(value))
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsString({ each: true })
+  @MinLength(8, { each: true })
+  @MaxLength(64, { each: true })
+  orderIds?: string[];
+}
+
+function parseOrderIdsCsv(value: unknown): string[] | undefined {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value.join(',') : String(value);
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return parts.length > 0 ? parts : undefined;
 }
 
 export class UpdateInvoiceStatusDto {

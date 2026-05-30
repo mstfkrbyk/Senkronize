@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Bar,
   BarChart,
@@ -10,18 +10,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { toast } from 'sonner';
+import { Coins, Wallet } from 'lucide-react';
 
+import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -38,78 +33,103 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { commissionPeriodLabel } from '@/lib/commission-month-label';
 import type { PlanTier } from '@/types/subscription';
 
-import { useCommissionReport, useCommissionSummary, usePayoutRequest } from './hooks/usePartner';
-
-const PLAN_LABELS: Record<PlanTier, string> = {
-  BASLANGIC: 'Başlangıç',
-  GELISIM: 'Gelişim',
-  PRO: 'Pro',
-  KURUMSAL: 'Kurumsal',
-};
-
-function formatTry(n: number): string {
-  return n.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+import {
+  useCommissionReport,
+  useCommissionSummary,
+  usePartnerQueriesEnabled,
+} from './hooks/usePartner';
+import { PartnerPayoutRequestDialog } from './PartnerPayoutRequestDialog';
+import { formatCommissionPct } from './partner-commission-labels';
+import { formatTry, planLabel } from './partner-utils';
 
 export function PartnerCommissionReportTab(): ReactElement {
+  const { t } = useTranslation();
+  const { isPending: authPending } = useAuth();
+  const partnerQueriesEnabled = usePartnerQueriesEnabled();
   const now = useMemo(() => new Date(), []);
-  const qc = useQueryClient();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [payoutOpen, setPayoutOpen] = useState(false);
-  const [payoutAmount, setPayoutAmount] = useState('');
 
   const summary = useCommissionSummary();
   const report = useCommissionReport(year, month);
-  const payout = usePayoutRequest();
+  const refetchAll = (): void => {
+    void summary.refetch();
+    void report.refetch();
+  };
 
   const years = useMemo(() => {
     const y = now.getFullYear();
     return [y - 1, y, y + 1];
   }, [now]);
 
-  function submitPayout(): void {
-    const n = Number(payoutAmount.replace(',', '.'));
-    if (!Number.isFinite(n) || n < 1) {
-      toast.error('Geçerli bir tutar girin.');
-      return;
-    }
-    payout.mutate(n, {
-      onSuccess: () => {
-        toast.success('Ödeme talebiniz kaydedildi.');
-        setPayoutOpen(false);
-        setPayoutAmount('');
-        void qc.invalidateQueries({ queryKey: ['partner', 'commission'] });
-        void qc.invalidateQueries({ queryKey: ['partner', 'commission-report'] });
-      },
-      onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
-    });
+  const periodLabel = commissionPeriodLabel(year, month, t);
+  const pendingAmount = summary.data?.pendingAmount ?? 0;
+  const canRequestPayout = pendingAmount >= 1;
+
+  if (authPending) {
+    return (
+      <p className="text-sm text-muted-foreground" role="status">
+        {t('partner.pages.commission.authPending')}
+      </p>
+    );
+  }
+
+  if (!partnerQueriesEnabled) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t('partner.pages.commission.partnerOnly')}
+      </p>
+    );
   }
 
   if (report.isLoading || summary.isLoading) {
-    return <p className="text-sm text-muted-foreground">Rapor yükleniyor…</p>;
+    return (
+      <div className="space-y-8" aria-busy="true" aria-live="polite">
+        <div className="flex flex-wrap gap-4">
+          <Skeleton className="h-10 w-[120px]" />
+          <Skeleton className="h-10 w-[140px]" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-lg" />
+        <div className="rounded-md border p-4">
+          <TableSkeleton rows={5} cols={5} />
+        </div>
+      </div>
+    );
   }
 
   if (report.isError || summary.isError) {
     return (
-      <p className="text-sm text-destructive">
-        {getApiErrorMessage(report.error ?? summary.error)}
-      </p>
+      <QueryErrorAlert
+        error={report.error ?? summary.error}
+        onRetry={refetchAll}
+      />
     );
   }
 
   const data = report.data;
   if (!data) {
-    return <></>;
+    return (
+      <EmptyState
+        icon={Coins}
+        title={t('partner.commission.reportNoDataTitle')}
+        description={t('partner.commission.reportNoDataDescription')}
+      />
+    );
   }
 
-  const chartData = data.trendLast6Months.map((m) => ({
+  const rows = data.rows ?? [];
+  const trendLast6Months = data.trendLast6Months ?? [];
+  const chartData = trendLast6Months.map((m) => ({
     name: m.label,
     tutar: m.total,
   }));
@@ -118,13 +138,8 @@ export function PartnerCommissionReportTab(): ReactElement {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="space-y-2">
-          <Label>Yıl</Label>
-          <Select
-            value={String(year)}
-            onValueChange={(v) => {
-              setYear(Number(v));
-            }}
-          >
+          <Label>{t('partner.commission.periodYear')}</Label>
+          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
             <SelectTrigger className="w-[120px]">
               <SelectValue />
             </SelectTrigger>
@@ -138,22 +153,17 @@ export function PartnerCommissionReportTab(): ReactElement {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Ay</Label>
-          <Select
-            value={String(month)}
-            onValueChange={(v) => {
-              setMonth(Number(v));
-            }}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                <SelectItem key={m} value={String(m)}>
-                  {m}. ay
-                </SelectItem>
-              ))}
+          <Label>{t('partner.commission.periodMonth')}</Label>
+            <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <SelectItem key={m} value={String(m)}>
+                    {t(`partner.commission.months.${m}`)}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>
@@ -161,23 +171,32 @@ export function PartnerCommissionReportTab(): ReactElement {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Bu ay komisyon</p>
-          <p className="text-2xl font-semibold text-primary">₺{formatTry(data.monthTotal)}</p>
+          <p className="text-xs text-muted-foreground">
+            {t('partner.commission.cards.periodCommissionShort', { period: periodLabel })}
+          </p>
+          <p className="text-2xl font-semibold tabular-nums text-primary">
+            {formatTry(data.monthTotal)}
+          </p>
         </div>
         <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Geçen ay komisyon</p>
-          <p className="text-2xl font-semibold">₺{formatTry(data.previousMonthTotal)}</p>
+          <p className="text-xs text-muted-foreground">{t('partner.commission.cards.previousMonth')}</p>
+          <p className="text-2xl font-semibold tabular-nums">
+            {formatTry(data.previousMonthTotal)}
+          </p>
         </div>
         <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <p className="text-xs text-muted-foreground">Birikmiş (bekleyen / ödenen)</p>
-          <p className="text-lg font-semibold">
-            ₺{formatTry(data.lifetimePending)} / ₺{formatTry(data.lifetimeSettled)}
+          <p className="text-xs text-muted-foreground">{t('partner.commission.cards.lifetime')}</p>
+          <p className="text-lg font-semibold tabular-nums">
+            {formatTry(data.lifetimePending)} / {formatTry(data.lifetimeSettled)}
           </p>
         </div>
       </div>
 
       <div className="rounded-md border p-4">
-        <h3 className="mb-4 text-sm font-medium">Son 6 ay komisyon trendi</h3>
+        <h3 className="mb-1 text-sm font-medium">{t('partner.commission.trendTitle')}</h3>
+        <p className="mb-4 text-xs text-muted-foreground">
+          {t('partner.commission.trendDescription')}
+        </p>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -186,100 +205,101 @@ export function PartnerCommissionReportTab(): ReactElement {
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip
                 formatter={(value) => [
-                  typeof value === 'number' ? `₺${formatTry(value)}` : String(value ?? ''),
-                  'Komisyon',
+                  typeof value === 'number' ? formatTry(value) : String(value ?? ''),
+                  t('partner.commission.table.commissionTry'),
                 ]}
                 labelFormatter={(l) => String(l)}
               />
-              <Bar dataKey="tutar" fill="#38bdf8" radius={[4, 4, 0, 0]} name="Komisyon" />
+              <Bar
+                dataKey="tutar"
+                fill="#38bdf8"
+                radius={[4, 4, 0, 0]}
+                name={t('partner.commission.table.commissionTry')}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h3 className="text-sm font-medium">Müşteri bazlı komisyon</h3>
-        <Button
-          type="button"
-          variant="default"
-          disabled={!summary.data || summary.data.pendingAmount < 1}
-          onClick={() => {
-            if (summary.data) {
-              setPayoutAmount(String(Math.floor(summary.data.pendingAmount)));
-            }
-            setPayoutOpen(true);
-          }}
-        >
-          Ödeme talebi oluştur
-        </Button>
+        <div>
+          <h3 className="text-sm font-medium">
+            {t('partner.commission.breakdownTitle', { period: periodLabel })}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {rows.length === 0
+              ? t('partner.commission.breakdownNoRecords')
+              : t('partner.commission.breakdownCount', { count: rows.length })}
+          </p>
+        </div>
+        <div className="flex flex-col items-stretch gap-2 sm:items-end">
+          {!canRequestPayout ? (
+            <p className="text-xs text-muted-foreground sm:text-right">
+              {t('partner.commission.payoutMinHint', { amount: formatTry(1) })}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            disabled={!canRequestPayout}
+            onClick={() => setPayoutOpen(true)}
+          >
+            {t('partner.commission.createPayoutRequest')}
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Müşteri</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead className="text-right">Aylık ödeme (TRY)</TableHead>
-              <TableHead className="text-right">Komisyon %</TableHead>
-              <TableHead className="text-right">Komisyon (TRY)</TableHead>
+              <TableHead>{t('partner.commission.table.client')}</TableHead>
+              <TableHead>{t('partner.commission.table.plan')}</TableHead>
+              <TableHead className="text-right">{t('partner.commission.table.subscriptionTry')}</TableHead>
+              <TableHead className="text-right">{t('partner.commission.table.rate')}</TableHead>
+              <TableHead className="text-right">{t('partner.commission.table.commissionTry')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.rows.length === 0 ? (
+            {rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                  Bu dönem için komisyon kaydı yok.
+                <TableCell colSpan={5} className="p-0">
+                  <EmptyState
+                    icon={Wallet}
+                    title={t('partner.commission.emptyPeriodTitle', { period: periodLabel })}
+                    description={t('partner.commission.emptyPeriodDescription')}
+                  />
                 </TableCell>
               </TableRow>
             ) : (
-              data.rows.map((r) => (
+              rows.map((r) => (
                 <TableRow key={r.clientOrgId}>
                   <TableCell className="font-medium">{r.clientName}</TableCell>
-                  <TableCell>
-                    {PLAN_LABELS[r.plan as PlanTier] ?? r.plan}
+                  <TableCell>{planLabel(r.plan as PlanTier)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatTry(r.monthlyFeeTRY)}
                   </TableCell>
-                  <TableCell className="text-right">₺{formatTry(r.monthlyFeeTRY)}</TableCell>
-                  <TableCell className="text-right">{r.commissionPct}</TableCell>
-                  <TableCell className="text-right">₺{formatTry(r.commissionAmountTRY)}</TableCell>
+                  <TableCell className="text-right">{formatCommissionPct(r.commissionPct)}</TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {formatTry(r.commissionAmountTRY)}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
+        {rows.length > 0 ? (
+          <p className="px-4 py-3 text-right text-sm font-semibold tabular-nums">
+            {t('partner.commission.periodTotal', { amount: formatTry(data.monthTotal) })}
+          </p>
+        ) : null}
       </div>
 
-      <Dialog open={payoutOpen} onOpenChange={setPayoutOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ödeme talebi</DialogTitle>
-            <DialogDescription>
-              Bekleyen bakiyeniz: ₺
-              {summary.data ? formatTry(summary.data.pendingAmount) : '0,00'}. Talep tutarını
-              girin.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="payout-amount">Tutar (TRY)</Label>
-            <Input
-              id="payout-amount"
-              inputMode="decimal"
-              value={payoutAmount}
-              onChange={(e) => {
-                setPayoutAmount(e.target.value);
-              }}
-            />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPayoutOpen(false)}>
-              Vazgeç
-            </Button>
-            <Button type="button" disabled={payout.isPending} onClick={submitPayout}>
-              {payout.isPending ? 'Gönderiliyor…' : 'Talep gönder'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <PartnerPayoutRequestDialog
+        open={payoutOpen}
+        onOpenChange={setPayoutOpen}
+        pendingAmount={pendingAmount}
+        amountInputId="report-payout-amount"
+      />
     </div>
   );
 }

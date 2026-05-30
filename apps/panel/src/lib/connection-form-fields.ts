@@ -3,20 +3,18 @@
  * Prisma `Marketplace` ve `ErpType` enum değerleriyle birebir anahtarlanır.
  */
 
-export interface ConnectionFormFieldDef {
-  key: string;
-  label: string;
-  placeholder?: string;
-  type: 'text' | 'password' | 'url' | 'number';
-  required: boolean;
-  hint?: string;
-  defaultValue?: string;
-}
+import {
+  BIZIMHESAP_CONNECTION_FORM_FIELDS,
+  PARASUT_CONNECTION_FORM_FIELDS,
+} from '@/pages/connections/forms';
 
-export interface ConnectionPlatformMeta {
-  helpText?: string;
-  docsUrl?: string;
-}
+export type {
+  ConnectionFormFieldDef,
+  ConnectionFormFieldOption,
+  ConnectionPlatformMeta,
+} from '@/lib/connection-form-field.types';
+
+import type { ConnectionFormFieldDef, ConnectionPlatformMeta } from '@/lib/connection-form-field.types';
 
 export const MARKETPLACE_PLATFORM_META: Record<string, ConnectionPlatformMeta> = {
   TRENDYOL: {
@@ -284,11 +282,17 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       key: 'storeUrl',
       label: 'Mağaza URL',
       type: 'url',
-      placeholder: 'https://magaza.example.com',
+      placeholder: 'https://mixelektrik.com.tr',
       required: true,
-      hint: 'http:// veya https:// ile tam adres girin.',
+      hint: 'Ticimax mağaza adresiniz (https:// ile). Servis yolu otomatik eklenir: /Servis/UrunServis.svc',
     },
-    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+    {
+      key: 'uyeKodu',
+      label: 'Üye Kodu',
+      type: 'password',
+      required: true,
+      hint: 'Ticimax panel → Entegrasyon → Web Servis üye kodu (UyeKodu).',
+    },
   ],
   WOOCOMMERCE: [
     {
@@ -1129,18 +1133,21 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     { key: 'merchantId', label: 'Merchant ID', type: 'text', required: true },
     {
       key: 'merchantTier',
-      label: 'Tier değeri',
+      label: 'Kurumsal paket kodu',
       type: 'text',
       required: false,
       defaultValue: 'PREMIUM',
-      hint: 'Varsayılan: PREMIUM. Özel başlık adı için tierHeaderName kullanın.',
+      placeholder: 'PREMIUM',
+      hint: 'Boş bırakılırsa PREMIUM kullanılır. Özel HTTP başlığı için aşağıdaki alanı doldurun.',
     },
     {
       key: 'tierHeaderName',
-      label: 'Tier HTTP başlık adı (opsiyonel)',
+      label: 'Paket HTTP başlık adı (opsiyonel)',
       type: 'text',
       required: false,
       defaultValue: 'X-Merchant-Tier',
+      placeholder: 'X-Merchant-Tier',
+      hint: 'Boş bırakılırsa X-Merchant-Tier kullanılır.',
     },
   ],
   TRENDYOL_PREMIUM: [
@@ -1154,10 +1161,12 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     },
     {
       key: 'premiumFlag',
-      label: 'Premium bayrağı (X-Premium-Seller)',
+      label: 'Premium satıcı bayrağı',
       type: 'text',
       required: false,
       defaultValue: 'true',
+      placeholder: 'true',
+      hint: 'Boş bırakılırsa true gönderilir (X-Premium-Seller başlığı).',
     },
   ],
   PAZARAMA_PREMIUM: [
@@ -1165,10 +1174,12 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
     { key: 'apiSecret', label: 'API Secret', type: 'password', required: true },
     {
       key: 'merchantTier',
-      label: 'Kurumsal / tier değeri',
+      label: 'Kurumsal paket kodu',
       type: 'text',
       required: false,
       defaultValue: 'PREMIUM',
+      placeholder: 'PREMIUM',
+      hint: 'Boş bırakılırsa PREMIUM kullanılır.',
     },
     {
       key: 'supplierId',
@@ -1590,6 +1601,8 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
       type: 'text',
       required: false,
       defaultValue: 'milla',
+      placeholder: 'milla',
+      hint: 'Boş bırakılırsa milla kanalı kullanılır.',
     },
   ],
   SAHIBINDEN_PREMIUM: [
@@ -1893,31 +1906,8 @@ export const MARKETPLACE_CONNECTION_FORM_FIELDS: Record<
 
 export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]> =
   {
-    BIZIMHESAP: [
-      {
-        key: 'apiKey',
-        label: 'API Key',
-        type: 'password',
-        required: true,
-        hint: 'BizimHesap panelinden aldığınız x-api-token değeri.',
-      },
-    ],
-    PARASUT: [
-      { key: 'clientId', label: 'Client ID', type: 'text', required: true },
-      {
-        key: 'clientSecret',
-        label: 'Client Secret',
-        type: 'password',
-        required: true,
-      },
-      {
-        key: 'companyId',
-        label: 'Şirket ID',
-        type: 'text',
-        required: true,
-        hint: 'Paraşüt URL\'deki şirket numaranız (örn. 123456).',
-      },
-    ],
+    BIZIMHESAP: BIZIMHESAP_CONNECTION_FORM_FIELDS,
+    PARASUT: PARASUT_CONNECTION_FORM_FIELDS,
     LOGO: [
       {
         key: 'host',
@@ -1932,6 +1922,7 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: true,
         defaultValue: '8080',
+        placeholder: '8080',
       },
       { key: 'dbName', label: 'Veritabanı', type: 'text', required: true },
       { key: 'username', label: 'Kullanıcı Adı', type: 'text', required: true },
@@ -1958,6 +1949,7 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: true,
         defaultValue: '8080',
+        placeholder: '8080',
       },
       {
         key: 'connectionString',
@@ -2023,13 +2015,16 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: false,
         defaultValue: '80',
+        placeholder: '80',
       },
       {
         key: 'useHttps',
-        label: 'HTTPS (true/false)',
+        label: 'HTTPS kullan',
         type: 'text',
         required: false,
         defaultValue: 'false',
+        placeholder: 'false',
+        hint: 'HTTPS için true, HTTP için false yazın. Boşsa false.',
       },
       {
         key: 'etaVersion',
@@ -2037,7 +2032,8 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'text',
         required: false,
         defaultValue: 'legacy',
-        hint: 'V8 REST için: v8',
+        placeholder: 'legacy',
+        hint: 'V8 REST için v8 yazın. Boşsa legacy kullanılır.',
       },
       {
         key: 'apiToken',
@@ -2074,6 +2070,7 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: true,
         defaultValue: '8080',
+        placeholder: '8080',
       },
       {
         key: 'firmNo',
@@ -2081,7 +2078,8 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'text',
         required: true,
         defaultValue: '1',
-        hint: 'stokkart listesi için kullanılır.',
+        placeholder: '1',
+        hint: 'Stok kartı listesi için kullanılır. Boşsa 1.',
       },
       { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
@@ -2115,13 +2113,16 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: false,
         defaultValue: '8080',
+        placeholder: '8080',
       },
       {
         key: 'useHttps',
-        label: 'HTTPS (true/false)',
+        label: 'HTTPS kullan',
         type: 'text',
         required: false,
         defaultValue: 'false',
+        placeholder: 'false',
+        hint: 'HTTPS için true, HTTP için false. Boşsa false.',
       },
       {
         key: 'nebimApi',
@@ -2129,7 +2130,8 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'text',
         required: false,
         defaultValue: 'integrator',
-        hint: 'Nebim V3 REST için: v3_rest',
+        placeholder: 'integrator',
+        hint: 'Nebim V3 REST için v3_rest yazın. Boşsa integrator kullanılır.',
       },
       { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
@@ -2174,15 +2176,17 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         type: 'number',
         required: false,
         defaultValue: '50000',
+        placeholder: '50000',
         hint: 'baseUrl doluysa yok sayılabilir.',
       },
       {
         key: 'useHttps',
-        label: 'HTTPS (true/false)',
+        label: 'HTTPS kullan',
         type: 'text',
         required: false,
         defaultValue: 'true',
-        hint: 'Varsayılan: true. Sadece HTTP için false yazın.',
+        placeholder: 'true',
+        hint: 'HTTPS için true, HTTP için false. Boşsa true kullanılır.',
       },
       { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
@@ -2206,10 +2210,12 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
       },
       {
         key: 'useHttps',
-        label: 'HTTPS (true/false)',
+        label: 'HTTPS kullan',
         type: 'text',
         required: false,
         defaultValue: 'true',
+        placeholder: 'true',
+        hint: 'HTTPS için true, HTTP için false. Boşsa true.',
       },
       { key: 'username', label: 'Kullanıcı', type: 'text', required: true },
       { key: 'password', label: 'Şifre', type: 'password', required: true },
@@ -2283,11 +2289,17 @@ export const ERP_CONNECTION_FORM_FIELDS: Record<string, ConnectionFormFieldDef[]
         key: 'storeUrl',
         label: 'Mağaza URL',
         type: 'url',
-        placeholder: 'https://magaza.example.com',
+        placeholder: 'https://mixelektrik.com.tr',
         required: true,
-        hint: 'http:// veya https:// ile tam adres girin.',
+        hint: 'Ticimax mağaza adresiniz (https:// ile). Servis yolu otomatik eklenir: /Servis/UrunServis.svc',
       },
-      { key: 'apiKey', label: 'API Key', type: 'password', required: true },
+      {
+        key: 'uyeKodu',
+        label: 'Üye Kodu',
+        type: 'password',
+        required: true,
+        hint: 'Ticimax panel → Entegrasyon → Web Servis üye kodu (UyeKodu).',
+      },
     ],
   };
 

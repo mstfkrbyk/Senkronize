@@ -17,16 +17,25 @@ describe('ErpConnectionService accountingMode', () => {
   beforeEach(async () => {
     prisma = mockDeep<PrismaService>();
     prisma.erpConnection.findFirst.mockResolvedValue(null);
+    prisma.erpConnection.count.mockResolvedValue(0);
+    prisma.organization.findFirst.mockResolvedValue({
+      slug: 'test-org',
+      metadata: {},
+    } as never);
+    prisma.subscription.findUnique.mockResolvedValue({ addons: [] } as never);
     prisma.erpConnection.create.mockResolvedValue({
       id: 'conn-1',
       organizationId: 'org-1',
       erpType: ErpType.BIZIMHESAP,
+      displayName: null,
+      role: 'PRIMARY',
       credentialsEnc: 'enc',
       isActive: true,
       lastSyncAt: null,
       syncErrorCount: 0,
       lastErrorAt: null,
       lastErrorMessage: null,
+      productMatchKey: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,
@@ -76,12 +85,15 @@ describe('ErpConnectionService accountingMode', () => {
       id: 'conn-1',
       organizationId: 'org-1',
       erpType: ErpType.BIZIMHESAP,
+      displayName: null,
+      role: 'PRIMARY',
       credentialsEnc: 'enc',
       isActive: true,
       lastSyncAt: null,
       syncErrorCount: 0,
       lastErrorAt: null,
       lastErrorMessage: null,
+      productMatchKey: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       deletedAt: null,

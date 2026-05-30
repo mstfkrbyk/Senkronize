@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 export const metadata: Metadata = {
   title: 'Gizlilik Politikası',
   description:
-    'Senkronize gizlilik politikası ve KVKK kapsamında kişisel verilerin işlenmesi hakkında bilgilendirme (placeholder metin).',
+    'Senkronize gizlilik politikası ve KVKK kapsamında kişisel verilerin işlenmesi hakkında bilgilendirme.',
 };
 
 export default function PrivacyPage(): ReactElement {
@@ -14,15 +14,15 @@ export default function PrivacyPage(): ReactElement {
         <article className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-primary">
           <h1>Gizlilik Politikası</h1>
           <p className="text-sm text-muted-foreground not-prose">
-            Son güncelleme: Mayıs 2026 — Bu metin yer tutucudur; kesin hukuki metin
-            avukat onayıyla güncellenecektir.
+            Son güncelleme: Mayıs 2026 — Özet bilgilendirme metnidir; kesin hukuki
+            metin avukat onayıyla güncellenecektir.
           </p>
 
           <h2>1. Veri sorumlusu</h2>
           <p>
             6698 sayılı Kişisel Verilerin Korunması Kanunu (&quot;KVKK&quot;) uyarınca,
             veri sorumlusu <strong>Senkronize</strong>’dir (ticari unvan, MERSİS ve
-            adres bilgileri — yer tutucu; yayımlandığında tamamlanacaktır).
+            adres bilgileri yayımlandığında bu sayfada tamamlanacaktır).
           </p>
           <p>
             İletişim:{' '}
@@ -42,7 +42,7 @@ export default function PrivacyPage(): ReactElement {
           </ul>
 
           <h2>3. Verilerin kullanım amacı</h2>
-          <p>Örnek amaçlar (placeholder):</p>
+          <p>Örnek işleme amaçları:</p>
           <ul>
             <li>Sözleşmenin kurulması ve ifası, hesap ve abonelik yönetimi</li>
             <li>Müşteri desteği, güvenlik ve dolandırıcılığın önlenmesi</li>
@@ -59,7 +59,7 @@ export default function PrivacyPage(): ReactElement {
             <li>Ödeme altyapısı: PayTR</li>
             <li>E-posta iletimi: Resend</li>
             <li>SMS: Netgsm</li>
-            <li>Bulut altyapısı ve barındırma sağlayıcıları (yer tutucu)</li>
+            <li>Bulut altyapısı ve barındırma sağlayıcıları</li>
           </ul>
 
           <h2>5. Veri saklama süresi</h2>
@@ -88,7 +88,7 @@ export default function PrivacyPage(): ReactElement {
           </ul>
           <p>
             Başvurularınızı <a href="mailto:kvkk@senkronize.com">kvkk@senkronize.com</a>{' '}
-            üzerinden iletebilirsiniz (yer tutucu iletişim).
+            üzerinden iletebilirsiniz.
           </p>
 
           <h2>7. İletişim</h2>

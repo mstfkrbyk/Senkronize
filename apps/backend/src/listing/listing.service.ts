@@ -58,7 +58,7 @@ function normalizeStringArray(value: unknown): string[] {
 export type ListingListProduct = {
   id: string;
   name: string;
-  barcode: string;
+  barcode: string | null;
   sku: string | null;
   category: string | null;
   brand: string | null;
@@ -608,6 +608,7 @@ export class ListingService {
               listPrice: new Prisma.Decimal(l.listPrice),
               quantity: l.quantity,
               approved: l.approved,
+              isActive: l.approved,
               imageUrls: l.images,
               lastSyncAt: new Date(),
             },
@@ -617,8 +618,10 @@ export class ListingService {
               listPrice: new Prisma.Decimal(l.listPrice),
               quantity: l.quantity,
               approved: l.approved,
+              isActive: l.approved,
               imageUrls: l.images,
               lastSyncAt: new Date(),
+              deletedAt: null,
             },
           });
 
@@ -640,6 +643,34 @@ export class ListingService {
     if (listings.length > 0) {
       await this.cache.invalidateListingsForOrg(organizationId);
     }
+  }
+
+  /**
+   * Başarılı platform snapshot'ından sonra DB'de olup platformda olmayan ilanları kaldırır.
+   * Yalnızca tam ve hatasız çekim sonrası çağrılmalıdır.
+   */
+  async reconcileRemovedFromPlatformSnapshot(
+    organizationId: string,
+    platform: Marketplace,
+    platformProductIds: readonly string[],
+  ): Promise<number> {
+    const where: Prisma.ListingWhereInput = {
+      organizationId,
+      platform,
+      deletedAt: null,
+    };
+    if (platformProductIds.length > 0) {
+      where.platformProductId = { notIn: [...platformProductIds] };
+    }
+
+    const result = await this.prisma.listing.updateMany({
+      where,
+      data: { deletedAt: new Date(), isActive: false },
+    });
+    if (result.count > 0) {
+      await this.cache.invalidateListingsForOrg(organizationId);
+    }
+    return result.count;
   }
 
   /**

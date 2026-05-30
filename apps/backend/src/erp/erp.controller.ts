@@ -19,6 +19,7 @@ import { AdapterRegistry } from '../adapters/adapter.registry';
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TestErpConnectionDto } from '../erp-connection/erp-connection.dto';
+import { validateAndNormalizeErpCredentials } from '../erp-connection/erp-credentials.schema';
 
 @ApiTags('erp')
 @ApiBearerAuth()
@@ -47,7 +48,11 @@ export class ErpController {
     if (!this.adapterRegistry.hasErpAdapter(dto.erpType)) {
       return { success: false };
     }
+    const credentials = validateAndNormalizeErpCredentials(
+      dto.erpType,
+      dto.credentials,
+    );
     const adapter = this.adapterRegistry.getErp(dto.erpType);
-    return adapter.testConnection(dto.credentials);
+    return adapter.testConnection(credentials);
   }
 }

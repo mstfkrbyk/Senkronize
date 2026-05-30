@@ -3,7 +3,9 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { GripVertical, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -38,8 +40,10 @@ import {
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { toast } from 'sonner';
 
@@ -177,6 +181,10 @@ function findNode(
 }
 
 export function CategoriesPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.categories'));
+
   usePageTitle('Kategoriler');
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -376,19 +384,18 @@ export function CategoriesPage(): ReactElement {
   const tree = treeQuery.data ?? [];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Kategori Yönetimi</h1>
-          <p className="text-muted-foreground text-sm">
-            Hiyerarşik iç kategoriler ve pazaryeri eşlemeleri
-          </p>
-        </div>
-        <Button type="button" size="sm" onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          Kategori Ekle
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Kategoriler"
+        description="Ürün kategorisi eşlemelerini yönetin."
+        context={navContextLine}
+        actions={
+          <Button type="button" size="sm" onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            Kategori Ekle
+          </Button>
+        }
+      />
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-12">
         <Card className="lg:col-span-4">

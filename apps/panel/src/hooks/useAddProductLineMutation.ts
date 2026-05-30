@@ -8,7 +8,7 @@ import {
   type SubscriptionProductLineCardId,
 } from '@/pages/settings/subscription-product-lines.config';
 import { useAuthStore } from '@/store/auth.store';
-import type { OrgProductLine } from '@/types/auth';
+import type { MeResponse, OrgProductLine } from '@/types/auth';
 
 interface AddProductLineResponse {
   productLines: OrgProductLine[];
@@ -25,7 +25,7 @@ export function useAddProductLineMutation(orgProducts: OrgProductLine[] | undefi
     ): Promise<AddProductLineResponse> => {
       const lines = productLinesToAddForCard(cardId, orgProducts);
       if (lines.length === 0) {
-        throw new Error('Eklenecek ürün hattı yok.');
+        throw new Error(t('settings.subscriptionTab.productLines.nothingToAdd'));
       }
 
       let last: AddProductLineResponse | undefined;
@@ -38,17 +38,49 @@ export function useAddProductLineMutation(orgProducts: OrgProductLine[] | undefi
       }
       return last as AddProductLineResponse;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const org = useAuthStore.getState().currentOrg;
       if (org) {
         setOrg({ ...org, orgProducts: data.productLines });
       }
-      toast.success(t('settings.subscriptionTab.productLines.addSuccess'));
-      void queryClient.invalidateQueries({ queryKey: ['subscription'] });
+
+      queryClient.setQueryData<MeResponse>(['auth', 'me'], (prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          organization: {
+            ...prev.organization,
+            orgProducts: data.productLines,
+          },
+        };
+      });
+
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      void queryClient.invalidateQueries({ queryKey: ['subscription'] });
+      void queryClient.invalidateQueries({ queryKey: ['erp-connections'] });
+
+      await queryClient.refetchQueries({ queryKey: ['auth', 'me'] });
+      const me = queryClient.getQueryData<MeResponse>(['auth', 'me']);
+      const currentOrg = useAuthStore.getState().currentOrg;
+      if (me && currentOrg) {
+        setOrg({
+          ...currentOrg,
+          orgProducts: me.organization.orgProducts,
+          plan: me.organization.plan,
+          accountingMode: me.organization.accountingMode,
+        });
+      }
+
+      toast.success(t('settings.subscriptionTab.productLines.addSuccess'));
     },
     onError: (error: unknown) => {
-      toast.error(getApiErrorMessage(error));
+      toast.error(
+        t('settings.subscriptionTab.productLines.addError', {
+          message: getApiErrorMessage(error),
+        }),
+      );
     },
   });
 }

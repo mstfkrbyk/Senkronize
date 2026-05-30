@@ -1,50 +1,84 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios, { type AxiosError } from 'axios';
 import type {
   ERPConnectionResult,
   ErpInvoice,
   ErpProduct,
+  ErpProductImportOptions,
   IErpAdapter,
 } from '@senkronize/shared';
-import axios, { type AxiosInstance } from 'axios';
 
+import { axiosWithRetry, type RetryOptions } from '../../../common/utils/http-retry';
 import {
-  erpInvoiceLinesToApiLines,
   formatInvoiceDate,
   orderToInvoiceLines,
   type ErpOrderForInvoice,
 } from '../../../common/erp/erp-invoice.helper';
-import { axiosWithRetry } from '../../../common/utils/http-retry';
 import type { ErpStockCapableAdapter } from '../../../jobs/erp-sync.helpers';
 import { runErpConnectionTest } from '../erp-adapter.utils';
 
 import {
+  BIZIMHESAP_BASE_URL,
   BIZIMHESAP_DEFAULT_VAT_RATE,
-  BIZIMHESAP_DEFAULT_WAREHOUSE,
-  BIZIMHESAP_V1_BASE_URL,
-  BIZIMHESAP_V2_BASE_URL,
+  BIZIMHESAP_FIXED_KEY,
 } from './bizimhesap.constants';
+import { resolveBizimHesapProductsArray } from './bizimhesap-product.util';
+import { filterBizimHesapProductRows } from './bizimhesap-product-filter.util';
+import { resolveBizimHesapProductName } from './bizimhesap-product-name.util';
+import {
+  resolveBizimHesapBarcode,
+  resolveBizimHesapProductId,
+  resolveBizimHesapSku,
+} from './bizimhesap-product-identifiers.util';
 import type {
-  BizimHesapAccountEntriesResponse,
-  BizimHesapAccountEntry,
-  BizimHesapCategoriesResponse,
-  BizimHesapContactRow,
-  BizimHesapContactsResponse,
-  BizimHesapInvoiceRow,
-  BizimHesapInvoicesResponse,
+  BizimHesapAddInvoiceResponse,
+  BizimHesapProductRow,
   BizimHesapProductsResponse,
-  BizimHesapStockItemsResponse,
-  BizimHesapStockUpdateItem,
+  BizimHesapWarehouseRow,
 } from './bizimhesap.types';
+import { BizimHesapRateLimitService } from './bizimhesap-rate-limit.service';
 
-function resolveApiKey(credentials: Record<string, string>): string {
-  const apiKey =
+/** Senkron işleri: 429 yeniden deneme yok — kota tüketimini önler */
+const BIZIMHESAP_SYNC_RETRY: RetryOptions = {
+  maxRetries: 1,
+  backoffMs: 1_000,
+  retryOn: [500, 502, 503, 504],
+};
+
+function resolveToken(credentials: Record<string, string>): string {
+  const token =
+    credentials.token?.trim() ||
     credentials.apiKey?.trim() ||
-    credentials.apiToken?.trim() ||
-    credentials.token?.trim();
-  if (!apiKey) {
-    throw new Error('BizimHesap: apiKey (veya apiToken) zorunludur');
+    credentials.firmId?.trim();
+  if (!token) {
+    throw new Error('BizimHesap: token zorunludur');
   }
-  return apiKey;
+  return token;
+}
+
+function resolveProductId(row: BizimHesapProductRow): string {
+  return resolveBizimHesapProductId(row);
+}
+
+function resolveProductName(row: BizimHesapProductRow): string {
+  const barcode = resolveBizimHesapBarcode(row);
+  const sku = resolveBizimHesapSku(row);
+  return resolveBizimHesapProductName(row, barcode || sku || resolveProductId(row));
+}
+
+function resolveProductStock(row: BizimHesapProductRow): number {
+  return Math.max(
+    0,
+    Math.round(
+      Number(
+        row.StockQuantity ??
+          row.stock_quantity ??
+          row.stockQuantity ??
+          row.quantity ??
+          0,
+      ),
+    ),
+  );
 }
 
 @Injectable()
@@ -52,219 +86,116 @@ export class BizimHesapErpAdapter implements IErpAdapter, ErpStockCapableAdapter
   readonly erpType = 'BIZIMHESAP';
   private readonly logger = new Logger(BizimHesapErpAdapter.name);
 
-  private getV1Client(credentials: Record<string, string>): AxiosInstance {
-    const apiKey = resolveApiKey(credentials);
-    return axios.create({
-      baseURL: BIZIMHESAP_V1_BASE_URL,
-      headers: {
-        Authorization: `Token ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30_000,
-    });
-  }
+  constructor(private readonly rateLimit: BizimHesapRateLimitService) {}
 
-  private getV2Client(credentials: Record<string, string>): AxiosInstance {
-    const apiKey = resolveApiKey(credentials);
-    return axios.create({
-      baseURL: BIZIMHESAP_V2_BASE_URL,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 30_000,
-    });
+  private buildHeaders(credentials: Record<string, string>): Record<string, string> {
+    return {
+      Key: BIZIMHESAP_FIXED_KEY,
+      Token: resolveToken(credentials),
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    };
   }
 
   private async request<T>(
-    client: AxiosInstance,
-    method: 'GET' | 'POST' | 'PUT',
+    method: 'GET' | 'POST',
     path: string,
+    credentials: Record<string, string>,
     body?: unknown,
     params?: Record<string, string | number>,
+    retryOptions?: RetryOptions,
+    organizationId?: string,
   ): Promise<T> {
-    return axiosWithRetry<T>(
-      {
-        method,
-        url: path,
-        baseURL: client.defaults.baseURL,
-        headers: client.defaults.headers as Record<string, string>,
-        data: body,
-        params,
-        timeout: 30_000,
-      },
-      { maxRetries: 2 },
-    );
+    if (organizationId) {
+      await this.rateLimit.assertCanRequest(organizationId);
+    }
+    try {
+      const data = await axiosWithRetry<T>(
+        {
+          method,
+          url: path,
+          baseURL: BIZIMHESAP_BASE_URL,
+          headers: this.buildHeaders(credentials),
+          data: body,
+          params,
+          timeout: 30_000,
+        },
+        retryOptions ?? { maxRetries: 1, retryOn: [500, 502, 503, 504] },
+      );
+      if (organizationId) {
+        await this.rateLimit.recordSuccessfulRequest(organizationId, path, method);
+      }
+      return data;
+    } catch (error) {
+      const status = (error as AxiosError).response?.status;
+      if (status === 429 && organizationId) {
+        await this.rateLimit.record429(organizationId, error, path, method);
+      }
+      throw error;
+    }
   }
 
-  async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    const result = await runErpConnectionTest(async () => {
-      const client = this.getV1Client(credentials);
-      const products = await this.request<BizimHesapProductsResponse>(
-        client,
-        'GET',
-        '/products',
-        undefined,
-        { page: 1, per_page: 1 },
-      );
+  async testConnection(
+    credentials: Record<string, string>,
+    _organizationId?: string,
+  ): Promise<ERPConnectionResult> {
+    // BizimHesap saatlik ~10 istek kotası var; canlı API testi sync kotasını tüketir.
+    return runErpConnectionTest(async () => {
+      resolveToken(credentials);
       return {
-        companyName: credentials.companyName,
-        version: 'v1',
-        productCount: products.meta?.total ?? products.data.length,
+        companyName: credentials.companyName?.trim() || undefined,
+        version: 'b2b-local',
       };
     });
-    if (!result.success) {
-      this.logger.warn('BizimHesap bağlantı testi başarısız', {
-        error: result.message,
-      });
-    }
-    return result;
   }
 
-  async getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {
-    const client = this.getV1Client(credentials);
+  async getProducts(
+    credentials: Record<string, string>,
+    options?: ErpProductImportOptions,
+    organizationId?: string,
+  ): Promise<ErpProduct[]> {
+    const response = await this.request<BizimHesapProductsResponse>(
+      'GET',
+      '/products',
+      credentials,
+      undefined,
+      undefined,
+      BIZIMHESAP_SYNC_RETRY,
+      organizationId,
+    );
+    const rows = filterBizimHesapProductRows(
+      resolveBizimHesapProductsArray(response),
+      options,
+    );
     const out: ErpProduct[] = [];
-    let page = 1;
-    let hasMore = true;
 
-    while (hasMore && page <= 100) {
-      const response = await this.request<BizimHesapProductsResponse>(
-        client,
-        'GET',
-        '/products',
-        undefined,
-        { page, per_page: 100 },
-      );
-      for (const p of response.data) {
-        let stockQuantity = Math.max(0, Math.round(Number(p.stock_quantity ?? 0)));
-        if (stockQuantity === 0) {
-          try {
-            stockQuantity = await this.getProductStockQuantity(client, p.id);
-          } catch {
-            // stok_items okunamazsa ürün kaydındaki değer kullanılır
-          }
-        }
-        out.push({
-          erpProductId: p.id,
-          barcode: (p.barcode ?? p.code ?? p.id).trim(),
-          name: p.name.trim(),
-          stockQuantity,
-          purchasePrice: p.purchase_price,
-        });
+    for (const row of rows) {
+      const erpProductId = resolveProductId(row);
+      if (!erpProductId) {
+        continue;
       }
-      const total = response.meta?.total;
-      if (total !== undefined) {
-        hasMore = out.length < total;
-      } else {
-        hasMore = response.data.length === 100;
-      }
-      page += 1;
+      out.push({
+        erpProductId,
+        barcode: resolveBizimHesapBarcode(row),
+        sku: resolveBizimHesapSku(row),
+        name: resolveProductName(row),
+        stockQuantity: resolveProductStock(row),
+        purchasePrice:
+          Number(row.PurchasePrice ?? row.purchase_price ?? row.purchasePrice ?? 0) || undefined,
+      });
     }
 
     return out;
   }
 
-  async getProductStockQuantity(
-    client: AxiosInstance,
-    productId: string,
-  ): Promise<number> {
-    const response = await this.request<BizimHesapStockItemsResponse>(
-      client,
-      'GET',
-      `/products/${productId}/stock_items`,
-    );
-    return response.data.reduce(
-      (sum, row) => sum + Math.max(0, Math.round(Number(row.quantity ?? 0))),
-      0,
-    );
-  }
-
   async updateStock(
     credentials: Record<string, string>,
-    productId: string,
-    stockQuantity: number,
-    note = 'Senkronize',
+    _productId: string,
+    _stockQuantity: number,
   ): Promise<void> {
-    const client = this.getV1Client(credentials);
-    const currentQty = await this.getProductStockQuantity(client, productId);
-    const delta = stockQuantity - currentQty;
-    if (delta === 0) {
-      return;
-    }
-    await this.request(client, 'POST', `/products/${productId}/stock_items`, {
-      quantity: delta,
-      description: note,
-      type: delta > 0 ? 'in' : 'out',
-    });
-  }
-
-  /** v2 API — barkod bazlı toplu stok güncelleme */
-  async updateStockByBarcode(
-    credentials: Record<string, string>,
-    items: BizimHesapStockUpdateItem[],
-  ): Promise<void> {
-    const client = this.getV2Client(credentials);
-    for (const item of items) {
-      const barcode = item.barcode.trim();
-      if (barcode.length === 0) {
-        continue;
-      }
-      await this.request(client, 'PUT', `/products/${encodeURIComponent(barcode)}/stock`, {
-        quantity: item.quantity,
-        warehouse: BIZIMHESAP_DEFAULT_WAREHOUSE,
-      });
-    }
-  }
-
-  async getProductCategories(
-    credentials: Record<string, string>,
-  ): Promise<Array<{ id: string; name: string }>> {
-    const client = this.getV1Client(credentials);
-    const response = await this.request<BizimHesapCategoriesResponse>(
-      client,
-      'GET',
-      '/product_categories',
-    );
-    return response.data.map((c) => ({ id: c.id, name: c.name }));
-  }
-
-  async getCustomers(
-    credentials: Record<string, string>,
-    page = 1,
-    perPage = 100,
-  ): Promise<Array<{ id: string; name: string }>> {
-    const client = this.getV1Client(credentials);
-    const response = await this.request<BizimHesapContactsResponse>(
-      client,
-      'GET',
-      '/contacts',
-      undefined,
-      { type: 'customer', page, per_page: perPage },
-    );
-    return response.data.map((c) => ({
-      id: c.id,
-      name: c.name ?? c.email ?? c.id,
-    }));
-  }
-
-  async createContact(
-    credentials: Record<string, string>,
-    contact: { name: string; email?: string; phone?: string },
-  ): Promise<{ id: string; name: string }> {
-    const client = this.getV1Client(credentials);
-    const response = await this.request<{ data: BizimHesapContactRow }>(
-      client,
-      'POST',
-      '/contacts',
-      {
-        type: 'customer',
-        name: contact.name,
-        email: contact.email,
-        phone: contact.phone,
-      },
-    );
-    const row = response.data;
-    return { id: row.id, name: row.name ?? contact.name };
+    // BizimHesap B2B API'si doğrudan stok güncelleme endpointi sunmamaktadır.
+    // Stok senkronizasyonu fatura/sipariş akışı üzerinden gerçekleşir.
+    this.logger.warn('BizimHesap B2B API stok doğrudan güncellenemiyor; fatura akışı kullanın');
   }
 
   async pushInvoice(
@@ -272,11 +203,10 @@ export class BizimHesapErpAdapter implements IErpAdapter, ErpStockCapableAdapter
     order: ErpOrderForInvoice,
   ): Promise<string> {
     const lines = orderToInvoiceLines(order);
-    const totalAmount = lines.reduce((sum, line) => sum + line.total, 0);
     const invoice = await this.createInvoice(credentials, {
       orderRef: order.externalId ?? 'sipariş',
-      customerName: order.customer?.name,
-      totalAmount,
+      customerName: order.customer?.name ?? 'Perakende Müşteri',
+      totalAmount: lines.reduce((s, l) => s + l.total, 0),
       currency: order.currency ?? 'TRY',
       lines,
     });
@@ -286,201 +216,121 @@ export class BizimHesapErpAdapter implements IErpAdapter, ErpStockCapableAdapter
   async createInvoice(
     credentials: Record<string, string>,
     invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
+    organizationId?: string,
   ): Promise<ErpInvoice> {
-    const useV2 = credentials.apiVersion?.trim() === 'v2';
-    if (useV2) {
-      return this.createInvoiceV2(credentials, invoice);
-    }
-    return this.createInvoiceV1(credentials, invoice);
-  }
-
-  private async createInvoiceV1(
-    credentials: Record<string, string>,
-    invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
-  ): Promise<ErpInvoice> {
-    const client = this.getV1Client(credentials);
     const today = formatInvoiceDate(new Date());
-    const contactId = await this.resolveContactId(credentials, invoice.orderRef);
+    const firmId = resolveToken(credentials);
+    const vatRate = BIZIMHESAP_DEFAULT_VAT_RATE;
+
+    const details = invoice.lines.map((line) => {
+      const net = Math.round(line.quantity * line.unitPrice * 100) / 100;
+      const tax = Math.round(net * (vatRate / 100) * 100) / 100;
+      const total = Math.round((net + tax) * 100) / 100;
+      return {
+        ProductId: line.sku ?? '',
+        ProductName: line.description,
+        TaxRate: String(vatRate),
+        Quantity: line.quantity,
+        UnitPrice: String(line.unitPrice),
+        GrossPrice: String(net),
+        Discount: '0',
+        Net: String(net),
+        Tax: String(tax),
+        Total: String(total),
+      };
+    });
+
+    const gross = details.reduce((s, d) => s + Number(d.GrossPrice), 0);
+    const taxTotal = details.reduce((s, d) => s + Number(d.Tax), 0);
+    const total = details.reduce((s, d) => s + Number(d.Total), 0);
 
     const body = {
-      issue_date: today,
-      contact_id: contactId,
-      currency: invoice.currency,
-      description: `Sipariş: ${invoice.orderRef}`,
-      lines: invoice.lines.map((line) => ({
-        quantity: line.quantity,
-        unit_price: line.unitPrice,
-        vat_rate: line.taxRate,
-        description: line.description,
-        total: line.total,
-        product_code: line.sku,
-      })),
-    };
-
-    const response = await this.request<{ data: BizimHesapInvoiceRow }>(
-      client,
-      'POST',
-      '/sales_invoices',
-      body,
-    );
-    const inv = response.data;
-    return {
-      erpInvoiceId: inv.id,
-      orderRef: invoice.orderRef,
-      invoiceNumber: inv.invoice_no ?? inv.id,
-      totalAmount: inv.total_amount ?? invoice.totalAmount,
-      currency: inv.currency ?? invoice.currency,
-      issuedAt: inv.issue_date ?? today,
-      lines: invoice.lines,
-    };
-  }
-
-  private async createInvoiceV2(
-    credentials: Record<string, string>,
-    invoice: Omit<ErpInvoice, 'erpInvoiceId' | 'invoiceNumber' | 'issuedAt'>,
-  ): Promise<ErpInvoice> {
-    const client = this.getV2Client(credentials);
-    const apiLines = erpInvoiceLinesToApiLines(invoice.lines, BIZIMHESAP_DEFAULT_VAT_RATE);
-    const customerCode =
-      credentials.defaultCustomerCode?.trim() || invoice.customerName?.trim();
-
-    const response = await this.request<{ id: string; invoice_no?: string }>(
-      client,
-      'POST',
-      '/invoices',
-      {
-        type: 'sales',
-        date: new Date().toISOString(),
-        customer_code: customerCode,
-        lines: apiLines.map((line) => ({
-          product_code: line.product_code,
-          quantity: line.quantity,
-          unit_price: line.unit_price,
-          tax_rate: line.vat_rate,
-        })),
+      firmId,
+      invoiceNo: invoice.orderRef,
+      invoiceType: 3,
+      note: `Senkronize — Sipariş: ${invoice.orderRef}`,
+      dates: {
+        invoiceDate: today,
+        dueDate: today,
       },
-    );
-
-    return {
-      erpInvoiceId: response.id,
-      orderRef: invoice.orderRef,
-      invoiceNumber: response.invoice_no ?? response.id,
-      totalAmount: invoice.totalAmount,
-      currency: invoice.currency,
-      issuedAt: formatInvoiceDate(new Date()),
-      lines: invoice.lines,
-    };
-  }
-
-  async getSalesInvoice(
-    credentials: Record<string, string>,
-    invoiceId: string,
-  ): Promise<ErpInvoice> {
-    const client = this.getV1Client(credentials);
-    const response = await this.request<{ data: BizimHesapInvoiceRow }>(
-      client,
-      'GET',
-      `/sales_invoices/${invoiceId}`,
-    );
-    const inv = response.data;
-    return {
-      erpInvoiceId: inv.id,
-      orderRef: inv.contact_id ?? inv.id,
-      invoiceNumber: inv.invoice_no ?? inv.id,
-      totalAmount: inv.total_amount ?? 0,
-      currency: inv.currency ?? 'TRY',
-      issuedAt: inv.issue_date ?? formatInvoiceDate(new Date()),
-      lines: (inv.lines ?? []).map((line) => ({
-        description: line.description ?? '',
-        quantity: line.quantity,
-        unitPrice: line.unit_price,
-        taxRate: line.vat_rate ?? line.tax_rate ?? 0,
-        total: line.total ?? line.quantity * line.unit_price,
-        sku: line.product_code,
+      customer: {
+        title: invoice.customerName ?? 'Perakende',
+        address: '',
+      },
+      amounts: {
+        currency: invoice.currency === 'TRY' ? 'TL' : (invoice.currency ?? 'TL'),
+        gross: String(gross),
+        discount: '0',
+        net: String(gross),
+        tax: String(taxTotal),
+        total: String(total),
+      },
+      details: details.map((line) => ({
+        productId: line.ProductId,
+        productName: line.ProductName,
+        taxRate: line.TaxRate,
+        quantity: line.Quantity,
+        unitPrice: line.UnitPrice,
+        grossPrice: line.GrossPrice,
+        discount: line.Discount,
+        net: line.Net,
+        tax: line.Tax,
+        total: line.Total,
       })),
+    };
+
+    const response = await this.request<BizimHesapAddInvoiceResponse>(
+      'POST',
+      '/addinvoice',
+      credentials,
+      body,
+      undefined,
+      undefined,
+      organizationId,
+    );
+
+    if (response.error) {
+      throw new Error(`BizimHesap fatura hatası: ${response.error}`);
+    }
+
+    return {
+      erpInvoiceId: response.guid,
+      orderRef: invoice.orderRef,
+      invoiceNumber: invoice.orderRef,
+      totalAmount: total,
+      currency: invoice.currency,
+      issuedAt: today,
+      lines: invoice.lines,
     };
   }
 
   async getInvoices(
-    credentials: Record<string, string>,
-    since?: Date,
+    _credentials: Record<string, string>,
+    _since?: Date,
   ): Promise<ErpInvoice[]> {
-    const client = this.getV1Client(credentials);
-    const endDate = formatInvoiceDate(new Date());
-    const startDate = since
-      ? formatInvoiceDate(since)
-      : formatInvoiceDate(new Date(Date.now() - 30 * 86_400_000));
-    const out: ErpInvoice[] = [];
-    let page = 1;
-    let hasMore = true;
-
-    while (hasMore && page <= 100) {
-      const response = await this.request<BizimHesapInvoicesResponse>(
-        client,
-        'GET',
-        '/sales_invoices',
-        undefined,
-        { start_date: startDate, end_date: endDate, page },
-      );
-      for (const inv of response.data) {
-        out.push({
-          erpInvoiceId: inv.id,
-          orderRef: inv.contact_id ?? inv.id,
-          invoiceNumber: inv.invoice_no ?? inv.id,
-          totalAmount: inv.total_amount ?? 0,
-          currency: inv.currency ?? 'TRY',
-          issuedAt: inv.issue_date ?? endDate,
-          lines: (inv.lines ?? []).map((line) => ({
-            description: line.description ?? '',
-            quantity: line.quantity,
-            unitPrice: line.unit_price,
-            taxRate: line.vat_rate ?? line.tax_rate ?? 0,
-            total: line.total ?? line.quantity * line.unit_price,
-            sku: line.product_code,
-          })),
-        });
-      }
-      const total = response.meta?.total;
-      if (total !== undefined) {
-        hasMore = out.length < total;
-      } else {
-        hasMore = response.data.length > 0;
-      }
-      page += 1;
-    }
-
-    return out;
+    // BizimHesap B2B API'si fatura listeleme endpointi sunmamaktadır.
+    return [];
   }
 
-  /** Cari hesap ekstresi — v2 API */
-  async getAccountStatement(
+  async getWarehouses(
     credentials: Record<string, string>,
-    customerId: string,
-  ): Promise<BizimHesapAccountEntry[]> {
-    const client = this.getV2Client(credentials);
-    const response = await this.request<BizimHesapAccountEntriesResponse>(
-      client,
+    organizationId?: string,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const response = await this.request<unknown>(
       'GET',
-      `/current-accounts/${encodeURIComponent(customerId)}/entries`,
+      '/warehouses',
+      credentials,
+      undefined,
+      undefined,
+      undefined,
+      organizationId,
     );
-    return response.data;
-  }
-
-  private async resolveContactId(
-    credentials: Record<string, string>,
-    orderRef: string,
-  ): Promise<string> {
-    const defaultId = credentials.defaultCustomerId?.trim();
-    if (defaultId) {
-      return defaultId;
-    }
-    const customers = await this.getCustomers(credentials, 1, 1);
-    if (customers[0]?.id) {
-      return customers[0].id;
-    }
-    const created = await this.createContact(credentials, {
-      name: `Senkronize Müşteri (${orderRef})`,
-    });
-    return created.id;
+    const rows = resolveBizimHesapProductsArray(response) as Array<
+      BizimHesapWarehouseRow & { id?: string; name?: string }
+    >;
+    return rows.map((r) => ({
+      id: String(r.Id ?? r.id ?? '').trim(),
+      name: String(r.Name ?? r.name ?? 'Depo').trim(),
+    })).filter((r) => r.id.length > 0);
   }
 }

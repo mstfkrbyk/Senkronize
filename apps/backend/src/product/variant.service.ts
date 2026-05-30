@@ -96,7 +96,7 @@ export class VariantService {
       where: { organizationId, productId, deletedAt: null },
     });
 
-    const baseSku = (product.sku ?? product.barcode).trim();
+    const baseSku = (product.sku ?? product.barcode ?? '').trim();
     const created: ProductVariant[] = [];
 
     try {

@@ -2,6 +2,8 @@
 export const CACHE_TTL = {
   /** Dashboard KPI, platform performans */
   DASHBOARD: 300,
+  /** Süper admin platform istatistikleri (ağır sorgular) */
+  ADMIN_STATS: 300,
   /** Ürün listesi, stok özeti */
   PRODUCT_STOCK: 60,
   /** TCMB / kur */

@@ -70,11 +70,12 @@ export class ConnectionHealthService {
       throw new NotFoundException('ERP bağlantısı bulunamadı');
     }
     const platformKey = conn.erpType;
-    const jobPrefix = `erp:${connectionId}:`;
+    const newJobPrefix = `erp:${conn.erpType}:${connectionId}:`;
+    const legacyJobPrefix = `erp:${connectionId}:`;
     const window = await this.getSyncWindowStats(
       organizationId,
       ErpSyncSettingsService.erpSyncLogPlatform(),
-      jobPrefix,
+      [newJobPrefix, legacyJobPrefix],
     );
     return this.buildHealthResponse({
       organizationId,
@@ -91,17 +92,26 @@ export class ConnectionHealthService {
   private async getSyncWindowStats(
     organizationId: string,
     platform: Marketplace,
-    jobTypePrefix: string | undefined,
+    jobTypePrefixes: string | string[] | undefined,
   ): Promise<SyncWindowStats> {
     const since = new Date(Date.now() - HOURS_24_MS);
+    const prefixes = jobTypePrefixes
+      ? Array.isArray(jobTypePrefixes)
+        ? jobTypePrefixes
+        : [jobTypePrefixes]
+      : [];
     const logs = await this.prisma.syncLog.findMany({
       where: {
         organizationId,
         platform,
         startedAt: { gte: since },
         status: { not: SyncLogStatus.RUNNING },
-        ...(jobTypePrefix
-          ? { jobType: { startsWith: jobTypePrefix } }
+        ...(prefixes.length > 0
+          ? {
+              OR: prefixes.map((prefix) => ({
+                jobType: { startsWith: prefix },
+              })),
+            }
           : {}),
       },
       select: {

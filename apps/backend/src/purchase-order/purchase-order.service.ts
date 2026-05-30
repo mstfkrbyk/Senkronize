@@ -15,6 +15,7 @@ import type { Queue } from 'bull';
 
 import { EmailService } from '../notifications/email/email.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveProductStockKey } from '../common/product-match-key';
 import {
   LISTING_SYNC_STOCK_JOB_OPTIONS,
   QUEUE_LISTING_SYNC,
@@ -572,15 +573,34 @@ export class PurchaseOrderService {
 
     const barcodes = low.map((g) => g.barcode);
     const products = await this.prisma.product.findMany({
-      where: { organizationId, barcode: { in: barcodes }, deletedAt: null },
-      select: { barcode: true, name: true },
+      where: {
+        organizationId,
+        deletedAt: null,
+        OR: [
+          { barcode: { in: barcodes } },
+          { sku: { in: barcodes } },
+        ],
+      },
+      select: { barcode: true, sku: true, name: true },
     });
-    const nameByBarcode = new Map(products.map((p) => [p.barcode.toLowerCase(), p.name]));
+    const nameByStockKey = new Map<string, string>();
+    for (const p of products) {
+      const key = resolveProductStockKey(p);
+      if (key) {
+        nameByStockKey.set(key.toLowerCase(), p.name);
+      }
+      if (p.barcode) {
+        nameByStockKey.set(p.barcode.toLowerCase(), p.name);
+      }
+      if (p.sku) {
+        nameByStockKey.set(p.sku.toLowerCase(), p.name);
+      }
+    }
 
     return low.map((g) => {
       const current = g._sum.quantity ?? 0;
       const suggested = Math.max(threshold * 2 - current, threshold);
-      const name = nameByBarcode.get(g.barcode.toLowerCase()) ?? g.barcode;
+      const name = nameByStockKey.get(g.barcode.toLowerCase()) ?? g.barcode;
       return {
         barcode: g.barcode,
         productName: name,

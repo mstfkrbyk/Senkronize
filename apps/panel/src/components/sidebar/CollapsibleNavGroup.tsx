@@ -88,7 +88,7 @@ export function CollapsibleNavGroup({
                     onClick={closeMobile}
                   >
                     <ChildIcon className="size-4 shrink-0" />
-                    <span>{t(child.labelKey)}</span>
+                    <span>{child.label ?? t(child.labelKey)}</span>
                   </NavLink>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>

@@ -19,6 +19,8 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+import { PrismaService } from '../prisma/prisma.service';
+
 import { ConflictService } from './conflict.service';
 import { ListingSyncService } from './listing-sync.service';
 import type { QueueDepthStatus } from './listing-sync.types';
@@ -37,6 +39,7 @@ import {
   type SerializedSyncLog,
 } from './sync.types';
 import type { PlatformSyncStat } from './sync-log.service';
+import type { SyncLog } from '@prisma/client';
 
 @ApiTags('sync')
 @ApiBearerAuth()
@@ -46,6 +49,7 @@ export class SyncController {
     private readonly conflictService: ConflictService,
     private readonly syncLogService: SyncLogService,
     private readonly listingSyncService: ListingSyncService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Get('queues')
@@ -71,7 +75,10 @@ export class SyncController {
       limit: query.limit,
       jobTypeStartsWith: query.jobTypeStartsWith,
     });
-    return { data: rows.map(serializeSyncLog) };
+    const erpConnectionTypes = await this.loadErpConnectionTypes(org.id, rows);
+    return {
+      data: rows.map((row) => serializeSyncLog(row, erpConnectionTypes)),
+    };
   }
 
   @Get('stats')
@@ -148,5 +155,34 @@ export class SyncController {
   ): Promise<{ data: AutoResolveResult }> {
     const data = await this.conflictService.autoResolve(org.id);
     return { data };
+  }
+
+  /** Eski `erp:connId:type` jobType kayıtları için bağlantı → ERP türü eşlemesi. */
+  private async loadErpConnectionTypes(
+    orgId: string,
+    logs: SyncLog[],
+  ): Promise<Map<string, string>> {
+    const connectionIds = new Set<string>();
+    for (const row of logs) {
+      if (!row.jobType.startsWith('erp:')) {
+        continue;
+      }
+      const parts = row.jobType.split(':');
+      if (parts.length === 3 && parts[1]) {
+        connectionIds.add(parts[1]);
+      }
+    }
+    if (connectionIds.size === 0) {
+      return new Map();
+    }
+    const connections = await this.prisma.erpConnection.findMany({
+      where: {
+        organizationId: orgId,
+        id: { in: [...connectionIds] },
+        deletedAt: null,
+      },
+      select: { id: true, erpType: true },
+    });
+    return new Map(connections.map((c) => [c.id, c.erpType]));
   }
 }

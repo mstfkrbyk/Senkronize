@@ -14,6 +14,9 @@ export interface SyncLogEntry {
   startedAt: string;
   completedAt: string | null;
   durationMs: number | null;
+  erpType?: string | null;
+  isErpJob?: boolean;
+  displayPlatform?: string;
 }
 
 export interface PlatformSyncStat {
@@ -25,4 +28,6 @@ export interface PlatformSyncStat {
   successRate: number;
   lastRunAt: string | null;
   lastStatus: SyncLogStatus | null;
+  isErpJob?: boolean;
+  displayPlatform?: string;
 }

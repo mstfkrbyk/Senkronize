@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 
 import { useQuery } from '@tanstack/react-query';
@@ -16,7 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
 import {
@@ -25,7 +28,7 @@ import {
   SHIPMENT_TIMELINE_STEPS,
   trackingStatusToTimelineIndex,
 } from '@/lib/cargo-display';
-import { ORDER_STATUS_CONFIG, orderStatusTone } from '@/lib/order-status';
+import { ORDER_STATUS_CONFIG, orderStatusLabel, orderStatusTone } from '@/lib/order-status';
 import type { CargoTrackingResult } from '@/types/shipping';
 import type { Order } from '@/types/order';
 
@@ -56,6 +59,9 @@ function estimatedDeliveryLabel(order: Order, tracking?: CargoTrackingResult): s
 }
 
 export function ShipmentDetailPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.shipping'));
   const { id: orderId = '' } = useParams<{ id: string }>();
   const [trackingModalOpen, setTrackingModalOpen] = useState(false);
 
@@ -118,11 +124,13 @@ export function ShipmentDetailPage(): ReactElement {
 
   if (orderQuery.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -135,9 +143,13 @@ export function ShipmentDetailPage(): ReactElement {
             Kargo yönetimi
           </Link>
         </Button>
-        <p className="text-destructive">
-          {orderQuery.isError ? getApiErrorMessage(orderQuery.error) : 'Sipariş bulunamadı'}
-        </p>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">
+              {orderQuery.isError ? getApiErrorMessage(orderQuery.error) : 'Sipariş bulunamadı'}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -152,6 +164,7 @@ export function ShipmentDetailPage(): ReactElement {
             </Link>
           </Button>
           <div>
+            <p className="text-sm text-muted-foreground">{navContextLine}</p>
             <h1 className="text-2xl font-semibold tracking-tight">
               Sevkiyat · {order.platformOrderId}
             </h1>
@@ -204,7 +217,7 @@ export function ShipmentDetailPage(): ReactElement {
                   {statusCfg.label}
                 </Badge>
               ) : (
-                <span>{order.status}</span>
+                <Badge variant="outline">{orderStatusLabel(order.status)}</Badge>
               )}
             </div>
           </CardContent>

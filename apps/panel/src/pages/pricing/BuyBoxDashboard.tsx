@@ -11,8 +11,8 @@ import {
 } from 'recharts';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getApiErrorMessage } from '@/lib/api';
 import type { BuyBoxSummary } from '@/types/pricing';
 
 interface Props {
@@ -21,6 +21,7 @@ interface Props {
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
+    refetch?: () => Promise<unknown>;
   };
 }
 
@@ -35,7 +36,7 @@ function platformLabel(code: string): string {
 }
 
 export function BuyBoxDashboard({ summaryQuery }: Props): ReactElement {
-  const { data, isLoading, isError, error } = summaryQuery;
+  const { data, isLoading, isError, error, refetch } = summaryQuery;
 
   const isPaymentRequired =
     isError &&
@@ -63,9 +64,16 @@ export function BuyBoxDashboard({ summaryQuery }: Props): ReactElement {
 
   if (isError && !isPaymentRequired) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {getApiErrorMessage(error)}
-      </div>
+      <QueryErrorAlert
+        error={error}
+        onRetry={
+          refetch
+            ? () => {
+                void refetch();
+              }
+            : undefined
+        }
+      />
     );
   }
 

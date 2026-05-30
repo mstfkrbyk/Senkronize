@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -12,32 +13,28 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import { useAcceptPartnerInvite } from '@/pages/partner/hooks/usePartner';
 import { useAuthStore } from '@/store/auth.store';
 
 export function InviteAcceptPage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('partnerInviteAccept.pageTitle'));
+
   const { token: urlToken } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const jwt = useAuthStore((s) => s.token);
   const { mutate, isPending } = useAcceptPartnerInvite();
   const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!urlToken) {
-      setMessage('Geçersiz davet bağlantısı.');
-    }
-  }, [urlToken]);
-
   if (!urlToken) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Davet</CardTitle>
-            <CardDescription>
-              {message ?? 'Geçersiz davet bağlantısı.'}
-            </CardDescription>
+            <CardTitle>{t('partnerInviteAccept.inviteTitle')}</CardTitle>
+            <CardDescription>{t('partnerInviteAccept.invalidLink')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -50,18 +47,16 @@ export function InviteAcceptPage(): ReactElement {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Partner daveti</CardTitle>
-            <CardDescription>
-              Daveti kabul etmek için giriş yapmanız veya kayıt olmanız gerekir.
-            </CardDescription>
+            <CardTitle>{t('partnerInviteAccept.partnerTitle')}</CardTitle>
+            <CardDescription>{t('partnerInviteAccept.loginRequired')}</CardDescription>
           </CardHeader>
           <CardFooter className="flex flex-col gap-2 sm:flex-row">
             <Button type="button" className="w-full sm:w-auto" asChild>
-              <Link to={loginHref}>Giriş yap</Link>
+              <Link to={loginHref}>{t('partnerInviteAccept.signIn')}</Link>
             </Button>
             <Button type="button" variant="outline" className="w-full sm:w-auto" asChild>
               <Link to={`/register?inviteToken=${encodeURIComponent(urlToken)}`}>
-                Kayıt ol
+                {t('partnerInviteAccept.register')}
               </Link>
             </Button>
           </CardFooter>
@@ -75,12 +70,12 @@ export function InviteAcceptPage(): ReactElement {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Davet işlenemedi</CardTitle>
+            <CardTitle>{t('partnerInviteAccept.failedTitle')}</CardTitle>
             <CardDescription>{message}</CardDescription>
           </CardHeader>
           <CardFooter>
             <Button type="button" variant="secondary" onClick={() => navigate('/dashboard')}>
-              Panele dön
+              {t('partnerInviteAccept.backToPanel')}
             </Button>
           </CardFooter>
         </Card>
@@ -92,17 +87,14 @@ export function InviteAcceptPage(): ReactElement {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Partner daveti</CardTitle>
-          <CardDescription>
-            Partner ilişkisini kurmak için onaylayın. İşlem tamamlandığında panele
-            yönlendirileceksiniz.
-          </CardDescription>
+          <CardTitle>{t('partnerInviteAccept.partnerTitle')}</CardTitle>
+          <CardDescription>{t('partnerInviteAccept.confirmDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4 py-4">
           {isPending ? (
             <Loader2
               className="size-8 animate-spin text-muted-foreground"
-              aria-label="Yükleniyor"
+              aria-label={t('partnerInviteAccept.loadingAria')}
             />
           ) : null}
           <Button
@@ -120,7 +112,7 @@ export function InviteAcceptPage(): ReactElement {
               });
             }}
           >
-            {isPending ? 'İşleniyor…' : 'Daveti kabul et'}
+            {isPending ? t('partnerInviteAccept.processing') : t('partnerInviteAccept.accept')}
           </Button>
         </CardContent>
       </Card>

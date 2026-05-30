@@ -1,22 +1,19 @@
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { BarChart3 } from 'lucide-react';
 
 import { CollapsibleNavGroup } from '@/components/sidebar/CollapsibleNavGroup';
-import {
-  COMMON_NAV_ITEMS,
-  ECOMMERCE_CUSTOMERS_NAV_ITEM,
-  ECOMMERCE_NAV_ITEMS,
-  EXTERNAL_ERP_NAV_ITEMS,
-  INTEGRATION_SYNC_NAV_ITEMS,
-  NATIVE_ACCOUNTING_NAV_ITEMS,
-  type NavItem,
-} from '@/constants/navigation';
+import { NavGroupLabelWithHint } from '@/components/sidebar/NavGroupLabelWithHint';
+import { PARTNER_SIDEBAR_NAV_ITEMS, type NavItem } from '@/constants/navigation';
+import { useMarketplaceConnections } from '@/hooks/useConnections';
+import { injectListingsNavChildren } from '@/lib/listings-nav';
 import { prefetchRoute } from '@/lib/routePreload';
-import { hasOrgProductLine } from '@/lib/org-products';
+import { resolveNavGroupHintKey } from '@/lib/nav-group-hints';
+import { buildSidebarNavSections } from '@/lib/nav-match';
 import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import { useAuthStore } from '@/store/auth.store';
 import {
   SidebarGroup,
@@ -33,15 +30,11 @@ import {
 const NAV_TOUR_ATTR: Partial<Record<string, string>> = {
   '/connections': 'sidebar-connections',
   '/products': 'sidebar-products',
+  '/stock': 'sidebar-stock',
   '/orders': 'sidebar-orders',
   '/pricing': 'sidebar-pricing',
+  '/pricing/analysis': 'sidebar-price-analysis',
 };
-
-function filterVisible(items: NavItem[], orgType: string | undefined): NavItem[] {
-  return items.filter(
-    (item) => !item.partnerOnly || orgType === 'PARTNER',
-  );
-}
 
 function navItemTo(navItem: NavItem): string | { pathname: string; search?: string } {
   if (navItem.search) {
@@ -59,6 +52,7 @@ function isNavItemActive(
     pathname === item.path ||
     (!item.matchExact &&
       item.path !== '/' &&
+      !(item.path === '/products' && pathname.startsWith('/product-')) &&
       pathname.startsWith(`${item.path}/`));
   if (!pathMatch) {
     return false;
@@ -84,6 +78,7 @@ function isNavGroupActive(
 
 interface NavGroupProps {
   labelKey?: string;
+  hintKey?: string;
   items: NavItem[];
   location: ReturnType<typeof useLocation>;
   isMobile: boolean;
@@ -93,6 +88,7 @@ interface NavGroupProps {
 
 function NavGroup({
   labelKey,
+  hintKey,
   items,
   location,
   isMobile,
@@ -108,7 +104,9 @@ function NavGroup({
 
   return (
     <SidebarGroup>
-      {labelKey ? (
+      {labelKey && hintKey ? (
+        <NavGroupLabelWithHint label={t(labelKey)} hint={t(hintKey)} />
+      ) : labelKey ? (
         <SidebarGroupLabel className="text-xs uppercase tracking-wide text-muted-foreground">
           {t(labelKey)}
         </SidebarGroupLabel>
@@ -188,26 +186,6 @@ function NavGroup({
   );
 }
 
-function buildEcommerceNavItems(
-  orgType: string | undefined,
-  hasAccounting: boolean,
-  hasIntegration: boolean,
-  showIntegrationSync: boolean,
-): NavItem[] {
-  if (!hasIntegration) {
-    return [];
-  }
-
-  const items: NavItem[] = [...ECOMMERCE_NAV_ITEMS];
-  if (!hasAccounting) {
-    items.splice(4, 0, ECOMMERCE_CUSTOMERS_NAV_ITEM);
-  }
-  if (showIntegrationSync) {
-    items.push(...INTEGRATION_SYNC_NAV_ITEMS);
-  }
-  return filterVisible(items, orgType);
-}
-
 export function SidebarNav(): ReactElement {
   const { t } = useTranslation();
   const location = useLocation();
@@ -215,29 +193,23 @@ export function SidebarNav(): ReactElement {
   const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const userRole = useAuthStore((s) => s.user?.role);
   const { isMobile, setOpenMobile } = useSidebar();
-  const { mode } = useAccountingMode();
+  const { mode: accountingMode } = useAccountingMode();
+  const canViewIntegrationOps = useIntegrationOpsAccess();
+  const connectionsQuery = useMarketplaceConnections();
 
-  const hasIntegration = hasOrgProductLine(orgProducts, 'INTEGRATION');
-  const hasAccounting = hasOrgProductLine(orgProducts, 'ACCOUNTING');
-  const showExternalErp =
-    mode === 'EXTERNAL_ERP' && (hasAccounting || hasIntegration);
-  const showNativeAccounting = hasAccounting && mode === 'NATIVE';
-  const showIntegrationSyncInEcommerce =
-    hasIntegration && !showExternalErp;
-
-  const ecommerceItems = buildEcommerceNavItems(
+  const sections = buildSidebarNavSections({
     orgType,
-    hasAccounting,
-    hasIntegration,
-    showIntegrationSyncInEcommerce,
-  );
-  const nativeAccountingItems = showNativeAccounting
-    ? filterVisible(NATIVE_ACCOUNTING_NAV_ITEMS, orgType)
-    : [];
-  const externalErpItems = showExternalErp
-    ? filterVisible(EXTERNAL_ERP_NAV_ITEMS, orgType)
-    : [];
-  const commonItems = filterVisible(COMMON_NAV_ITEMS, orgType);
+    orgProducts,
+    accountingMode,
+    canViewIntegrationOps,
+  });
+  const ecommerceNavItems = useMemo(() => {
+    const activePlatforms = (connectionsQuery.data ?? [])
+      .filter((c) => c.isActive)
+      .map((c) => c.platform);
+    return injectListingsNavChildren(sections.ecommerce, activePlatforms);
+  }, [connectionsQuery.data, sections.ecommerce]);
+  const isPartnerOrg = orgType === 'PARTNER';
 
   const groupProps = {
     location,
@@ -246,24 +218,67 @@ export function SidebarNav(): ReactElement {
     t,
   };
 
+  if (isPartnerOrg) {
+    return (
+      <>
+        <NavGroup items={PARTNER_SIDEBAR_NAV_ITEMS} {...groupProps} />
+        <SidebarGroup>
+          <SidebarGroupContent>
+            {userRole === 'SUPER_ADMIN' ? (
+              <>
+                <SidebarSeparator className="my-2 bg-sidebar-border" />
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip={t('nav.adminPanel')}>
+                      <Link
+                        to="/admin"
+                        onMouseEnter={() => {
+                          prefetchRoute('/admin');
+                        }}
+                        onFocus={() => {
+                          prefetchRoute('/admin');
+                        }}
+                        onClick={() => {
+                          if (isMobile) {
+                            setOpenMobile(false);
+                          }
+                        }}
+                      >
+                        <BarChart3 className="size-4 shrink-0" />
+                        <span className="truncate">{t('nav.adminPanel')}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </>
+            ) : null}
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </>
+    );
+  }
+
   return (
     <>
       <NavGroup
         labelKey="nav.ecommerce"
-        items={ecommerceItems}
+        hintKey={resolveNavGroupHintKey('ecommerce', accountingMode)}
+        items={ecommerceNavItems}
         {...groupProps}
       />
       <NavGroup
         labelKey="nav.nativeAccounting"
-        items={nativeAccountingItems}
+        hintKey={resolveNavGroupHintKey('nativeAccounting', accountingMode)}
+        items={sections.nativeAccounting}
         {...groupProps}
       />
       <NavGroup
         labelKey="nav.externalErp"
-        items={externalErpItems}
+        hintKey={resolveNavGroupHintKey('externalErp', accountingMode)}
+        items={sections.externalErp}
         {...groupProps}
       />
-      <NavGroup items={commonItems} {...groupProps} />
+      <NavGroup labelKey="nav.common" items={sections.common} {...groupProps} />
 
       <SidebarGroup>
         <SidebarGroupContent>

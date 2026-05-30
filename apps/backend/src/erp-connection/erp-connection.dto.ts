@@ -1,5 +1,7 @@
-import { ErpType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsObject, IsOptional, IsUUID } from 'class-validator';
+import { ErpType, ErpConnectionRole } from '@prisma/client';
+import { IsBoolean, IsEnum, IsNotEmpty, IsObject, IsOptional, IsString, IsUUID, MaxLength, ValidateIf } from 'class-validator';
+
+import type { ProductMatchKey } from '../common/product-match-key';
 
 export class CreateErpConnectionDto {
   @IsEnum(ErpType)
@@ -7,6 +9,16 @@ export class CreateErpConnectionDto {
 
   @IsObject()
   credentials!: Record<string, string>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  displayName?: string;
+
+  /** İlk bağlantıda varsayılan PRIMARY; ikincide SECONDARY */
+  @IsOptional()
+  @IsEnum(ErpConnectionRole)
+  role?: ErpConnectionRole;
 }
 
 export class UpdateErpConnectionDto {
@@ -15,7 +27,21 @@ export class UpdateErpConnectionDto {
   credentials?: Record<string, string>;
 
   @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  displayName?: string;
+
+  /** null = organizasyon varsayılanını kullan */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsEnum(['BARCODE', 'SKU', 'MANUAL'], {
+    message: 'productMatchKey BARCODE, SKU, MANUAL veya null olmalıdır.',
+  })
+  productMatchKey?: ProductMatchKey | null;
 }
 
 export class TestErpConnectionDto {

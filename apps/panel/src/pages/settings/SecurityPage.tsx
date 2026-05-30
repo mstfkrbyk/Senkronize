@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { Monitor, Smartphone, Tablet } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -28,6 +27,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -38,7 +38,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/useAuth';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatIpAddress } from '@/lib/format-ip-address';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { validatePassword } from '@/lib/password-policy';
 import { useAuthStore } from '@/store/auth.store';
@@ -46,12 +48,13 @@ import { useAuthStore } from '@/store/auth.store';
 import { useAuditLog } from './hooks/useAuditLog';
 import { TwoFactorSettings } from './TwoFactorSettings';
 import { AuditLogTable } from './tabs/AuditLogTable';
+import { LoginHistoryDeviceIcon } from './tabs/login-history-device-icon';
+import { LoginHistoryTable } from './tabs/LoginHistoryTable';
 import {
   auditEntriesToLoginHistory,
-  LoginHistoryTable,
   mergeLoginHistory,
   sessionsToLoginHistory,
-} from './tabs/LoginHistoryTable';
+} from './tabs/login-history.util';
 
 const SECURITY_ACTION_PREFIXES = [
   'auth.',
@@ -99,23 +102,15 @@ function isSecurityAuditAction(action: string): boolean {
   );
 }
 
-function DeviceIcon({
-  deviceType,
-}: {
-  deviceType?: SessionRow['deviceType'];
-}): ReactElement {
-  const className = 'mr-2 inline h-4 w-4 shrink-0 text-muted-foreground';
-  if (deviceType === 'mobile') {
-    return <Smartphone className={className} aria-hidden />;
-  }
-  if (deviceType === 'tablet') {
-    return <Tablet className={className} aria-hidden />;
-  }
-  return <Monitor className={className} aria-hidden />;
+interface SecurityPageProps {
+  /** @deprecated Ayarlar artık ayrı rota; yok sayılır */
+  embedded?: boolean;
 }
 
-export function SecurityPage(): ReactElement {
+export function SecurityPage(_props: SecurityPageProps = {}): ReactElement {
   const { t } = useTranslation();
+  const pageTitle = t('settings.tabs.security');
+  usePageTitle(pageTitle);
   const queryClient = useQueryClient();
   const currentSessionId = useAuthStore((s) => s.sessionId);
   const authQuery = useAuth();
@@ -163,6 +158,7 @@ export function SecurityPage(): ReactElement {
 
   const passwordForm = useForm<PasswordForm>({
     resolver: zodFormResolver(passwordSchema),
+    mode: 'onChange',
     defaultValues: {
       currentPassword: '',
       newPassword: '',
@@ -249,7 +245,16 @@ export function SecurityPage(): ReactElement {
   }, [sessionsQuery.data, currentSessionId]);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">
+          {pageTitle}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {t('settings.security.pageSubtitle')}
+        </p>
+      </div>
+
       {requires2FASetup ? (
         <Alert variant="destructive">
           <AlertTitle>2FA zorunlu</AlertTitle>
@@ -338,7 +343,12 @@ export function SecurityPage(): ReactElement {
                   </FormItem>
                 )}
               />
-              <Button type="submit" disabled={changePassword.isPending}>
+              <Button
+                type="submit"
+                disabled={
+                  changePassword.isPending || !passwordForm.formState.isValid
+                }
+              >
                 {changePassword.isPending ? 'Güncelleniyor…' : 'Şifreyi güncelle'}
               </Button>
             </form>
@@ -385,9 +395,12 @@ export function SecurityPage(): ReactElement {
             <Skeleton className="h-24 w-full" />
           ) : null}
           {sessionsQuery.isError ? (
-            <p className="text-sm text-destructive">
-              {getApiErrorMessage(sessionsQuery.error)}
-            </p>
+            <QueryErrorAlert
+              error={sessionsQuery.error}
+              onRetry={() => {
+                void sessionsQuery.refetch();
+              }}
+            />
           ) : null}
           {!sessionsQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 ? (
             <p className="rounded-lg border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
@@ -395,7 +408,7 @@ export function SecurityPage(): ReactElement {
             </p>
           ) : null}
           {!sessionsQuery.isLoading && sessionsQuery.data?.length ? (
-            <div className="rounded-md border">
+            <div className="overflow-x-auto rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -414,7 +427,7 @@ export function SecurityPage(): ReactElement {
                       <TableRow key={s.id}>
                         <TableCell className="text-sm">
                           <span className="inline-flex items-center">
-                            <DeviceIcon deviceType={s.deviceType} />
+                            <LoginHistoryDeviceIcon deviceType={s.deviceType} />
                             {s.device ?? '—'}
                           </span>
                           {isCurrent ? (
@@ -423,8 +436,8 @@ export function SecurityPage(): ReactElement {
                             </Badge>
                           ) : null}
                         </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {s.ipAddress ?? '—'}
+                        <TableCell className="text-sm">
+                          {formatIpAddress(s.ipAddress)}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {s.location ?? '—'}
@@ -479,9 +492,12 @@ export function SecurityPage(): ReactElement {
         </CardHeader>
         <CardContent className="space-y-3">
           {auditQuery.isError ? (
-            <p className="text-sm text-destructive">
-              {getApiErrorMessage(auditQuery.error)}
-            </p>
+            <QueryErrorAlert
+              error={auditQuery.error}
+              onRetry={() => {
+                void auditQuery.refetch();
+              }}
+            />
           ) : null}
           {auditQuery.isLoading ? (
             <div className="space-y-2">

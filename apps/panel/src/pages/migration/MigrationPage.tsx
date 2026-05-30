@@ -3,11 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, History, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { useSocket } from '@/hooks/useSocket';
 import { getApiErrorMessage } from '@/lib/api';
 import type {
@@ -53,7 +57,13 @@ const INITIAL_PROGRESS: MigrationSessionProgress = {
 };
 
 export function MigrationPage(): ReactElement {
-  usePageTitle('Geçiş Sihirbazı');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const pageTitle = t('nav.migration');
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.migrationShort'));
+  const pageSubtitle = t('migration.pageSubtitle');
+
+  usePageTitle(pageTitle);
   const queryClient = useQueryClient();
   const { on } = useSocket();
 
@@ -268,23 +278,20 @@ export function MigrationPage(): ReactElement {
   const previewHeaders = previewQuery.data?.headers ?? uploadMutation.data?.headers ?? [];
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Geçiş sihirbazı
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Rakip platformdan verilerinizi adım adım Senkronize&apos;a taşıyın.
-          </p>
-        </div>
-        <Button type="button" variant="outline" size="sm" asChild>
-          <Link to="/migration/history">
-            <History className="mr-2 size-4" />
-            Geçmiş
-          </Link>
-        </Button>
-      </div>
+    <div className="mx-auto flex max-w-5xl flex-col space-y-6">
+      <PageHeader
+        title={pageTitle}
+        description={pageSubtitle}
+        context={navContextLine}
+        actions={
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link to="/migration/history">
+              <History className="mr-2 size-4" />
+              Geçmiş
+            </Link>
+          </Button>
+        }
+      />
 
       <WizardStepIndicator currentStep={step} />
 

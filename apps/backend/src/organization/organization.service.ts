@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { getAccountingModeChangeBlockReason } from '../common/accounting-mode';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateOrganizationDto } from './organization.dto';
 import { PatchOrganizationSettingsDto } from './organization-settings.dto';
@@ -8,6 +9,8 @@ import {
   formatInvoiceNumber,
   type InvoiceNumberingSettings,
   parseOrganizationMetadata,
+  resolveDefaultAutoInvoice,
+  resolveProductMatchKey,
 } from './organization.types';
 
 @Injectable()
@@ -26,6 +29,20 @@ export class OrganizationService {
 
   async update(organizationId: string, dto: UpdateOrganizationDto) {
     await this.getById(organizationId);
+
+    if (dto.accountingMode !== undefined) {
+      const activeErpCount = await this.prisma.erpConnection.count({
+        where: { organizationId, deletedAt: null, isActive: true },
+      });
+      const blockReason = getAccountingModeChangeBlockReason(
+        dto.accountingMode,
+        activeErpCount,
+      );
+      if (blockReason) {
+        throw new ConflictException(blockReason);
+      }
+    }
+
     return this.prisma.organization.update({
       where: { id: organizationId },
       data: {
@@ -33,6 +50,9 @@ export class OrganizationService {
         ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
         ...(dto.onboardingCompleted !== undefined
           ? { onboardingCompleted: dto.onboardingCompleted }
+          : {}),
+        ...(dto.accountingMode !== undefined
+          ? { accountingMode: dto.accountingMode }
           : {}),
         ...(dto.defaultCurrency !== undefined
           ? { defaultCurrency: dto.defaultCurrency }
@@ -87,6 +107,12 @@ export class OrganizationService {
     if (dto.nextSequence !== undefined) {
       meta.nextSequence = dto.nextSequence;
       meta.invoiceNumberYear = new Date().getFullYear();
+    }
+    if (dto.defaultAutoInvoice !== undefined) {
+      meta.defaultAutoInvoice = dto.defaultAutoInvoice;
+    }
+    if (dto.productMatchKey !== undefined) {
+      meta.productMatchKey = dto.productMatchKey;
     }
 
     await this.prisma.organization.update({
@@ -155,7 +181,12 @@ export class OrganizationService {
       nextSequence = await this.countInvoicesForYear(this.prisma, organizationId, year);
     }
 
-    return { invoiceNumberPrefix: prefix, nextSequence };
+    return {
+      invoiceNumberPrefix: prefix,
+      nextSequence,
+      defaultAutoInvoice: resolveDefaultAutoInvoice(meta),
+      productMatchKey: resolveProductMatchKey(meta),
+    };
   }
 
   private async countInvoicesForYear(

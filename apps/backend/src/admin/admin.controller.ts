@@ -11,6 +11,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseGuards,
@@ -27,22 +28,43 @@ import { Prisma } from '@prisma/client';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthenticatedUser } from '../auth/auth.types';
+import { resolveOrganizationAccountingMode } from '../common/accounting-mode';
+import { resolveOrgProductLines } from '../common/product-lines';
+import { AuditService } from '../audit/audit.service';
+import { IntegrationPolicyModule } from '../integration-policy/integration-policy.module';
+import { IntegrationPolicyService } from '../integration-policy/integration-policy.service';
+import type {
+  AdminIntegrationDetail,
+  AdminIntegrationListItem,
+} from '../integration-policy/integration-policy.types';
+import { UpdateIntegrationPolicyDto } from '../integration-policy/integration-policy.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformHealthService } from '../adapters/common/platform-health.service';
+import { BizimHesapRateLimitService } from '../adapters/erp/bizimhesap/bizimhesap-rate-limit.service';
 import { RateLimitMonitorService } from '../monitoring/rate-limit-monitor.service';
+import { PlatformActivityLogService } from '../monitoring/platform-activity-log.service';
 import { IpBlockService } from '../security/ip-block.service';
 import { AuditLogsQueryDto } from '../users/audit-logs-query.dto';
 import { UsersService } from '../users/users.service';
 import {
   AddOrgNoteDto,
   AdminOrganizationsQueryDto,
+  AdminPlatformStatsQueryDto,
   AdminSubscriptionsQueryDto,
   AdminUsersQueryDto,
   BlockedIpMutationDto,
   ChangeAdminUserRoleDto,
+  AssignOrganizationPartnerDto,
   ChangeOrganizationPlanDto,
+  ConfigureInternalAccountDto,
+  ChangeOrganizationSubscriptionDto,
+  ChangeOrganizationProductLinesDto,
+  ChangeOrganizationAccountingModeDto,
+  GrantExtraErpSlotDto,
   GrowthStatsQueryDto,
   SuspendOrganizationDto,
+  UpdateAdminOrganizationInfoDto,
+  UpdateAdminUserDto,
 } from './admin.dto';
 import { SuperAdminGuard } from './admin.guard';
 import {
@@ -50,9 +72,12 @@ import {
   type PartnerLinkRequest,
 } from '@prisma/client';
 import {
+  AdminPartnerPayoutQueryDto,
   RejectPartnerLinkRequestDto,
+  RejectPartnerPayoutDto,
   UpdatePartnerCommissionRateDto,
 } from '../partner/partner.dto';
+import { ensureArray, ensureFiniteNumber } from '../common/ensure-array.util';
 import { PartnerLinkService } from '../partner/partner-link.service';
 import { PartnerService } from '../partner/partner.service';
 import { AdminService } from './admin.service';
@@ -70,6 +95,7 @@ import type {
   OrganizationDetail,
   PaginatedOrganizations,
   PaginatedUsers,
+  AdminSubscriptionListItem,
   PlatformStats,
   PlatformUsageItem,
   RevenueStats,
@@ -77,10 +103,23 @@ import type {
 
 const ADMIN_SUBSCRIPTION_LIST_INCLUDE =
   Prisma.validator<Prisma.SubscriptionInclude>()({
-    organization: { select: { id: true, name: true, suspended: true } },
+    organization: {
+      select: {
+        id: true,
+        name: true,
+        suspended: true,
+        productLines: true,
+        accountingMode: true,
+        _count: {
+          select: {
+            erpConnections: { where: { deletedAt: null, isActive: true } },
+          },
+        },
+      },
+    },
   });
 
-type AdminSubscriptionListItem = Prisma.SubscriptionGetPayload<{
+type AdminSubscriptionListRow = Prisma.SubscriptionGetPayload<{
   include: typeof ADMIN_SUBSCRIPTION_LIST_INCLUDE;
 }>;
 
@@ -99,13 +138,19 @@ export class AdminController {
     private readonly rateLimitMonitor: RateLimitMonitorService,
     private readonly partnerService: PartnerService,
     private readonly partnerLinkService: PartnerLinkService,
+    private readonly integrationPolicy: IntegrationPolicyService,
+    private readonly auditService: AuditService,
+    private readonly bizimHesapRateLimit: BizimHesapRateLimitService,
+    private readonly platformActivityLog: PlatformActivityLogService,
   ) {}
 
   @Get('stats/platform')
   @ApiOperation({ summary: 'Platform istatistikleri (genişletilmiş)' })
   @ApiResponse({ status: 200, description: 'Özet' })
-  async getPlatformStats(): Promise<PlatformStats> {
-    return this.adminService.getPlatformStats();
+  async getPlatformStats(
+    @Query() query: AdminPlatformStatsQueryDto,
+  ): Promise<PlatformStats> {
+    return this.adminService.getPlatformStats(query.product);
   }
 
   @Get('stats/revenue')
@@ -151,6 +196,21 @@ export class AdminController {
   @ApiResponse({ status: 200, description: 'Liste' })
   async getUsers(@Query() query: AdminUsersQueryDto): Promise<PaginatedUsers> {
     return this.adminService.getUsers(query);
+  }
+
+  @Get('users/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="kullanicilar.csv"')
+  @ApiOperation({ summary: 'Kullanıcı listesi CSV (en fazla 500, filtreli)' })
+  @ApiResponse({ status: 200, description: 'CSV' })
+  async exportUsers(
+    @Query() query: AdminUsersQueryDto,
+    @Query('format') format: string,
+  ): Promise<string> {
+    if (format !== 'csv') {
+      throw new BadRequestException('Yalnızca format=csv desteklenir');
+    }
+    return this.adminService.exportUsersCsv(query);
   }
 
   @Get('users/:userId')
@@ -217,6 +277,16 @@ export class AdminController {
     return { ok: true };
   }
 
+  @Patch('users/:userId')
+  @ApiOperation({ summary: 'Admin: Kullanıcı bilgilerini güncelle' })
+  async updateUserInfo(
+    @Param('userId') userId: string,
+    @Body() dto: UpdateAdminUserDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<void> {
+    return this.adminService.updateUserInfo(userId, dto, actor);
+  }
+
   @Get('users/:userId/audit-log')
   @ApiOperation({ summary: 'Kullanıcı denetim kayıtları' })
   @ApiResponse({ status: 200, description: 'Sayfalı kayıtlar' })
@@ -243,7 +313,21 @@ export class AdminController {
       query.search,
       plan,
       query.status,
+      query.product,
+      query.partner,
+      query.accountingMode,
     );
+  }
+
+  @Get('organizations/platform')
+  @ApiOperation({ summary: 'Platform (süper admin) organizasyonu' })
+  @ApiResponse({ status: 200, description: 'Platform org özeti' })
+  async getPlatformOrganization(): Promise<{
+    id: string;
+    name: string;
+    slug: string;
+  } | null> {
+    return this.adminService.getPlatformOrganization();
   }
 
   @Get('organizations/:id')
@@ -253,6 +337,39 @@ export class AdminController {
     @Param('id') id: string,
   ): Promise<OrganizationDetail> {
     return this.adminService.getOrganizationDetail(id);
+  }
+
+  @Patch('organizations/:id/internal-account')
+  @ApiOperation({
+    summary: 'İç hesap (faturasız, sınırsız limit) yapılandırması',
+  })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async configureInternalAccount(
+    @Param('id') id: string,
+    @Body() body: ConfigureInternalAccountDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.configureInternalAccount(id, body, actor);
+    return { ok: true };
+  }
+
+  @Post('organizations/:id/extra-erp-slot')
+  @ApiOperation({ summary: 'Organizasyona ek ERP slotu (addon) tanımla' })
+  @ApiResponse({ status: 200, description: 'Addon güncellendi' })
+  async grantExtraErpSlot(
+    @Param('id') id: string,
+    @Body() body: GrantExtraErpSlotDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{
+    extraErpSlotCount: number;
+    erpSlotLimit: number | null;
+  }> {
+    return this.adminService.grantExtraErpSlot(
+      id,
+      body.quantity,
+      body.reason,
+      actor,
+    );
   }
 
   @Post('organizations/:id/suspend')
@@ -284,8 +401,22 @@ export class AdminController {
   async impersonateOrganization(
     @Param('id') id: string,
     @CurrentUser() actor: AuthenticatedUser,
-  ): Promise<{ token: string }> {
+  ): Promise<{ token: string; impersonationToken: string }> {
     return this.adminService.impersonateOrganization(id, actor);
+  }
+
+  @Get('activity/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="platform-denetim.csv"')
+  @ApiOperation({ summary: 'Platform denetim kayıtları CSV (en fazla 500)' })
+  @ApiResponse({ status: 200, description: 'CSV' })
+  async exportRecentActivity(
+    @Query('format') format: string,
+  ): Promise<string> {
+    if (format !== 'csv') {
+      throw new BadRequestException('Yalnızca format=csv desteklenir');
+    }
+    return this.adminService.exportPlatformActivityCsv();
   }
 
   @Get('activity')
@@ -316,6 +447,87 @@ export class AdminController {
     return { ok: true };
   }
 
+  @Patch('organizations/:id/subscription')
+  @ApiOperation({ summary: 'Abonelik durumu ve deneme bitiş tarihi' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async updateSubscription(
+    @Param('id') id: string,
+    @Body() body: ChangeOrganizationSubscriptionDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.updateSubscription(id, body, actor);
+    return { ok: true };
+  }
+
+  @Patch('organizations/:id/product-lines')
+  @ApiOperation({ summary: 'Ürün hattını değiştir (entegrasyon / muhasebe / paket)' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async changeProductLines(
+    @Param('id') id: string,
+    @Body() body: ChangeOrganizationProductLinesDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.changeProductLines(
+      id,
+      body.productSelection,
+      body.reason,
+      actor,
+    );
+    return { ok: true };
+  }
+
+  @Patch('organizations/:id/accounting-mode')
+  @ApiOperation({ summary: 'Muhasebe modunu değiştir (NATIVE / EXTERNAL_ERP)' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  async changeAccountingMode(
+    @Param('id') id: string,
+    @Body() body: ChangeOrganizationAccountingModeDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.changeAccountingMode(
+      id,
+      body.accountingMode,
+      body.reason,
+      actor,
+    );
+    return { ok: true };
+  }
+
+  @Put('organizations/:id/partner')
+  @ApiOperation({ summary: 'Müşteri organizasyonuna partner ata' })
+  @ApiResponse({ status: 200, description: 'Atandı' })
+  async assignPartner(
+    @Param('id') id: string,
+    @Body() body: AssignOrganizationPartnerDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.assignPartnerToOrganization(
+      id,
+      body.partnerOrgId,
+      actor,
+      body.reason,
+    );
+    return { ok: true };
+  }
+
+  @Delete('organizations/:id/partner/:partnerOrgId')
+  @ApiOperation({ summary: 'Partner bağlantısını kaldır' })
+  @ApiResponse({ status: 200, description: 'Kaldırıldı' })
+  async removePartner(
+    @Param('id') id: string,
+    @Param('partnerOrgId') partnerOrgId: string,
+    @Query('reason') reason: string | undefined,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    await this.adminService.removePartnerFromOrganization(
+      id,
+      partnerOrgId,
+      actor,
+      reason,
+    );
+    return { ok: true };
+  }
+
   @Get('subscriptions')
   @ApiOperation({ summary: 'Abonelik listesi (platform)' })
   @ApiResponse({ status: 200, description: 'Liste' })
@@ -326,12 +538,39 @@ export class AdminController {
     if (query.status) {
       where.status = query.status;
     }
-    return this.prisma.subscription.findMany({
+    const rows = await this.prisma.subscription.findMany({
       where,
       include: ADMIN_SUBSCRIPTION_LIST_INCLUDE,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+    return rows.map((row) => this.mapAdminSubscriptionListItem(row));
+  }
+
+  private mapAdminSubscriptionListItem(
+    row: AdminSubscriptionListRow,
+  ): AdminSubscriptionListItem {
+    const { organization } = row;
+    return {
+      id: row.id,
+      organizationId: row.organizationId,
+      plan: row.plan,
+      status: row.status,
+      trialEndsAt: row.trialEndsAt,
+      currentPeriodStart: row.currentPeriodStart,
+      currentPeriodEnd: row.currentPeriodEnd,
+      createdAt: row.createdAt,
+      organization: {
+        id: organization.id,
+        name: organization.name,
+        suspended: organization.suspended,
+        orgProducts: resolveOrgProductLines(organization.productLines),
+        accountingMode: resolveOrganizationAccountingMode(
+          organization.accountingMode,
+          organization._count.erpConnections,
+        ),
+      },
+    };
   }
 
   @Post('blocked-ips')
@@ -428,7 +667,50 @@ export class AdminController {
   async listPartners(): Promise<
     Awaited<ReturnType<PartnerService['listPartnersForAdmin']>>
   > {
-    return this.partnerService.listPartnersForAdmin();
+    return ensureArray(await this.partnerService.listPartnersForAdmin());
+  }
+
+  @Get('partner-payout-requests')
+  @ApiOperation({ summary: 'Partner ödeme talepleri' })
+  @ApiResponse({ status: 200 })
+  async listPartnerPayoutRequests(
+    @Query() query: AdminPartnerPayoutQueryDto,
+  ): Promise<
+    Awaited<ReturnType<PartnerService['listPayoutRequestsForAdmin']>>
+  > {
+    return ensureArray(
+      await this.partnerService.listPayoutRequestsForAdmin(query.status),
+    );
+  }
+
+  @Post('partner-payout-requests/:id/approve')
+  @ApiOperation({ summary: 'Partner ödeme talebini onayla' })
+  @ApiResponse({ status: 200 })
+  async approvePartnerPayoutRequest(
+    @Param('id') id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['approvePayoutRequest']>>> {
+    return this.partnerService.approvePayoutRequest(
+      id,
+      actor.id,
+      actor.organizationId ?? actor.currentOrgId,
+    );
+  }
+
+  @Post('partner-payout-requests/:id/reject')
+  @ApiOperation({ summary: 'Partner ödeme talebini reddet' })
+  @ApiResponse({ status: 200 })
+  async rejectPartnerPayoutRequest(
+    @Param('id') id: string,
+    @Body() body: RejectPartnerPayoutDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['rejectPayoutRequest']>>> {
+    return this.partnerService.rejectPayoutRequest(
+      id,
+      actor.id,
+      actor.organizationId ?? actor.currentOrgId,
+      body.note,
+    );
   }
 
   @Patch('partners/:partnerOrgId/commission-rate')
@@ -470,7 +752,7 @@ export class AdminController {
       }
     >
   > {
-    return this.partnerLinkService.getLinkRequests(status);
+    return ensureArray(await this.partnerLinkService.getLinkRequests(status));
   }
 
   @Get('partner-link-requests/pending-count')
@@ -478,7 +760,7 @@ export class AdminController {
   @ApiResponse({ status: 200 })
   async getPendingPartnerLinkCount(): Promise<{ count: number }> {
     const count = await this.partnerLinkService.countPendingLinkRequests();
-    return { count };
+    return { count: ensureFiniteNumber(count, 0) };
   }
 
   @Post('partner-link-requests/:id/approve')
@@ -583,6 +865,16 @@ export class AdminController {
     res.send(zip);
   }
 
+  @Patch('organizations/:id/info')
+  @ApiOperation({ summary: 'Admin: Organizasyon temel bilgilerini güncelle' })
+  async updateOrganizationInfo(
+    @Param('id') id: string,
+    @Body() dto: UpdateAdminOrganizationInfoDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<void> {
+    return this.adminService.updateOrganizationInfo(id, dto, actor);
+  }
+
   @Delete('organizations/:id')
   @ApiOperation({ summary: 'Organizasyonu sil (soft delete)' })
   @ApiResponse({ status: 200, description: 'Silindi' })
@@ -613,5 +905,99 @@ export class AdminController {
       throw new BadRequestException('Yalnızca format=csv desteklenir');
     }
     return this.usersService.exportAuditLogsCsv(organizationId, query);
+  }
+
+  @Get('integrations')
+  @ApiOperation({ summary: 'Entegrasyon listesi (API sağlığı + politika özeti)' })
+  async listIntegrations(): Promise<AdminIntegrationListItem[]> {
+    return this.integrationPolicy.listForAdmin();
+  }
+
+  @Get('integrations/:platformKey')
+  @ApiOperation({ summary: 'Entegrasyon detayı ve düzenlenebilir alanlar' })
+  async getIntegrationDetail(
+    @Param('platformKey') platformKey: string,
+  ): Promise<AdminIntegrationDetail> {
+    const key = this.integrationPolicy.assertPlatformKey(platformKey);
+    return this.integrationPolicy.getDetail(key);
+  }
+
+  @Put('integrations/:platformKey')
+  @ApiOperation({ summary: 'Entegrasyon politikasını güncelle' })
+  async updateIntegrationPolicy(
+    @Param('platformKey') platformKey: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Body() dto: UpdateIntegrationPolicyDto,
+  ): Promise<AdminIntegrationDetail> {
+    const key = this.integrationPolicy.assertPlatformKey(platformKey);
+    const updated = await this.integrationPolicy.updatePolicy(
+      key,
+      dto,
+      actor.id,
+    );
+    await this.auditService.log({
+      actorUserId: actor.id,
+      actorOrgId: actor.organizationId,
+      action: 'admin.integration_policy_update',
+      resourceType: 'IntegrationPlatformPolicy',
+      resourceId: key,
+      metadata: { platformKey: key },
+    });
+    return updated;
+  }
+
+  @Post('integrations/:platformKey/reset-circuit')
+  @ApiOperation({ summary: 'Entegrasyon devre kesicisini sıfırla' })
+  async resetIntegrationCircuit(
+    @Param('platformKey') platformKey: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    const key = this.integrationPolicy.assertPlatformKey(platformKey);
+    await this.integrationPolicy.resetCircuit(key);
+    await this.auditService.log({
+      actorUserId: actor.id,
+      actorOrgId: actor.organizationId,
+      action: 'admin.platform_circuit_reset',
+      resourceType: 'PlatformHealth',
+      resourceId: key,
+    });
+    return { ok: true };
+  }
+
+  @Get('integrations/:platformKey/activity')
+  @ApiOperation({ summary: 'Platform API / senkron aktivite günlüğü' })
+  async getIntegrationActivity(
+    @Param('platformKey') platformKey: string,
+    @Query('limit', new DefaultValuePipe(100), ParseIntPipe) limit: number,
+  ) {
+    const key = this.integrationPolicy.assertPlatformKey(platformKey);
+    const entries = await this.platformActivityLog.list(key, limit);
+    return { data: entries };
+  }
+
+  @Post('integrations/:platformKey/clear-rate-limit')
+  @ApiOperation({ summary: 'BizimHesap rate limit bekleme süresini temizle (org bazlı)' })
+  async clearIntegrationRateLimit(
+    @Param('platformKey') platformKey: string,
+    @Query('organizationId') organizationId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ): Promise<{ ok: true }> {
+    const key = this.integrationPolicy.assertPlatformKey(platformKey);
+    if (key !== 'BIZIMHESAP') {
+      throw new BadRequestException('Yalnızca BizimHesap için desteklenir.');
+    }
+    if (!organizationId?.trim()) {
+      throw new BadRequestException('organizationId zorunludur.');
+    }
+    await this.bizimHesapRateLimit.clearCooldown(organizationId.trim());
+    await this.auditService.log({
+      actorUserId: actor.id,
+      actorOrgId: actor.organizationId,
+      action: 'admin.bizimhesap_rate_limit_cleared',
+      resourceType: 'Organization',
+      resourceId: organizationId.trim(),
+      metadata: { platformKey: key },
+    });
+    return { ok: true };
   }
 }

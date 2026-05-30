@@ -32,7 +32,7 @@ export function CurrencyWidget(): ReactElement {
   const gbp = rates.GBP;
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2">
+    <div className="pointer-events-none fixed bottom-20 right-4 z-30 flex flex-col items-end gap-2 md:bottom-4">
       <Dialog open={open} onOpenChange={setOpen}>
         <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-card/95 px-3 py-2 text-xs shadow-md backdrop-blur-sm">
           <Coins className="h-4 w-4 text-sky-500" aria-hidden />

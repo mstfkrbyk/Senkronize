@@ -37,6 +37,43 @@ export function normalizeErpCredentials(
     return out;
   }
 
+  if (type === 'BIZIMHESAP') {
+    const out: Record<string, string> = {};
+    const token = (raw.token ?? raw.apiKey ?? raw.firmId ?? '').trim();
+    if (token) {
+      out.token = token;
+    }
+    const defaultCustomerCode = (raw.defaultCustomerCode ?? '').trim();
+    if (defaultCustomerCode) {
+      out.defaultCustomerCode = defaultCustomerCode;
+    }
+    return out;
+  }
+
+  if (type === 'PARASUT') {
+    const out: Record<string, string> = {};
+    for (const key of ['clientId', 'clientSecret', 'companyId', 'refreshToken'] as const) {
+      const trimmed = (raw[key] ?? '').trim();
+      if (trimmed.length > 0) {
+        out[key] = trimmed;
+      }
+    }
+    return out;
+  }
+
+  if (type === 'TICIMAX') {
+    const out: Record<string, string> = {};
+    const storeUrl = (raw.storeUrl ?? raw.apiUrl ?? raw.siteUrl ?? '').trim();
+    const uyeKodu = (raw.uyeKodu ?? raw.apiKey ?? '').trim();
+    if (storeUrl) {
+      out.storeUrl = storeUrl;
+    }
+    if (uyeKodu) {
+      out.uyeKodu = uyeKodu;
+    }
+    return out;
+  }
+
   if (type === 'MIKRO') {
     const connectionString = (raw.connectionString ?? '').trim();
     const host = (raw.host ?? raw.ip ?? '').trim();

@@ -19,18 +19,54 @@ api.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 type RetryableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
+function parseMessageField(data: { message?: unknown }): string | null {
+  const msg = data.message;
+  if (typeof msg === 'string' && msg.trim().length > 0) {
+    return msg;
+  }
+  if (Array.isArray(msg)) {
+    const joined = msg.filter((m) => typeof m === 'string').join(', ');
+    return joined.length > 0 ? joined : null;
+  }
+  return null;
+}
+
+/** Blob (responseType) ile dönen API hata gövdelerinden Türkçe mesaj çıkarır. */
+export async function parseJsonBlobMessage(blob: Blob): Promise<string | null> {
+  try {
+    const text = await blob.text();
+    const parsed = JSON.parse(text) as { message?: unknown };
+    if (parsed && typeof parsed === 'object') {
+      return parseMessageField(parsed);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function parseApiErrorMessage(error: AxiosError): string {
   const data = error.response?.data;
+  if (data instanceof Blob) {
+    return 'Beklenmeyen bir hata oluştu.';
+  }
   if (data && typeof data === 'object' && 'message' in data) {
-    const msg = (data as { message: unknown }).message;
-    if (typeof msg === 'string') {
-      return msg;
-    }
-    if (Array.isArray(msg)) {
-      return msg.filter((m) => typeof m === 'string').join(', ');
+    const parsed = parseMessageField(data as { message?: unknown });
+    if (parsed) {
+      return parsed;
     }
   }
   return 'Beklenmeyen bir hata oluştu.';
+}
+
+export async function getApiErrorMessageAsync(error: unknown): Promise<string> {
+  if (isAxiosError(error) && error.response?.data instanceof Blob) {
+    const fromBlob = await parseJsonBlobMessage(error.response.data);
+    if (fromBlob) {
+      return fromBlob;
+    }
+  }
+  return getApiErrorMessage(error);
 }
 
 export function getApiErrorMessage(error: unknown): string {
@@ -43,9 +79,32 @@ export function getApiErrorMessage(error: unknown): string {
   return 'Beklenmeyen bir hata oluştu.';
 }
 
-api.interceptors.request.use((config) => {
+/** Partner yönetim API'leri bayi JWT ile çalışır; müşteri impersonation token'ı kullanılmaz. */
+export function isPartnerManagementPath(url: string): boolean {
+  const path = url.includes('://')
+    ? (() => {
+        try {
+          return new URL(url).pathname;
+        } catch {
+          return url;
+        }
+      })()
+    : url;
+  return path.includes('/partner');
+}
+
+function resolveRequestBearerToken(config: InternalAxiosRequestConfig): string | null {
+  const accessToken = useAuthStore.getState().token;
   const impToken = useImpersonationStore.getState().impersonationToken;
-  const token = impToken ?? useAuthStore.getState().token;
+  const url = config.url ?? '';
+  if (isPartnerManagementPath(url)) {
+    return accessToken;
+  }
+  return impToken ?? accessToken;
+}
+
+api.interceptors.request.use((config) => {
+  const token = resolveRequestBearerToken(config);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -96,8 +155,7 @@ api.interceptors.response.use(
         .getState()
         .setTokens(data.accessToken, data.refreshToken, data.sessionId);
 
-      const impToken = useImpersonationStore.getState().impersonationToken;
-      const nextToken = impToken ?? data.accessToken;
+      const nextToken = resolveRequestBearerToken(originalRequest) ?? data.accessToken;
       originalRequest.headers.Authorization = `Bearer ${nextToken}`;
       return api(originalRequest);
     } catch {

@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { Award } from 'lucide-react';
+import { Award, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   PolarAngleAxis,
@@ -12,7 +13,9 @@ import {
   Tooltip,
 } from 'recharts';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useAuthStore } from '@/store/auth.store';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -33,6 +36,10 @@ import {
 } from '@/components/ui/table';
 import { getApiErrorMessage } from '@/lib/api';
 
+import {
+  resolveAnalyticsReportPresentation,
+  resolveReportsProductAccess,
+} from './reports-tabs.config';
 import {
   presetLabel,
   useAnalyticsComparison,
@@ -59,6 +66,18 @@ function normalizeScore(value: number, max: number): number {
 
 export function PlatformAnalyticsTab(): ReactElement {
   const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const productAccess = useMemo(
+    () => resolveReportsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const analyticsPresentation = useMemo(
+    () => resolveAnalyticsReportPresentation(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const showFullAnalytics = analyticsPresentation === 'full';
   const [preset, setPreset] = useState<AnalyticsPeriodPreset>('month');
   const { comparisonQuery, extendedMetrics, isLoading } = useAnalyticsComparison(preset);
 
@@ -68,7 +87,10 @@ export function PlatformAnalyticsTab(): ReactElement {
     { enabled: Boolean(range.start && range.end) },
   );
 
-  const platforms = platformQuery.data?.platforms ?? [];
+  const platforms = useMemo(
+    () => platformQuery.data?.platforms ?? [],
+    [platformQuery.data?.platforms],
+  );
 
   const bestPlatform = useMemo(() => {
     if (platforms.length === 0) return null;
@@ -93,8 +115,44 @@ export function PlatformAnalyticsTab(): ReactElement {
 
   const loading = isLoading || platformQuery.isLoading;
 
+  if (accountingModeLoading && productAccess.hasAccounting) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    );
+  }
+
+  if (!showFullAnalytics) {
+    return (
+      <div id="report-analytics" className="space-y-6">
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950">
+          <Info className="h-4 w-4 text-sky-600" aria-hidden />
+          <AlertTitle className="text-sky-950">
+            {t('reports.analytics.externalErpTitle')}
+          </AlertTitle>
+          <AlertDescription className="text-sky-900/90">
+            <p>{t('reports.analytics.externalErpDescription')}</p>
+            <p className="mt-3 flex flex-wrap gap-3">
+              <Link
+                to="/reports?tab=erp-transfer"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.analytics.openErpTransfer')}
+              </Link>
+              <Link
+                to="/connections?tab=erp"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.analytics.openConnections')}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div id="report-analytics" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-sm text-muted-foreground">

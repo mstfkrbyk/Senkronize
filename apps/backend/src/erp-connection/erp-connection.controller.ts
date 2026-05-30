@@ -252,6 +252,21 @@ export class ErpConnectionController {
     );
   }
 
+  @Post(':id/set-primary')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'ERP bağlantısını birincil yap (fatura hedefi)' })
+  @ApiResponse({ status: 200, description: 'Güncellendi' })
+  @ApiResponse({ status: 401, description: 'Yetkisiz' })
+  @ApiResponse({ status: 404, description: 'Bulunamadı' })
+  async setPrimary(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('id') id: string,
+  ) {
+    const data = await this.erpConnectionService.setPrimaryRole(org.id, id);
+    return { data };
+  }
+
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'ERP bağlantısını sil (yumuşak silme)' })

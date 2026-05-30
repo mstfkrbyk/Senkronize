@@ -26,6 +26,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { getApiErrorMessage } from '@/lib/api';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { customerConnectionStatusLabel } from '@/lib/integration-ops-access';
 import {
   useDeleteConnection,
   useTestConnection,
@@ -95,6 +97,7 @@ export function ConnectionCard({ connection, onEditPress }: Props): ReactElement
   const updateMutation = useUpdateMarketplaceConnection();
   const deleteMutation = useDeleteConnection();
   const triggerSyncMutation = useTriggerManualSync();
+  const opsAccess = useIntegrationOpsAccess();
 
   const { label, logo, accountFieldLabel } = getMarketplaceBranding(
     connection.platform,
@@ -196,63 +199,76 @@ export function ConnectionCard({ connection, onEditPress }: Props): ReactElement
           <p className="text-sm text-muted-foreground">
             Son senkron: {lastSyncLabel}
           </p>
-          {connection.lastErrorMessage && status !== 'active' ? (
+          {opsAccess && connection.lastErrorMessage && status !== 'active' ? (
             <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
               {connection.lastErrorMessage}
             </p>
           ) : null}
-          {connection.syncErrorCount > 0 && !connection.lastErrorMessage ? (
+          {opsAccess &&
+          connection.syncErrorCount > 0 &&
+          !connection.lastErrorMessage ? (
             <p className="mt-1 text-xs text-amber-700">
               Son dönemde {connection.syncErrorCount} senkron hatası
             </p>
           ) : null}
+          {!opsAccess && status !== 'active' && connection.isActive ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {customerConnectionStatusLabel(status)}
+            </p>
+          ) : null}
+          {opsAccess ? (
           <Link
             to={`/sync/history?platform=${encodeURIComponent(connection.platform)}`}
             className="mt-2 inline-block text-xs font-medium text-sky-600 hover:underline"
           >
             Sync Geçmişi
           </Link>
+          ) : null}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2 border-t pt-4">
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            disabled={
-              triggerSyncMutation.isPending ||
-              !connection.isActive
-            }
-            onClick={() => {
-              handleTriggerSync();
-            }}
-          >
-            {triggerSyncMutation.isPending ? 'Kuyruk…' : 'Şimdi Sync Et'}
-          </Button>
-          {(status === 'error' || status === 'warning') ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={testMutation.isPending}
-              onClick={() => {
-                handleTest();
-              }}
-            >
-              {testMutation.isPending ? 'Test…' : 'Yeniden Test Et'}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={testMutation.isPending}
-              onClick={() => {
-                handleTest();
-              }}
-            >
-              {testMutation.isPending ? 'Test…' : 'Test Et'}
-            </Button>
-          )}
+          {opsAccess ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                variant="default"
+                disabled={
+                  triggerSyncMutation.isPending ||
+                  !connection.isActive
+                }
+                onClick={() => {
+                  handleTriggerSync();
+                }}
+              >
+                {triggerSyncMutation.isPending ? 'Kuyruk…' : 'Şimdi Sync Et'}
+              </Button>
+              {(status === 'error' || status === 'warning') ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={testMutation.isPending}
+                  onClick={() => {
+                    handleTest();
+                  }}
+                >
+                  {testMutation.isPending ? 'Test…' : 'Yeniden Test Et'}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={testMutation.isPending}
+                  onClick={() => {
+                    handleTest();
+                  }}
+                >
+                  {testMutation.isPending ? 'Test…' : 'Test Et'}
+                </Button>
+              )}
+            </>
+          ) : null}
           <Button
             type="button"
             size="sm"

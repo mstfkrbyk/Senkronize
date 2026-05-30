@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { Shield, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
@@ -11,6 +12,7 @@ import { z } from 'zod';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Form,
   FormControl,
@@ -20,6 +22,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -30,22 +33,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/hooks/useAuth';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { useAuthStore } from '@/store/auth.store';
 
-const passwordSchema = z
-  .object({
-    currentPassword: z.string().min(1, FORM_MESSAGES.required),
-    newPassword: z.string().min(8, 'Yeni şifre en az 8 karakter olmalıdır.'),
-    confirmPassword: z.string().min(1, FORM_MESSAGES.required),
-  })
-  .refine((v) => v.newPassword === v.confirmPassword, {
-    message: 'Şifreler eşleşmiyor.',
-    path: ['confirmPassword'],
-  });
+import { formatIpAddress } from '@/lib/format-ip-address';
 
-type PasswordForm = z.infer<typeof passwordSchema>;
+import { resolveSettingsTabHref, resolveSettingsTabsLink } from './settings-tabs.config';
+
 
 const profileSchema = z.object({
   name: z
@@ -90,22 +86,16 @@ function initials(name: string, email: string): string {
 }
 
 export function ProfilePage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('settings.profile'));
   const queryClient = useQueryClient();
-  const { data: me, isLoading, isError, error } = useAuth();
+  const { data: me, isLoading, isError, error, refetch } = useAuth();
   const currentSessionId = useAuthStore((s) => s.sessionId);
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodFormResolver(profileSchema),
+    mode: 'onChange',
     defaultValues: { name: '' },
-  });
-
-  const passwordForm = useForm<PasswordForm>({
-    resolver: zodFormResolver(passwordSchema),
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
   });
 
   const sessionsQuery = useQuery({
@@ -126,18 +116,6 @@ export function ProfilePage(): ReactElement {
     onSuccess: () => {
       toast.success('Profil güncellendi');
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-    },
-    onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err));
-    },
-  });
-
-  const changePassword = useMutation({
-    mutationFn: (data: { currentPassword: string; newPassword: string }) =>
-      api.patch('/auth/change-password', data),
-    onSuccess: () => {
-      toast.success('Şifre güncellendi');
-      passwordForm.reset();
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -179,12 +157,7 @@ export function ProfilePage(): ReactElement {
       return;
     }
     profileForm.reset({ name: me.user.name });
-    passwordForm.reset({
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    });
-  }, [me, profileForm, passwordForm]);
+  }, [me, profileForm]);
 
   const avatarInitials = useMemo(() => {
     if (!me) {
@@ -195,28 +168,47 @@ export function ProfilePage(): ReactElement {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4">
-        <Skeleton className="h-24 w-24 rounded-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
+      <div className="mx-auto w-full max-w-2xl space-y-6">
+        <Card>
+          <CardContent className="space-y-6 pt-6">
+            <Skeleton className="h-24 w-24 rounded-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (isError || !me) {
     return (
-      <p className="text-sm text-destructive">
-        {getApiErrorMessage(error ?? new Error('Profil yüklenemedi.'))}
-      </p>
+      <div className="mx-auto w-full max-w-2xl">
+        <Card>
+          <CardContent className="pt-6">
+            <QueryErrorAlert
+              error={error ?? new Error('Profil yüklenemedi.')}
+              onRetry={
+                isError
+                  ? () => {
+                      void refetch();
+                    }
+                  : undefined
+              }
+            />
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-10">
+    <div className="mx-auto w-full max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">Profil</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-primary">
+          {t('settings.profileTab.title')}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Kişisel bilgileriniz, güvenlik ve oturum yönetimi.
+          {t('settings.profileTab.subtitle')}
         </p>
       </div>
 
@@ -233,7 +225,7 @@ export function ProfilePage(): ReactElement {
         </div>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
         <h2 className="text-lg font-medium text-primary">Profil bilgileri</h2>
         <Form {...profileForm}>
           <form
@@ -259,72 +251,21 @@ export function ProfilePage(): ReactElement {
               <label className="text-sm font-medium">E-posta</label>
               <Input value={me.user.email} readOnly />
             </div>
-            <Button type="submit" disabled={updateProfile.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                updateProfile.isPending ||
+                !profileForm.formState.isValid ||
+                !profileForm.formState.isDirty
+              }
+            >
               {updateProfile.isPending ? 'Kaydediliyor…' : 'Profili kaydet'}
             </Button>
           </form>
         </Form>
       </section>
 
-      <section className="space-y-4 border-t pt-8">
-        <h2 className="text-lg font-medium text-primary">Şifre değiştir</h2>
-        <Form {...passwordForm}>
-          <form
-            onSubmit={passwordForm.handleSubmit((values) => {
-              changePassword.mutate({
-                currentPassword: values.currentPassword,
-                newPassword: values.newPassword,
-              });
-            })}
-            className="space-y-4"
-          >
-            <FormField
-              control={passwordForm.control}
-              name="currentPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mevcut şifre</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="current-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={passwordForm.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Yeni şifre</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={passwordForm.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Yeni şifre (tekrar)</FormLabel>
-                  <FormControl>
-                    <Input type="password" autoComplete="new-password" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={changePassword.isPending}>
-              {changePassword.isPending ? 'Güncelleniyor…' : 'Şifreyi güncelle'}
-            </Button>
-          </form>
-        </Form>
-      </section>
-
-      <section className="space-y-4 border-t pt-8">
+      <section className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-medium text-primary">
@@ -336,7 +277,7 @@ export function ProfilePage(): ReactElement {
             </p>
           </div>
           <Button type="button" variant="outline" asChild>
-            <Link to="/settings?tab=security">
+            <Link to={resolveSettingsTabHref('security')}>
               {me.user.twoFactorEnabled ? '2FA ayarlarını yönet' : '2FA kurulumunu başlat'}
             </Link>
           </Button>
@@ -350,7 +291,7 @@ export function ProfilePage(): ReactElement {
         )}
       </section>
 
-      <section className="space-y-4 border-t pt-8">
+      <section className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-medium text-primary">
@@ -377,9 +318,12 @@ export function ProfilePage(): ReactElement {
 
         {sessionsQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
         {sessionsQuery.isError ? (
-          <p className="text-sm text-destructive">
-            {getApiErrorMessage(sessionsQuery.error)}
-          </p>
+          <QueryErrorAlert
+            error={sessionsQuery.error}
+            onRetry={() => {
+              void sessionsQuery.refetch();
+            }}
+          />
         ) : null}
 
         {!sessionsQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 ? (
@@ -414,8 +358,8 @@ export function ProfilePage(): ReactElement {
                           </Badge>
                         ) : null}
                       </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {s.ipAddress ?? '—'}
+                      <TableCell className="text-sm">
+                        {formatIpAddress(s.ipAddress)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {s.location ?? '—'}
@@ -444,6 +388,16 @@ export function ProfilePage(): ReactElement {
           </div>
         ) : null}
       </section>
+
+      <p className="text-sm text-muted-foreground">
+        {t('settings.profileSettingsTabHint')}{' '}
+        <Link
+          to={resolveSettingsTabsLink('profile')}
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {t('settings.profileSettingsTabLink')}
+        </Link>
+      </p>
     </div>
   );
 }

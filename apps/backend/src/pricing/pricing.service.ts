@@ -14,6 +14,7 @@ import type { Queue } from 'bull';
 
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
+import { resolveProductStockKey } from '../common/product-match-key';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import {
@@ -544,10 +545,19 @@ export class PricingService {
   async afterPriceChange(productId: string, orgId: string): Promise<void> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { barcode: true },
+      select: { barcode: true, sku: true },
     });
     if (!product) {
       return;
+    }
+
+    const productKey = resolveProductStockKey(product);
+    const listingOr: Array<{ productId: string } | { barcode: string }> = [{ productId }];
+    if (product.barcode) {
+      listingOr.push({ barcode: product.barcode });
+    }
+    if (productKey) {
+      listingOr.push({ barcode: productKey });
     }
 
     const listings = await this.prisma.listing.findMany({
@@ -555,7 +565,7 @@ export class PricingService {
         organizationId: orgId,
         deletedAt: null,
         isActive: true,
-        OR: [{ productId }, { barcode: product.barcode }],
+        OR: listingOr,
       },
       select: {
         id: true,

@@ -3,16 +3,31 @@ import type { ReactElement } from 'react';
 import { AlertTriangle, Package, Trophy, TrendingDown } from 'lucide-react';
 
 import { AnimatedKpiCard } from '@/components/dashboard/AnimatedKpiCard';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { useListingKpis } from './hooks/useListings';
 
-export function ListingsKpiRow(): ReactElement {
+interface Props {
+  showBuyBox?: boolean;
+}
+
+export function ListingsKpiRow({ showBuyBox = true }: Props): ReactElement {
   const kpisQuery = useListingKpis();
   const data = kpisQuery.data;
   const loading = kpisQuery.isLoading;
 
+  if (loading) {
+    return (
+      <div className={`grid grid-cols-2 gap-4 ${showBuyBox ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        {Array.from({ length: showBuyBox ? 4 : 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div className={`grid grid-cols-2 gap-4 ${showBuyBox ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
       <AnimatedKpiCard
         title="Toplam aktif listing"
         numericValue={data?.activeCount ?? 0}
@@ -21,7 +36,6 @@ export function ListingsKpiRow(): ReactElement {
         changeCaption=""
         icon={Package}
         color="blue"
-        loading={loading}
       />
       <AnimatedKpiCard
         title="Fiyat uyumsuzluğu"
@@ -31,7 +45,6 @@ export function ListingsKpiRow(): ReactElement {
         changeCaption=""
         icon={TrendingDown}
         color="yellow"
-        loading={loading}
       />
       <AnimatedKpiCard
         title="Stok uyumsuzluğu"
@@ -41,18 +54,18 @@ export function ListingsKpiRow(): ReactElement {
         changeCaption=""
         icon={AlertTriangle}
         color="red"
-        loading={loading}
       />
-      <AnimatedKpiCard
-        title="BuyBox kazanma oranı"
-        numericValue={data?.buyBoxWinRatePct ?? 0}
-        format="percent"
-        change={0}
-        changeCaption=""
-        icon={Trophy}
-        color="purple"
-        loading={loading}
-      />
+      {showBuyBox ? (
+        <AnimatedKpiCard
+          title="BuyBox kazanma oranı"
+          numericValue={data?.buyBoxWinRatePct ?? 0}
+          format="percent"
+          change={0}
+          changeCaption=""
+          icon={Trophy}
+          color="purple"
+        />
+      ) : null}
     </div>
   );
 }

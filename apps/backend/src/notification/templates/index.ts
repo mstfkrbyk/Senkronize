@@ -85,8 +85,12 @@ export function renderTemplate(
       };
     default: {
       const msg = data.message;
+      const customSubject =
+        typeof data.subject === 'string' && data.subject.trim().length > 0
+          ? data.subject.trim()
+          : template;
       return {
-        subject: template,
+        subject: customSubject,
         html:
           typeof msg === 'string' || typeof msg === 'number'
             ? String(msg)

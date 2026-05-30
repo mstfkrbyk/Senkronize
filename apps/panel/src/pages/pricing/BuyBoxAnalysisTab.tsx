@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -162,9 +163,12 @@ export function BuyBoxAnalysisTab({ proAccess }: Props): ReactElement {
         <Skeleton className="h-48 w-full rounded-lg" />
       ) : null}
       {reportQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(reportQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={reportQuery.error}
+          onRetry={() => {
+            void reportQuery.refetch();
+          }}
+        />
       ) : null}
 
       {reportQuery.data ? (
@@ -236,9 +240,12 @@ export function BuyBoxAnalysisTab({ proAccess }: Props): ReactElement {
                   <Skeleton className="h-64 w-full rounded-lg" />
                 ) : null}
                 {trendQuery.isError ? (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-                    {getApiErrorMessage(trendQuery.error)}
-                  </div>
+                  <QueryErrorAlert
+                    error={trendQuery.error}
+                    onRetry={() => {
+                      void trendQuery.refetch();
+                    }}
+                  />
                 ) : null}
                 {trendQuery.data && trendQuery.data.length > 0 ? (
                   <div className="h-72 w-full min-w-0">

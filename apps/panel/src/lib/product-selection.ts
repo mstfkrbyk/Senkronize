@@ -10,26 +10,41 @@ export interface ProductSelectionOption {
   description: string;
   features: readonly string[];
   recommended?: boolean;
+  /** Paket kartı — fiyatlandırma sayfasıyla aynı indirim etiketi */
+  discountLabel?: string;
 }
 
+/** Kayıt / onboarding ürün kartları — marketing `site-content` ile uyumlu */
 export const PRODUCT_SELECTION_OPTIONS: readonly ProductSelectionOption[] = [
   {
-    id: 'ACCOUNTING',
-    title: 'Sadece Ön Muhasebe',
-    description: 'ERP satın almadan fatura, cari ve KDV yönetimi.',
-    features: ['Fatura oluşturma', 'Cari hesap', 'KDV takibi'],
+    id: 'INTEGRATION',
+    title: 'Entegrasyon',
+    description: 'Pazaryeri, e-ticaret ve sipariş–stok senkronizasyonu.',
+    features: [
+      'Pazaryeri bağlantıları',
+      'Sipariş ve iade akışı',
+      'Gerçek zamanlı stok senkronu',
+      'ERP köprüsü ve masaüstü ajan',
+    ],
   },
   {
-    id: 'INTEGRATION',
-    title: 'Sadece Entegrasyon',
-    description: 'Pazaryeri, sipariş ve stok senkronizasyonu.',
-    features: ['Pazaryeri bağlantıları', 'Sipariş akışı', 'Stok senkronu'],
+    id: 'ACCOUNTING',
+    title: 'Ön Muhasebe',
+    description: 'Yerel fatura, cari hesap ve KDV yönetimi — harici ERP zorunlu değil.',
+    features: [
+      'Fatura oluşturma ve numaralandırma',
+      'Cari hesap ve ekstre',
+      'KDV özeti ve raporlama',
+      'BizimHesap, Paraşüt köprüsü',
+    ],
   },
   {
     id: 'BUNDLE',
     title: 'Paket',
-    description: 'Ön muhasebe ve entegrasyon bir arada.',
-    features: ['Fatura & cari', 'Pazaryeri & sipariş', 'Tek panel'],
+    description:
+      'Ön Muhasebe ve Entegrasyon tek panelde; yıllık faturalamada iki hat birlikte alındığında indirim uygulanır.',
+    features: ['Fatura ve cari', 'Pazaryeri ve sipariş', 'Tek panel ve raporlama'],
+    discountLabel: '%20 indirimli',
     recommended: true,
   },
 ] as const;

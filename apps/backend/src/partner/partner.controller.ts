@@ -26,6 +26,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Public } from '../auth/public.decorator';
+import { ensureArray } from '../common/ensure-array.util';
 
 import {
   AcceptInviteDto,
@@ -82,7 +83,9 @@ export class PartnerController {
   async listOnboardingInvites(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Awaited<ReturnType<PartnerService['getInvites']>>> {
-    return this.partnerService.getInvites(user.organizationId);
+    return ensureArray(
+      await this.partnerService.getInvites(user.organizationId),
+    );
   }
 
   @Post('invites/:id/resend')
@@ -147,19 +150,29 @@ export class PartnerController {
     );
   }
 
+  @Get('payout-requests')
+  @ApiOperation({ summary: 'Ödeme talebi geçmişi' })
+  @ApiResponse({ status: 200 })
+  async listPayoutRequests(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Awaited<ReturnType<PartnerService['listPayoutRequests']>>> {
+    return ensureArray(
+      await this.partnerService.listPayoutRequests(user.organizationId),
+    );
+  }
+
   @Post('payout-request')
   @ApiOperation({ summary: 'Ödeme talebi oluştur' })
   @ApiResponse({ status: 201 })
   async payoutRequest(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: PartnerPayoutRequestDto,
-  ): Promise<{ success: true }> {
-    await this.partnerService.requestPayout(
+  ): Promise<Awaited<ReturnType<PartnerService['requestPayout']>>> {
+    return this.partnerService.requestPayout(
       user.organizationId,
       user.id,
       dto.amount,
     );
-    return { success: true };
   }
 
   @Get('clients')
@@ -169,7 +182,9 @@ export class PartnerController {
   async getClients(
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Awaited<ReturnType<PartnerService['getMyClients']>>> {
-    return this.partnerService.getMyClients(user.organizationId);
+    return ensureArray(
+      await this.partnerService.getMyClients(user.organizationId),
+    );
   }
 
   @Post('clients/invite')
@@ -282,7 +297,7 @@ export class PartnerController {
   async getMyPartners(
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<PartnerRelationship[]> {
-    return this.partnerService.getMyPartners(org.id);
+    return ensureArray(await this.partnerService.getMyPartners(org.id));
   }
 
   @Post('accept-invite')
@@ -333,5 +348,31 @@ export class PartnerController {
       dto.message,
     );
     return { success: true };
+  }
+
+  @Get('my-link-requests')
+  @ApiOperation({ summary: 'Gönderilen partner bağlantı talepleri (müşteri)' })
+  @ApiResponse({ status: 200 })
+  async getMyLinkRequests(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<Awaited<ReturnType<PartnerLinkService['getClientLinkRequests']>>> {
+    return ensureArray(
+      await this.partnerLinkService.getClientLinkRequests(org.id),
+    );
+  }
+
+  @Get('incoming-link-requests')
+  @ApiOperation({ summary: 'Gelen müşteri bağlantı talepleri (partner)' })
+  @ApiResponse({ status: 200 })
+  async getIncomingLinkRequests(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<
+    Awaited<ReturnType<PartnerLinkService['getPartnerIncomingLinkRequests']>>
+  > {
+    return ensureArray(
+      await this.partnerLinkService.getPartnerIncomingLinkRequests(
+        user.organizationId,
+      ),
+    );
   }
 }

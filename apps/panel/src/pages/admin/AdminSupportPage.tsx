@@ -1,16 +1,21 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Clock,
   LifeBuoy,
+  Loader2,
   Send,
   ShieldCheck,
   Timer,
   UserPlus,
 } from 'lucide-react';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { toast } from 'sonner';
 
 import {
@@ -24,11 +29,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -37,6 +42,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AdminListEmptyState } from '@/pages/admin/AdminListEmptyState';
+import { AdminPageHeader } from '@/pages/admin/AdminPageHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -47,6 +54,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  normalizeAdminOrgListResponse,
+  normalizeAdminUsersListResponse,
+} from '@/lib/admin-api-normalize';
 import { api, getApiErrorMessage } from '@/lib/api';
 import {
   addAdminInternalNote,
@@ -59,23 +70,18 @@ import {
   updateAdminTicket,
 } from '@/lib/support-api';
 import { cn } from '@/lib/utils';
-import type { AdminUsersListResponse } from '@/types/admin';
+import type { AdminOrgListResponse, AdminUsersListResponse } from '@/types/admin';
 import type { TicketPriority, TicketStatus } from '@/types/support';
 
-const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
-  { value: 'OPEN', label: 'Açık' },
-  { value: 'IN_PROGRESS', label: 'İşlemde' },
-  { value: 'WAITING_CUSTOMER', label: 'Müşteri bekleniyor' },
-  { value: 'RESOLVED', label: 'Çözüldü' },
-  { value: 'CLOSED', label: 'Kapalı' },
+const TICKET_STATUSES: TicketStatus[] = [
+  'OPEN',
+  'IN_PROGRESS',
+  'WAITING_CUSTOMER',
+  'RESOLVED',
+  'CLOSED',
 ];
 
-const PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
-  { value: 'LOW', label: 'Düşük' },
-  { value: 'MEDIUM', label: 'Orta' },
-  { value: 'HIGH', label: 'Yüksek' },
-  { value: 'URGENT', label: 'Acil' },
-];
+const TICKET_PRIORITIES: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 function slaBadgeClass(hours: number): string {
   if (hours >= 72) return 'bg-red-100 text-red-800';
@@ -83,10 +89,43 @@ function slaBadgeClass(hours: number): string {
   return 'bg-slate-100 text-slate-700';
 }
 
-function formatHours(hours: number | null): string {
-  if (hours === null) return '—';
-  if (hours < 1) return `${Math.round(hours * 60)} dk`;
-  return `${hours.toFixed(1)} sa`;
+function formatHours(
+  hours: number | null,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (hours === null) {
+    return t('admin.common.emDash');
+  }
+  if (hours < 1) {
+    return t('admin.support.hoursMinutes', { minutes: Math.round(hours * 60) });
+  }
+  return t('admin.support.hoursDecimal', { hours: hours.toFixed(1) });
+}
+
+interface KpiCardProps {
+  title: string;
+  value: number;
+  icon: typeof LifeBuoy;
+  tone: string;
+  loading: boolean;
+}
+
+function KpiCard({ title, value, icon: Icon, tone, loading }: KpiCardProps): ReactElement {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <Icon className={`size-5 ${tone}`} aria-hidden />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-8 w-16" />
+        ) : (
+          <p className="text-2xl font-bold tabular-nums">{value}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 interface SlaCardProps {
@@ -120,10 +159,11 @@ function SlaCard({ title, value, sub, icon: Icon, tone, loading }: SlaCardProps)
 }
 
 export function AdminSupportPage(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
-  const [orgFilter, setOrgFilter] = useState('');
+  const [orgFilter, setOrgFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignAdminId, setAssignAdminId] = useState('');
@@ -142,8 +182,19 @@ export function AdminSupportPage(): ReactElement {
           priorityFilter === 'all'
             ? undefined
             : (priorityFilter as TicketPriority),
-        organizationId: orgFilter.trim() || undefined,
+        organizationId: orgFilter === 'all' ? undefined : orgFilter,
       }),
+  });
+
+  const { data: orgOptions } = useQuery({
+    queryKey: ['admin', 'organizations', 'options'],
+    queryFn: async (): Promise<AdminOrgListResponse> => {
+      const { data: res } = await api.get<AdminOrgListResponse>(
+        '/admin/organizations',
+        { params: { page: 1, limit: 100 } },
+      );
+      return normalizeAdminOrgListResponse(res);
+    },
   });
 
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -162,16 +213,37 @@ export function AdminSupportPage(): ReactElement {
     enabled: Boolean(selectedId),
   });
 
-  const { data: adminUsers } = useQuery({
+  const {
+    data: adminUsers,
+    isLoading: assigneesLoading,
+    isError: assigneesError,
+    error: assigneesErrorDetail,
+    refetch: refetchAssignees,
+  } = useQuery({
     queryKey: ['admin-support-assignees'],
     queryFn: async (): Promise<AdminUsersListResponse> => {
-      const { data: res } = await api.get<AdminUsersListResponse>('/admin/users', {
+      const { data: res } = await api.get('/admin/users', {
         params: { page: 1, limit: 100, role: 'SUPER_ADMIN' },
       });
-      return res;
+      return normalizeAdminUsersListResponse(res);
     },
     enabled: assignOpen,
   });
+
+  const assignableAdmins = useMemo(
+    () =>
+      (adminUsers?.users ?? [])
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'tr')),
+    [adminUsers?.users],
+  );
+
+  const selectedAssignee = assignableAdmins.find((u) => u.id === assignAdminId);
+
+  const closeAssignDialog = (): void => {
+    setAssignOpen(false);
+    setAssignAdminId('');
+  };
 
   const invalidate = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['admin-tickets'] });
@@ -189,7 +261,11 @@ export function AdminSupportPage(): ReactElement {
       setReply('');
       setIsInternal(false);
       invalidate();
-      toast.success(isInternal ? 'İç not eklendi' : 'Yanıt gönderildi');
+      toast.success(
+        isInternal
+          ? t('admin.support.toast.internalNoteAdded')
+          : t('admin.support.toast.replySent'),
+      );
     },
     onError: (e) => toast.error(getApiErrorMessage(e)),
   });
@@ -199,7 +275,7 @@ export function AdminSupportPage(): ReactElement {
     onSuccess: () => {
       setInternalNote('');
       invalidate();
-      toast.success('İç not eklendi');
+      toast.success(t('admin.support.toast.internalNoteAdded'));
     },
     onError: (e) => toast.error(getApiErrorMessage(e)),
   });
@@ -208,7 +284,7 @@ export function AdminSupportPage(): ReactElement {
     mutationFn: () => updateAdminTicket(selectedId!, { status: newStatus }),
     onSuccess: () => {
       invalidate();
-      toast.success('Durum güncellendi');
+      toast.success(t('admin.support.toast.statusUpdated'));
     },
     onError: (e) => toast.error(getApiErrorMessage(e)),
   });
@@ -216,53 +292,71 @@ export function AdminSupportPage(): ReactElement {
   const assignMutation = useMutation({
     mutationFn: () => assignAdminTicket(selectedId!, assignAdminId),
     onSuccess: () => {
-      setAssignOpen(false);
-      setAssignAdminId('');
+      closeAssignDialog();
       invalidate();
-      toast.success('Talep atandı');
+      toast.success(t('admin.support.toast.assigned'));
     },
     onError: (e) => toast.error(getApiErrorMessage(e)),
   });
 
+  const hasActiveFilters =
+    statusFilter !== 'all' || priorityFilter !== 'all' || orgFilter !== 'all';
+  const ticketRows = tickets ?? [];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="flex items-center gap-2 text-lg font-semibold">
-          <LifeBuoy className="size-5 text-sky-500" aria-hidden />
-          Destek yönetimi
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Tüm organizasyonların destek taleplerini yönetin ve SLA performansını izleyin.
-        </p>
-      </div>
+      <AdminPageHeader
+        title={t('admin.pages.tickets.title')}
+        description={t('admin.pages.tickets.description')}
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SlaCard
-          title="Açık talepler"
-          value={String(stats?.totalOpen ?? 0)}
-          sub={`${String(stats?.inProgress ?? 0)} işlemde`}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KpiCard
+          title={t('admin.support.kpi.open')}
+          value={stats?.totalOpen ?? 0}
           icon={LifeBuoy}
           tone="text-sky-600"
           loading={statsLoading}
         />
-        <SlaCard
-          title="Ort. ilk yanıt"
-          value={formatHours(sla?.avgFirstResponseHours ?? stats?.avgFirstResponseHours ?? null)}
-          sub={`Hedef: ${String(sla?.slaTargets.firstResponseHours ?? 24)} sa`}
+        <KpiCard
+          title={t('admin.support.kpi.inProgress')}
+          value={stats?.inProgress ?? 0}
           icon={Clock}
           tone="text-amber-600"
-          loading={slaLoading || statsLoading}
+          loading={statsLoading}
         />
-        <SlaCard
-          title="Ort. çözüm süresi"
-          value={formatHours(sla?.avgResolutionHours ?? stats?.avgResolutionHours ?? null)}
-          sub={`Hedef: ${String(sla?.slaTargets.resolutionHours ?? 72)} sa`}
+        <KpiCard
+          title={t('admin.support.kpi.waitingCustomer')}
+          value={stats?.waitingCustomer ?? 0}
           icon={Timer}
           tone="text-violet-600"
-          loading={slaLoading || statsLoading}
+          loading={statsLoading}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <SlaCard
+          title={t('admin.support.kpi.avgFirstResponse')}
+          value={formatHours(sla?.avgFirstResponseHours ?? null, t)}
+          sub={t('admin.support.slaTarget', {
+            hours: String(sla?.slaTargets?.firstResponseHours ?? 24),
+          })}
+          icon={Clock}
+          tone="text-amber-600"
+          loading={slaLoading}
         />
         <SlaCard
-          title="SLA uyum oranı"
+          title={t('admin.support.kpi.avgResolution')}
+          value={formatHours(sla?.avgResolutionHours ?? null, t)}
+          sub={t('admin.support.slaTarget', {
+            hours: String(sla?.slaTargets?.resolutionHours ?? 72),
+          })}
+          icon={Timer}
+          tone="text-violet-600"
+          loading={slaLoading}
+        />
+        <SlaCard
+          title={t('admin.support.kpi.slaCompliance')}
           value={
             sla
               ? `%${Math.round(sla.firstResponseComplianceRate * 100)}`
@@ -270,7 +364,9 @@ export function AdminSupportPage(): ReactElement {
           }
           sub={
             sla
-              ? `Çözüm: %${Math.round(sla.resolutionComplianceRate * 100)}`
+              ? t('admin.support.resolutionCompliance', {
+                  rate: Math.round(sla.resolutionComplianceRate * 100),
+                })
               : undefined
           }
           icon={ShieldCheck}
@@ -279,94 +375,117 @@ export function AdminSupportPage(): ReactElement {
         />
       </div>
 
+      <Card>
+        <CardContent className="space-y-4 pt-6">
       <div className="flex flex-wrap gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Durum" />
+            <SelectValue placeholder={t('admin.common.status')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tüm durumlar</SelectItem>
-            {STATUS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
+            <SelectItem value="all">{t('admin.support.allStatuses')}</SelectItem>
+            {TICKET_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                {t(`admin.support.status.${status}`)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={priorityFilter} onValueChange={setPriorityFilter}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Öncelik" />
+            <SelectValue placeholder={t('admin.common.priority')} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Tüm öncelikler</SelectItem>
-            {PRIORITY_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
+            <SelectItem value="all">{t('admin.support.allPriorities')}</SelectItem>
+            {TICKET_PRIORITIES.map((priority) => (
+              <SelectItem key={priority} value={priority}>
+                {t(`admin.support.priority.${priority}`)}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Input
-          className="max-w-xs"
-          placeholder="Organizasyon ID"
-          value={orgFilter}
-          onChange={(e) => setOrgFilter(e.target.value)}
-        />
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">{t('admin.common.organization')}</Label>
+          <Select value={orgFilter} onValueChange={setOrgFilter}>
+            <SelectTrigger className="w-[240px] bg-background">
+              <SelectValue placeholder={t('admin.support.orgFilterPlaceholder')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t('admin.support.allOrganizations')}</SelectItem>
+              {(orgOptions?.orgs ?? []).map((o) => (
+                <SelectItem key={o.id} value={o.id}>
+                  {o.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {isLoading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : isError ? (
-        <div className="text-sm text-destructive">
-          {getApiErrorMessage(error)}
-          <Button type="button" variant="outline" className="ml-2" onClick={() => void refetch()}>
-            Tekrar dene
-          </Button>
-        </div>
-      ) : (
-        <div className="rounded-lg border bg-white">
+      {isLoading ? <TableSkeleton rows={8} cols={7} /> : null}
+
+      {isError ? (
+        <QueryErrorAlert
+          error={error}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      ) : null}
+
+      {!isLoading && !isError && ticketRows.length === 0 ? (
+        <AdminListEmptyState
+          hasActiveFilters={hasActiveFilters}
+          emptyTitle={t('admin.support.emptyTitle')}
+          emptyDescription={t('admin.support.emptyDescription')}
+          icon={LifeBuoy}
+        />
+      ) : null}
+
+      {!isLoading && !isError && ticketRows.length > 0 ? (
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Talep</TableHead>
-                <TableHead>Organizasyon</TableHead>
-                <TableHead>Atanan</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead>Öncelik</TableHead>
-                <TableHead>SLA</TableHead>
+                <TableHead>{t('admin.support.table.ticket')}</TableHead>
+                <TableHead>{t('admin.support.table.organization')}</TableHead>
+                <TableHead>{t('admin.support.table.assignee')}</TableHead>
+                <TableHead>{t('admin.support.table.status')}</TableHead>
+                <TableHead>{t('admin.support.table.priority')}</TableHead>
+                <TableHead>{t('admin.support.table.sla')}</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tickets?.map((t) => (
-                <TableRow key={t.id}>
+              {ticketRows.map((ticket) => (
+                <TableRow key={ticket.id}>
                   <TableCell>
                     <span className="block text-xs text-muted-foreground">
-                      {t.ticketNumber}
+                      {ticket.ticketNumber}
                     </span>
-                    <span className="font-medium">{t.subject}</span>
+                    <span className="font-medium">{ticket.subject}</span>
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      {t.userName} · {t.userEmail}
+                      {ticket.userName} · {ticket.userEmail}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm">{t.organizationName}</TableCell>
+                  <TableCell className="text-sm">{ticket.organizationName}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {t.assignedTo ?? 'Atanmadı'}
+                    {ticket.assignedTo ?? t('admin.support.table.unassigned')}
                   </TableCell>
                   <TableCell>
-                    <TicketStatusBadge status={t.status} />
+                    <TicketStatusBadge status={ticket.status} />
                   </TableCell>
                   <TableCell>
-                    <TicketPriorityBadge priority={t.priority} />
+                    <TicketPriorityBadge priority={ticket.priority} />
                   </TableCell>
                   <TableCell>
                     <Badge
                       variant="secondary"
-                      className={slaBadgeClass(t.slaHours)}
+                      className={slaBadgeClass(ticket.slaHours)}
                     >
-                      {t.slaDays > 0
-                        ? `${String(t.slaDays)} gün`
-                        : `${String(t.slaHours)} sa`}
+                      {ticket.slaDays > 0
+                        ? t('admin.support.table.slaDays', { count: ticket.slaDays })
+                        : t('admin.support.table.slaHours', { count: ticket.slaHours })}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -375,11 +494,11 @@ export function AdminSupportPage(): ReactElement {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setSelectedId(t.id);
-                        setNewStatus(t.status);
+                        setSelectedId(ticket.id);
+                        setNewStatus(ticket.status);
                       }}
                     >
-                      Yönet
+                      {t('admin.support.table.manage')}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -387,15 +506,23 @@ export function AdminSupportPage(): ReactElement {
             </TableBody>
           </Table>
         </div>
-      )}
+      ) : null}
+        </CardContent>
+      </Card>
 
       <Dialog open={Boolean(selectedId)} onOpenChange={(o) => !o && setSelectedId(null)}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{detail?.ticketNumber ?? 'Talep detayı'}</DialogTitle>
+            <DialogTitle>
+              {detail?.ticketNumber ?? t('admin.support.detail.title')}
+            </DialogTitle>
           </DialogHeader>
           {detailLoading || !detail ? (
-            <Skeleton className="h-48 w-full" />
+            <div className="space-y-3 py-4" aria-busy="true">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
           ) : (
             <div className="space-y-4">
               <p className="font-medium">{detail.subject}</p>
@@ -413,9 +540,9 @@ export function AdminSupportPage(): ReactElement {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATUS_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
+                    {TICKET_STATUSES.map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {t(`admin.support.status.${status}`)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -426,7 +553,7 @@ export function AdminSupportPage(): ReactElement {
                   disabled={statusMutation.isPending}
                   onClick={() => statusMutation.mutate()}
                 >
-                  Durumu kaydet
+                  {t('admin.support.detail.saveStatus')}
                 </Button>
                 <Button
                   type="button"
@@ -434,39 +561,45 @@ export function AdminSupportPage(): ReactElement {
                   onClick={() => setAssignOpen(true)}
                 >
                   <UserPlus className="mr-2 size-4" aria-hidden />
-                  Ata
+                  {t('admin.support.detail.assign')}
                 </Button>
               </div>
 
               <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border p-3">
-                {detail.messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={cn(
-                      'rounded-md px-2 py-1.5 text-sm',
-                      msg.isInternal
-                        ? 'border border-dashed border-amber-300 bg-amber-50'
-                        : 'bg-muted/50',
-                    )}
-                  >
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>
-                        {msg.userName}
-                        {msg.isInternal ? ' (iç not)' : ''}
-                      </span>
-                      <time dateTime={msg.createdAt}>
-                        {format(new Date(msg.createdAt), 'd MMM HH:mm', {
-                          locale: tr,
-                        })}
-                      </time>
+                {(detail.messages ?? []).length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    {t('admin.support.detail.noMessages')}
+                  </p>
+                ) : (
+                  (detail.messages ?? []).map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={cn(
+                        'rounded-md px-2 py-1.5 text-sm',
+                        msg.isInternal
+                          ? 'border border-dashed border-amber-300 bg-amber-50'
+                          : 'bg-muted/50',
+                      )}
+                    >
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>
+                          {msg.userName}
+                          {msg.isInternal ? t('admin.support.detail.internalNoteSuffix') : ''}
+                        </span>
+                        <time dateTime={msg.createdAt}>
+                          {format(new Date(msg.createdAt), 'd MMM HH:mm', {
+                            locale: tr,
+                          })}
+                        </time>
+                      </div>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
               <div className="space-y-3 border-t pt-4">
-                <p className="text-sm font-medium">Yanıt gönder</p>
+                <p className="text-sm font-medium">{t('admin.support.detail.replyHeading')}</p>
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="internal-note"
@@ -474,14 +607,18 @@ export function AdminSupportPage(): ReactElement {
                     onCheckedChange={(c) => setIsInternal(c === true)}
                   />
                   <Label htmlFor="internal-note" className="text-sm font-normal">
-                    İç not olarak gönder (müşteri görmez)
+                    {t('admin.support.detail.internalCheckbox')}
                   </Label>
                 </div>
                 <Textarea
                   rows={3}
                   value={reply}
                   onChange={(e) => setReply(e.target.value)}
-                  placeholder={isInternal ? 'İç not…' : 'Yanıtınız…'}
+                  placeholder={
+                    isInternal
+                      ? t('admin.support.detail.internalPlaceholder')
+                      : t('admin.support.detail.replyPlaceholder')
+                  }
                 />
                 <Button
                   type="button"
@@ -489,17 +626,17 @@ export function AdminSupportPage(): ReactElement {
                   onClick={() => replyMutation.mutate()}
                 >
                   <Send className="mr-2 size-4" aria-hidden />
-                  Gönder
+                  {t('admin.support.detail.send')}
                 </Button>
               </div>
 
               <div className="space-y-3 border-t pt-4">
-                <p className="text-sm font-medium">İç not ekle</p>
+                <p className="text-sm font-medium">{t('admin.support.detail.internalHeading')}</p>
                 <Textarea
                   rows={2}
                   value={internalNote}
                   onChange={(e) => setInternalNote(e.target.value)}
-                  placeholder="Ekip içi not…"
+                  placeholder={t('admin.support.detail.internalPlaceholder')}
                 />
                 <Button
                   type="button"
@@ -507,49 +644,134 @@ export function AdminSupportPage(): ReactElement {
                   disabled={!internalNote.trim() || internalNoteMutation.isPending}
                   onClick={() => internalNoteMutation.mutate()}
                 >
-                  İç not kaydet
+                  {t('admin.support.detail.saveInternal')}
                 </Button>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setSelectedId(null)}>
-              Kapat
+              {t('admin.support.detail.close')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+      <Dialog
+        open={assignOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeAssignDialog();
+            return;
+          }
+          setAssignOpen(true);
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Talep ata</DialogTitle>
+            <DialogTitle>{t('admin.support.assignDialog.title')}</DialogTitle>
+            <DialogDescription>
+              {detail?.ticketNumber
+                ? t('admin.support.assignDialog.descriptionWithNumber', {
+                    ticketNumber: detail.ticketNumber,
+                  })
+                : t('admin.support.assignDialog.description')}
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-2 py-2">
-            <Label>Destek uzmanı</Label>
-            <Select value={assignAdminId} onValueChange={setAssignAdminId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Kullanıcı seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                {adminUsers?.users.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name} ({user.email})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1">
+              <Label htmlFor="admin-ticket-assignee">
+                {t('admin.support.assignDialog.assigneeLabel')}
+              </Label>
+              {assigneesLoading ? (
+                <div
+                  className="flex items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-3 py-4 text-sm text-muted-foreground"
+                  role="status"
+                >
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  {t('admin.support.assignDialog.loadingAssignees')}
+                </div>
+              ) : assigneesError ? (
+                <QueryErrorAlert
+                  error={assigneesErrorDetail}
+                  onRetry={() => {
+                    void refetchAssignees();
+                  }}
+                />
+              ) : assignableAdmins.length === 0 ? (
+                <div
+                  className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border bg-muted/30 px-4 py-6 text-center"
+                  role="status"
+                >
+                  <ShieldCheck
+                    className="size-8 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <p className="text-sm font-medium">
+                    {t('admin.support.assignDialog.noAssigneesTitle')}
+                  </p>
+                  <p className="max-w-xs text-xs text-muted-foreground">
+                    {t('admin.support.assignDialog.noAssigneesDescription')}
+                  </p>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0" asChild>
+                    <Link to="/admin/users">{t('admin.support.assignDialog.manageUsers')}</Link>
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={assignAdminId || undefined}
+                  onValueChange={setAssignAdminId}
+                >
+                  <SelectTrigger id="admin-ticket-assignee">
+                    <SelectValue placeholder={t('admin.support.assignDialog.selectPlaceholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignableAdmins.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.name} · {user.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            {selectedAssignee ? (
+              <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                <p className="font-medium">{selectedAssignee.name}</p>
+                <p className="text-xs text-muted-foreground">{selectedAssignee.email}</p>
+                {detail?.assignedTo ? (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t('admin.support.assignDialog.currentAssignment', {
+                      name: detail.assignedTo,
+                    })}
+                  </p>
+                ) : null}
+              </div>
+            ) : assignableAdmins.length > 0 && !assigneesLoading && !assigneesError ? (
+              <p className="text-sm text-muted-foreground">
+                {t('admin.support.assignDialog.hint')}
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>
-              İptal
+            <Button type="button" variant="outline" onClick={closeAssignDialog}>
+              {t('admin.support.assignDialog.cancel')}
             </Button>
             <Button
               type="button"
-              disabled={!assignAdminId || assignMutation.isPending}
+              disabled={
+                !assignAdminId ||
+                assignMutation.isPending ||
+                assignableAdmins.length === 0 ||
+                assigneesLoading ||
+                assigneesError
+              }
               onClick={() => assignMutation.mutate()}
             >
-              Ata
+              {assignMutation.isPending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+              ) : null}
+              {t('admin.support.assignDialog.confirm')}
             </Button>
           </DialogFooter>
         </DialogContent>

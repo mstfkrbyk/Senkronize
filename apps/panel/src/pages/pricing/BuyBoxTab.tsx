@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -27,7 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
-import { getApiErrorMessage } from '@/lib/api';
+import { marketplacePlatformLabel } from '@/lib/platform-labels';
 import { cn } from '@/lib/utils';
 import { useBulkListingPrice } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
@@ -210,9 +211,12 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
       ) : null}
 
       {reportQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(reportQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={reportQuery.error}
+          onRetry={() => {
+            void reportQuery.refetch();
+          }}
+        />
       ) : null}
 
       {reportQuery.data ? (
@@ -293,7 +297,7 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                     <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
                     {platforms.map((p) => (
                       <SelectItem key={p} value={p}>
-                        {p}
+                        {marketplacePlatformLabel(p)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -402,7 +406,7 @@ export function BuyBoxTab({ proAccess, plan }: Props): ReactElement {
                             {row.barcode}
                           </span>
                         </TableCell>
-                        <TableCell>{row.platform}</TableCell>
+                        <TableCell>{marketplacePlatformLabel(row.platform)}</TableCell>
                         <TableCell className="text-right tabular-nums">
                           {formatTry(row.currentPrice)}
                         </TableCell>

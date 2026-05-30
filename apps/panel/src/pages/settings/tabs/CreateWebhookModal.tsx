@@ -200,10 +200,7 @@ export function CreateWebhookModal({
                         checked={selectedEvents.has(ev.id)}
                         onCheckedChange={(v) => toggleEvent(ev.id, v === true)}
                       />
-                      <span className="text-sm">
-                        {ev.label}{' '}
-                        <span className="text-muted-foreground">({ev.id})</span>
-                      </span>
+                      <span className="text-sm">{ev.label}</span>
                     </label>
                   ))}
                 </div>

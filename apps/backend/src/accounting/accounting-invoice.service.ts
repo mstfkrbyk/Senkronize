@@ -20,6 +20,7 @@ import {
   parseMonthPeriod,
 } from '../reports/period-parse.util';
 
+import { AccountingCustomerService } from './accounting-customer.service';
 import type {
   CreateAccountingInvoiceDto,
   MarkPaidAccountingInvoiceDto,
@@ -48,9 +49,25 @@ export class AccountingInvoiceService {
     private readonly invoiceService: InvoiceService,
     private readonly encryptionService: EncryptionService,
     private readonly adapterRegistry: AdapterRegistry,
+    private readonly accountingCustomerService: AccountingCustomerService,
   ) {}
 
   async getOverview(organizationId: string): Promise<AccountingOverview> {
+    const [invoiceOverview, balanceSummary] = await Promise.all([
+      this.getInvoiceOverview(organizationId),
+      this.accountingCustomerService.getBalanceSummary(organizationId),
+    ]);
+
+    return {
+      ...invoiceOverview,
+      openReceivablesAmount: balanceSummary.totalDebit,
+      customerCount: balanceSummary.customerCount,
+    };
+  }
+
+  private async getInvoiceOverview(organizationId: string): Promise<
+    Omit<AccountingOverview, 'openReceivablesAmount' | 'customerCount'>
+  > {
     const baseWhere: Prisma.InvoiceWhereInput = {
       organizationId,
       deletedAt: null,
@@ -218,7 +235,17 @@ export class AccountingInvoiceService {
         `Yalnızca taslak faturalar kesilebilir. Mevcut durum: ${toAccountingStatus(invoice.status)}`,
       );
     }
-    return this.invoiceService.updateStatus(organizationId, id, InvoiceStatus.SENT);
+
+    const issueDate = new Date();
+    const data: Prisma.InvoiceUpdateInput = { status: InvoiceStatus.SENT };
+    if (invoice.dueDate == null) {
+      const dueDate = new Date(issueDate);
+      dueDate.setDate(dueDate.getDate() + 7);
+      data.dueDate = dueDate;
+    }
+
+    await this.prisma.invoice.update({ where: { id }, data });
+    return this.invoiceService.findOne(organizationId, id);
   }
 
   async bulkIssue(

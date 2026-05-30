@@ -84,7 +84,7 @@ export class MarketplaceConnectionService {
       return creds.storeUrl ?? null;
     }
     if (platform === Marketplace.TICIMAX) {
-      return creds.siteUrl ?? null;
+      return creds.storeUrl ?? creds.siteUrl ?? null;
     }
     if (platform === Marketplace.N11) {
       return creds.apiKey ? `${creds.apiKey.slice(0, 6)}...` : null;
@@ -488,6 +488,9 @@ export class MarketplaceConnectionService {
       syncErrorCount: row.syncErrorCount,
       lastErrorAt: row.lastErrorAt,
       lastErrorMessage: row.lastErrorMessage,
+      productMatchKey: row.productMatchKey,
+      pushStock: row.pushStock,
+      pushPrice: row.pushPrice,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       deletedAt: row.deletedAt,
@@ -655,6 +658,11 @@ export class MarketplaceConnectionService {
       data: {
         credentialsEnc,
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.productMatchKey !== undefined
+          ? { productMatchKey: dto.productMatchKey }
+          : {}),
+        ...(dto.pushStock !== undefined ? { pushStock: dto.pushStock } : {}),
+        ...(dto.pushPrice !== undefined ? { pushPrice: dto.pushPrice } : {}),
       },
     });
     return this.toPublic(updated);

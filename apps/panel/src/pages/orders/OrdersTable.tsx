@@ -20,6 +20,9 @@ import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { CARGO_PROVIDER_OPTIONS, normalizeCargoProviderKey } from '@/lib/cargo-providers';
 import { formatDateWithTimezone, getStoredTimezone } from '@/lib/timezone';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import type { OrderPageInvoiceHint } from '@/pages/orders/hooks/useOrdersPageInvoices';
+import { OrderRowErpHint } from '@/pages/orders/OrderRowErpHint';
+import { OrderRowInvoiceHint } from '@/pages/orders/OrderRowInvoiceHint';
 import type { Order, OrderStatus } from '@/types/order';
 
 interface Props {
@@ -33,6 +36,13 @@ interface Props {
   onDownloadInvoice?: (order: Order) => void;
   labelLoadingId?: string | null;
   invoiceLoadingId?: string | null;
+  showNativeAccountingInvoice?: boolean;
+  showExternalErpInvoice?: boolean;
+  externalErpHintsLoading?: boolean;
+  invoiceHintsByOrderId?: Map<string, OrderPageInvoiceHint>;
+  invoiceHintsLoading?: boolean;
+  invoiceCreatingOrderId?: string | null;
+  onCreateInvoiceFromOrder?: (orderId: string) => void;
 }
 
 function cargoLabel(provider: string | null): string {
@@ -107,6 +117,13 @@ export function OrdersTable({
   onDownloadInvoice,
   labelLoadingId,
   invoiceLoadingId,
+  showNativeAccountingInvoice = false,
+  showExternalErpInvoice = false,
+  externalErpHintsLoading = false,
+  invoiceHintsByOrderId,
+  invoiceHintsLoading = false,
+  invoiceCreatingOrderId = null,
+  onCreateInvoiceFromOrder,
 }: Props): ReactElement {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language.startsWith('en') ? 'en' : 'tr';
@@ -145,6 +162,16 @@ export function OrdersTable({
               <TableHead className="hidden md:table-cell text-right">Ürün</TableHead>
               <TableHead className="text-right">{t('common.amount')}</TableHead>
               <TableHead>{t('common.status')}</TableHead>
+              {showNativeAccountingInvoice ? (
+                <TableHead className="hidden md:table-cell w-[88px]">
+                  {t('orders.list.invoiceColumn')}
+                </TableHead>
+              ) : null}
+              {showExternalErpInvoice ? (
+                <TableHead className="hidden md:table-cell w-[96px]">
+                  {t('orders.list.erpColumn')}
+                </TableHead>
+              ) : null}
               <TableHead className="hidden lg:table-cell">Kargo</TableHead>
               <TableHead className="hidden xl:table-cell">{t('common.date')}</TableHead>
               {showActions ? (
@@ -196,6 +223,40 @@ export function OrdersTable({
                 <TableCell>
                   <StatusBadge status={order.status} />
                 </TableCell>
+                {showNativeAccountingInvoice ? (
+                  <TableCell
+                    className="hidden md:table-cell"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <OrderRowInvoiceHint
+                      orderId={order.id}
+                      invoice={invoiceHintsByOrderId?.get(order.id)?.invoice ?? null}
+                      loading={invoiceHintsLoading}
+                      creating={invoiceCreatingOrderId === order.id}
+                      onCreate={(id) => {
+                        onCreateInvoiceFromOrder?.(id);
+                      }}
+                    />
+                  </TableCell>
+                ) : null}
+                {showExternalErpInvoice ? (
+                  <TableCell
+                    className="hidden md:table-cell"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                  >
+                    <OrderRowErpHint orderId={order.id} loading={externalErpHintsLoading} />
+                  </TableCell>
+                ) : null}
                 <TableCell className="hidden max-w-[120px] truncate text-sm lg:table-cell">
                   {cargoLabel(order.cargoProvider)}
                 </TableCell>

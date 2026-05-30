@@ -2,19 +2,29 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { OrderBulkActions } from '@/components/orders/OrderBulkActions';
 import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { PageHeader } from '@/components/PageHeader';
 import { DataTablePagination } from '@/components/DataTablePagination';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { hasOrgProductLine } from '@/lib/org-products';
+import { useAuthStore } from '@/store/auth.store';
+import type { InvoiceDto } from '@/types/invoice';
 import { useOrdersPageStore } from '@/store/tablePages.store';
 import type { Order, OrderFilters as OrderFiltersState } from '@/types/order';
 import { ShipOrderModal } from '@/components/orders/ShipOrderModal';
@@ -26,11 +36,16 @@ import {
   type OrderDatePreset,
 } from './orderDatePresets';
 import {
+  applyOrderInvoiceClientFilter,
+  hasActiveOrderInvoiceFilters,
+} from './order-invoice-filter';
+import {
   buildOrderFilterConfig,
   ORDER_FILTER_DEFAULTS,
   ORDER_PAGE_SIZE,
 } from './orderFilters.config';
 import { OrdersTable } from './OrdersTable';
+import { useOrdersPageInvoices } from './hooks/useOrdersPageInvoices';
 import { useOrders, useOrderSummary } from './hooks/useOrders';
 
 const PAGE_SIZE_DEFAULT = ORDER_PAGE_SIZE;
@@ -75,9 +90,25 @@ function OrdersPageSkeleton(): ReactElement {
 
 export function OrdersPage(): ReactElement {
   const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.orders'));
   const navigate = useNavigate();
   usePageTitle(t('orders.title'));
-  const orderFilterConfig = useMemo(() => buildOrderFilterConfig(t), [t]);
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode, isLoading: accountingModeLoading } = useAccountingMode();
+  const hasAccountingProduct = hasOrgProductLine(orgProducts, 'ACCOUNTING');
+  const showNativeAccountingInvoice =
+    hasAccountingProduct && accountingMode === 'NATIVE' && !accountingModeLoading;
+  const showExternalErpInvoice =
+    accountingMode === 'EXTERNAL_ERP' && !accountingModeLoading;
+
+  const orderFilterConfig = useMemo(
+    () =>
+      buildOrderFilterConfig(t, {
+        includeInvoiceFilters: showNativeAccountingInvoice,
+      }),
+    [t, showNativeAccountingInvoice],
+  );
   const queryClient = useQueryClient();
   const [urlFilters, setUrlFilters, resetUrlFilters] = useUrlFilters(
     ORDER_FILTER_DEFAULTS,
@@ -136,6 +167,69 @@ export function OrdersPage(): ReactElement {
   const summaryQuery = useOrderSummary();
   const connectionsQuery = useMarketplaceConnections();
   const triggerSyncMutation = useTriggerManualSync();
+  const opsAccess = useIntegrationOpsAccess();
+
+  const pageOrderIds = useMemo(() => data?.items.map((o) => o.id) ?? [], [data?.items]);
+  const { hintsByOrderId, isLoading: invoiceHintsLoading } = useOrdersPageInvoices(
+    pageOrderIds,
+    showNativeAccountingInvoice,
+  );
+
+  useEffect(() => {
+    if (accountingModeLoading || showNativeAccountingInvoice) {
+      return;
+    }
+    if (
+      urlFilters.invoiceLink === 'all' &&
+      urlFilters.invoiceStatus === 'all'
+    ) {
+      return;
+    }
+    setUrlFilters({ invoiceLink: 'all', invoiceStatus: 'all', page: 1 });
+  }, [
+    accountingModeLoading,
+    showNativeAccountingInvoice,
+    urlFilters.invoiceLink,
+    urlFilters.invoiceStatus,
+    setUrlFilters,
+  ]);
+
+  const tableOrders = useMemo(() => {
+    const items = data?.items ?? [];
+    if (!showNativeAccountingInvoice || invoiceHintsLoading) {
+      return items;
+    }
+    return applyOrderInvoiceClientFilter(
+      items,
+      hintsByOrderId,
+      urlFilters.invoiceLink,
+      urlFilters.invoiceStatus,
+    );
+  }, [
+    data?.items,
+    showNativeAccountingInvoice,
+    invoiceHintsLoading,
+    hintsByOrderId,
+    urlFilters.invoiceLink,
+    urlFilters.invoiceStatus,
+  ]);
+
+  const createInvoiceMutation = useMutation({
+    mutationFn: async (orderId: string): Promise<InvoiceDto> => {
+      const { data: res } = await api.post<{ data: InvoiceDto }>(
+        `/invoices/from-order/${orderId}`,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success(t('orders.detail.documents.invoiceCreated'));
+      void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (err: unknown) => {
+      toast.error(getApiErrorMessage(err));
+    },
+  });
 
   const [labelLoadingId, setLabelLoadingId] = useState<string | null>(null);
   const [invoiceLoadingId, setInvoiceLoadingId] = useState<string | null>(null);
@@ -150,7 +244,7 @@ export function OrdersPage(): ReactElement {
         res.data as Blob,
         `etiket-${order.platformOrderId.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`,
       );
-      toast.success('Kargo etiketi indirildi');
+      toast.success(t('orders.toast.labelDownloaded'));
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err));
     } finally {
@@ -166,7 +260,7 @@ export function OrdersPage(): ReactElement {
         res.data as Blob,
         `fatura-${order.platformOrderId.replace(/[^a-zA-Z0-9._-]+/g, '_')}.pdf`,
       );
-      toast.success('Fatura PDF indirildi');
+      toast.success(t('orders.toast.invoicePdfDownloaded'));
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err));
     } finally {
@@ -198,9 +292,14 @@ export function OrdersPage(): ReactElement {
         filters.search?.trim() ||
         filters.cargoProvider?.trim() ||
         filters.minTotal !== undefined ||
-        filters.maxTotal !== undefined,
+        filters.maxTotal !== undefined ||
+        (showNativeAccountingInvoice &&
+          hasActiveOrderInvoiceFilters(
+            urlFilters.invoiceLink,
+            urlFilters.invoiceStatus,
+          )),
     );
-  }, [filters]);
+  }, [filters, showNativeAccountingInvoice, urlFilters.invoiceLink, urlFilters.invoiceStatus]);
 
   useEffect(() => {
     clearOrderSelection();
@@ -215,54 +314,71 @@ export function OrdersPage(): ReactElement {
     filters.cargoProvider,
     filters.minTotal,
     filters.maxTotal,
+    urlFilters.invoiceLink,
+    urlFilters.invoiceStatus,
   ]);
 
   const handleRowClick = (order: Order): void => {
     void navigate(`/orders/${order.id}`);
   };
 
-  const selectedRows = data?.items.filter((o) => selectedIdSet.has(o.id)) ?? [];
+  const selectedRows = tableOrders.filter((o) => selectedIdSet.has(o.id));
 
   const showSticky = selectedOrderIds.length > 0;
 
   const pullOrdersForConnections = (): void => {
     const conns = (connectionsQuery.data ?? []).filter((c) => c.isActive);
     if (conns.length === 0) {
-      toast.error('Aktif pazaryeri bağlantısı yok.');
+      toast.error(t('orders.toast.noActiveConnection'));
       return;
     }
     for (const c of conns) {
       triggerSyncMutation.mutate(c.id);
     }
-    toast.info(`${String(conns.length)} bağlantı için senkron kuyruğa alındı.`);
+    toast.info(t('orders.toast.syncQueued', { count: conns.length }));
   };
 
   return (
-    <div className={`space-y-6 ${showSticky ? 'pb-24' : ''}`}>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          {t('orders.title')}
-        </h1>
-        <p className="text-muted-foreground">{t('orders.subtitle')}</p>
-      </div>
+    <div className={`space-y-6 ${showSticky ? 'pb-32 md:pb-24' : ''}`}>
+      <PageHeader
+        title={t('orders.title')}
+        description={t('orders.subtitle')}
+        context={navContextLine}
+        actions={
+          <>
+            {(Object.keys(ORDER_DATE_PRESET_LABELS) as OrderDatePreset[]).map((preset) => (
+              <Button
+                key={preset}
+                type="button"
+                size="sm"
+                variant={datePreset === preset ? 'default' : 'outline'}
+                onClick={() => {
+                  applyDatePreset(preset);
+                }}
+              >
+                {ORDER_DATE_PRESET_LABELS[preset]}
+              </Button>
+            ))}
+            {opsAccess ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={triggerSyncMutation.isPending}
+              onClick={pullOrdersForConnections}
+            >
+              <RefreshCw
+                className={`mr-2 size-4 ${triggerSyncMutation.isPending ? 'animate-spin' : ''}`}
+                aria-hidden
+              />
+              {t('orders.empty.syncLabel')}
+            </Button>
+            ) : null}
+          </>
+        }
+      />
 
       <OrdersKpiRow summary={summaryQuery.data} loading={summaryQuery.isPending} />
-
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(ORDER_DATE_PRESET_LABELS) as OrderDatePreset[]).map((preset) => (
-          <Button
-            key={preset}
-            type="button"
-            size="sm"
-            variant={datePreset === preset ? 'default' : 'outline'}
-            onClick={() => {
-              applyDatePreset(preset);
-            }}
-          >
-            {ORDER_DATE_PRESET_LABELS[preset]}
-          </Button>
-        ))}
-      </div>
 
       <AdvancedFilters
         filters={orderFilterConfig}
@@ -274,45 +390,40 @@ export function OrdersPage(): ReactElement {
       {isLoading ? <OrdersPageSkeleton /> : null}
 
       {isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(error)}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => {
-              void refetch();
-            }}
-          >
-            {t('common.retry')}
-          </Button>
-        </div>
+        <QueryErrorAlert
+          error={error}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
       ) : null}
 
-      {!isLoading && !isError && data && data.items.length === 0 ? (
+      {!isLoading &&
+      !isError &&
+      data &&
+      (data.items.length === 0 || tableOrders.length === 0) ? (
         <TablePageEmptyState
           hasMarketplaceConnections={hasMarketplaceConnections}
           connectionsLoading={connectionsQuery.isLoading}
           hasActiveFilters={hasActiveOrderFilters}
-          onStartSync={pullOrdersForConnections}
-          syncLabel="Senkronizasyonu başlat"
-          emptyTitle="Henüz sipariş yok"
-          emptyDescription="Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın."
-          noConnectionDescription="Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın."
+          onStartSync={opsAccess ? pullOrdersForConnections : undefined}
+          syncLabel={t('orders.empty.syncLabel')}
+          emptyTitle={t('orders.empty.title')}
+          emptyDescription={t('orders.empty.description')}
+          noConnectionDescription={t('orders.empty.noConnectionDescription')}
         />
       ) : null}
 
-      {!isLoading && !isError && data && data.items.length > 0 ? (
+      {!isLoading && !isError && data && tableOrders.length > 0 ? (
         <OrdersTable
-          orders={data.items}
+          orders={tableOrders}
           selectedIds={selectedIdSet}
           onToggleRow={(id, selected) => {
             toggleOrderRow(id, selected);
           }}
           onToggleAllOnPage={(selected) => {
             toggleAllOrdersOnPage(
-              data.items.map((o) => o.id),
+              tableOrders.map((o) => o.id),
               selected,
             );
           }}
@@ -324,15 +435,32 @@ export function OrdersPage(): ReactElement {
             setShipOrder(order);
             setShipOpen(true);
           }}
-          onDownloadInvoice={(order) => {
-            void downloadInvoice(order);
-          }}
+          onDownloadInvoice={
+            showNativeAccountingInvoice
+              ? (order) => {
+                  void downloadInvoice(order);
+                }
+              : undefined
+          }
           labelLoadingId={labelLoadingId}
           invoiceLoadingId={invoiceLoadingId}
+          showNativeAccountingInvoice={showNativeAccountingInvoice}
+          showExternalErpInvoice={showExternalErpInvoice}
+          externalErpHintsLoading={accountingModeLoading}
+          invoiceHintsByOrderId={hintsByOrderId}
+          invoiceHintsLoading={invoiceHintsLoading}
+          invoiceCreatingOrderId={
+            createInvoiceMutation.isPending
+              ? (createInvoiceMutation.variables ?? null)
+              : null
+          }
+          onCreateInvoiceFromOrder={(orderId) => {
+            createInvoiceMutation.mutate(orderId);
+          }}
         />
       ) : null}
 
-      {!isLoading && !isError && data && data.items.length > 0 ? (
+      {!isLoading && !isError && data && tableOrders.length > 0 ? (
         <DataTablePagination
           page={page}
           totalPages={totalPages}
@@ -352,6 +480,8 @@ export function OrdersPage(): ReactElement {
           selectedOrderIds={selectedOrderIds}
           selectedOrders={selectedRows}
           onClearSelection={clearOrderSelection}
+          showNativeInvoiceActions={showNativeAccountingInvoice}
+          showExternalErpActions={showExternalErpInvoice}
         />
       ) : null}
 

@@ -114,7 +114,7 @@ function QuickStockSearchInline({
   const enabled = searchTrim.length > 0;
 
   const { data, isFetching, isError } = useStockQuickSearch(true, searchTrim);
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
   useEffect(() => {
     setActiveIndex(0);
@@ -210,7 +210,7 @@ function QuickStockSearchDialog(): ReactElement {
   const enabled = open && searchTrim.length > 0;
 
   const { data, isFetching, isError } = useStockQuickSearch(enabled, searchTrim);
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data?.items]);
 
   const onUsbScan = useCallback(
     (code: string) => {

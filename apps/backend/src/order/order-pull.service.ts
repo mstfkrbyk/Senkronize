@@ -131,18 +131,12 @@ export class OrderPullService {
       orders,
     );
 
-    for (const order of createdOrders) {
-      if (!existingSet.has(order.platformOrderId)) {
-        try {
-          await this.customerService.upsertFromOrder(order);
-        } catch (customerErr) {
-          this.logger.warn('Müşteri kaydı güncellenemedi', {
-            organizationId,
-            orderId: order.id,
-            message:
-              customerErr instanceof Error ? customerErr.message : 'unknown',
-          });
-        }
+    const newOrders = createdOrders.filter(
+      (order) => !existingSet.has(order.platformOrderId),
+    );
+    if (newOrders.length > 0) {
+      await this.syncCustomersForNewPlatformOrders(organizationId, newOrders);
+      for (const order of newOrders) {
         this.eventService.emit(organizationId, WS_EVENTS.ORDER_NEW, {
           orderId: order.id,
           platform,
@@ -154,5 +148,24 @@ export class OrderPullService {
     }
 
     return { createdOrders, total: orders.length };
+  }
+
+  /** Platform webhook yeni sipariş: müşteri upsert; taslak fatura oluşturulmaz. */
+  private async syncCustomersForNewPlatformOrders(
+    organizationId: string,
+    orders: Order[],
+  ): Promise<void> {
+    for (const order of orders) {
+      try {
+        await this.customerService.upsertFromOrder(order);
+      } catch (customerErr) {
+        this.logger.warn('Müşteri kaydı güncellenemedi', {
+          organizationId,
+          orderId: order.id,
+          message:
+            customerErr instanceof Error ? customerErr.message : 'unknown',
+        });
+      }
+    }
   }
 }

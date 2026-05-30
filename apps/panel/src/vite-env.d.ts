@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_WS_URL?: string;
   readonly VITE_POSTHOG_KEY?: string;
   readonly VITE_POSTHOG_HOST?: string;
+  /** Destek talebi dosya ekleme bilgisinde mailto linki (isteğe bağlı) */
+  readonly VITE_SUPPORT_EMAIL?: string;
 }
 
 interface ImportMeta {

@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -31,15 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PlatformPicker } from '@/components/connections/PlatformPicker';
 import {
   useCreateConnection,
   useTestConnection,
@@ -48,12 +42,19 @@ import {
 } from '@/hooks/useConnections';
 import {
   useCreateErpConnection,
+  useErpConnections,
   useTestErpConnection,
   useUpdateErpConnection,
   type ErpConnectionDto,
+  type ErpTestConnectionResult,
 } from '@/hooks/useErpConnections';
+import { erpConnectionDisplayName, erpConnectionRoleHint, erpConnectionRoleLabel } from '@/lib/erp-connection-display';
+import { erpSlotUsageLabel, isErpSlotQuotaFull } from '@/lib/erp-slot-usage';
+import { getConnectionErrorHint } from '@/lib/connection-error-hints';
 import { track } from '@/lib/analytics';
 import { getApiErrorMessage } from '@/lib/api';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { useSubscriptionUsage } from '@/hooks/useSubscriptionUsage';
 import {
   ECOMMERCE_MARKETPLACE_IDS,
   ERP_CONNECTION_FORM_FIELDS,
@@ -65,9 +66,19 @@ import {
   type ConnectionFormFieldDef,
   type ConnectionPlatformMeta,
 } from '@/lib/connection-form-fields';
-import { getConnectionErrorHint } from '@/lib/connection-error-hints';
-import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
+import {
+  applyConnectionFieldDefaults,
+  emptyConnectionFormValues,
+  validateConnectionFields,
+} from '@/lib/connection-form-values';
+import { FORM_MESSAGES } from '@/lib/form-messages';
+import {
+  formatConnectionTestFailureMessage,
+  formatErpTestSuccessMessage,
+  normalizeErpTestConnectionResult,
+} from '@/lib/connection-test-message';
 import { normalizeErpCredentials } from '@/lib/erp-credentials';
+import { ConnectionCredentialField } from '@/pages/connections/forms/ConnectionCredentialField';
 import { getErpDisplay, getMarketplaceDisplay } from '@/lib/platform-display';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
@@ -100,33 +111,6 @@ interface TestResultState {
 
 const ECOMMERCE_PLATFORM_SET = new Set<string>(ECOMMERCE_MARKETPLACE_IDS);
 
-function emptyValuesFromFields(fields: ConnectionFormFieldDef[]): Record<string, string> {
-  return Object.fromEntries(
-    fields.map((f) => [f.key, f.defaultValue !== undefined ? String(f.defaultValue) : '']),
-  );
-}
-
-function validateFields(
-  fields: ConnectionFormFieldDef[],
-  values: Record<string, string>,
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  for (const f of fields) {
-    const raw = (values[f.key] ?? '').trim();
-    if (f.required && raw.length === 0) {
-      next[f.key] = FORM_MESSAGES.required;
-      continue;
-    }
-    if (f.type === 'url' && raw.length > 0 && !isValidHttpOrHttpsUrl(raw)) {
-      next[f.key] = 'Geçerli bir adres girin (http:// veya https://).';
-      continue;
-    }
-    if (f.type === 'number' && raw.length > 0 && Number.isNaN(Number(raw))) {
-      next[f.key] = 'Geçerli bir sayı girin.';
-    }
-  }
-  return next;
-}
 
 export function ConnectionFormModal({
   open,
@@ -139,6 +123,14 @@ export function ConnectionFormModal({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [syncStarting, setSyncStarting] = useState(false);
+  const [erpDisplayName, setErpDisplayName] = useState('');
+
+  const erpConnectionsQuery = useErpConnections();
+  const hasExistingErp = (erpConnectionsQuery.data?.length ?? 0) > 0;
+  const usageQuery = useSubscriptionUsage(config?.kind === 'erp');
+  const erpSlotFull = isErpSlotQuotaFull(usageQuery.data);
+  const erpCreateBlocked =
+    config?.kind === 'erp' && config.mode === 'create' && erpSlotFull;
 
   const form = useForm<Record<string, string>>({
     defaultValues: {},
@@ -190,7 +182,7 @@ export function ConnectionFormModal({
 
   const resetFormForFields = useCallback(
     (fields: ConnectionFormFieldDef[]): void => {
-      const init = emptyValuesFromFields(fields);
+      const init = emptyConnectionFormValues(fields);
       form.reset(init);
       setFieldErrors({});
       setTestOutcome('idle');
@@ -209,6 +201,7 @@ export function ConnectionFormModal({
     setFieldErrors({});
     setSaveSuccess(false);
     setSyncStarting(false);
+    setErpDisplayName('');
     if (config.kind === 'marketplace' && config.mode === 'create') {
       const first = marketplaceIds[0] ?? '';
       setSelectedMarketplaceId(first);
@@ -226,6 +219,7 @@ export function ConnectionFormModal({
     } else if (config.kind === 'erp' && config.mode === 'edit') {
       const defs = ERP_CONNECTION_FORM_FIELDS[config.connection.erpType] ?? [];
       resetFormForFields(defs);
+      setErpDisplayName(config.connection.displayName ?? '');
     }
   }, [open, config, marketplaceIds, erpIds, resetFormForFields]);
 
@@ -236,6 +230,7 @@ export function ConnectionFormModal({
   const createErp = useCreateErpConnection();
   const updateMp = useUpdateMarketplaceConnection();
   const updateErp = useUpdateErpConnection();
+  const opsAccess = useIntegrationOpsAccess();
 
   const title = useMemo((): string => {
     if (!config) {
@@ -263,10 +258,11 @@ export function ConnectionFormModal({
 
   const readCredentials = (): Record<string, string> => {
     const raw = form.getValues();
-    const out: Record<string, string> = {};
+    const trimmed: Record<string, string> = {};
     for (const f of activeFieldDefs) {
-      out[f.key] = (raw[f.key] ?? '').trim();
+      trimmed[f.key] = (raw[f.key] ?? '').trim();
     }
+    const out = applyConnectionFieldDefaults(activeFieldDefs, trimmed);
     if (config?.kind === 'erp') {
       const erpType =
         config.mode === 'edit' ? config.connection.erpType : selectedErpId ?? '';
@@ -274,12 +270,23 @@ export function ConnectionFormModal({
         return normalizeErpCredentials(erpType, out);
       }
     }
+    if (config?.kind === 'marketplace') {
+      const platform =
+        config.mode === 'edit'
+          ? config.connection.platform
+          : selectedMarketplaceId ?? '';
+      if (platform === 'TICIMAX') {
+        return normalizeErpCredentials('TICIMAX', out);
+      }
+    }
     return out;
   };
 
   const runValidation = (): boolean => {
     const values = form.getValues();
-    const errs = validateFields(activeFieldDefs, values);
+    const errs = validateConnectionFields(activeFieldDefs, values, {
+      required: FORM_MESSAGES.required,
+    });
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -364,10 +371,9 @@ export function ConnectionFormModal({
             onError: (error) => {
               setTestOutcome('fail');
               const msg = getApiErrorMessage(error);
-              const hint = getConnectionErrorHint(msg);
               setTestResult({
                 ok: false,
-                message: hint ? `${msg} ${hint}` : msg,
+                message: formatConnectionTestFailureMessage(msg),
               });
               toast.error(msg);
             },
@@ -397,10 +403,9 @@ export function ConnectionFormModal({
           onError: (error) => {
             setTestOutcome('fail');
             const msg = getApiErrorMessage(error);
-            const hint = getConnectionErrorHint(msg);
             setTestResult({
               ok: false,
-              message: hint ? `${msg} ${hint}` : msg,
+              message: formatConnectionTestFailureMessage(msg),
             });
             toast.error(msg);
           },
@@ -416,11 +421,18 @@ export function ConnectionFormModal({
           onSuccess: (res) => {
             setTestOutcome(res.connected ? 'success' : 'fail');
             if (res.connected) {
-              const msg =
-                res.companyName ??
-                config.connection.accountLabel ??
-                getErpDisplay(config.connection.erpType).label;
-              setTestResult({ ok: true, message: msg });
+              const normalized = normalizeErpTestConnectionResult(res);
+              const withLabel: ErpTestConnectionResult = {
+                ...normalized,
+                companyName:
+                  normalized.companyName ??
+                  config.connection.accountLabel ??
+                  undefined,
+              };
+              setTestResult({
+                ok: true,
+                message: formatErpTestSuccessMessage(withLabel),
+              });
               toast.success('Bağlantı testi başarılı.');
             } else {
               setTestResult({
@@ -433,10 +445,9 @@ export function ConnectionFormModal({
           onError: (error) => {
             setTestOutcome('fail');
             const msg = getApiErrorMessage(error);
-            const hint = getConnectionErrorHint(msg);
             setTestResult({
               ok: false,
-              message: hint ? `${msg} ${hint}` : msg,
+              message: formatConnectionTestFailureMessage(msg),
             });
             toast.error(msg);
           },
@@ -450,15 +461,19 @@ export function ConnectionFormModal({
         onSuccess: (res) => {
           setTestOutcome(res.connected ? 'success' : 'fail');
           if (res.connected) {
+            const normalized = normalizeErpTestConnectionResult(res);
             setTestResult({
               ok: true,
-              message: res.companyName ?? getErpDisplay(selectedErpId).label,
+              message: formatErpTestSuccessMessage(normalized),
             });
             toast.success('Bağlantı testi başarılı.');
           } else {
             setTestResult({
               ok: false,
-              message: 'ERP kimlik bilgileri doğrulanamadı.',
+              message: formatConnectionTestFailureMessage(
+                res.message,
+                'ERP kimlik bilgileri doğrulanamadı.',
+              ),
             });
             toast.warning('Bağlantı testi başarısız.');
           }
@@ -466,10 +481,9 @@ export function ConnectionFormModal({
         onError: (error) => {
           setTestOutcome('fail');
           const msg = getApiErrorMessage(error);
-          const hint = getConnectionErrorHint(msg);
           setTestResult({
             ok: false,
-            message: hint ? `${msg} ${hint}` : msg,
+            message: formatConnectionTestFailureMessage(msg),
           });
           toast.error(msg);
         },
@@ -480,8 +494,8 @@ export function ConnectionFormModal({
   const celebrateAndClose = (connectionId?: string): void => {
     void confetti({ particleCount: 100, spread: 60, origin: { y: 0.65 } });
     setSaveSuccess(true);
-    setSyncStarting(true);
-    if (connectionId) {
+    if (opsAccess && connectionId) {
+      setSyncStarting(true);
       triggerSync.mutate(connectionId, {
         onSettled: () => {
           setTimeout(() => {
@@ -491,13 +505,13 @@ export function ConnectionFormModal({
           }, 2200);
         },
       });
-    } else {
-      setTimeout(() => {
-        onOpenChange(false);
-        setSaveSuccess(false);
-        setSyncStarting(false);
-      }, 2200);
+      return;
     }
+    setTimeout(() => {
+      onOpenChange(false);
+      setSaveSuccess(false);
+      setSyncStarting(false);
+    }, 1200);
   };
 
   const handleSave = (): void => {
@@ -563,7 +577,11 @@ export function ConnectionFormModal({
       }
       const credentials = readCredentials();
       createErp.mutate(
-        { erpType: selectedErpId, credentials },
+        {
+          erpType: selectedErpId,
+          credentials,
+          ...(erpDisplayName.trim() ? { displayName: erpDisplayName.trim() } : {}),
+        },
         {
           onSuccess: () => {
             track('connection_added', {
@@ -593,12 +611,17 @@ export function ConnectionFormModal({
         patch[k] = v;
       }
     }
-    if (Object.keys(patch).length === 0) {
+    const displayNamePatch = erpDisplayName.trim();
+    if (Object.keys(patch).length === 0 && !displayNamePatch) {
       toast.error('Güncellemek için en az bir alan girin.');
       return;
     }
     updateErp.mutate(
-      { id: config.connection.id, credentials: patch },
+      {
+        id: config.connection.id,
+        ...(Object.keys(patch).length > 0 ? { credentials: patch } : {}),
+        displayName: displayNamePatch || config.connection.displayName || '',
+      },
       {
         onSuccess: () => {
           toast.success('ERP bağlantısı güncellendi.');
@@ -624,7 +647,13 @@ export function ConnectionFormModal({
         : false;
 
   const isCreateMode = config?.mode === 'create';
-  const saveRequiresTest = isCreateMode && testOutcome !== 'success';
+  const isBizimHesapErp =
+    config?.kind === 'erp' &&
+    (config.mode === 'edit'
+      ? config.connection.erpType === 'BIZIMHESAP'
+      : selectedErpId === 'BIZIMHESAP');
+  const saveRequiresTest =
+    opsAccess && isCreateMode && !isBizimHesapErp && testOutcome !== 'success';
 
   const testBadge =
     testPending ? (
@@ -663,7 +692,13 @@ export function ConnectionFormModal({
         }
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        className={
+          isCreateMode
+            ? 'max-h-[90vh] overflow-y-auto sm:max-w-2xl'
+            : 'max-h-[90vh] overflow-y-auto sm:max-w-lg'
+        }
+      >
         {saveSuccess ? (
           <div className="flex flex-col items-center gap-4 py-10 text-center">
             <Sparkles className="h-12 w-12 text-sky-400" aria-hidden />
@@ -710,27 +745,16 @@ export function ConnectionFormModal({
               }}
             >
               {config.kind === 'marketplace' && config.mode === 'create' ? (
-                <div className="space-y-2">
-                  <Label htmlFor="conn-platform">Platform</Label>
-                  <Select
-                    value={selectedMarketplaceId}
-                    onValueChange={handleMarketplacePlatformChange}
-                  >
-                    <SelectTrigger id="conn-platform">
-                      <SelectValue placeholder="Platform seçin" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {marketplaceIds.map((id) => {
-                        const d = getMarketplaceDisplay(id);
-                        return (
-                          <SelectItem key={id} value={id}>
-                            {d.logo} {d.label}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <PlatformPicker
+                  idPrefix="conn-platform"
+                  kind="marketplace"
+                  layout={
+                    config.listFilter === 'ecommerce' ? 'flat' : 'byRegion'
+                  }
+                  platformIds={marketplaceIds}
+                  value={selectedMarketplaceId}
+                  onChange={handleMarketplacePlatformChange}
+                />
               ) : null}
 
               {config.kind === 'marketplace' && config.mode === 'edit' ? (
@@ -740,32 +764,64 @@ export function ConnectionFormModal({
                 </p>
               ) : null}
 
+              {config.kind === 'erp' && config.mode === 'create' && erpCreateBlocked ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  ERP bağlantı kotası dolu ({erpSlotUsageLabel(usageQuery.data)}). Yeni bağlantı
+                  eklemek için abonelikte ERP modülü satın alın veya yöneticiden ek slot isteyin.
+                </div>
+              ) : null}
+
+              {config.kind === 'erp' && config.mode === 'create' ? (
+                <PlatformPicker
+                  idPrefix="conn-erp"
+                  kind="erp"
+                  layout="flat"
+                  platformIds={erpIds}
+                  value={selectedErpId}
+                  onChange={handleErpTypeChange}
+                />
+              ) : null}
+
               {config.kind === 'erp' && config.mode === 'create' ? (
                 <div className="space-y-2">
-                  <Label htmlFor="conn-erp">ERP</Label>
-                  <Select value={selectedErpId} onValueChange={handleErpTypeChange}>
-                    <SelectTrigger id="conn-erp">
-                      <SelectValue placeholder="ERP seçin" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {erpIds.map((id) => {
-                        const d = getErpDisplay(id);
-                        return (
-                          <SelectItem key={id} value={id}>
-                            {d.logo} {d.label}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="erp-display-name">Bağlantı adı</Label>
+                  <Input
+                    id="erp-display-name"
+                    value={erpDisplayName}
+                    onChange={(event) => {
+                      setErpDisplayName(event.target.value);
+                    }}
+                    placeholder={
+                      hasExistingErp ? 'Örn. Stok BizimHesap' : 'Örn. Ana BizimHesap'
+                    }
+                    maxLength={120}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {hasExistingErp
+                      ? 'İkinci bağlantı salt okuma (stok/ürün) olarak eklenir. Fatura için birincil ERP bağlantısını değiştirebilirsiniz.'
+                      : 'İlk ERP bağlantısı birincil olur; fatura bu bağlantıya gider.'}
+                  </p>
                 </div>
               ) : null}
 
               {config.kind === 'erp' && config.mode === 'edit' ? (
-                <p className="text-sm text-muted-foreground">
-                  {getErpDisplay(config.connection.erpType).logo}{' '}
-                  {getErpDisplay(config.connection.erpType).label}
-                </p>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    {getErpDisplay(config.connection.erpType).logo}{' '}
+                    {getErpDisplay(config.connection.erpType).label}
+                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="erp-display-name-edit">Bağlantı adı</Label>
+                    <Input
+                      id="erp-display-name-edit"
+                      value={erpDisplayName}
+                      onChange={(event) => {
+                        setErpDisplayName(event.target.value);
+                      }}
+                      maxLength={120}
+                    />
+                  </div>
+                </div>
               ) : null}
 
               {platformMeta?.helpText || platformMeta?.docsUrl ? (
@@ -830,29 +886,12 @@ export function ConnectionFormModal({
                         ) : null}
                       </div>
                       <FormControl>
-                        <Input
-                          {...rhf}
-                          id={rhf.name}
-                          type={
-                            field.type === 'password'
-                              ? visibleSecrets[field.key]
-                                ? 'text'
-                                : 'password'
-                              : field.type === 'number'
-                                ? 'number'
-                                : 'text'
-                          }
-                          autoComplete="off"
-                          placeholder={
-                            field.placeholder ??
-                            (field.type === 'url'
-                              ? 'https:// veya http:// ile başlayın'
-                              : undefined)
-                          }
-                          aria-invalid={Boolean(fieldErrors[field.key])}
-                          className={fieldErrors[field.key] ? 'border-destructive' : undefined}
-                          onChange={(e) => {
-                            rhf.onChange(e);
+                        <ConnectionCredentialField
+                          field={field}
+                          rhf={rhf}
+                          hasError={Boolean(fieldErrors[field.key])}
+                          passwordVisible={visibleSecrets[field.key]}
+                          onValueChange={() => {
                             setTestOutcome('idle');
                             setTestResult(null);
                             setFieldErrors((prev) => {
@@ -900,22 +939,25 @@ export function ConnectionFormModal({
           >
             İptal
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={testPending || activeFieldDefs.length === 0}
-            onClick={() => {
-              handleTest();
-            }}
-          >
-            {testPending ? 'Test ediliyor…' : 'Bağlantıyı Test Et'}
-          </Button>
+          {opsAccess && !isBizimHesapErp ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={testPending || activeFieldDefs.length === 0}
+              onClick={() => {
+                handleTest();
+              }}
+            >
+              {testPending ? 'Test ediliyor…' : 'Bağlantıyı Test Et'}
+            </Button>
+          ) : null}
           <Button
             type="button"
             disabled={
               savePending ||
               activeFieldDefs.length === 0 ||
-              saveRequiresTest
+              saveRequiresTest ||
+              erpCreateBlocked
             }
             onClick={() => {
               handleSave();

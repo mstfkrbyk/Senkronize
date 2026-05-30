@@ -14,6 +14,7 @@ import {
   extractHepsiburadaEventType,
   extractHepsiburadaOrderStatus,
 } from './hepsiburada-payload.util';
+import { extractN11EventType, extractN11OrderStatus } from './n11-payload.util';
 import {
   extractOrderIdentifiers,
   extractProductIdentifiers,
@@ -156,6 +157,7 @@ export class WebhookProcessorService {
           Marketplace.TRENDYOL,
           ids.platformOrderId,
           ids.status,
+          { fromPlatformWebhook: true },
         );
       }
       return;
@@ -243,6 +245,7 @@ export class WebhookProcessorService {
           Marketplace.HEPSIBURADA,
           ids.platformOrderId,
           ids.status,
+          { fromPlatformWebhook: true },
         );
       }
       return;
@@ -275,13 +278,8 @@ export class WebhookProcessorService {
   }
 
   async processN11(payload: unknown, organizationId: string): Promise<void> {
-    const event = this.readStringField(payload, [
-      'eventType',
-      'event',
-      'type',
-      'EventType',
-    ]);
-    const normalized = normalizeEventKey(event ?? 'UNKNOWN');
+    const event = extractN11EventType(payload);
+    const normalized = normalizeEventKey(event);
 
     if (
       normalized.includes('ORDER') &&
@@ -296,6 +294,23 @@ export class WebhookProcessorService {
         },
         JOB_DEFAULT_OPTIONS,
       );
+      return;
+    }
+
+    if (
+      normalized.includes('ORDER') &&
+      (normalized.includes('UPDATE') || normalized.includes('STATUS') || normalized.includes('CANCEL'))
+    ) {
+      const ids = extractN11OrderStatus(payload);
+      if (ids.platformOrderId && ids.status) {
+        await this.orderService.updateStatusFromPlatform(
+          organizationId,
+          Marketplace.N11,
+          ids.platformOrderId,
+          ids.status,
+          { fromPlatformWebhook: true },
+        );
+      }
       return;
     }
 

@@ -2,8 +2,11 @@ import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -12,8 +15,9 @@ import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { TURKEY_PROVINCES } from '@/lib/turkey-provinces';
 import { useAuthStore } from '@/store/auth.store';
-import type { MeResponse, TokenPair } from '@/types/auth';
+import type { AccountingMode, MeResponse, TokenPair } from '@/types/auth';
 import type { PlanTier } from '@/types/subscription';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,6 +31,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import {
   Select,
   SelectContent,
@@ -34,96 +39,112 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AccountingModeCards } from '@/components/AccountingModeCards';
+import { ProductSelectionCards } from '@/components/ProductSelectionCards';
+import {
+  readStoredProductSelection,
+  writeStoredProductSelection,
+  type ProductSelection,
+} from '@/lib/product-selection';
+import { resolveAppHomePath } from '@/lib/app-home';
 import { cn } from '@/lib/utils';
 import { useValidatePartnerInvite } from '@/pages/partner/hooks/usePartner';
+import {
+  formatRegisterNavContext,
+  formatRegisterStepLabel,
+} from '@/pages/auth/register-nav-context';
 
-const STEP_COUNT = 4;
+const STEP_COUNT = 5;
 
-const PHONE_DIGITS = z
-  .string()
-  .min(1, FORM_MESSAGES.required)
-  .regex(/^5[0-9]{9}$/, 'Geçerli bir cep numarası girin (10 hane, 5 ile başlar, başında 0 yok).');
+function buildPhoneDigitsSchema(t: TFunction) {
+  return z
+    .string()
+    .min(1, FORM_MESSAGES.required)
+    .regex(/^5[0-9]{9}$/, t('register.validation.phoneDigits'));
+}
 
-const ERP_CHOICES: { id: string; label: string }[] = [
-  { id: 'BIZIMHESAP', label: 'BizimHesap' },
-  { id: 'PARASUT', label: 'Paraşüt' },
-  { id: 'LOGO', label: 'Logo Tiger' },
-  { id: 'MIKRO', label: 'Mikro' },
-  { id: 'NETSIS', label: 'Netsis' },
-  { id: 'LUCA', label: 'Luca' },
-  { id: 'DIGER_ERP', label: 'Diğer' },
-];
+function buildErpChoices(t: TFunction): { id: string; label: string }[] {
+  return [
+    { id: 'BIZIMHESAP', label: 'BizimHesap' },
+    { id: 'PARASUT', label: 'Paraşüt' },
+    { id: 'LOGO', label: 'Logo Tiger' },
+    { id: 'MIKRO', label: 'Mikro' },
+    { id: 'NETSIS', label: 'Netsis' },
+    { id: 'LUCA', label: 'Luca' },
+    { id: 'DIGER_ERP', label: t('register.choices.other') },
+  ];
+}
 
-const MARKETPLACE_CHOICES: { id: string; label: string }[] = [
-  { id: 'TRENDYOL', label: 'Trendyol' },
-  { id: 'HEPSIBURADA', label: 'Hepsiburada' },
-  { id: 'N11', label: 'N11' },
-  { id: 'CICEKSEPETI', label: 'Çiçeksepeti' },
-  { id: 'AMAZON_TR', label: 'Amazon TR' },
-  { id: 'PTTAVM', label: 'PTT AVM' },
-  { id: 'PAZARAMA', label: 'Pazarama' },
-  { id: 'EBAY', label: 'eBay' },
-  { id: 'ETSY', label: 'Etsy' },
-  { id: 'DIGER_MP', label: 'Diğer' },
-];
+function buildMarketplaceChoices(t: TFunction): { id: string; label: string }[] {
+  return [
+    { id: 'TRENDYOL', label: 'Trendyol' },
+    { id: 'HEPSIBURADA', label: 'Hepsiburada' },
+    { id: 'N11', label: 'N11' },
+    { id: 'CICEKSEPETI', label: 'Çiçeksepeti' },
+    { id: 'AMAZON_TR', label: 'Amazon TR' },
+    { id: 'PTTAVM', label: 'PTT AVM' },
+    { id: 'PAZARAMA', label: 'Pazarama' },
+    { id: 'EBAY', label: 'eBay' },
+    { id: 'ETSY', label: 'Etsy' },
+    { id: 'DIGER_MP', label: t('register.choices.other') },
+  ];
+}
 
-const ECOMMERCE_CHOICES: { id: string; label: string }[] = [
-  { id: 'TSOFT', label: 'T-Soft' },
-  { id: 'TICIMAX', label: 'Ticimax' },
-  { id: 'WOOCOMMERCE', label: 'WooCommerce' },
-  { id: 'SHOPIFY', label: 'Shopify' },
-  { id: 'IDEASOFT', label: 'İdeasoft' },
-  { id: 'SHOPIVERSE', label: 'Shopiverse' },
-  { id: 'DIGER_EC', label: 'Diğer' },
-];
+function buildEcommerceChoices(t: TFunction): { id: string; label: string }[] {
+  return [
+    { id: 'TSOFT', label: 'T-Soft' },
+    { id: 'TICIMAX', label: 'Ticimax' },
+    { id: 'WOOCOMMERCE', label: 'WooCommerce' },
+    { id: 'SHOPIFY', label: 'Shopify' },
+    { id: 'IDEASOFT', label: 'İdeasoft' },
+    { id: 'SHOPIVERSE', label: 'Shopiverse' },
+    { id: 'DIGER_EC', label: t('register.choices.other') },
+  ];
+}
 
-const ANNUAL_PLANS: Array<{
+function buildAnnualPlans(t: TFunction): Array<{
   id: PlanTier;
   name: string;
   priceYear: number;
-}> = [
-  { id: 'BASLANGIC', name: 'Başlangıç', priceYear: 2900 },
-  { id: 'GELISIM', name: 'Gelişim', priceYear: 5900 },
-  { id: 'PRO', name: 'Pro', priceYear: 9900 },
-  { id: 'KURUMSAL', name: 'Kurumsal', priceYear: 19_900 },
-];
-
-function formatTry(amount: number): string {
-  return amount.toLocaleString('tr-TR');
+}> {
+  return [
+    { id: 'BASLANGIC', name: t('payment.plans.BASLANGIC'), priceYear: 2900 },
+    { id: 'GELISIM', name: t('payment.plans.GELISIM'), priceYear: 5900 },
+    { id: 'PRO', name: t('payment.plans.PRO'), priceYear: 9900 },
+    { id: 'KURUMSAL', name: t('payment.plans.KURUMSAL'), priceYear: 19_900 },
+  ];
 }
 
-function monthlyEquivalent(yearly: number): number {
-  return Math.round(yearly / 12);
+function createRegisterFormSchema(t: TFunction) {
+  return z
+    .object({
+      name: z.string().min(1, FORM_MESSAGES.required).max(100),
+      email: z.string().min(1, FORM_MESSAGES.required).email(FORM_MESSAGES.email),
+      phoneDigits: buildPhoneDigitsSchema(t),
+      password: z.string().min(8, t('register.validation.passwordMin')),
+      confirmPassword: z.string().min(1, FORM_MESSAGES.required),
+      companyName: z.string().min(1, FORM_MESSAGES.required).max(200),
+      taxNumber: z
+        .string()
+        .min(1, FORM_MESSAGES.required)
+        .regex(/^\d{10}$/, t('register.validation.taxNumber')),
+      taxOffice: z.string().min(1, FORM_MESSAGES.required).max(200),
+      address: z.string().min(1, FORM_MESSAGES.required).max(500),
+      city: z.string().min(1, FORM_MESSAGES.required).max(100),
+      website: z.string().max(200).optional().or(z.literal('')),
+      referralCode: z.string().max(50).optional().or(z.literal('')),
+      acceptTos: z.boolean().refine((v) => v === true, {
+        message: t('register.validation.acceptTos'),
+      }),
+      selectedPlan: z.enum(['BASLANGIC', 'GELISIM', 'PRO', 'KURUMSAL']),
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+      message: t('register.validation.passwordMismatch'),
+      path: ['confirmPassword'],
+    });
 }
 
-const registerFormSchema = z
-  .object({
-    name: z.string().min(1, FORM_MESSAGES.required).max(100),
-    email: z.string().min(1, FORM_MESSAGES.required).email(FORM_MESSAGES.email),
-    phoneDigits: PHONE_DIGITS,
-    password: z.string().min(8, 'Şifre en az 8 karakter olmalıdır.'),
-    confirmPassword: z.string().min(1, FORM_MESSAGES.required),
-    companyName: z.string().min(1, FORM_MESSAGES.required).max(200),
-    taxNumber: z
-      .string()
-      .min(1, FORM_MESSAGES.required)
-      .regex(/^\d{10}$/, 'Vergi numarası 10 haneli olmalıdır'),
-    taxOffice: z.string().min(1, FORM_MESSAGES.required).max(200),
-    address: z.string().min(1, FORM_MESSAGES.required).max(500),
-    city: z.string().min(1, FORM_MESSAGES.required).max(100),
-    website: z.string().max(200).optional().or(z.literal('')),
-    referralCode: z.string().max(50).optional().or(z.literal('')),
-    acceptTos: z.boolean().refine((v) => v === true, {
-      message: 'Kullanım şartlarını kabul etmelisiniz.',
-    }),
-    selectedPlan: z.enum(['BASLANGIC', 'GELISIM', 'PRO', 'KURUMSAL']),
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: 'Şifreler eşleşmiyor.',
-    path: ['confirmPassword'],
-  });
-
-type RegisterFormValues = z.infer<typeof registerFormSchema>;
+type RegisterFormValues = z.infer<ReturnType<typeof createRegisterFormSchema>>;
 
 const STEP1_FIELDS: (keyof RegisterFormValues)[] = [
   'name',
@@ -147,7 +168,29 @@ interface RecommendPlanResponse {
   reason: string;
 }
 
+function formatTry(amount: number): string {
+  return amount.toLocaleString('tr-TR');
+}
+
+function monthlyEquivalent(yearly: number): number {
+  return Math.round(yearly / 12);
+}
+
+function resolveRegisterAccountingModePayload(
+  productSelection: ProductSelection | null,
+  accountingModeChoice: AccountingMode | null,
+): { accountingMode?: AccountingMode } {
+  if (productSelection === 'ACCOUNTING') {
+    return { accountingMode: accountingModeChoice ?? 'NATIVE' };
+  }
+  if (productSelection === 'BUNDLE' && accountingModeChoice) {
+    return { accountingMode: accountingModeChoice };
+  }
+  return {};
+}
+
 export function RegisterPage(): ReactElement {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -156,12 +199,25 @@ export function RegisterPage(): ReactElement {
   const setUser = useAuthStore((s) => s.setUser);
   const setOrg = useAuthStore((s) => s.setOrg);
 
+  const registerFormSchema = useMemo(() => createRegisterFormSchema(t), [t]);
+  const erpChoices = useMemo(() => buildErpChoices(t), [t]);
+  const marketplaceChoices = useMemo(() => buildMarketplaceChoices(t), [t]);
+  const ecommerceChoices = useMemo(() => buildEcommerceChoices(t), [t]);
+  const annualPlans = useMemo(() => buildAnnualPlans(t), [t]);
+
   const [step, setStep] = useState(1);
+  const [productSelection, setProductSelection] = useState<ProductSelection | null>(
+    () => readStoredProductSelection(),
+  );
+  const [accountingModeChoice, setAccountingModeChoice] = useState<AccountingMode | null>(
+    null,
+  );
   const [usesErp, setUsesErp] = useState(false);
   const [erpSelection, setErpSelection] = useState<string[]>([]);
   const [marketplaceSelection, setMarketplaceSelection] = useState<string[]>([]);
   const [hasEcommerceSite, setHasEcommerceSite] = useState(false);
   const [ecommerceSelection, setEcommerceSelection] = useState<string[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodFormResolver(registerFormSchema),
@@ -212,20 +268,20 @@ export function RegisterPage(): ReactElement {
       });
       return data;
     },
-    enabled: step === 4,
+    enabled: step === 5,
   });
 
   const recommendSynced = useRef(false);
 
   useEffect(() => {
-    if (step !== 4) {
+    if (step !== 5) {
       recommendSynced.current = false;
     }
   }, [step]);
 
   useEffect(() => {
     if (
-      step === 4 &&
+      step === 5 &&
       recommendQuery.isSuccess &&
       recommendQuery.data &&
       !recommendSynced.current
@@ -252,7 +308,12 @@ export function RegisterPage(): ReactElement {
         referralCode: values.referralCode?.trim() || undefined,
         inviteToken: inviteFromUrl ?? undefined,
         plan: values.selectedPlan,
+        productSelection: productSelection ?? undefined,
+        ...resolveRegisterAccountingModePayload(productSelection, accountingModeChoice),
       });
+      if (productSelection) {
+        writeStoredProductSelection(productSelection);
+      }
       setTokens(tokens.accessToken, tokens.refreshToken, tokens.sessionId);
       const { data: me } = await api.get<MeResponse>('/auth/me');
       queryClient.setQueryData(['auth', 'me'], me);
@@ -269,31 +330,53 @@ export function RegisterPage(): ReactElement {
         type: me.organization.type,
         onboardingCompleted: me.organization.onboardingCompleted,
         plan: me.organization.plan,
+        orgProducts: me.organization.orgProducts,
+        accountingMode: me.organization.accountingMode,
       });
     },
     onSuccess: (_, values) => {
       track('user_registered', {
         plan: values.selectedPlan,
+        productSelection: productSelection ?? undefined,
         marketplaceCount: marketplaceSelection.length,
         erpCount,
         referralCodePresent: Boolean(values.referralCode?.trim()),
       });
-      toast.success('Kayıt tamamlandı, hoş geldiniz.');
+      toast.success(t('register.toast.success'));
       const legacyInviteToken = searchParams.get('inviteToken');
       if (legacyInviteToken) {
         navigate(`/invite/${encodeURIComponent(legacyInviteToken)}`, { replace: true });
         return;
       }
-      navigate('/dashboard', { replace: true });
+      const org = useAuthStore.getState().currentOrg;
+      navigate(
+        resolveAppHomePath({
+          type: org?.type,
+          orgProducts: org?.orgProducts,
+          isImpersonating: false,
+          accountingMode: org?.accountingMode,
+        }),
+        { replace: true },
+      );
+    },
+    onMutate: () => {
+      setFormError(null);
     },
     onError: (error: unknown) => {
-      toast.error(getApiErrorMessage(error));
+      setFormError(getApiErrorMessage(error));
     },
   });
 
+  const partnerInviteFlow = Boolean(inviteFromUrl);
+  const navContextLine = formatRegisterNavContext(step, t, {
+    partnerInvite: partnerInviteFlow,
+  });
+  const stepLabel = formatRegisterStepLabel(step, t);
+  const pageLabel = t('register.nav.pageLabel');
+
   useEffect(() => {
-    document.title = 'Kayıt — Senkronize';
-  }, []);
+    document.title = t('register.documentTitle', { stepLabel, pageLabel });
+  }, [stepLabel, pageLabel, t]);
 
   const progressPercent = useMemo(
     () => Math.round((step / STEP_COUNT) * 100),
@@ -310,21 +393,43 @@ export function RegisterPage(): ReactElement {
       }
     }
     if (step === 3) {
+      if (!productSelection) {
+        toast.error(t('register.toast.productRequired'));
+        return;
+      }
+      if (productSelection === 'BUNDLE' && !accountingModeChoice) {
+        toast.error(t('register.toast.accountingModeRequired'));
+        return;
+      }
+      writeStoredProductSelection(productSelection);
+    }
+    if (step === 4) {
       if (usesErp && erpSelection.length === 0) {
-        toast.error('En az bir ERP seçin veya ERP kullanmıyorum seçeneğini işaretleyin.');
+        toast.error(t('register.toast.erpRequired'));
         return;
       }
       if (marketplaceSelection.length === 0) {
-        toast.error('En az bir pazaryeri seçin.');
+        toast.error(t('register.toast.marketplaceRequired'));
         return;
       }
       if (hasEcommerceSite && ecommerceSelection.length === 0) {
-        toast.error('E-ticaret altyapısı seçin veya “E-ticaret sitem yok” seçeneğini işaretleyin.');
+        toast.error(t('register.toast.ecommerceRequired'));
         return;
       }
     }
     setStep((s) => Math.min(STEP_COUNT, s + 1));
-  }, [step, form, usesErp, erpSelection.length, marketplaceSelection.length, hasEcommerceSite, ecommerceSelection.length]);
+  }, [
+    step,
+    form,
+    productSelection,
+    accountingModeChoice,
+    usesErp,
+    erpSelection.length,
+    marketplaceSelection.length,
+    hasEcommerceSite,
+    ecommerceSelection.length,
+    t,
+  ]);
 
   const goBack = useCallback((): void => {
     setStep((s) => Math.max(1, s - 1));
@@ -332,13 +437,21 @@ export function RegisterPage(): ReactElement {
 
   const onFinalSubmit = useCallback(
     (values: RegisterFormValues): void => {
+      if (!productSelection) {
+        toast.error(t('register.toast.productMissing'));
+        return;
+      }
+      if (productSelection === 'BUNDLE' && !accountingModeChoice) {
+        toast.error(t('register.toast.accountingModeRequired'));
+        return;
+      }
       if (inviteFromUrl) {
         if (
           inviteValidation.isLoading ||
           inviteValidation.isError ||
           !inviteValidation.data
         ) {
-          toast.error('Davet kodu geçerli değil veya doğrulanamadı.');
+          toast.error(t('register.toast.inviteInvalid'));
           return;
         }
       }
@@ -346,10 +459,13 @@ export function RegisterPage(): ReactElement {
     },
     [
       registerMutation,
+      productSelection,
+      accountingModeChoice,
       inviteFromUrl,
       inviteValidation.isLoading,
       inviteValidation.isError,
       inviteValidation.data,
+      t,
     ],
   );
 
@@ -375,26 +491,26 @@ export function RegisterPage(): ReactElement {
   }
 
   return (
-    <Card className="mx-auto w-full max-w-2xl border-0 shadow-none sm:border sm:shadow-sm">
+    <Card className="mx-auto w-full max-w-2xl">
       <CardHeader>
-        <CardTitle>Hesap oluştur</CardTitle>
-        <CardDescription>
-          14 günlük ücretsiz denemenizi başlatın. Kredi kartı gerekmez; ödeme daha sonra.
-        </CardDescription>
+        <p className="text-sm text-muted-foreground">{navContextLine}</p>
+        <CardTitle>{t('register.title')}</CardTitle>
+        <CardDescription>{t('register.description')}</CardDescription>
         {inviteFromUrl ? (
           <div className="rounded-md border border-sky-400/50 bg-sky-50 p-3 text-sm text-sky-950 dark:bg-sky-950/30 dark:text-sky-50">
             {inviteValidation.isLoading ? (
-              <p>Davet doğrulanıyor…</p>
+              <p>{t('register.partnerInvite.verifying')}</p>
             ) : null}
             {inviteValidation.isError ? (
               <p className="text-destructive">
-                Davet doğrulanamadı: {getApiErrorMessage(inviteValidation.error)}
+                {t('register.partnerInvite.errorPrefix')}{' '}
+                {getApiErrorMessage(inviteValidation.error)}
               </p>
             ) : null}
             {inviteValidation.data ? (
               <p>
-                <span className="font-medium">{inviteValidation.data.partnerName}</span> davetiyle
-                kayıt oluyorsunuz. Referans kodu otomatik uygulandı.
+                <span className="font-medium">{inviteValidation.data.partnerName}</span>{' '}
+                {t('register.partnerInvite.registeringSuffix')}
               </p>
             ) : null}
           </div>
@@ -402,7 +518,7 @@ export function RegisterPage(): ReactElement {
         <div className="space-y-2 pt-2">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>
-              Adım {step} / {STEP_COUNT}
+              {t('register.progress.stepOf', { current: step, total: STEP_COUNT })}
             </span>
             <span>{progressPercent}%</span>
           </div>
@@ -423,7 +539,7 @@ export function RegisterPage(): ReactElement {
       <Form {...form}>
         <form
           onSubmit={
-            step === 4
+            step === 5
               ? form.handleSubmit(onFinalSubmit)
               : (e) => {
                   e.preventDefault();
@@ -431,6 +547,12 @@ export function RegisterPage(): ReactElement {
           }
         >
           <CardContent className="space-y-6">
+            {formError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+            ) : null}
             {step === 1 ? (
               <>
                 <FormField
@@ -438,9 +560,19 @@ export function RegisterPage(): ReactElement {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Ad Soyad</FormLabel>
+                      <FormLabel>{t('register.step1.nameLabel')}</FormLabel>
                       <FormControl>
-                        <Input autoComplete="name" placeholder="Adınız Soyadınız" className="text-base" {...field} />
+                        <Input
+                          autoComplete="name"
+                          autoFocus
+                          placeholder={t('register.step1.namePlaceholder')}
+                          className="text-base"
+                          {...field}
+                          onChange={(e) => {
+                            setFormError(null);
+                            field.onChange(e);
+                          }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -451,13 +583,19 @@ export function RegisterPage(): ReactElement {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>E-posta</FormLabel>
+                      <FormLabel>{t('register.step1.emailLabel')}</FormLabel>
                       <FormControl>
                         <Input
                           type="email"
                           autoComplete="email"
-                          placeholder="ornek@sirket.com"
-                          className="text-base"
+                          placeholder={t('register.step1.emailPlaceholder')}
+                          readOnly={Boolean(inviteFromUrl && inviteValidation.data)}
+                          className={cn(
+                            'text-base',
+                            inviteFromUrl && inviteValidation.data
+                              ? 'cursor-not-allowed bg-muted'
+                              : undefined,
+                          )}
                           {...field}
                         />
                       </FormControl>
@@ -470,7 +608,7 @@ export function RegisterPage(): ReactElement {
                   name="phoneDigits"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Telefon</FormLabel>
+                      <FormLabel>{t('register.step1.phoneLabel')}</FormLabel>
                       <FormControl>
                         <div className="flex rounded-md border border-input shadow-sm focus-within:ring-1 focus-within:ring-ring">
                           <span className="flex items-center rounded-l-md border-r bg-muted px-3 text-sm text-muted-foreground">
@@ -487,7 +625,7 @@ export function RegisterPage(): ReactElement {
                         </div>
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        Başında 0 olmadan 10 hane (ör. 5XXXXXXXXX).
+                        {t('register.step1.phoneHint')}
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -498,14 +636,17 @@ export function RegisterPage(): ReactElement {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Şifre</FormLabel>
+                      <FormLabel>{t('register.step1.passwordLabel')}</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
+                        <PasswordInput
                           autoComplete="new-password"
-                          placeholder="En az 8 karakter"
+                          placeholder={t('register.step1.passwordPlaceholder')}
                           className="text-base"
                           {...field}
+                          onChange={(e) => {
+                            setFormError(null);
+                            field.onChange(e);
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -517,14 +658,17 @@ export function RegisterPage(): ReactElement {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Şifre tekrar</FormLabel>
+                      <FormLabel>{t('register.step1.confirmPasswordLabel')}</FormLabel>
                       <FormControl>
-                        <Input
-                          type="password"
+                        <PasswordInput
                           autoComplete="new-password"
-                          placeholder="Şifrenizi tekrar girin"
+                          placeholder={t('register.step1.confirmPasswordPlaceholder')}
                           className="text-base"
                           {...field}
+                          onChange={(e) => {
+                            setFormError(null);
+                            field.onChange(e);
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -541,9 +685,9 @@ export function RegisterPage(): ReactElement {
                   name="companyName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Firma adı</FormLabel>
+                      <FormLabel>{t('register.step2.companyNameLabel')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ticari unvan" className="text-base" {...field} />
+                        <Input placeholder={t('register.step2.companyNamePlaceholder')} className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -554,9 +698,9 @@ export function RegisterPage(): ReactElement {
                   name="taxNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vergi numarası</FormLabel>
+                      <FormLabel>{t('register.step2.taxNumberLabel')}</FormLabel>
                       <FormControl>
-                        <Input inputMode="numeric" maxLength={10} placeholder="10 hane" className="text-base" {...field} />
+                        <Input inputMode="numeric" maxLength={10} placeholder={t('register.step2.taxNumberPlaceholder')} className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -567,9 +711,9 @@ export function RegisterPage(): ReactElement {
                   name="taxOffice"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Vergi dairesi</FormLabel>
+                      <FormLabel>{t('register.step2.taxOfficeLabel')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Bağlı olduğunuz vergi dairesi" className="text-base" {...field} />
+                        <Input placeholder={t('register.step2.taxOfficePlaceholder')} className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -580,9 +724,9 @@ export function RegisterPage(): ReactElement {
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Adres</FormLabel>
+                      <FormLabel>{t('register.step2.addressLabel')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="Açık adres" className="text-base" {...field} />
+                        <Input placeholder={t('register.step2.addressPlaceholder')} className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -593,11 +737,11 @@ export function RegisterPage(): ReactElement {
                   name="city"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Şehir</FormLabel>
+                      <FormLabel>{t('register.step2.cityLabel')}</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="İl seçin" />
+                            <SelectValue placeholder={t('register.step2.cityPlaceholder')} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="max-h-60">
@@ -617,9 +761,9 @@ export function RegisterPage(): ReactElement {
                   name="website"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Web sitesi (isteğe bağlı)</FormLabel>
+                      <FormLabel>{t('register.step2.websiteLabel')}</FormLabel>
                       <FormControl>
-                        <Input placeholder="https://..." className="text-base" {...field} />
+                        <Input placeholder={t('register.step2.websitePlaceholder')} className="text-base" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -630,10 +774,10 @@ export function RegisterPage(): ReactElement {
                   name="referralCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Referans kodu (isteğe bağlı)</FormLabel>
+                      <FormLabel>{t('register.step2.referralCodeLabel')}</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Partner referans kodunuz varsa girin"
+                          placeholder={t('register.step2.referralCodePlaceholder')}
                           readOnly={Boolean(inviteFromUrl && inviteValidation.data)}
                           className={cn(
                             'text-base',
@@ -652,10 +796,47 @@ export function RegisterPage(): ReactElement {
             ) : null}
 
             {step === 3 ? (
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base">{t('register.step3.productLineLabel')}</Label>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {t('register.step3.productLineHint')}
+                  </p>
+                </div>
+                <ProductSelectionCards
+                  value={productSelection}
+                  onChange={(id) => {
+                    setProductSelection(id);
+                    writeStoredProductSelection(id);
+                    if (id !== 'BUNDLE' && id !== 'ACCOUNTING') {
+                      setAccountingModeChoice(null);
+                    }
+                  }}
+                />
+                {productSelection === 'BUNDLE' || productSelection === 'ACCOUNTING' ? (
+                  <div className="space-y-3 border-t pt-6">
+                    <div>
+                      <Label className="text-base">{t('register.step3.accountingModeLabel')}</Label>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {productSelection === 'BUNDLE'
+                          ? t('register.step3.accountingModeBundleHint')
+                          : t('register.step3.accountingModeAccountingHint')}
+                      </p>
+                    </div>
+                    <AccountingModeCards
+                      value={accountingModeChoice}
+                      onChange={setAccountingModeChoice}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {step === 4 ? (
               <div className="space-y-8">
                 <div className="space-y-3">
-                  <Label>ERP kullanıyor musunuz?</Label>
-                  <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="ERP kullanımı">
+                  <Label>{t('register.step4.erpQuestion')}</Label>
+                  <div className="flex flex-wrap gap-3" role="radiogroup" aria-label={t('register.step4.erpAriaLabel')}>
                     <Button
                       type="button"
                       variant={usesErp ? 'default' : 'outline'}
@@ -663,7 +844,7 @@ export function RegisterPage(): ReactElement {
                         setUsesErp(true);
                       }}
                     >
-                      Evet
+                      {t('common.yes')}
                     </Button>
                     <Button
                       type="button"
@@ -673,12 +854,12 @@ export function RegisterPage(): ReactElement {
                         setErpSelection([]);
                       }}
                     >
-                      Hayır
+                      {t('common.no')}
                     </Button>
                   </div>
                   {usesErp ? (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {ERP_CHOICES.map((opt) => (
+                      {erpChoices.map((opt) => (
                         <label
                           key={opt.id}
                           className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm"
@@ -697,9 +878,9 @@ export function RegisterPage(): ReactElement {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Hangi pazaryerlerinde satış yapıyorsunuz?</Label>
+                  <Label>{t('register.step4.marketplaceQuestion')}</Label>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {MARKETPLACE_CHOICES.map((opt) => (
+                    {marketplaceChoices.map((opt) => (
                       <label
                         key={opt.id}
                         className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm"
@@ -717,14 +898,14 @@ export function RegisterPage(): ReactElement {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>E-ticaret siteniz var mı?</Label>
-                  <div className="flex flex-wrap gap-3" role="radiogroup" aria-label="E-ticaret sitesi">
+                  <Label>{t('register.step4.ecommerceQuestion')}</Label>
+                  <div className="flex flex-wrap gap-3" role="radiogroup" aria-label={t('register.step4.ecommerceAriaLabel')}>
                     <Button
                       type="button"
                       variant={hasEcommerceSite ? 'default' : 'outline'}
                       onClick={() => setHasEcommerceSite(true)}
                     >
-                      Evet
+                      {t('common.yes')}
                     </Button>
                     <Button
                       type="button"
@@ -734,12 +915,12 @@ export function RegisterPage(): ReactElement {
                         setEcommerceSelection([]);
                       }}
                     >
-                      Hayır
+                      {t('common.no')}
                     </Button>
                   </div>
                   {hasEcommerceSite ? (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {ECOMMERCE_CHOICES.map((opt) => (
+                      {ecommerceChoices.map((opt) => (
                         <label
                           key={opt.id}
                           className="flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm"
@@ -759,10 +940,10 @@ export function RegisterPage(): ReactElement {
               </div>
             ) : null}
 
-            {step === 4 ? (
+            {step === 5 ? (
               <div className="space-y-6">
                 {recommendQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground">Paket önerisi hesaplanıyor…</p>
+                  <p className="text-sm text-muted-foreground">{t('register.step5.recommendLoading')}</p>
                 ) : null}
                 {recommendQuery.isError ? (
                   <p className="text-sm text-destructive">
@@ -771,9 +952,9 @@ export function RegisterPage(): ReactElement {
                 ) : null}
                 {recommendQuery.isSuccess ? (
                   <div className="rounded-lg border border-sky-400/40 bg-sky-50 p-4 text-sm text-sky-950 dark:bg-sky-950/30 dark:text-sky-100">
-                    <p className="font-medium">Önerilen paket</p>
+                    <p className="font-medium">{t('register.step5.recommendedTitle')}</p>
                     <p className="mt-1">
-                      {ANNUAL_PLANS.find((p) => p.id === recommendQuery.data.recommendedPlan)?.name ??
+                      {annualPlans.find((p) => p.id === recommendQuery.data.recommendedPlan)?.name ??
                         recommendQuery.data.recommendedPlan}
                     </p>
                     <p className="mt-2 text-muted-foreground">{recommendQuery.data.reason}</p>
@@ -785,10 +966,10 @@ export function RegisterPage(): ReactElement {
                   name="selectedPlan"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Paket seçimi</FormLabel>
+                      <FormLabel>{t('register.step5.planSelectionLabel')}</FormLabel>
                       <FormControl>
                         <div className="grid gap-3 sm:grid-cols-2">
-                          {ANNUAL_PLANS.map((plan) => {
+                          {annualPlans.map((plan) => {
                             const recommended = recommendQuery.data?.recommendedPlan === plan.id;
                             return (
                               <button
@@ -807,17 +988,21 @@ export function RegisterPage(): ReactElement {
                                   <span className="font-semibold">{plan.name}</span>
                                   {recommended ? (
                                     <span className="rounded-full bg-sky-400 px-2 py-0.5 text-xs text-slate-900">
-                                      Önerilen
+                                      {t('register.step5.recommendedBadge')}
                                     </span>
                                   ) : null}
                                 </div>
                                 <p className="mt-2 text-2xl font-bold text-primary">
                                   ₺{formatTry(plan.priceYear)}
-                                  <span className="text-sm font-normal text-muted-foreground"> /yıl</span>
+                                  <span className="text-sm font-normal text-muted-foreground">
+                                    {' '}
+                                    {t('register.step5.pricePerYear')}
+                                  </span>
                                 </p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                  Aylık {formatTry(monthlyEquivalent(plan.priceYear))} ₺&apos;ye
-                                  eşdeğer
+                                  {t('register.step5.monthlyEquivalent', {
+                                    amount: formatTry(monthlyEquivalent(plan.priceYear)),
+                                  })}
                                 </p>
                               </button>
                             );
@@ -842,8 +1027,7 @@ export function RegisterPage(): ReactElement {
                       </FormControl>
                       <div className="space-y-1 leading-none">
                         <FormLabel className="font-normal">
-                          Senkronize kullanım şartlarını ve gizlilik politikasını okudum, kabul
-                          ediyorum.
+                          {t('register.step5.tosLabel')}
                         </FormLabel>
                         <FormMessage />
                       </div>
@@ -857,14 +1041,14 @@ export function RegisterPage(): ReactElement {
             <div className="flex w-full flex-col-reverse gap-3 sm:flex-row sm:justify-between">
               {step > 1 ? (
                 <Button type="button" variant="outline" onClick={goBack}>
-                  Geri
+                  {t('common.back')}
                 </Button>
               ) : (
                 <span />
               )}
-              {step < 4 ? (
+              {step < 5 ? (
                 <Button type="button" className="sm:ml-auto" onClick={() => void goNext()}>
-                  İleri
+                  {t('common.next')}
                 </Button>
               ) : (
                 <Button
@@ -872,19 +1056,28 @@ export function RegisterPage(): ReactElement {
                   className="sm:ml-auto"
                   disabled={registerMutation.isPending || recommendQuery.isLoading}
                 >
-                  {registerMutation.isPending
-                    ? 'Kaydediliyor…'
-                    : '14 Günlük Ücretsiz Deneme Başlat'}
+                  {registerMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                      {t('register.step5.submitPending')}
+                    </>
+                  ) : (
+                    t('register.step5.submit')
+                  )}
                 </Button>
               )}
             </div>
             <p className="text-center text-sm text-muted-foreground">
-              Zaten hesabınız var mı?{' '}
+              {t('register.footer.hasAccount')}{' '}
               <Link
-                to="/login"
+                to={
+                  inviteFromUrl
+                    ? `/login?invite=${encodeURIComponent(inviteFromUrl)}`
+                    : '/login'
+                }
                 className="font-medium text-accent underline-offset-4 hover:underline"
               >
-                Giriş yapın
+                {t('register.footer.signIn')}
               </Link>
             </p>
           </CardFooter>

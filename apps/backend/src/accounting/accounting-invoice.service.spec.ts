@@ -11,6 +11,7 @@ import { EncryptionService } from '../common/encryption/encryption.service';
 import { InvoiceService } from '../invoice/invoice.service';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { AccountingCustomerService } from './accounting-customer.service';
 import { AccountingInvoiceService } from './accounting-invoice.service';
 
 describe('AccountingInvoiceService', () => {
@@ -23,7 +24,8 @@ describe('AccountingInvoiceService', () => {
       update: jest.Mock;
     };
   };
-  let invoiceService: { findOne: jest.Mock };
+  let invoiceService: { findOne: jest.Mock; updateStatus: jest.Mock };
+  let accountingCustomerService: { getBalanceSummary: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -34,7 +36,8 @@ describe('AccountingInvoiceService', () => {
         update: jest.fn(),
       },
     };
-    invoiceService = { findOne: jest.fn() };
+    invoiceService = { findOne: jest.fn(), updateStatus: jest.fn() };
+    accountingCustomerService = { getBalanceSummary: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -43,10 +46,56 @@ describe('AccountingInvoiceService', () => {
         { provide: InvoiceService, useValue: invoiceService },
         { provide: EncryptionService, useValue: {} },
         { provide: AdapterRegistry, useValue: {} },
+        {
+          provide: AccountingCustomerService,
+          useValue: accountingCustomerService,
+        },
       ],
     }).compile();
 
     service = module.get(AccountingInvoiceService);
+  });
+
+  it('getOverview — fatura KPI ve cari alacak özetini birleştirir', async () => {
+    prisma.invoice.aggregate
+      .mockResolvedValueOnce({ _sum: { totalAmount: new Prisma.Decimal('3000') } })
+      .mockResolvedValueOnce({ _sum: { totalAmount: new Prisma.Decimal('8000') } })
+      .mockResolvedValueOnce({
+        _sum: {
+          subtotal: new Prisma.Decimal('10000'),
+          taxAmount: new Prisma.Decimal('2000'),
+          totalAmount: new Prisma.Decimal('12000'),
+        },
+      });
+    prisma.invoice.count
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(12);
+
+    accountingCustomerService.getBalanceSummary.mockResolvedValue({
+      totalDebit: '5500.00',
+      totalCredit: '1200.00',
+      netBalance: '4300.00',
+      customerCount: 7,
+      currency: 'TRY',
+    });
+
+    const result = await service.getOverview('org-1');
+
+    expect(accountingCustomerService.getBalanceSummary).toHaveBeenCalledWith('org-1');
+    expect(result).toEqual({
+      openInvoiceCount: 4,
+      openInvoiceTotal: '3000',
+      openReceivablesAmount: '5500.00',
+      customerCount: 7,
+      collectedTotal: '8000',
+      collectedCount: 12,
+      vatSummary: {
+        subtotal: '10000',
+        taxAmount: '2000',
+        totalAmount: '12000',
+      },
+      currency: 'TRY',
+    });
   });
 
   it('getVatSummary — org faturalarından ay bazlı KDV toplar', async () => {
@@ -108,6 +157,81 @@ describe('AccountingInvoiceService', () => {
         }),
       }),
     );
+  });
+
+  describe('issue', () => {
+    const baseDraft = {
+      id: 'inv-1',
+      organizationId: 'org-1',
+      deletedAt: null,
+      status: InvoiceStatus.DRAFT,
+      dueDate: null,
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-05-20T12:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('taslak faturayı SENT yapar ve dueDate yoksa kesim +7 gün vade atar', async () => {
+      prisma.invoice.findFirst.mockResolvedValue(baseDraft);
+      prisma.invoice.update.mockResolvedValue({});
+      invoiceService.findOne.mockResolvedValue({
+        id: 'inv-1',
+        status: InvoiceStatus.SENT,
+        dueDate: '2026-05-27T12:00:00.000Z',
+      });
+
+      const result = await service.issue('org-1', 'inv-1');
+
+      expect(result.status).toBe(InvoiceStatus.SENT);
+      expect(prisma.invoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-1' },
+        data: {
+          status: InvoiceStatus.SENT,
+          dueDate: new Date('2026-05-27T12:00:00.000Z'),
+        },
+      });
+      expect(invoiceService.findOne).toHaveBeenCalledWith('org-1', 'inv-1');
+      expect(invoiceService.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('dueDate zaten varsa mevcut vadeyi korur', async () => {
+      const existingDue = new Date('2026-06-01T00:00:00.000Z');
+      prisma.invoice.findFirst.mockResolvedValue({
+        ...baseDraft,
+        dueDate: existingDue,
+      });
+      prisma.invoice.update.mockResolvedValue({});
+      invoiceService.findOne.mockResolvedValue({
+        id: 'inv-1',
+        status: InvoiceStatus.SENT,
+        dueDate: existingDue.toISOString(),
+      });
+
+      await service.issue('org-1', 'inv-1');
+
+      expect(prisma.invoice.update).toHaveBeenCalledWith({
+        where: { id: 'inv-1' },
+        data: { status: InvoiceStatus.SENT },
+      });
+    });
+
+    it('DRAFT değilse BadRequestException fırlatır', async () => {
+      prisma.invoice.findFirst.mockResolvedValue({
+        ...baseDraft,
+        status: InvoiceStatus.SENT,
+      });
+
+      await expect(service.issue('org-1', 'inv-1')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(prisma.invoice.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('markPaid', () => {

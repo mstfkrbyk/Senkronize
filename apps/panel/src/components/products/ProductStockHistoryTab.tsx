@@ -23,6 +23,8 @@ import {
 } from '@/components/ui/table';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import { ListingDetailPushHint } from '@/pages/listings/ListingDetailPushHint';
+import { ProductErpStockBreakdown } from '@/components/products/ProductErpStockBreakdown';
 import type { StockMovementDto } from '@/types/stock';
 
 interface Props {
@@ -81,10 +83,13 @@ export function ProductStockHistoryTab({ barcode }: Props): ReactElement {
   const rows = historyQuery.data?.data ?? [];
 
   return (
-    <Card>
-      <CardHeader>
+    <div className="space-y-4">
+      <ProductErpStockBreakdown barcode={barcode} />
+      <Card>
+      <CardHeader className="space-y-2">
         <CardTitle className="text-base">{t('products.tabs.stockHistory')}</CardTitle>
         <CardDescription>{t('products.stockHistory.description')}</CardDescription>
+        <ListingDetailPushHint kind="stock" />
       </CardHeader>
       <CardContent>
         {historyQuery.isLoading ? (
@@ -148,5 +153,6 @@ export function ProductStockHistoryTab({ barcode }: Props): ReactElement {
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

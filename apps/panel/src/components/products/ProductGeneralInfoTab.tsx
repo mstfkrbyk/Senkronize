@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useMutation } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Loader2, Pencil, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { hasOrgProductLine } from '@/lib/org-products';
+import { parseProductCost } from '@/lib/product-cost';
+import { useAuthStore } from '@/store/auth.store';
 import type { ProductDetailPayload } from '@/types/product';
 
 const WEIGHT_TAG_PREFIX = 'agirlik:';
@@ -36,7 +41,25 @@ interface FormState {
   brand: string;
   barcode: string;
   weight: string;
+  costPrice: string;
   isActive: boolean;
+}
+
+function costToInput(value: unknown): string {
+  const n = parseProductCost(value);
+  return n > 0 ? String(n) : '';
+}
+
+function parseCostFromInput(raw: string): number | null {
+  const trim = raw.trim();
+  if (trim === '') {
+    return 0;
+  }
+  const n = Number.parseFloat(trim.replace(',', '.'));
+  if (!Number.isFinite(n)) {
+    return null;
+  }
+  return Math.max(0, n);
 }
 
 function extractWeight(tags: string[]): string {
@@ -59,8 +82,9 @@ function toFormState(product: ProductDetailPayload['product']): FormState {
     description: product.description ?? '',
     category: product.category ?? '',
     brand: product.brand ?? '',
-    barcode: product.barcode,
+    barcode: product.barcode ?? '',
     weight: extractWeight(product.tags ?? []),
+    costPrice: costToInput(product.costPrice),
     isActive: product.isActive,
   };
 }
@@ -74,6 +98,17 @@ function formatDate(iso: string): string {
 }
 
 export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement {
+  const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode, isLoading: accountingModeLoading } = useAccountingMode();
+  const showNativeCostField = useMemo(
+    () =>
+      hasOrgProductLine(orgProducts, 'ACCOUNTING') &&
+      accountingMode === 'NATIVE' &&
+      !accountingModeLoading,
+    [orgProducts, accountingMode, accountingModeLoading],
+  );
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<FormState>(() => toFormState(product));
 
@@ -85,15 +120,19 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
 
   const saveMutation = useMutation({
     mutationFn: async (payload: FormState) => {
-      await api.patch(`/products/${product.id}`, {
+      const body: Record<string, unknown> = {
         name: payload.name.trim(),
         description: payload.description.trim() || null,
         category: payload.category.trim() || null,
         brand: payload.brand.trim() || null,
-        barcode: payload.barcode.trim(),
+        barcode: payload.barcode.trim() || null,
         isActive: payload.isActive,
         tags: buildTagsWithWeight(product.tags ?? [], payload.weight),
-      });
+      };
+      if (showNativeCostField) {
+        body.costPrice = parseCostFromInput(payload.costPrice) ?? 0;
+      }
+      await api.patch(`/products/${product.id}`, body);
     },
     onSuccess: () => {
       toast.success('Ürün bilgileri kaydedildi');
@@ -110,7 +149,24 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
     setEditing(false);
   };
 
+  const pushSettingsMutation = useMutation({
+    mutationFn: async (payload: {
+      pushStockEnabled: boolean | null;
+      pushPriceEnabled: boolean | null;
+    }) => {
+      await api.patch(`/products/${product.id}`, payload);
+    },
+    onSuccess: () => {
+      toast.success('Senkron ayarları güncellendi');
+      onSaved();
+    },
+    onError: (e) => {
+      toast.error(getApiErrorMessage(e));
+    },
+  });
+
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
         <div>
@@ -146,8 +202,16 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
               <Button
                 type="button"
                 size="sm"
-                disabled={!form.name.trim() || !form.barcode.trim() || saveMutation.isPending}
+                disabled={
+                  !form.name.trim() ||
+                  (!form.barcode.trim() && !(product.sku ?? '').trim()) ||
+                  saveMutation.isPending
+                }
                 onClick={() => {
+                  if (showNativeCostField && parseCostFromInput(form.costPrice) === null) {
+                    toast.error('Geçersiz maliyet fiyatı');
+                    return;
+                  }
                   saveMutation.mutate(form);
                 }}
               >
@@ -229,6 +293,7 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
               id="product-barcode"
               className="font-mono"
               value={form.barcode}
+              placeholder="Barkod yoksa boş bırakın (SKU ile eşleştirme)"
               disabled={!editing}
               onChange={(e) => {
                 setForm((f) => ({ ...f, barcode: e.target.value }));
@@ -247,6 +312,22 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
               }}
             />
           </div>
+          {showNativeCostField ? (
+            <div className="grid gap-2">
+              <Label htmlFor="product-cost">{t('products.cost')}</Label>
+              <Input
+                id="product-cost"
+                className="text-right tabular-nums"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={form.costPrice}
+                disabled={!editing}
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, costPrice: e.target.value }));
+                }}
+              />
+            </div>
+          ) : null}
           <div className="grid gap-2">
             <Label>SKU</Label>
             <Input value={product.sku ?? '—'} disabled className="font-mono" />
@@ -258,5 +339,53 @@ export function ProductGeneralInfoTab({ product, onSaved }: Props): ReactElement
         </div>
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('products.pushSettings.title')}</CardTitle>
+        <CardDescription>{t('products.pushSettings.description')}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="product-push-stock">{t('products.pushSettings.stock')}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t('products.pushSettings.stockHint')}
+            </p>
+          </div>
+          <Switch
+            id="product-push-stock"
+            checked={product.pushStockEnabled !== false}
+            disabled={pushSettingsMutation.isPending}
+            onCheckedChange={(checked) => {
+              pushSettingsMutation.mutate({
+                pushStockEnabled: checked ? null : false,
+                pushPriceEnabled: product.pushPriceEnabled ?? null,
+              });
+            }}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <Label htmlFor="product-push-price">{t('products.pushSettings.price')}</Label>
+            <p className="text-xs text-muted-foreground">
+              {t('products.pushSettings.priceHint')}
+            </p>
+          </div>
+          <Switch
+            id="product-push-price"
+            checked={product.pushPriceEnabled !== false}
+            disabled={pushSettingsMutation.isPending}
+            onCheckedChange={(checked) => {
+              pushSettingsMutation.mutate({
+                pushStockEnabled: product.pushStockEnabled ?? null,
+                pushPriceEnabled: checked ? null : false,
+              });
+            }}
+          />
+        </div>
+      </CardContent>
+    </Card>
+    </>
   );
 }

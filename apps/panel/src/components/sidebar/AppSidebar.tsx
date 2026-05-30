@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useIsTablet } from '@/hooks/use-mobile';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 
 function CollapseToggle(): ReactElement {
   const { t } = useTranslation();
@@ -69,8 +69,14 @@ export function AppSidebar(): ReactElement {
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuButton size="lg" asChild>
-            <Link to="/dashboard" className="font-semibold text-sidebar-foreground">
-              <span className="truncate text-lg tracking-tight">Senkronize</span>
+            <Link
+              to="/dashboard"
+              className="flex items-center gap-2 font-semibold text-sidebar-foreground"
+            >
+              <Zap className="size-5 shrink-0 text-sky-400" />
+              <span className="truncate text-lg tracking-tight group-data-[collapsible=icon]:hidden">
+                Senkronize
+              </span>
             </Link>
           </SidebarMenuButton>
         </SidebarMenu>

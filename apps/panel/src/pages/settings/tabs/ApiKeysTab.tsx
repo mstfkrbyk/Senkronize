@@ -5,6 +5,7 @@ import { Copy, KeyRound, Pencil, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -42,7 +45,7 @@ import {
 import { api, getApiErrorMessage } from '@/lib/api';
 
 import {
-  API_KEY_PERMISSIONS,
+  apiKeyPermissionLabel,
   type ApiKeyRow,
   type CreatedApiKeyResponse,
   type CreateApiKeyInput,
@@ -72,10 +75,7 @@ function permissionsLabel(
   if (perms.length === 0) {
     return '—';
   }
-  const labels = perms.map((p) => {
-    const found = API_KEY_PERMISSIONS.find((item) => item.value === p);
-    return found ? t(found.labelKey) : p;
-  });
+  const labels = perms.map((p) => apiKeyPermissionLabel(p, t));
   return labels.join(', ');
 }
 
@@ -186,27 +186,37 @@ export function ApiKeysTab(): ReactElement {
 
   return (
     <TooltipProvider>
-      <div className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">{t('settings.apiKeys.title')}</h2>
-            <p className="text-sm text-muted-foreground">{t('settings.apiKeys.subtitle')}</p>
-          </div>
+      <SettingsPageShell
+        title="API Anahtarları"
+        description="Dış sistemler için API anahtarları oluşturun ve yönetin."
+        maxWidth="max-w-3xl"
+        actions={
           <Button type="button" onClick={() => setCreateOpen(true)}>
             <KeyRound className="mr-2 size-4" />
             {t('settings.apiKeys.createButton')}
           </Button>
-        </div>
-
+        }
+      >
         {keysQuery.isError ? (
-          <p className="text-sm text-destructive">{getApiErrorMessage(keysQuery.error)}</p>
+          <Card>
+            <CardContent className="pt-6">
+              <QueryErrorAlert
+                error={keysQuery.error}
+                onRetry={() => {
+                  void keysQuery.refetch();
+                }}
+              />
+            </CardContent>
+          </Card>
         ) : null}
 
         {keysQuery.isLoading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
+          <Card>
+            <CardContent className="space-y-2 pt-6">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
         ) : (
           <div className="rounded-md border border-border">
             <Table>
@@ -347,12 +357,7 @@ export function ApiKeysTab(): ReactElement {
                 {lastCreatedPermissions.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
                     {t('settings.apiKeys.colPermissions')}:{' '}
-                    {lastCreatedPermissions
-                      .map((p) => {
-                        const found = API_KEY_PERMISSIONS.find((item) => item.value === p);
-                        return found ? t(found.labelKey) : p;
-                      })
-                      .join(', ')}
+                    {lastCreatedPermissions.map((p) => apiKeyPermissionLabel(p, t)).join(', ')}
                   </p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
@@ -396,7 +401,7 @@ export function ApiKeysTab(): ReactElement {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      </div>
+      </SettingsPageShell>
     </TooltipProvider>
   );
 }

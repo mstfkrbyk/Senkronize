@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { BarChart2, Download, Loader2, Printer, Share2 } from 'lucide-react';
+import { BarChart2, Download, Info, Loader2, Printer, Share2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,9 +32,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { exportToCsv } from '@/lib/csv-export';
 import { printReport } from '@/lib/pdf-export';
+import { useAuthStore } from '@/store/auth.store';
 import type { ReportFilters } from '@/types/report';
 
 import { ReportPeriodSelector } from './components/ReportPeriodSelector';
@@ -42,6 +46,10 @@ import {
 } from './hooks/useReports';
 import { useReportPdfDownload } from './hooks/useReportPdfDownload';
 import { ShareReportModal } from './ShareReportModal';
+import {
+  resolveReportsProductAccess,
+  resolveSalesReportPresentation,
+} from './reports-tabs.config';
 import {
   aggregateSalesByGroup,
   buildPlatformSalesTable,
@@ -62,6 +70,18 @@ import {
 
 export function SalesReportTab(): ReactElement {
   const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const productAccess = useMemo(
+    () => resolveReportsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const salesPresentation = useMemo(
+    () => resolveSalesReportPresentation(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const showFullSales = salesPresentation === 'full';
   const initial = useMemo(() => salesPeriodRangeFromPreset('month'), []);
   const [periodPreset, setPeriodPreset] = useState<SalesPeriodPreset>('month');
   const [startDate, setStartDate] = useState(initial.start);
@@ -82,10 +102,10 @@ export function SalesReportTab(): ReactElement {
     [startDate, endDate, selectedPlatforms, groupBy],
   );
 
-  const salesQuery = useSalesReport(filters);
+  const salesQuery = useSalesReport(filters, { enabled: showFullSales });
   const platformCompareQuery = usePlatformComparison(
     { startDate, endDate },
-    { enabled: Boolean(startDate && endDate) },
+    { enabled: showFullSales && Boolean(startDate && endDate) },
   );
 
   const returnRateByPlatform = useMemo(() => {
@@ -173,12 +193,51 @@ export function SalesReportTab(): ReactElement {
     );
   }
 
+  if (accountingModeLoading && productAccess.hasAccounting) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    );
+  }
+
+  if (!showFullSales) {
+    return (
+      <div id="report-sales" className="space-y-6">
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950">
+          <Info className="h-4 w-4 text-sky-600" aria-hidden />
+          <AlertTitle className="text-sky-950">
+            {t('reports.sales.externalErpTitle')}
+          </AlertTitle>
+          <AlertDescription className="text-sky-900/90">
+            <p>{t('reports.sales.externalErpDescription')}</p>
+            <p className="mt-3 flex flex-wrap gap-3">
+              <Link
+                to="/reports?tab=erp-transfer"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.sales.openErpTransfer')}
+              </Link>
+              <Link
+                to="/connections?tab=erp"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.sales.openConnections')}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div id="report-content" className="space-y-6">
       {salesQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(salesQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={salesQuery.error}
+          onRetry={() => {
+            void salesQuery.refetch();
+          }}
+        />
       ) : null}
 
       {!isSalesLoading &&

@@ -1,42 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+
+import { resolveOnboardingTourSteps } from '@/lib/onboarding-tour-steps';
+import type { OnboardingTourStep } from '@/lib/onboarding-tour-steps';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useAuthStore } from '@/store/auth.store';
 
 export const ONBOARDING_TOUR_STORAGE_KEY = 'senkronize-panel-onboarding-tour-done';
 
-export interface OnboardingTourStep {
-  target: string;
-  content: string;
-  /** Hedef görünür değilse gidilecek rota */
-  route?: string;
-}
-
-export const ONBOARDING_TOUR_STEPS: readonly OnboardingTourStep[] = [
-  {
-    target: '[data-tour="sidebar-connections"]',
-    content: 'Pazaryeri ve ERP bağlantılarınızı buradan ekleyin',
-    route: '/connections',
-  },
-  {
-    target: '[data-tour="sidebar-products"]',
-    content: 'Ürünlerinizi ve stok durumunuzu buradan yönetin',
-    route: '/products',
-  },
-  {
-    target: '[data-tour="sidebar-orders"]',
-    content: 'Tüm kanallardan gelen siparişleri tek ekranda görün',
-    route: '/orders',
-  },
-  {
-    target: '[data-tour="sidebar-pricing"]',
-    content: 'BuyBox optimizasyonu ve fiyat kurallarını buradan ayarlayın',
-    route: '/pricing',
-  },
-  {
-    target: '[data-tour="dashboard-sync"]',
-    content: 'Anlık senkronizasyon durumunuzu buradan takip edin',
-    route: '/dashboard',
-  },
-] as const;
+export type { OnboardingTourStep } from '@/lib/onboarding-tour-steps';
+export { ONBOARDING_TOUR_STEPS } from '@/lib/onboarding-tour-steps';
 
 function isTourCompleted(): boolean {
   try {
@@ -58,6 +31,7 @@ export interface UseOnboardingTourResult {
   visible: boolean;
   stepIndex: number;
   step: OnboardingTourStep | undefined;
+  stepCount: number;
   isLast: boolean;
   finish: () => void;
   goNext: () => void;
@@ -66,6 +40,12 @@ export interface UseOnboardingTourResult {
 export function useOnboardingTour(): UseOnboardingTourResult {
   const navigate = useNavigate();
   const location = useLocation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
+  const steps = useMemo(
+    () => resolveOnboardingTourSteps(orgProducts, accountingMode),
+    [orgProducts, accountingMode],
+  );
   const [visible, setVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const initialRouteDone = useRef(false);
@@ -81,20 +61,20 @@ export function useOnboardingTour(): UseOnboardingTourResult {
     if (!visible || initialRouteDone.current) {
       return;
     }
-    const first = ONBOARDING_TOUR_STEPS[0];
+    const first = steps[0];
     if (first?.route && location.pathname !== first.route) {
       initialRouteDone.current = true;
       navigate(first.route, { replace: true });
     }
-  }, [visible, navigate, location.pathname]);
+  }, [visible, navigate, location.pathname, steps]);
 
   const finish = useCallback((): void => {
     markTourCompleted();
     setVisible(false);
   }, []);
 
-  const step = ONBOARDING_TOUR_STEPS[stepIndex];
-  const isLast = stepIndex >= ONBOARDING_TOUR_STEPS.length - 1;
+  const step = steps[stepIndex];
+  const isLast = stepIndex >= steps.length - 1;
 
   useLayoutEffect(() => {
     if (!visible || !step) {
@@ -109,17 +89,18 @@ export function useOnboardingTour(): UseOnboardingTourResult {
       finish();
       return;
     }
-    const next = ONBOARDING_TOUR_STEPS[stepIndex + 1];
+    const next = steps[stepIndex + 1];
     if (next?.route) {
       navigate(next.route);
     }
     setStepIndex((i) => i + 1);
-  }, [finish, isLast, navigate, stepIndex]);
+  }, [finish, isLast, navigate, stepIndex, steps]);
 
   return {
     visible,
     stepIndex,
     step,
+    stepCount: steps.length,
     isLast,
     finish,
     goNext,

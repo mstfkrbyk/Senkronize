@@ -1,18 +1,28 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Mail, PieChart as PieChartIcon } from 'lucide-react';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import { toast } from 'sonner';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 import { EmptyState } from '@/components/EmptyState';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatCustomerSegmentsNavContext } from '@/pages/customers/customers-nav-context';
+import { customersT } from '@/pages/customers/translations';
 import {
   formatTryAmount,
   SEGMENT_BADGE_CLASS,
@@ -21,6 +31,7 @@ import {
   SEGMENT_LABELS,
 } from '@/lib/customer-segments';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import type { CustomerSegmentKey, CustomerSegmentsSummary } from '@/types/customer';
 
 const SEGMENT_ORDER: CustomerSegmentKey[] = [
@@ -31,11 +42,62 @@ const SEGMENT_ORDER: CustomerSegmentKey[] = [
   'kayip',
 ];
 
+interface SegmentsPageHeaderProps {
+  navContextLine: string;
+  withBackButton?: boolean;
+}
+
+function SegmentsPageHeader({
+  navContextLine,
+  withBackButton = false,
+}: SegmentsPageHeaderProps): ReactElement {
+  const titleBlock = (
+    <div>
+      <p className="text-sm text-muted-foreground">{navContextLine}</p>
+      <h1 className="text-2xl font-semibold tracking-tight text-primary">
+        {customersT('segments.pageTitle')}
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        {customersT('segments.subtitle')}
+      </p>
+    </div>
+  );
+
+  if (!withBackButton) {
+    return titleBlock;
+  }
+
+  return (
+    <div className="flex items-start gap-3">
+      <Button variant="ghost" size="icon" asChild className="mt-0.5 shrink-0">
+        <Link to="/customers">
+          <ArrowLeft className="size-4" />
+        </Link>
+      </Button>
+      {titleBlock}
+    </div>
+  );
+}
+
 export function CustomerSegmentsPage(): ReactElement {
-  usePageTitle('Müşteri Segmentleri');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const navContextLine = formatCustomerSegmentsNavContext(
+    groupLabel,
+    t('nav.customers'),
+    orgProducts,
+    t,
+  );
+
+  usePageTitle(customersT('segments.pageTitle'));
+  const { mode, isLoading: accountingModeLoading } = useAccountingMode();
+  const isNativeAccounting = mode === 'NATIVE';
+  const showSegments = !accountingModeLoading && !isNativeAccounting;
 
   const segmentsQuery = useQuery({
     queryKey: ['customer-segments'],
+    enabled: showSegments,
     queryFn: async (): Promise<CustomerSegmentsSummary> => {
       const { data } = await api.get<{ data: CustomerSegmentsSummary }>(
         '/customers/segments',
@@ -56,16 +118,42 @@ export function CustomerSegmentsPage(): ReactElement {
     })).filter((d) => d.value > 0);
   }, [segmentsQuery.data]);
 
-  const handleEmailPlaceholder = (segment: CustomerSegmentKey): void => {
-    toast.info(
-      `${SEGMENT_LABELS[segment]} segmentine e-posta gönderimi yakında eklenecek.`,
+  if (accountingModeLoading) {
+    return (
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <SegmentsPageHeader navContextLine={navContextLine} />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-36" />
+          ))}
+        </div>
+        <Skeleton className="h-80" />
+      </div>
     );
-  };
+  }
+
+  if (isNativeAccounting) {
+    return (
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <SegmentsPageHeader navContextLine={navContextLine} />
+        <EmptyState
+          icon={PieChartIcon}
+          title={customersT('segments.guard.title')}
+          description={customersT('segments.guard.description')}
+          actionSlot={
+            <Button asChild variant="outline">
+              <Link to="/customers">{customersT('segments.guard.back')}</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
 
   if (segmentsQuery.isLoading) {
     return (
       <div className="flex flex-1 flex-col gap-6 p-6">
-        <Skeleton className="h-10 w-64" />
+        <SegmentsPageHeader navContextLine={navContextLine} />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-36" />
@@ -78,11 +166,17 @@ export function CustomerSegmentsPage(): ReactElement {
 
   if (segmentsQuery.isError || !segmentsQuery.data) {
     return (
-      <div className="p-6">
+      <div className="flex flex-1 flex-col gap-6 p-6">
+        <SegmentsPageHeader navContextLine={navContextLine} withBackButton />
         <EmptyState
           icon={PieChartIcon}
-          title="Segment verileri yüklenemedi"
+          title={customersT('segments.error.loadFailed')}
           description={getApiErrorMessage(segmentsQuery.error)}
+          actionSlot={
+            <Button asChild variant="outline">
+              <Link to="/customers">{customersT('segments.guard.back')}</Link>
+            </Button>
+          }
         />
       </div>
     );
@@ -96,60 +190,59 @@ export function CustomerSegmentsPage(): ReactElement {
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/customers">
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Müşteri Segmentleri
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Otomatik segmentasyon: harcama, sipariş sıklığı ve son aktiviteye göre.
-          </p>
-        </div>
-      </div>
+      <SegmentsPageHeader navContextLine={navContextLine} withBackButton />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {SEGMENT_ORDER.map((key) => {
-          const stats = summary[key];
-          const avgSpend =
-            stats.count > 0
-              ? Number(stats.totalRevenue) / stats.count
-              : 0;
-          return (
-            <Card key={key}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                  <Badge variant="outline" className={SEGMENT_BADGE_CLASS[key]}>
-                    {SEGMENT_LABELS[key]}
-                  </Badge>
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">{SEGMENT_CRITERIA[key]}</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-3xl font-semibold tabular-nums">
-                  {stats.count.toLocaleString('tr-TR')}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Ort. harcama: {formatTryAmount(avgSpend)}
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => handleEmailPlaceholder(key)}
-                >
-                  <Mail className="mr-2 size-4" />
-                  Bu segmente e-posta gönder
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <TooltipProvider delayDuration={200}>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {SEGMENT_ORDER.map((key) => {
+            const stats = summary[key];
+            const avgSpend =
+              stats.count > 0
+                ? Number(stats.totalRevenue) / stats.count
+                : 0;
+            const emailButton = (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled
+                aria-disabled
+              >
+                <Mail className="mr-2 size-4" aria-hidden />
+                {customersT('segments.email.button')}
+              </Button>
+            );
+            return (
+              <Card key={key}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <Badge variant="outline" className={SEGMENT_BADGE_CLASS[key]}>
+                      {SEGMENT_LABELS[key]}
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">{SEGMENT_CRITERIA[key]}</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-3xl font-semibold tabular-nums">
+                    {stats.count.toLocaleString('tr-TR')}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Ort. harcama: {formatTryAmount(avgSpend)}
+                  </p>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex w-full">{emailButton}</span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-center">
+                      {SEGMENT_LABELS[key]} {customersT('segments.email.tooltip')}
+                    </TooltipContent>
+                  </Tooltip>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </TooltipProvider>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -159,7 +252,7 @@ export function CustomerSegmentsPage(): ReactElement {
           <CardContent>
             {chartData.length === 0 ? (
               <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                Henüz segmentlenecek müşteri yok.
+                {customersT('segments.empty.chart')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
@@ -181,7 +274,7 @@ export function CustomerSegmentsPage(): ReactElement {
                       />
                     ))}
                   </Pie>
-                  <Tooltip
+                  <RechartsTooltip
                     formatter={(v, _name, item) => {
                       const payload = item?.payload as {
                         revenue?: number;
@@ -221,7 +314,7 @@ export function CustomerSegmentsPage(): ReactElement {
               ))}
             </ul>
             <Button asChild variant="outline">
-              <Link to="/customers">Müşteri listesine dön</Link>
+              <Link to="/customers">{customersT('segments.backToList')}</Link>
             </Button>
           </CardContent>
         </Card>

@@ -1,11 +1,19 @@
 import type { ReactElement } from 'react';
-
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BellRing, Mail, Smartphone } from 'lucide-react';
+import { BellRing, FileText, Mail, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -14,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
@@ -95,6 +104,7 @@ function PrefRow({
 }
 
 export function NotificationsTab(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { subscribe, unsubscribe, isSupported } = usePushNotifications();
 
@@ -184,16 +194,19 @@ export function NotificationsTab(): ReactElement {
 
   if (prefsQuery.isError) {
     return (
-      <p className="text-sm text-destructive">
-        Bildirim tercihleri yüklenemedi. Sayfayı yenileyin.
-      </p>
+      <QueryErrorAlert
+        error={prefsQuery.error}
+        onRetry={() => {
+          void prefsQuery.refetch();
+        }}
+      />
     );
   }
 
   return (
-    <div className="space-y-8 max-w-2xl">
-      <div>
-        <h3 className="text-lg font-medium text-primary">Bildirim ayarları</h3>
+    <div className="w-full max-w-2xl space-y-6">
+      <div className="space-y-1">
+        <h3 className="text-lg font-semibold text-foreground">Bildirim ayarları</h3>
         <p className="text-sm text-muted-foreground">
           E-posta, push ve uygulama içi bildirimlerinizi kanal ve olay bazında yönetin.
         </p>
@@ -209,97 +222,113 @@ export function NotificationsTab(): ReactElement {
 
       {prefs ? (
         <>
-          <section className="space-y-4 rounded-lg border p-4">
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-sky-500" />
-              <p className="text-sm font-medium text-primary">E-posta bildirimleri</p>
-            </div>
-            <PrefRow
-              id="email-master"
-              label="E-posta bildirimleri"
-              checked={prefs.emailEnabled}
-              disabled={busy}
-              onCheckedChange={(v) => setPref('emailEnabled', v)}
-            />
-            <div className="space-y-3 border-t pt-3">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Mail className="size-4 text-sky-500" />
+                E-posta bildirimleri
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Sipariş, stok ve sistem olayları için e-posta alın.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 px-4 py-4">
               <PrefRow
-                id="email-new-order"
-                label="Yeni sipariş"
-                checked={prefs.emailNewOrder}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailNewOrder', v)}
+                id="email-master"
+                label="E-posta bildirimleri"
+                checked={prefs.emailEnabled}
+                disabled={busy}
+                onCheckedChange={(v) => setPref('emailEnabled', v)}
               />
-              <PrefRow
-                id="email-low-stock"
-                label="Düşük stok"
-                checked={prefs.emailLowStock}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailLowStock', v)}
-              />
-              <PrefRow
-                id="email-stock-out"
-                label="Stok tükenmesi"
-                checked={prefs.emailStockOut}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailStockOut', v)}
-              />
-              <PrefRow
-                id="email-sync"
-                label="Senkron hatası"
-                checked={prefs.emailSyncError}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailSyncError', v)}
-              />
-              <PrefRow
-                id="email-weekly"
-                label="Haftalık rapor"
-                checked={prefs.emailWeeklyReport}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailWeeklyReport', v)}
-              />
-              <PrefRow
-                id="email-ticket"
-                label="Destek talebi yanıtı"
-                checked={prefs.emailTicketReply}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailTicketReply', v)}
-              />
-              <PrefRow
-                id="email-plan"
-                label="Plan süresi uyarısı"
-                checked={prefs.emailPlanExpiry}
-                disabled={busy || !prefs.emailEnabled}
-                onCheckedChange={(v) => setPref('emailPlanExpiry', v)}
-              />
-            </div>
-            <div className="space-y-3 border-t pt-3">
-              <Label>Özet sıklığı</Label>
-              <p className="text-xs text-muted-foreground">
+              <div className="space-y-3 border-t pt-4">
+                <PrefRow
+                  id="email-new-order"
+                  label="Yeni sipariş"
+                  checked={prefs.emailNewOrder}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailNewOrder', v)}
+                />
+                <PrefRow
+                  id="email-low-stock"
+                  label="Düşük stok"
+                  checked={prefs.emailLowStock}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailLowStock', v)}
+                />
+                <PrefRow
+                  id="email-stock-out"
+                  label="Stok tükenmesi"
+                  checked={prefs.emailStockOut}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailStockOut', v)}
+                />
+                <PrefRow
+                  id="email-sync"
+                  label="Senkron hatası"
+                  checked={prefs.emailSyncError}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailSyncError', v)}
+                />
+                <PrefRow
+                  id="email-weekly"
+                  label="Haftalık rapor"
+                  checked={prefs.emailWeeklyReport}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailWeeklyReport', v)}
+                />
+                <PrefRow
+                  id="email-ticket"
+                  label="Destek talebi yanıtı"
+                  checked={prefs.emailTicketReply}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailTicketReply', v)}
+                />
+                <PrefRow
+                  id="email-plan"
+                  label="Plan süresi uyarısı"
+                  checked={prefs.emailPlanExpiry}
+                  disabled={busy || !prefs.emailEnabled}
+                  onCheckedChange={(v) => setPref('emailPlanExpiry', v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <FileText className="size-4 text-sky-500" />
+                Özet e-posta
+              </CardTitle>
+              <CardDescription className="text-xs">
                 Anlık dışındaki seçeneklerde bildirimler tek e-postada toplanır.
-              </p>
-              <Select
-                value={prefs.digestFrequency}
-                disabled={busy || !prefs.emailEnabled}
-                onValueChange={(v) => {
-                  updatePrefs.mutate({
-                    digestFrequency: v as NotificationPrefs['digestFrequency'],
-                  });
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="realtime">Anlık</SelectItem>
-                  <SelectItem value="daily">Günlük özet</SelectItem>
-                  <SelectItem value="weekly">Haftalık özet (Pazartesi)</SelectItem>
-                </SelectContent>
-              </Select>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 px-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="digest-frequency">Özet sıklığı</Label>
+                <Select
+                  value={prefs.digestFrequency}
+                  disabled={busy || !prefs.emailEnabled}
+                  onValueChange={(v) => {
+                    updatePrefs.mutate({
+                      digestFrequency: v as NotificationPrefs['digestFrequency'],
+                    });
+                  }}
+                >
+                  <SelectTrigger id="digest-frequency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="realtime">Anlık</SelectItem>
+                    <SelectItem value="daily">Günlük özet</SelectItem>
+                    <SelectItem value="weekly">Haftalık özet (Pazartesi)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               {prefs.digestFrequency !== 'realtime' ? (
-                <div className="flex items-center gap-3">
-                  <Label htmlFor="digest-hour" className="shrink-0">
-                    Gönderim saati
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="digest-hour">Gönderim saati</Label>
                   <Select
                     value={String(prefs.digestHour)}
                     disabled={busy || !prefs.emailEnabled}
@@ -320,127 +349,154 @@ export function NotificationsTab(): ReactElement {
                   </Select>
                 </div>
               ) : null}
-            </div>
-          </section>
+            </CardContent>
+          </Card>
 
-          <section className="space-y-4 rounded-lg border p-4">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4 text-sky-500" />
-              <p className="text-sm font-medium text-primary">Push bildirimleri</p>
-              <Badge variant="secondary" className="text-xs">
-                Beta
-              </Badge>
-            </div>
-            <PrefRow
-              id="push-master"
-              label="Push bildirimleri etkinleştir"
-              description="Aşağıdaki tarayıcı izni ile birlikte kullanılır."
-              checked={prefs.pushEnabled}
-              disabled={busy}
-              onCheckedChange={(v) => setPref('pushEnabled', v)}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-              <div>
-                <Label htmlFor="n-browser-push">Tarayıcı izni</Label>
-                <p className="text-xs text-muted-foreground">
-                  HTTPS veya localhost gerekir.
-                </p>
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Smartphone className="size-4 text-sky-500" />
+                Push bildirimleri
+                <Badge variant="secondary" className="text-xs font-normal">
+                  Beta
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Tarayıcı izni ile birlikte anlık push bildirimleri alın.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 px-4 py-4">
+              <PrefRow
+                id="push-master"
+                label="Push bildirimleri etkinleştir"
+                description="Aşağıdaki tarayıcı izni ile birlikte kullanılır."
+                checked={prefs.pushEnabled}
+                disabled={busy}
+                onCheckedChange={(v) => setPref('pushEnabled', v)}
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Tarayıcı izni</p>
+                  <p className="text-xs text-muted-foreground">
+                    HTTPS veya localhost gerekir.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={busy || !isSupported || !prefs.pushEnabled}
+                    onClick={() => browserPushMutation.mutate(true)}
+                  >
+                    İzin iste
+                  </Button>
+                  <Switch
+                    id="n-browser-push"
+                    checked={pushSubscribed}
+                    disabled={busy || !isSupported || !prefs.pushEnabled}
+                    onCheckedChange={(v) => {
+                      browserPushMutation.mutate(v);
+                    }}
+                  />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              {!isSupported ? (
+                <p className="text-xs text-muted-foreground">
+                  Bu tarayıcı web push desteklemiyor.
+                </p>
+              ) : null}
+              <div className="space-y-3 border-t pt-4">
+                <PrefRow
+                  id="push-new-order"
+                  label="Yeni sipariş"
+                  checked={prefs.pushNewOrder}
+                  disabled={busy || !prefs.pushEnabled}
+                  onCheckedChange={(v) => setPref('pushNewOrder', v)}
+                />
+                <PrefRow
+                  id="push-sync"
+                  label="Senkron hatası"
+                  checked={prefs.pushSyncError}
+                  disabled={busy || !prefs.pushEnabled}
+                  onCheckedChange={(v) => setPref('pushSyncError', v)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <BellRing className="size-4 text-sky-500" />
+                Uygulama içi bildirimler
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Panelde zil simgesi ve bildirim listesi.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 px-4 py-4">
+              <PrefRow
+                id="in-app-enabled"
+                label="Bildirim merkezi"
+                checked={prefs.inAppEnabled}
+                disabled={busy}
+                onCheckedChange={(v) => setPref('inAppEnabled', v)}
+              />
+              <PrefRow
+                id="in-app-sound"
+                label="Bildirim sesi"
+                checked={prefs.inAppSoundEnabled}
+                disabled={busy || !prefs.inAppEnabled}
+                onCheckedChange={(v) => setPref('inAppSoundEnabled', v)}
+              />
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden border-dashed">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="text-sm font-semibold">Test bildirimi</CardTitle>
+              <CardDescription className="text-xs">
+                Ayarlarınızın çalıştığını doğrulamak için test mesajı gönderin.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 py-4">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  disabled={busy || !isSupported || !prefs.pushEnabled}
-                  onClick={() => browserPushMutation.mutate(true)}
+                  disabled={testEmailMutation.isPending || !prefs.emailEnabled}
+                  onClick={() => testEmailMutation.mutate()}
                 >
-                  İzin iste
+                  Test e-postası gönder
                 </Button>
-                <Switch
-                  id="n-browser-push"
-                  checked={pushSubscribed}
-                  disabled={busy || !isSupported || !prefs.pushEnabled}
-                  onCheckedChange={(v) => {
-                    browserPushMutation.mutate(v);
-                  }}
-                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={
+                    testPushMutation.isPending ||
+                    !prefs.pushEnabled ||
+                    !pushSubscribed
+                  }
+                  onClick={() => testPushMutation.mutate()}
+                >
+                  Test push gönder
+                </Button>
               </div>
-            </div>
-            {!isSupported ? (
-              <p className="text-xs text-muted-foreground">
-                Bu tarayıcı web push desteklemiyor.
-              </p>
-            ) : null}
-            <div className="space-y-3 border-t pt-3">
-              <PrefRow
-                id="push-new-order"
-                label="Yeni sipariş"
-                checked={prefs.pushNewOrder}
-                disabled={busy || !prefs.pushEnabled}
-                onCheckedChange={(v) => setPref('pushNewOrder', v)}
-              />
-              <PrefRow
-                id="push-sync"
-                label="Senkron hatası"
-                checked={prefs.pushSyncError}
-                disabled={busy || !prefs.pushEnabled}
-                onCheckedChange={(v) => setPref('pushSyncError', v)}
-              />
-            </div>
-          </section>
-
-          <section className="space-y-4 rounded-lg border p-4">
-            <div className="flex items-center gap-2">
-              <BellRing className="h-4 w-4 text-sky-500" />
-              <p className="text-sm font-medium text-primary">Uygulama içi bildirimler</p>
-            </div>
-            <PrefRow
-              id="in-app-enabled"
-              label="Bildirim merkezi"
-              description="Panelde zil simgesi ve bildirim listesi."
-              checked={prefs.inAppEnabled}
-              disabled={busy}
-              onCheckedChange={(v) => setPref('inAppEnabled', v)}
-            />
-            <PrefRow
-              id="in-app-sound"
-              label="Bildirim sesi"
-              checked={prefs.inAppSoundEnabled}
-              disabled={busy || !prefs.inAppEnabled}
-              onCheckedChange={(v) => setPref('inAppSoundEnabled', v)}
-            />
-          </section>
-
-          <section className="space-y-3 rounded-lg border border-dashed p-4">
-            <p className="text-sm font-medium text-primary">Test bildirimi</p>
-            <p className="text-xs text-muted-foreground">
-              Ayarlarınızın çalıştığını doğrulamak için test mesajı gönderin.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={testEmailMutation.isPending || !prefs.emailEnabled}
-                onClick={() => testEmailMutation.mutate()}
-              >
-                Test e-postası gönder
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={
-                  testPushMutation.isPending ||
-                  !prefs.pushEnabled ||
-                  !pushSubscribed
-                }
-                onClick={() => testPushMutation.mutate()}
-              >
-                Test push gönder
-              </Button>
-            </div>
-          </section>
+            </CardContent>
+          </Card>
         </>
       ) : null}
+
+      <p className="text-sm text-muted-foreground">
+        {t('settings.notificationsDedicatedHint')}{' '}
+        <Link
+          to="/settings/notifications"
+          className="font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {t('settings.notificationsDedicatedLink')}
+        </Link>
+      </p>
     </div>
   );
 }

@@ -1,15 +1,21 @@
-import type { ReactElement } from 'react';
+import type { KeyboardEvent, MouseEvent, ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Download, Loader2, LogIn, Search } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Download, Loader2, LogIn, Search, Users } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { PartnerClientBadges } from '@/components/PartnerClientBadges';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
   SelectContent,
@@ -25,117 +31,83 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
-import { useImpersonationStore } from '@/store/impersonation.store';
-import type { PartnerRelationship, PartnerStatus } from '@/types/partner';
-import type { PlanTier } from '@/types/subscription';
+import { usePageTitle } from '@/hooks/usePageTitle';
+import { resolvePartnerSubPageTitle } from '@/lib/partner-nav-context';
 
 import { InviteClientDialog } from './InviteClientDialog';
+import { PartnerPageHeader } from './PartnerPageHeader';
+import { useCommissionReport, useMyClients } from './hooks/usePartner';
+import { partnerDemoClientHint } from './partner-demo-client-hints';
+import { downloadPartnerClientsCsv } from './partner-clients-csv';
 import {
-  useCommissionReport,
-  useMyClients,
-  usePartnerClientAccess,
-  usePartnerDashboard,
-} from './hooks/usePartner';
-import { formatTryPlain, PARTNER_STATUS_LABELS, planLabel } from './partner-utils';
+  buildPartnerClientRows,
+  filterPartnerClientRows,
+  sortPartnerClientRows,
+  type ClientSort,
+  type PartnerClientTableRow,
+  type PlanFilter,
+  type StatusFilter,
+} from './partner-client-rows';
+import { formatTryPlain, planLabel } from './partner-utils';
+import { useEnterPartnerClient } from './useEnterPartnerClient';
 
-type StatusFilter = 'all' | 'ACTIVE' | 'PENDING' | 'SUSPENDED';
-type PlanFilter = 'all' | PlanTier;
-
-interface ClientTableRow {
-  relationshipId: string;
-  clientOrgId: string | null;
-  name: string;
-  plan: string;
-  monthlyOrders: number;
-  monthlyRevenue: number;
-  commissionPct: number;
-  commissionAmount: number;
-  status: PartnerStatus;
-  registeredAt: string;
-  canImpersonate: boolean;
+function stopRowActivation(e: MouseEvent | KeyboardEvent): void {
+  e.stopPropagation();
 }
 
-function toCsv(rows: ClientTableRow[]): string {
-  const header = [
-    'Firma',
-    'Plan',
-    'Aylık sipariş',
-    'Aylık gelir (TRY)',
-    'Komisyon %',
-    'Komisyon (TRY)',
-    'Durum',
-    'Kayıt tarihi',
-  ];
-  const lines = rows.map((r) => {
-    const date = r.registeredAt
-      ? format(new Date(r.registeredAt), 'yyyy-MM-dd', { locale: tr })
-      : '';
-    return [
-      r.name,
-      planLabel(r.plan),
-      String(r.monthlyOrders),
-      formatTryPlain(r.monthlyRevenue),
-      String(r.commissionPct),
-      formatTryPlain(r.commissionAmount),
-      PARTNER_STATUS_LABELS[r.status],
-      date,
-    ]
-      .map((c) => `"${String(c).replaceAll('"', '""')}"`)
-      .join(',');
-  });
-  return [header.join(','), ...lines].join('\n');
-}
-
-function buildRows(
-  relationships: PartnerRelationship[],
-  ordersByOrg: Map<string, number>,
-  reportByOrg: Map<
-    string,
-    { plan: string; monthlyRevenue: number; commissionAmount: number }
-  >,
-): ClientTableRow[] {
-  return relationships.map((rel) => {
-    const cid = rel.clientOrgId;
-    const report = cid ? reportByOrg.get(cid) : undefined;
-    const pct = Number(rel.commissionPct);
-    return {
-      relationshipId: rel.id,
-      clientOrgId: cid,
-      name: rel.clientOrg?.name ?? rel.invitedEmail ?? 'Davet bekliyor',
-      plan: report?.plan ?? '—',
-      monthlyOrders: cid ? (ordersByOrg.get(cid) ?? 0) : 0,
-      monthlyRevenue: report?.monthlyRevenue ?? 0,
-      commissionPct: pct,
-      commissionAmount: report?.commissionAmount ?? 0,
-      status: rel.status,
-      registeredAt: rel.clientOrg?.createdAt ?? rel.createdAt,
-      canImpersonate: rel.canImpersonate && rel.status === 'ACTIVE' && cid != null,
-    };
-  });
+function clientRowActivationProps(
+  row: Pick<PartnerClientTableRow, 'canImpersonate' | 'clientOrgId' | 'name'>,
+  enterClient: (clientOrgId: string, clientName: string) => Promise<void>,
+  enterClientAria: string,
+): {
+  role: 'button';
+  tabIndex: 0;
+  'aria-label': string;
+  className: string;
+  onClick: () => void;
+  onKeyDown: (e: KeyboardEvent<HTMLTableRowElement>) => void;
+} | null {
+  if (!row.canImpersonate || row.clientOrgId == null) {
+    return null;
+  }
+  const clientOrgId = row.clientOrgId;
+  const activate = (): void => {
+    void enterClient(clientOrgId, row.name);
+  };
+  return {
+    role: 'button',
+    tabIndex: 0,
+    'aria-label': enterClientAria,
+    className:
+      'cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    onClick: activate,
+    onKeyDown: (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') {
+        return;
+      }
+      e.preventDefault();
+      activate();
+    },
+  };
 }
 
 export function PartnerClientsPage(): ReactElement {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const { t } = useTranslation();
+  const { pathname } = useLocation();
+  const pageTitle =
+    resolvePartnerSubPageTitle(pathname, t) ?? t('partner.nav.clients');
+  const pageDescription = t('partner.pages.clients.description');
+  usePageTitle(pageTitle);
+
   const now = useMemo(() => new Date(), []);
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState<PlanFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sort, setSort] = useState<ClientSort>('name-asc');
 
   const clients = useMyClients();
-  const dashboard = usePartnerDashboard();
   const report = useCommissionReport(now.getFullYear(), now.getMonth() + 1);
-  const accessClient = usePartnerClientAccess();
-  const startImpersonation = useImpersonationStore((s) => s.startImpersonation);
-
-  const ordersByOrg = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of dashboard.data?.clients ?? []) {
-      map.set(c.clientOrgId, c.orders30d);
-    }
-    return map;
-  }, [dashboard.data?.clients]);
+  const { enterClient, isEnteringClient } = useEnterPartnerClient();
 
   const reportByOrg = useMemo(() => {
     const map = new Map<
@@ -152,206 +124,317 @@ export function PartnerClientsPage(): ReactElement {
     return map;
   }, [report.data?.rows]);
 
+  const invitePendingLabel = t('partner.pages.clients.invitePending');
+
   const allRows = useMemo(() => {
     if (!clients.data) {
       return [];
     }
-    return buildRows(clients.data, ordersByOrg, reportByOrg);
-  }, [clients.data, ordersByOrg, reportByOrg]);
+    return buildPartnerClientRows(clients.data, reportByOrg, invitePendingLabel);
+  }, [clients.data, reportByOrg, invitePendingLabel]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allRows.filter((row) => {
-      if (statusFilter !== 'all' && row.status !== statusFilter) {
-        return false;
-      }
-      if (planFilter !== 'all' && row.plan !== planFilter) {
-        return false;
-      }
-      if (q && !row.name.toLowerCase().includes(q)) {
-        return false;
-      }
-      return true;
+    const matched = filterPartnerClientRows(allRows, {
+      search,
+      planFilter,
+      statusFilter,
     });
-  }, [allRows, search, planFilter, statusFilter]);
+    return sortPartnerClientRows(matched, sort);
+  }, [allRows, search, planFilter, statusFilter, sort]);
 
-  const loading = clients.isLoading || dashboard.isLoading || report.isLoading;
-  const isError = clients.isError || dashboard.isError || report.isError;
-  const error = clients.error ?? dashboard.error ?? report.error;
-
-  async function handleAccess(clientOrgId: string, clientName: string): Promise<void> {
-    try {
-      const { impersonationToken } = await accessClient.mutateAsync(clientOrgId);
-      startImpersonation({ id: clientOrgId, name: clientName }, impersonationToken);
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      navigate('/dashboard');
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err));
-    }
-  }
+  const loading = clients.isLoading || report.isLoading;
+  const isError = clients.isError || report.isError;
+  const error = clients.error ?? report.error;
 
   const exportCsv = useCallback(() => {
     if (filtered.length === 0) {
-      toast.error('Dışa aktarılacak kayıt yok.');
+      toast.error(
+        allRows.length === 0
+          ? t('partner.pages.clients.exportEmptyAll')
+          : t('partner.pages.clients.exportEmptyFiltered'),
+      );
       return;
     }
-    const csv = '\uFEFF' + toCsv(filtered);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `musteriler-${format(now, 'yyyy-MM-dd')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success('CSV indirildi.');
-  }, [filtered, now]);
+    downloadPartnerClientsCsv(filtered, now);
+    toast.success(t('partner.pages.clients.exportCsvSuccess'));
+  }, [allRows.length, filtered, now, t]);
+
+  const inviteTrigger = (
+    <Button type="button">{t('partner.pages.clients.inviteClient')}</Button>
+  );
+
+  const headerActions = (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={loading || filtered.length === 0}
+        onClick={exportCsv}
+      >
+        <Download className="mr-2 size-4" aria-hidden />
+        {t('partner.pages.clients.exportCsv')}
+      </Button>
+      <InviteClientDialog trigger={inviteTrigger} />
+    </>
+  );
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+      <div className="space-y-6" aria-busy="true" aria-label={t('partner.pages.clients.loadingAria')}>
+        <PartnerPageHeader
+          title={pageTitle}
+          description={pageDescription}
+          actions={headerActions}
+        />
+        <Card>
+          <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:flex-wrap">
+            <Skeleton className="h-10 min-w-[200px] flex-1" />
+            <Skeleton className="h-10 w-[160px]" />
+            <Skeleton className="h-10 w-[160px]" />
+            <Skeleton className="h-10 w-[220px]" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <TableSkeleton rows={6} cols={9} />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {getApiErrorMessage(error)}
+      <div className="space-y-6">
+        <PartnerPageHeader
+          title={pageTitle}
+          description={pageDescription}
+          actions={headerActions}
+        />
+        <QueryErrorAlert
+          error={error}
+          onRetry={() => {
+            void clients.refetch();
+            void report.refetch();
+          }}
+        />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Müşteriler</h2>
-          <p className="text-sm text-muted-foreground">
-            Bağlı müşterilerinizi yönetin, panele geçiş yapın veya yeni davet gönderin.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={filtered.length === 0}
-            onClick={exportCsv}
+      <PartnerPageHeader
+        title={pageTitle}
+        description={pageDescription}
+        actions={headerActions}
+      />
+
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:flex-wrap">
+          <div className="relative min-w-[200px] flex-1">
+            <Search
+              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              className="pl-9"
+              placeholder={t('partner.pages.clients.searchPlaceholder')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Select
+            value={planFilter}
+            onValueChange={(v) => setPlanFilter(v as PlanFilter)}
           >
-            <Download className="mr-2 size-4" />
-            CSV dışa aktar
-          </Button>
-          <InviteClientDialog trigger={<Button type="button">Müşteri davet et</Button>} />
-        </div>
-      </div>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder={t('partner.pages.clients.table.plan')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t('partner.pages.clients.filterPlanAll')}
+              </SelectItem>
+              <SelectItem value="BASLANGIC">{planLabel('BASLANGIC')}</SelectItem>
+              <SelectItem value="GELISIM">{planLabel('GELISIM')}</SelectItem>
+              <SelectItem value="PRO">{planLabel('PRO')}</SelectItem>
+              <SelectItem value="KURUMSAL">{planLabel('KURUMSAL')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder={t('partner.pages.clients.table.status')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t('partner.pages.clients.filterStatusAll')}
+              </SelectItem>
+              <SelectItem value="ACTIVE">
+                {t('partner.pages.clients.filterStatusActive')}
+              </SelectItem>
+              <SelectItem value="PENDING">
+                {t('partner.pages.clients.filterStatusPending')}
+              </SelectItem>
+              <SelectItem value="SUSPENDED">
+                {t('partner.pages.clients.filterStatusSuspended')}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sort} onValueChange={(v) => setSort(v as ClientSort)}>
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder={t('partner.pages.clients.sortLabel')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name-asc">
+                {t('partner.pages.clients.sortNameAsc')}
+              </SelectItem>
+              <SelectItem value="name-desc">
+                {t('partner.pages.clients.sortNameDesc')}
+              </SelectItem>
+              <SelectItem value="orders30d-desc">
+                {t('partner.pages.clients.sortOrdersDesc')}
+              </SelectItem>
+              <SelectItem value="orders30d-asc">
+                {t('partner.pages.clients.sortOrdersAsc')}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <div className="relative min-w-[200px] flex-1">
-          <Search
-            className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            className="pl-9"
-            placeholder="Firma adı ara…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select
-          value={planFilter}
-          onValueChange={(v) => setPlanFilter(v as PlanFilter)}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Plan" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tüm planlar</SelectItem>
-            <SelectItem value="BASLANGIC">Başlangıç</SelectItem>
-            <SelectItem value="GELISIM">Gelişim</SelectItem>
-            <SelectItem value="PRO">Pro</SelectItem>
-            <SelectItem value="KURUMSAL">Kurumsal</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="Durum" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tüm durumlar</SelectItem>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="PENDING">Trial</SelectItem>
-            <SelectItem value="SUSPENDED">Pasif</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Firma</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead className="text-right">Aylık sipariş</TableHead>
-              <TableHead className="text-right">Aylık gelir</TableHead>
-              <TableHead className="text-right">Komisyon %</TableHead>
-              <TableHead className="text-right">Komisyon</TableHead>
-              <TableHead>Durum</TableHead>
-              <TableHead>Kayıt</TableHead>
-              <TableHead className="text-right">İşlem</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
+      {allRows.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title={t('partner.pages.clients.emptyTitle')}
+          description={t('partner.pages.clients.emptyDescription')}
+          actionSlot={<InviteClientDialog trigger={inviteTrigger} />}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title={t('partner.pages.clients.emptyFilteredTitle')}
+          description={t('partner.pages.clients.emptyFilteredDescription')}
+        />
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                  Filtrelere uygun müşteri bulunamadı.
-                </TableCell>
+                <TableHead>{t('partner.pages.clients.table.company')}</TableHead>
+                <TableHead>{t('partner.pages.clients.table.plan')}</TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.clients.table.orders30d')}
+                </TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.clients.table.monthlyRevenue')}
+                </TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.clients.table.commissionPct')}
+                </TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.clients.table.commission')}
+                </TableHead>
+                <TableHead>{t('partner.pages.clients.table.status')}</TableHead>
+                <TableHead>{t('partner.pages.clients.table.registered')}</TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.clients.table.actions')}
+                </TableHead>
               </TableRow>
-            ) : (
-              filtered.map((row) => (
-                <TableRow key={row.relationshipId}>
-                  <TableCell className="font-medium">{row.name}</TableCell>
-                  <TableCell>{planLabel(row.plan)}</TableCell>
-                  <TableCell className="text-right">{row.monthlyOrders}</TableCell>
-                  <TableCell className="text-right">₺{formatTryPlain(row.monthlyRevenue)}</TableCell>
-                  <TableCell className="text-right">{row.commissionPct}</TableCell>
-                  <TableCell className="text-right">
-                    ₺{formatTryPlain(row.commissionAmount)}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {PARTNER_STATUS_LABELS[row.status]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {format(new Date(row.registeredAt), 'd MMM yyyy', { locale: tr })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {row.canImpersonate && row.clientOrgId ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={accessClient.isPending}
-                        onClick={() => void handleAccess(row.clientOrgId!, row.name)}
+            </TableHeader>
+            <TableBody>
+              {filtered.map((row) => {
+                const demoHint = partnerDemoClientHint(row.slug);
+                const enterClientAria = t('partner.pages.clients.enterClientAria', {
+                  name: row.name,
+                });
+                const rowActivation = clientRowActivationProps(
+                  row,
+                  enterClient,
+                  enterClientAria,
+                );
+                const registeredLabel = row.registeredAt
+                  ? format(new Date(row.registeredAt), 'd MMM yyyy', { locale: tr })
+                  : '—';
+
+                return (
+                  <TableRow key={row.relationshipId} {...(rowActivation ?? {})}>
+                    <TableCell>
+                      <div className="font-medium">{row.name}</div>
+                      <p className="text-xs text-muted-foreground">@{row.slug}</p>
+                      {demoHint ? (
+                        <p className="text-xs text-muted-foreground">{demoHint}</p>
+                      ) : null}
+                      <PartnerClientBadges
+                        orgProducts={row.orgProducts}
+                        accountingMode={row.accountingMode}
+                        className="mt-1"
+                      />
+                    </TableCell>
+                    <TableCell>{planLabel(row.plan)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.orders30d}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      ₺{formatTryPlain(row.monthlyRevenue)}
+                    </TableCell>
+                    <TableCell className="text-right">{row.commissionPct}</TableCell>
+                    <TableCell className="text-right">
+                      ₺{formatTryPlain(row.commissionAmount)}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}
                       >
-                        <LogIn className="mr-1 size-4" />
-                        Müşteri paneline gir
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                        {t(`partner.status.${row.status}`)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
+                      {registeredLabel}
+                    </TableCell>
+                    <TableCell
+                      className="text-right"
+                      onClick={stopRowActivation}
+                      onKeyDown={stopRowActivation}
+                    >
+                      {row.canImpersonate && row.clientOrgId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isEnteringClient(row.clientOrgId)}
+                          aria-label={enterClientAria}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void enterClient(row.clientOrgId!, row.name);
+                          }}
+                        >
+                          {isEnteringClient(row.clientOrgId) ? (
+                            <Loader2
+                              className="mr-1 size-4 animate-spin"
+                              aria-hidden
+                            />
+                          ) : (
+                            <LogIn className="mr-1 size-4" aria-hidden />
+                          )}
+                          {isEnteringClient(row.clientOrgId)
+                            ? t('partner.pages.clients.enteringClient')
+                            : t('partner.pages.clients.enterClient')}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

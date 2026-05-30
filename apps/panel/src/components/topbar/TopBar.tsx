@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Menu, PanelLeft, Search } from 'lucide-react';
 
+import { OrgProductLineBadges } from '@/components/OrgProductLineBadges';
 import { HelpMenu } from '@/components/topbar/HelpMenu';
 import { openCommandPalette } from '@/lib/command-palette';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -22,6 +23,11 @@ import { Separator } from '@/components/ui/separator';
 import { useSidebar } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useActiveNav } from '@/hooks/useActiveNav';
+import {
+  formatSettingsNavContext,
+  isSettingsRoute,
+  resolveSettingsSubPageTitle,
+} from '@/lib/settings-nav-context';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
@@ -42,6 +48,7 @@ function initials(name: string, email: string): string {
 
 export function TopBar(): ReactElement {
   const { t } = useTranslation();
+  const { pathname } = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data, isLoading } = useAuth();
@@ -54,7 +61,12 @@ export function TopBar(): ReactElement {
   const org = data?.organization ?? storeOrg;
   const user = data?.user ?? storeUser;
   const { groupLabel, pageLabel } = useActiveNav();
-  const title = pageLabel ?? t('common.panel');
+  const onSettings = isSettingsRoute(pathname);
+  const settingsSubTitle = resolveSettingsSubPageTitle(pathname);
+  const contextLine = onSettings
+    ? formatSettingsNavContext(groupLabel, t('nav.settings'), settingsSubTitle)
+    : (groupLabel ?? t('common.location'));
+  const title = settingsSubTitle ?? pageLabel ?? t('common.panel');
 
   const handleLogout = async (): Promise<void> => {
     const rt = useAuthStore.getState().refreshToken;
@@ -100,9 +112,7 @@ export function TopBar(): ReactElement {
       </Button>
       <Separator orientation="vertical" className="mr-1 h-6" />
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-xs text-muted-foreground">
-          {groupLabel ?? t('common.location')}
-        </span>
+        <span className="truncate text-xs text-muted-foreground">{contextLine}</span>
         <span className="truncate text-sm font-semibold text-foreground">
           {title}
         </span>
@@ -120,13 +130,20 @@ export function TopBar(): ReactElement {
         </Button>
       </div>
 
-      <div className="hidden max-w-xs items-center gap-2 truncate rounded-md border bg-background px-3 py-1.5 text-sm lg:flex">
+      <div className="hidden max-w-xs min-w-0 items-center gap-2 rounded-md border bg-muted/30 px-3 py-1.5 text-sm md:flex">
         {isLoading && !org ? (
           <Skeleton className="h-4 w-40" />
         ) : org ? (
           <>
-            <span className="shrink-0 text-muted-foreground">Org</span>
-            <span className="truncate font-medium text-foreground">{org.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">Firma</span>
+            <span className="min-w-0 truncate font-medium text-foreground" title={org.name}>
+              {org.name}
+            </span>
+            <OrgProductLineBadges
+              orgProducts={org.orgProducts}
+              variant="compact"
+              className="shrink-0"
+            />
           </>
         ) : (
           <span className="text-muted-foreground">—</span>

@@ -12,12 +12,13 @@ import {
   type ThrottlerOptions,
   type ThrottlerStorage,
 } from '@nestjs/throttler';
-import { PlanTier, SubStatus } from '@prisma/client';
+import { PlanTier } from '@prisma/client';
 
 import type { AuthenticatedUser } from '../../auth/auth.types';
 import { RateLimitMonitorService } from '../../monitoring/rate-limit-monitor.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PLAN_LIMITS } from '../../subscription/plan-limits';
+import { resolveEffectivePlanTier } from '../../subscription/subscription-effective-plan';
 import { CacheKeys } from '../cache/cache-keys';
 import { CacheService } from '../cache/cache.service';
 
@@ -41,6 +42,9 @@ function matchRouteLimit(path: string): { ttl: number; limit: number } {
   }
   if (normalized.includes('/sync')) {
     return rateLimitConfig['/sync'];
+  }
+  if (normalized.endsWith('/products') || normalized.includes('/products?')) {
+    return { ttl: 60, limit: 300 };
   }
   return rateLimitConfig.default;
 }
@@ -171,13 +175,18 @@ export class SenkronizeThrottlerGuard extends ThrottlerGuard {
     const sub = await this.prisma.subscription.findFirst({
       where: { organizationId: orgId },
       orderBy: { createdAt: 'desc' },
-      select: { plan: true, status: true },
+      select: {
+        plan: true,
+        status: true,
+        trialEndsAt: true,
+        currentPeriodEnd: true,
+        subscriptionEndsAt: true,
+      },
     });
     if (!sub) {
       throw new UnauthorizedException();
     }
-    const plan =
-      sub.status === SubStatus.TRIAL ? PlanTier.BASLANGIC : sub.plan;
+    const plan = resolveEffectivePlanTier(sub);
     await this.cache.set(cacheKey, { plan }, 300);
     return plan;
   }

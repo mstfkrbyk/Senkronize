@@ -2,6 +2,8 @@ import { listen } from '@tauri-apps/api/event';
 import { Activity, Link2, ScrollText, Settings } from 'lucide-react';
 import { useEffect, useState, type ReactElement } from 'react';
 
+import { applyTrayOrgContext } from '@/lib/apply-tray-org-context';
+import { readMockOrgConfigFromEnv } from '@/lib/mock-org-config';
 import { runFullPlatformSync } from '@/lib/run-platform-sync';
 import { loadSyncSettings } from '@/lib/sync-settings-store';
 import { tauriApi, type UpdateCheckResponse } from '@/lib/tauri';
@@ -37,6 +39,16 @@ export default function App(): ReactElement {
       }
     })();
   }, [setToken]);
+
+  useEffect(() => {
+    const mock = readMockOrgConfigFromEnv();
+    if (!mock) {
+      return;
+    }
+    void applyTrayOrgContext(mock).catch(() => {
+      /* tray yoksa veya Tauri dışı önizleme: sessiz */
+    });
+  }, []);
 
   useEffect(() => {
     if (pendingSidebarNav === 'settings') {

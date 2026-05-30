@@ -14,6 +14,7 @@
     "stockCountBarcode": "Count / Barcode",
     "stockTransfer": "Transfers",
     "pricing": "Pricing",
+    "priceAnalysis": "Price analysis",
     "campaigns": "Campaigns",
     "analytics": "Analytics",
     "reports": "Reports",
@@ -24,21 +25,40 @@
     "syncConflicts": "Conflicts",
     "notifications": "Notifications",
     "support": "Support",
-    "auditLogs": "Activity history",
+    "auditLogs": "Audit logs",
     "migration": "Migration wizard",
+    "migrationShort": "Migration",
+    "migrationHistory": "History",
     "partner": "Partner dashboard",
+    "partnerDashboard": "My clients",
+    "partnerClients": "Clients",
+    "partnerCommission": "Commission",
     "settings": "Settings",
+    "security": "Security",
     "suppliers": "Suppliers",
     "purchaseOrders": "Purchase orders",
     "supply": "Supply",
     "returns": "Returns",
+    "shipping": "Shipping",
     "accountingOverview": "Accounting overview",
+    "accountingOverviewShort": "Overview",
     "invoices": "Invoices",
+    "customers": "Customers",
     "ecommerce": "E-Commerce",
     "accounting": "Pre-Accounting",
     "nativeAccounting": "Pre-Accounting",
-    "externalErp": "ERP Integration",
+    "externalErp": "Integrations",
+    "common": "General",
+    "groupHint": {
+      "ecommerce": {
+        "native": "Marketplace operations: orders, listings, pricing. In native mode, stock is in the Pre-Accounting group; connections and sync are here.",
+        "externalErp": "Marketplace operations: orders, stock, listings, pricing. In external ERP mode, connections and sync are under Integrations."
+      },
+      "nativeAccounting": "Native pre-accounting: invoices, accounts receivable, VAT, reports, and local stock (warehouses, movements, transfers, counts). Shown when you run accounting in the panel.",
+      "externalErp": "Marketplace, e-commerce, cargo, and ERP connections; sync logs and transfer settings."
+    },
     "erpConnections": "ERP connections",
+    "bottomNavAria": "Mobile navigation",
     "menu": "Menu",
     "live": "live",
     "adminPanel": "Admin panel →",
@@ -84,12 +104,16 @@
     "yes": "Yes",
     "no": "No",
     "previous": "Previous",
-    "retry": "Retry"
+    "retry": "Retry",
+    "loadErrorTitle": "Could not load data"
   },
   "products": {
     "title": "Products",
     "catalogTitle": "Product catalog",
-    "subtitle": "Central product records and variants",
+    "subtitle": "Catalog, stock levels, and warehouse operations in one place",
+    "tabs": {
+      "catalog": "Catalog"
+    },
     "add": "Add product",
     "search": "Search products…",
     "name": "Name",
@@ -100,6 +124,7 @@
     "category": "Category",
     "brand": "Brand",
     "cost": "Cost",
+    "costSaved": "Cost price saved",
     "import": "Import products",
     "export": "Export products",
     "bulkEdit": "Bulk edit",
@@ -113,6 +138,8 @@
     "importAction": "Import",
     "openConnections": "Open connections",
     "pageOf": "Page {{page}} / {{total}}",
+    "loadedCount": "Showing {{loaded}} of {{total}} products",
+    "allLoaded": "All products loaded",
     "detailTitle": "Product detail",
     "backToCatalog": "Back to catalog",
     "draft": "Draft",
@@ -174,6 +201,56 @@
       }
     }
   },
+  "productMatching": {
+    "description": "Match marketplace and ERP products to your central catalog.",
+    "autoMatch": "Auto match",
+    "matchKey": {
+      "title": "Matching key",
+      "description": "Controls how ERP and marketplace sync link products. Set an org default during setup; override per platform or product later.",
+      "label": "Matching method",
+      "saved": "Matching method saved.",
+      "notConfigured": "Not selected",
+      "inheritOrg": "Organization default ({{method}})",
+      "hierarchy": "Priority: product → platform connection → organization default",
+      "onboardingTitle": "Product matching method",
+      "onboardingDescription": "Choose how products from ERP and marketplaces map to your catalog. You can change this later per platform or product.",
+      "platformTitle": "Platform matching",
+      "platformDescription": "Use a different method than the organization default for this connection.",
+      "productTitle": "Product matching",
+      "productDescription": "Override the default matching method for this product only.",
+      "options": {
+        "BARCODE": "Barcode",
+        "SKU": "SKU / product code",
+        "MANUAL": "Manual"
+      },
+      "hint": {
+        "BARCODE": "Auto match and ERP sync link products by barcode and create catalog rows when needed.",
+        "SKU": "Auto match and ERP sync link products by SKU/product code and create catalog rows when needed.",
+        "MANUAL": "Auto match is off. ERP only updates products already in the catalog; create new links on this page.",
+        "notConfigured": "Select a method during setup; auto-match and ERP sync are blocked until then."
+      }
+    }
+  },
+  "listings": {
+    "detail": {
+      "push": {
+        "price": {
+          "native": "Saved prices are queued and pushed to the linked marketplace.",
+          "externalErp": "Prices are sent to the marketplace; external ERP is not the price source for this channel."
+        },
+        "stock": {
+          "nativeAccounting": "Stock is managed in Pre-Accounting inventory; only the last marketplace quantity is shown here.",
+          "nativeIntegration": "Update stock from the Stock page or sync; this field is read-only.",
+          "externalErp": "Stock can be pushed to the marketplace; if your ERP is the source of truth, sync ERP first."
+        },
+        "stockLink": {
+          "inventory": "Open inventory",
+          "channel": "Open stock page",
+          "erp": "ERP connections"
+        }
+      }
+    }
+  },
   "orders": {
     "title": "Orders",
     "subtitle": "Filter marketplace orders and view their details.",
@@ -192,6 +269,29 @@
     "cancelled": "Cancelled",
     "returned": "Returned",
     "openDetail": "Open details",
+    "list": {
+      "invoiceColumn": "Invoice",
+      "erpColumn": "ERP",
+      "createInvoice": "Create invoice",
+      "sendToErp": "Send to ERP",
+      "sendToErpTitle": "Transfer invoice to external ERP on order details",
+      "goToConnections": "Add connection",
+      "goToConnectionsTitle": "No active ERP connection — open Connections",
+      "openInvoiceTitle": "Invoice {{no}} — open on invoices list",
+      "openInvoiceAria": "Open invoice: {{no}}"
+    },
+    "empty": {
+      "title": "No orders yet",
+      "description": "Add a marketplace connection and start sync.",
+      "noConnectionDescription": "Add a marketplace connection and start sync.",
+      "syncLabel": "Start sync"
+    },
+    "toast": {
+      "labelDownloaded": "Shipping label downloaded",
+      "invoicePdfDownloaded": "Invoice PDF downloaded",
+      "noActiveConnection": "No active marketplace connection.",
+      "syncQueued": "Sync queued for {{count}} connection(s)."
+    },
     "status": {
       "new": "New",
       "processing": "Processing",
@@ -209,7 +309,13 @@
       "searchPlaceholder": "Customer or order number",
       "cargoProvider": "Carrier",
       "cargoPlaceholder": "e.g. Aras, Yurtiçi",
-      "amountRange": "Amount range"
+      "amountRange": "Amount range",
+      "invoiceLink": "Invoice link",
+      "invoiceLinkAll": "All",
+      "invoiceLinkWith": "With invoice",
+      "invoiceLinkWithout": "Without invoice",
+      "invoiceStatus": "Invoice status",
+      "invoiceStatusAll": "All invoice statuses"
     },
     "bulk": {
       "selected": "{{count}} selected",
@@ -223,6 +329,7 @@
       "exportCsv": "Export CSV",
       "exportCsvSuccess": "CSV file downloaded",
       "exportToErp": "Export to ERP",
+      "goToErpConnections": "ERP connections",
       "ship": "Mark as shipped",
       "addNote": "Add note",
       "noteTitle": "Bulk add note",
@@ -246,7 +353,8 @@
         "general": "Overview",
         "shipping": "Shipping",
         "notes": "Notes",
-        "documents": "Invoice & documents"
+        "invoice": "Invoice",
+        "documents": "Documents"
       },
       "summary": { "title": "Order summary" },
       "customer": {
@@ -294,8 +402,23 @@
         "add": "Add note",
         "added": "Note added"
       },
+      "invoice": {
+        "title": "Invoice",
+        "openInList": "Open on invoices page",
+        "nativeUnavailable": "Accounting is not enabled for this organization. If you use an external accounting program, check transfer status on this tab.",
+        "erpStatus": "ERP transfer status",
+        "erpSent": "Sent on {{count}} connection(s)",
+        "erpPending": "Not sent to ERP yet",
+        "noErpConnection": "No active ERP connection. Add one from Connections.",
+        "erpConnection": "ERP connection",
+        "erpConnectionPlaceholder": "Select connection",
+        "sendToErp": "Send invoice to ERP",
+        "manageConnections": "Manage ERP connections",
+        "externalErpIntro": "Invoices are created in your external accounting program (Paraşüt, BizimHesap, etc.). Transfer the order to a connected ERP; local «Create invoice» is not used in this mode."
+      },
       "documents": {
-        "title": "Invoice & documents",
+        "title": "Documents",
+        "labelHint": "Download the shipping label as a PDF.",
         "status": "Invoice status",
         "created": "Created",
         "notCreated": "Not created yet",
@@ -338,21 +461,61 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Manage your account, company, team, and subscription.",
+    "tabs": {
+      "profile": "Profile",
+      "organization": "Company",
+      "security": "Security & privacy",
+      "notifications": "Notifications",
+      "appearance": "Appearance",
+      "subscription": "Subscription",
+      "teamMembers": "Team Members",
+      "partners": "Partners",
+      "apiKeys": "API keys",
+      "webhooks": "Webhooks",
+      "accountingMode": "Accounting mode",
+      "currency": "Currency",
+      "invoiceNumbering": "Invoice numbering",
+      "erpSync": "ERP sync",
+      "productMatching": "Product matching"
+    },
+    "layout": {
+      "groups": {
+        "account": "Account",
+        "organization": "Organization",
+        "integration": "Integration",
+        "accounting": "Accounting",
+        "erp": "ERP Connection"
+      }
+    },
+    "subtitle": {
+      "default": "Manage your account, company, team, and subscription.",
+      "nativeAccounting": "Native accounting in the panel: invoices and customers here; currency and numbering under Native accounting.",
+      "externalErp": "Accounting in an external program (Paraşüt, BizimHesap, etc.): sync settings under External ERP.",
+      "integrationOnly": "Integration settings are under Integration; accounting sections appear when you add accounting or ERP product lines."
+    },
     "profile": "Profile",
-    "security": "Security & privacy",
+    "profileTab": {
+      "title": "Profile",
+      "subtitle": "Personal details, security, and session management."
+    },
     "subscription": "Subscription",
     "subscriptionTab": {
       "title": "Subscription",
       "subtitle": "Review your product lines, compare plans, track usage, and view invoices.",
+      "billingExempt": "This account is configured for internal use. Billing and plan upgrades are not required; limits are unlimited.",
       "productLines": {
         "title": "Product lines",
         "subtitle": "Integration and native accounting scope on your account. Upgrade your plan to add missing lines.",
         "activeBadge": "Current package",
-        "recommendedBadge": "Recommended",
+        "activePrimaryBadge": "✓ Active",
+        "activeOnAccountBadge": "On your account",
+        "recommendedBadge": "⭐ Recommended",
         "included": "Active on your account",
         "upgradeCta": "Add to package",
+        "upgradingCta": "Adding…",
         "addSuccess": "Product line added to your account.",
+        "addError": "Could not add product line: {{message}}",
+        "nothingToAdd": "No product line to add.",
         "upgradeToast": "To expand product lines, upgrade your plan below or contact support.",
         "integration": {
           "title": "Integration",
@@ -374,18 +537,28 @@
         },
         "bundle": {
           "title": "Bundle",
-          "description": "Integration and native accounting in one panel.",
+          "description": "Pre-Accounting and Integration in one panel; annual billing applies a discount when both lines are purchased together.",
+          "discountLabel": "20% off",
           "features": {
             "accounting": "Invoices and ledger",
             "integration": "Marketplaces and orders",
             "unified": "Single panel and reporting"
           }
         }
+      },
+      "usageMetrics": {
+        "title": "Usage metrics",
+        "subtitle": "Resource usage on your current plan",
+        "marketplaces": "Marketplaces",
+        "products": "Products",
+        "orders": "Orders (monthly)",
+        "users": "Users",
+        "warehouses": "Warehouses",
+        "erpConnections": "ERP connections",
+        "apiCallsToday": "API calls (today)"
       }
     },
     "notifications": "Notifications",
-    "apiKeys": "API keys",
-    "webhooks": "Webhooks",
     "appearance": "Appearance",
     "appearanceTitle": "Appearance",
     "appearanceHint": "Choose the panel theme. Your preference is saved in this browser.",
@@ -394,18 +567,117 @@
     "languageChanged": "Language change applied",
     "timezoneLabel": "Time zone",
     "timezoneHint": "Dates and times are formatted in this time zone.",
+    "accountingMode": "Accounting mode",
+    "accountingModeTab": {
+      "title": "Accounting mode",
+      "description": "Choose whether to run pre-accounting in Senkronize (built-in) or through external software integrations (Paraşüt, BizimHesap, etc.). Menus and connection tabs adjust accordingly.",
+      "currentModeLabel": "Current mode",
+      "radioGroupAriaLabel": "Accounting mode",
+      "modes": {
+        "native": {
+          "title": "Pre-accounting",
+          "description": "Manage invoices, contacts, and VAT in the panel. An external program connection is not required."
+        },
+        "externalErp": {
+          "title": "External ERP",
+          "description": "Accounting stays in external software; product, stock, and invoice sync run through bridge connections."
+        }
+      },
+      "switchWarning": {
+        "title": "Mode change",
+        "description": "Existing invoices, contacts, and ERP records are not migrated automatically. After switching, you may need to reconfigure data in the relevant section."
+      },
+      "save": "Save",
+      "saving": "Saving…",
+      "saveSuccess": "Accounting mode updated.",
+      "nativeBlocked": {
+        "title": "Cannot switch to native mode",
+        "description": "You have {{count}} active external ERP connection(s). Disable or remove connections before switching to native pre-accounting.",
+        "connectionsCta": "Go to ERP connections"
+      }
+    },
     "currency": "Currency",
     "language": "Language",
     "users": "Users",
     "organization": "Company",
+    "organizationTab": {
+      "title": "Company details",
+      "description": "Manage your organization profile, billing details, and security policies.",
+      "nameLabel": "Company name",
+      "taxNumberLabel": "Tax ID",
+      "taxOfficeLabel": "Tax office",
+      "phoneLabel": "Phone",
+      "addressLabel": "Address",
+      "cityLabel": "City",
+      "logoLabel": "Logo",
+      "logoUrlLabel": "or logo URL",
+      "separateBillingLabel": "Separate billing address",
+      "separateBillingHint": "Enable if invoices should use a different address.",
+      "billingAddressLabel": "Billing address",
+      "require2faLabel": "Require 2FA",
+      "require2faHint": "Requires all users to enable two-factor authentication.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saveSuccess": "Company details saved.",
+      "logoUploadSuccess": "Logo uploaded."
+    },
+    "notificationsPage": {
+      "title": "Notification preferences",
+      "subtitle": "Configure notifications by event and channel. Changes save immediately.",
+      "loadError": "Could not load notification preferences. Please refresh the page."
+    },
+    "notificationsDedicatedHint": "For the full event and channel matrix, go to the",
+    "notificationsDedicatedLink": "notification preferences page",
+    "notificationsSettingsTabHint": "For sound and test notifications, use the",
+    "notificationsSettingsTabLink": "notifications tab in general settings",
     "team": "Team",
     "teamMembers": "Team Members",
+    "roles": {
+      "OWNER": "Owner",
+      "ADMIN": "Administrator",
+      "MANAGER": "Manager",
+      "VIEWER": "Viewer",
+      "SUPER_ADMIN": "System administrator"
+    },
     "invoiceNumbering": "Invoice numbering",
     "invoiceNumberingTitle": "Invoice numbering",
     "invoiceNumberingHint": "Automatic number format for invoices issued in native accounting.",
     "invoiceNumberingFormatLabel": "Default format",
     "invoiceNumberingFormatExample": "{{year}}/000001",
-    "invoiceNumberingAutoNote": "Numbers increment per calendar year with uniqueness within the year. Custom prefix support is coming soon.",
+    "invoiceNumberingPrefixLabel": "Invoice prefix",
+    "invoiceNumberingPrefixPlaceholder": "Leave empty or e.g. INV",
+    "invoiceNumberingPrefixHint": "Leave empty for YEAR/000001. With a prefix, PREFIX-YEAR-000001 is used. Up to 10 alphanumeric characters.",
+    "invoiceNumberingPrefixInvalid": "Prefix must be at most 10 characters and contain only letters or digits.",
+    "invoiceNumberingSequenceLabel": "Next sequence number",
+    "invoiceNumberingSequenceHint": "Number used for the next invoice. Increments automatically after each invoice.",
+    "invoiceNumberingSequenceInvalid": "Enter a valid sequence number (at least 1).",
+    "invoiceNumberingSave": "Save",
+    "invoiceNumberingSaving": "Saving…",
+    "invoiceNumberingSaved": "Invoice numbering settings saved.",
+    "productMatching": {
+      "title": "Product matching",
+      "subtitle": "Choose how ERP and marketplace products map to your catalog. SKU-only matching works for products without a barcode.",
+      "openSettings": "Matching settings",
+      "overridesTitle": "Platform and product overrides",
+      "overridesDescription": "Override the organization default per connection or product.",
+      "overridePlatform": "Set a platform-specific method on marketplace or ERP connection detail pages.",
+      "overrideProduct": "Set a product-specific method under Product detail → General.",
+      "connectionsLink": "Open connections"
+    },
+    "invoiceNumberingAutoNote": "Numbers reset per calendar year; uniqueness within the year is enforced via stored sequence.",
+    "invoiceNumberingOverdueCronNote": "Overdue status: issued invoices past due date are marked automatically every day at 01:00.",
+    "orderAutoInvoice": {
+      "title": "Auto-invoice from orders",
+      "label": "Auto-create invoices",
+      "nativeHint": "Default behavior for new orders in native accounting.",
+      "nativeDescription": "Creates a draft sales invoice when an order is shipped or delivered. Platform webhook status updates do not trigger this setting.",
+      "externalErpHint": "In external ERP mode, auto-invoicing is configured per connection.",
+      "externalErpDisabledHint": "This is not an organization-wide setting; manage it in each ERP connection’s sync settings.",
+      "openErpConnections": "Go to ERP connections",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Auto-invoice setting saved."
+    },
     "erpSync": "ERP sync",
     "erpSyncTitle": "External ERP sync settings",
     "erpSyncHint": "Product, stock, and invoice sync are configured per connection.",
@@ -418,13 +690,62 @@
     "erpSyncConfigure": "Sync settings",
     "profileAdvancedHint": "For advanced profile and session management, go to the",
     "profileAdvancedLink": "profile page",
+    "profileSettingsTabHint": "To view alongside other settings tabs, open the",
+    "profileSettingsTabLink": "profile tab in general settings",
+    "subscriptionDedicatedHint": "For plan comparison, usage, and invoices, go to the",
+    "subscriptionDedicatedLink": "subscription page",
+    "subscriptionSettingsTabHint": "To view alongside other settings tabs, open the",
+    "subscriptionSettingsTabLink": "subscription tab in general settings",
     "sections": {
       "general": "General",
+      "generalHint": "Profile, security, notifications, subscription, and team.",
       "integration": "Integration",
+      "integrationHint": "API keys and webhooks for marketplace and store connections.",
       "accounting": "Native accounting",
-      "externalErp": "External ERP"
+      "accountingHint": "Accounting mode (native / external program); currency and invoice numbering in native mode.",
+      "externalErp": "External ERP",
+      "externalErpHint": "External program mode: product, stock, and invoice sync to Paraşüt, BizimHesap, etc."
     },
     "partners": "Partners",
+    "partnersTab": {
+      "title": "Partners",
+      "description": "Your agency partner details and relationship management.",
+      "emptyDescription": "You are not linked to a partner yet. Browse our partner network and send a connection request.",
+      "discoverCta": "Discover our partners",
+      "otherRecords": "Other records",
+      "refresh": "Refresh",
+      "terminate": "End connection",
+      "terminateTitle": "End partner connection",
+      "terminateConfirm": "Are you sure you want to end your connection with {{name}}?",
+      "terminateAction": "End",
+      "clientCount": "{{count}} clients",
+      "defaultPartnerName": "Partner"
+    },
+    "partnerDiscovery": {
+      "backToSettings": "Back to settings",
+      "title": "Discover partners",
+      "subtitle": "Browse agency partners and send a connection request.",
+      "expertisePlaceholder": "Expertise",
+      "locationPlaceholder": "Search location or city…",
+      "loading": "Loading",
+      "emptyListTitle": "No partners to show yet",
+      "emptyListDescription": "New partners will appear here when they are added.",
+      "emptyFilteredTitle": "No results",
+      "emptyFiltered": "No partners match your filters. Try changing the search or expertise filter.",
+      "errorTitle": "Could not load partners",
+      "errorDescription": "Check your connection and try again.",
+      "retry": "Try again",
+      "clearFilters": "Clear filters",
+      "pendingBadge": "Pending approval",
+      "requestCta": "Send connection request",
+      "dialogTitle": "{{name}} — connection request",
+      "messageLabel": "Your message (optional)",
+      "messagePlaceholder": "You can add a short note for the partner.",
+      "cancel": "Cancel",
+      "send": "Send",
+      "requestSuccess": "Your connection request was sent for admin approval",
+      "starRating": "{{value}} stars"
+    },
     "timezones": {
       "istanbul": "Istanbul (UTC+3)",
       "london": "London (UTC+0)",
@@ -476,12 +797,14 @@
         "productsWrite": "Write products",
         "stockRead": "Read stock",
         "stockWrite": "Write stock",
-        "reportsRead": "Read reports"
+        "reportsRead": "Read reports",
+        "webhooksManage": "Manage webhooks"
       }
     },
     "webhooks": {
       "title": "Outbound webhooks",
       "pageTitle": "Outbound webhooks",
+      "detailNavContext": "Webhook detail",
       "subtitle": "Deliver order, stock, and system events to your HTTPS endpoint.",
       "signatureHint": "Signature:",
       "createButton": "New webhook",
@@ -539,6 +862,7 @@
       "bulkDeactivated": "Selected endpoints deactivated"
     },
     "security": {
+      "pageSubtitle": "Password, two-factor authentication, sessions, and GDPR data export.",
       "sessionsTitle": "Active sessions",
       "sessionsDescription": "Manage sessions by device, IP, and location.",
       "revokeOthers": "Sign out other sessions",
@@ -560,11 +884,69 @@
       "auditLogDescription": "Last 10 security events: login, password change, 2FA."
     }
   },
+  "emptyState": {
+    "loading": {
+      "title": "Loading…",
+      "description": "Checking connection status."
+    },
+    "accounting": {
+      "onboardingTitle": "Welcome to pre-accounting",
+      "onboardingDescription": "Create your first invoice to get started. You can optionally connect external apps such as Paraşüt or BizimHesap from Connections.",
+      "createInvoice": "Create your first invoice",
+      "openConnections": "External accounting connection",
+      "tableNoIntegrationTitle": "Marketplace integration is not in your plan",
+      "tableNoIntegrationDescription": "Order and listing management is part of the Integration product line. You can manage invoices from Pre-Accounting.",
+      "tableNoIntegrationHint": "To add marketplace or store connections, upgrade to the Integration product line; invoices and AR/AP stay in Pre-Accounting on your current plan.",
+      "goToInvoices": "Go to invoices",
+      "goToAccounting": "Go to pre-accounting overview"
+    },
+    "integration": {
+      "connectionsTitle": "No channel connections yet",
+      "connectionsDescription": "Connect Trendyol, Hepsiburada, or your e-commerce store to start order and stock sync. Orders are pulled automatically after the first connection.",
+      "connectionsStep1": "Choose a channel type (marketplace or store)",
+      "connectionsStep2": "Save your API keys securely",
+      "connectionsStep3": "Run a connection test to confirm sync",
+      "connectionsHint": "Credentials are encrypted and scoped to your organization only.",
+      "noConnectionTitle": "No connection",
+      "noConnectionDescription": "Add a marketplace or store connection first to see orders and listings.",
+      "addFirstConnection": "Add your first connection",
+      "emptyRecordsTitle": "No records yet",
+      "emptyRecordsDescription": "Records appear here once data flows from active connections. You can start sync or manage connections.",
+      "filteredTitle": "No records match these filters",
+      "filteredDescription": "Try loosening or clearing filters and search again.",
+      "startSync": "Start sync",
+      "goToConnections": "Go to connections"
+    }
+  },
+  "productLineRoute": {
+    "cta": "Subscription and product lines",
+    "integration": {
+      "feature": "Marketplace and e-commerce integration",
+      "description": "Orders, listings, stock, and marketplace connections are part of the Integration product line. If only Pre-Accounting is enabled on your account, you cannot use this page.",
+      "redirectToast": "This page is not included in your Integration product line. You were redirected to the pre-accounting overview."
+    },
+    "accounting": {
+      "feature": "Pre-accounting",
+      "description": "Invoices, customer statements, suppliers, and VAT are part of the Pre-Accounting product line. If only Integration is enabled on your account, you cannot use this page.",
+      "redirectToast": "This page is not included in your Pre-Accounting product line. You were redirected to the dashboard."
+    },
+    "stock": {
+      "accounting": {
+        "redirectToast": "The stock page opens with on-platform inventory (Pre-Accounting) on your account. The required product line is not enabled; you were redirected to the dashboard."
+      },
+      "integration": {
+        "redirectToast": "The stock page opens under the Integration line for marketplace and channel stock. The required product line is not enabled; you were redirected to the pre-accounting overview."
+      },
+      "integrationExternalErp": {
+        "redirectToast": "In external accounting mode, stock is managed through marketplace integration. The Integration product line is not enabled; you were redirected to the pre-accounting overview."
+      }
+    }
+  },
   "connections": {
     "title": "Connections",
-    "subtitle": "Manage marketplace, e-commerce, and ERP integrations.",
-    "marketplace": "Marketplaces",
-    "erp": "ERP",
+    "subtitle": "Manage marketplace, e-commerce, shipping, and optional external accounting connections.",
+    "marketplace": "Marketplace",
+    "erp": "External ERP",
     "ecommerce": "E-commerce",
     "cargo": "Shipping",
     "add": "Add connection",
@@ -572,19 +954,88 @@
     "connected": "Connected",
     "disconnected": "Disconnected",
     "lastSync": "Last sync",
+    "page": {
+      "subtitleIntegration": "Manage marketplace, e-commerce, and shipping channels. External accounting is optional.",
+      "subtitleBundleNative": "Connect marketplace, store, and shipping channels here. Pre-accounting lives in the Senkronize panel.",
+      "subtitleAccountingNative": "Invoices and contacts are managed with in-panel Pre-Accounting. The Integration package is required for marketplace connections.",
+      "subtitleAccountingExternal": "Connect external accounting apps such as Paraşüt or BizimHesap."
+    },
+    "bundleNativeGuide": {
+      "title": "This page: sales channels",
+      "body": "Add Trendyol, Hepsiburada, store, and shipping connections here. Invoices, contacts, and VAT are handled in Senkronize Pre-Accounting; there is no external ERP tab on this page.",
+      "accountingLink": "Go to pre-accounting overview"
+    },
+    "tabs": {
+      "marketplace": "Marketplace",
+      "ecommerce": "E-commerce store",
+      "cargo": "Shipping",
+      "externalErp": "External ERP",
+      "externalErpHint": "External",
+      "externalErpActiveHint": "External ERP mode is active",
+      "groupChannels": "Sales channels",
+      "groupExternalErp": "External accounting"
+    },
+    "regions": {
+      "turkey": "Turkey",
+      "europe": "Europe",
+      "mena": "Middle East & Africa",
+      "asiaPacific": "Asia-Pacific",
+      "americas": "Americas",
+      "global": "Global / B2B",
+      "foodDelivery": "Food & quick commerce",
+      "other": "Other"
+    },
+    "platformSearch": {
+      "label": "Search platforms",
+      "placeholder": "Trendyol, Amazon, Hepsiburada…",
+      "results": "{{count}} platforms",
+      "empty": "No platforms match your search."
+    },
+    "channelPanel": {
+      "searchPlaceholder": "Search connection or platform…",
+      "results": "{{count}} connections",
+      "emptyCategory": "No connections in this category."
+    },
+    "kpi": {
+      "active": "Active",
+      "error": "Errors",
+      "pending": "Pending",
+      "total": "Total"
+    },
+    "erpDetail": {
+      "backToConnections": "Back to connections"
+    },
+    "erpBridge": {
+      "title": "External accounting bridge",
+      "subtitle": "Paraşüt, BizimHesap, and other external accounting apps.",
+      "infoTitle": "Pre-accounting mode is active",
+      "infoBody": "Invoices, contacts, and VAT are managed in Senkronize Pre-Accounting. You do not need to connect Paraşüt, BizimHesap, or similar external apps.",
+      "infoHint": "External ERP connections are hidden in this mode; use Settings → Accounting mode to switch.",
+      "infoLinkLabel": "Go to pre-accounting overview",
+      "wizardButton": "Setup wizard",
+      "addConnection": "Add external connection"
+    },
+    "integrationUpgrade": {
+      "feature": "Marketplace and e-commerce integration",
+      "description": "You need the Integration product line to connect Trendyol, Hepsiburada, T-Soft, and other channels. Your accounting package covers local invoicing and contact management.",
+      "goToAccounting": "Go to pre-accounting overview"
+    },
     "emptyMarketplaceTitle": "No connections",
     "emptyMarketplaceDescription": "Connect marketplace accounts to start syncing orders and inventory.",
     "emptyMarketplaceAction": "Add your first connection",
     "emptyEcommerceTitle": "No e-commerce connection",
     "emptyEcommerceDescription": "Connect T-Soft, Ticimax, WooCommerce, Shopify, or İdeasoft stores.",
     "emptyEcommerceAction": "Add store connection",
-    "emptyErpTitle": "No ERP connection",
-    "emptyErpDescription": "Connect accounting or inventory systems to manage invoices and stock in one place.",
-    "emptyErpAction": "Add ERP connection"
+    "emptyErpTitle": "No external accounting connection",
+    "emptyErpDescription": "Connect Paraşüt or BizimHesap if you use them; otherwise pre-accounting in the panel is enough.",
+    "emptyErpAction": "Add external connection"
   },
   "stock": {
     "title": "Inventory management",
-    "subtitle": "Track warehouse stock levels, monitor critical items, and act quickly.",
+    "subtitle": {
+      "nativeAccounting": "Track warehouse stock levels, monitor critical items, and act quickly.",
+      "ecommerce": "Track stock levels on marketplace and store channels, monitor sync status, and update quickly."
+    },
     "warehouse": "Warehouse",
     "movement": "Movement",
     "count": "Stock count",
@@ -605,7 +1056,8 @@
       "totalSku": "Total SKUs",
       "critical": "Critical stock",
       "outOfStock": "Out of stock",
-      "reserved": "Reserved stock"
+      "reserved": "Reserved stock",
+      "totalStockValue": "Total stock value"
     },
     "quickSearch": {
       "title": "Quick stock search",
@@ -618,6 +1070,7 @@
       "noResults": "No results found."
     },
     "status": {
+      "pageDesc": "Stock levels, movement flow, and reorder suggestions.",
       "cardDesc": "Per-product warehouse stock, reservations, and reorder thresholds",
       "warehouse": "Warehouse",
       "allWarehouses": "All warehouses",
@@ -636,6 +1089,28 @@
       "invalidQty": "Enter a valid quantity.",
       "updated": "Stock updated.",
       "inlineAdjustNote": "Stock page inline adjustment"
+    },
+    "movements": {
+      "pageTitle": "Stock movements",
+      "pageDesc": "Track product inbound and outbound movements.",
+      "cardTitle": "Movements",
+      "cardDesc": "Filter by warehouse, product, movement type, and date range",
+      "exportCsv": "Export CSV",
+      "exportSuccess": "CSV downloaded",
+      "movementType": "Movement type",
+      "dateFrom": "From",
+      "dateTo": "To",
+      "productPlaceholder": "Barcode or name…",
+      "empty": "No movements match these filters.",
+      "colType": "Type",
+      "colReason": "Reason",
+      "colReference": "Reference",
+      "colUser": "User",
+      "systemUser": "System",
+      "totalRecords": "{{count}} records total"
+    },
+    "count": {
+      "pageDesc": "Warehouse counts, barcode entry, and applying variances to central stock."
     },
     "warehouses": {
       "cardDesc": "Warehouse cards with SKU count and stock value",
@@ -710,7 +1185,11 @@
     "orders7d": "Last 7 days — orders",
     "ordersMonth": "This month — orders",
     "title": "Overview",
-    "subtitle": "A high-level view of your daily operations.",
+    "subtitle": {
+      "integration": "A high-level view of your daily operations.",
+      "hybridNative": "Marketplace orders, stock, and sales trends; add pre-accounting summary widgets as needed.",
+      "hybridExternalErp": "E-commerce operations at a glance; invoices and AR live in your external ERP."
+    },
     "weeklyOrders": "Weekly orders",
     "weeklyOrdersDescSample": "Last 7 days (sample data — report unavailable or loading)",
     "weeklyOrdersDesc": "Last 7 days (daily breakdown)",
@@ -740,22 +1219,59 @@
     "selectDateRange": "Select date range",
     "noConnectionsTitle": "No connections yet",
     "noConnectionsDesc": "Connect a marketplace or store to get started.",
-    "addFirstConnection": "Add first connection"
+    "addFirstConnection": "Add first connection",
+    "widgets": {
+      "sync": {
+        "title": "Synchronization",
+        "desc": "Active connections and last sync",
+        "emptyTitle": "No connections",
+        "emptyDesc": "Add a marketplace connection to start syncing.",
+        "lastSync": "Last sync: {{time}}",
+        "syncNow": "Sync now",
+        "queued": "Sync queued."
+      },
+      "topProducts": {
+        "title": "Top selling products",
+        "desc": "Selected period · top 10 products",
+        "emptyTitle": "No data",
+        "emptyDesc": "No sales records yet.",
+        "colSales": "Sales",
+        "colRevenue": "Revenue"
+      }
+    }
   },
   "accounting": {
     "title": "Accounting overview",
     "subtitle": "Monthly invoices, collections, and VAT at a glance.",
     "kpi": {
       "issuedThisMonth": "Invoices issued this month",
+      "openReceivables": "Open receivables",
       "collectedThisMonth": "Collected",
       "pending": "Outstanding",
       "vatSummary": "VAT summary"
     },
     "vatSubtotal": "Taxable base",
     "vatTax": "VAT",
+    "revenueTrend": "Monthly invoice revenue",
+    "revenueTrendHint": "Total issued invoices over the last 6 months (excluding cancelled).",
+    "revenueTrendAmount": "Invoice total",
+    "revenueTrendInvoiceCount": "{{count}} invoices",
+    "revenueTrendLoading": "Loading chart data…",
+    "revenueTrendError": "Could not load chart",
+    "revenueTrendEmpty": "No invoice data for this period",
+    "revenueTrendEmptyDescription": "Monthly revenue will appear here once you issue invoices.",
+    "recentInvoicesLoading": "Loading recent invoices…",
+    "recentInvoicesError": "Could not load recent invoices",
+    "overviewError": "Could not load overview",
     "recentInvoices": "Recent invoices",
     "viewAll": "View all",
     "viewAllInvoices": "Go to invoices",
+    "stockSectionTitle": "Stock summary",
+    "stockSectionHint": "Warehouse stock and inventory valuation in native pre-accounting mode.",
+    "inventoryValuationLink": "Inventory valuation",
+    "goToStockManagement": "Go to stock management",
+    "stockEmptyTitle": "No stock records",
+    "stockEmptyDescription": "Set up warehouses and stock movements in stock management; inventory valuation appears on warehouse cards.",
     "emptyRecent": "No invoices yet",
     "emptyRecentDescription": "Your latest invoices will appear here once you create one.",
     "table": {
@@ -766,15 +1282,60 @@
       "status": "Status"
     }
   },
+  "migration": {
+    "pageSubtitle": "Move your data from another platform into Senkronize step by step.",
+    "historyTitle": "Import history",
+    "historySubtitle": "View and manage past data migration runs."
+  },
   "reports": {
-    "subtitle": "Sales, profit/loss, tax, analytics, custom reports, and scheduled delivery.",
+    "subtitle": {
+      "nativeAccounting": "Sales, profit/loss, VAT, and custom reports — native accounting.",
+      "integration": "Marketplace sales, profit/loss, platform analytics, and scheduled reports.",
+      "externalErp": "Accounting data lives in your external ERP; transfer summary coming soon.",
+      "hybridNative": "E-commerce and native accounting reports in one place.",
+      "hybridExternalErp": "E-commerce sales reports; VAT and accounting summaries in your ERP."
+    },
     "tabs": {
       "sales": "Sales Report",
       "profit": "Profit/Loss",
       "tax": "Tax/VAT",
       "analytics": "Platform Analytics",
       "custom": "Custom Reports",
-      "schedule": "Scheduled Reports"
+      "schedule": "Scheduled Reports",
+      "erpTransfer": "ERP Transfer"
+    },
+    "erpTransfer": {
+      "title": "External ERP transfer report",
+      "description": "Invoices, contacts, and VAT summaries are maintained in your connected ERP. Track sync history and connection status here; use your ERP UI for detailed accounting reports.",
+      "openConnections": "ERP connections",
+      "openSyncLogs": "Sync logs",
+      "recentLogCount": "Loaded the latest {{count}} ERP sync log entries.",
+      "connectionsTitle": "ERP connections",
+      "connectionsDescription": "Active connections and last sync status.",
+      "noConnectionsTitle": "No ERP connection yet",
+      "noConnectionsDescription": "Add a connection to start external ERP transfer.",
+      "recentLogsTitle": "Recent sync logs",
+      "recentLogsDescription": "{{failed}} failed runs in the latest batch.",
+      "noRecentLogs": "No ERP sync logs yet.",
+      "kpi": {
+        "connected": "Connected ERP",
+        "connectedValue": "{{active}} / {{total}}",
+        "lastSync": "Last sync",
+        "errors": "Error count"
+      },
+      "table": {
+        "erp": "ERP",
+        "status": "Status",
+        "lastSync": "Last sync",
+        "errors": "Errors",
+        "action": "Action"
+      },
+      "logTable": {
+        "status": "Status",
+        "job": "Job",
+        "started": "Started",
+        "items": "Items"
+      }
     },
     "noChartData": "No data for chart.",
     "noTableData": "No data for table.",
@@ -819,9 +1380,17 @@
       "emptyTitle": "Not enough data yet",
       "emptyDesc": "Reports will appear after sync starts.",
       "revenueTrend": "Daily revenue trend",
-      "platformTable": "Sales by platform"
+      "platformTable": "Sales by platform",
+      "externalErpTitle": "Sales summaries use the integration line",
+      "externalErpDescription": "In external program mode there is no local sales report; invoices and ledger summaries live in your connected program. Use the Integration product line for marketplace sales reports, or the ERP Transfer tab for sync status.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections"
     },
     "profit": {
+      "externalErpTitle": "Profit and cost live in external ERP",
+      "externalErpDescription": "Net profit, costs, and accounting breakdowns are maintained in your connected program (Paraşüt, BizimHesap, etc.). Use the Sales tab for marketplace summaries and ERP Transfer for sync status.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections",
       "upgradeDesc": "Revenue, cost breakdown, and margin are available on PRO and Enterprise plans.",
       "productCost": "Cost",
       "commission": "Platform commission",
@@ -833,9 +1402,25 @@
       "topProducts": "Top 10 profitable products",
       "platformMargin": "Profit margin by platform",
       "fxWarningTitle": "FX conversion partially estimated",
-      "fxWarningDesc": "No valid FX rate for {{count}} orders; cost and profit are estimated."
+      "fxWarningDesc": "No valid FX rate for {{count}} orders; cost and profit are estimated.",
+      "noCostTitle": "Product cost not set",
+      "noCostDesc": "When you define cost prices on product cards, profit is calculated from your sales and cost data. Values shown now are estimates.",
+      "chartPlatformStacked": "Revenue, cost, and profit (by platform)",
+      "chartPlatformStackedDesc": "Net profit and cost breakdown are allocated across platforms proportionally.",
+      "platformProfitTable": "Platform profit table",
+      "topProfitableProducts": "Most profitable products",
+      "bottomProfitableProducts": "Least profitable products",
+      "chartRevenue": "Revenue",
+      "chartCost": "Cost",
+      "chartProfit": "Profit",
+      "productColumn": "Product",
+      "totalCost": "Cost"
     },
     "tax": {
+      "externalErpTitle": "VAT and tax reports live in external ERP",
+      "externalErpDescription": "VAT declarations, e-ledger, and Ba/Bs summaries are maintained in your connected program (Paraşüt, BizimHesap, etc.). Use ERP Transfer for sync status and your ERP UI for detailed tax reports.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections",
       "year": "Year",
       "month": "Month",
       "quarter": "Quarter",
@@ -848,7 +1433,12 @@
       "downloadVatPdf": "Download VAT Report",
       "downloadBaBsPdf": "Download Ba/Bs Form",
       "baBsPreview": "Ba/Bs form summary",
-      "baBsHint": "Download the Ba/Bs form as PDF for transactions above the threshold."
+      "baBsHint": "Download the Ba/Bs form as PDF for transactions above the threshold.",
+      "invoiceCount": "Invoice count",
+      "totalWithVat": "Total (incl. VAT)",
+      "accountingNote": "Summary is calculated from local invoices created in the selected month (excluding cancelled).",
+      "emptyTitle": "No invoices for this month",
+      "emptyDesc": "There are no local accounting invoices in the selected month. VAT summary appears here once you create invoices."
     },
     "analytics": {
       "subtitle": "Platform performance comparison",
@@ -860,10 +1450,27 @@
       "comparisonTable": "Platform comparison table",
       "previousPeriod": "Previous period",
       "change": "Change",
-      "returnRateNote": "Return rate"
+      "returnRateNote": "Return rate",
+      "externalErpTitle": "Advanced analytics live in external ERP",
+      "externalErpDescription": "Custom accounting and detailed analytics reports are maintained in your connected program (Paraşüt, BizimHesap, etc.). Use the Sales tab for marketplace summaries and ERP Transfer for sync status.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections"
+    },
+    "schedule": {
+      "contextLabel": "Scheduling",
+      "subtitle": "Automatically email sales and profit/loss reports.",
+      "externalErpTitle": "Scheduled accounting reports live in external ERP",
+      "externalErpDescription": "VAT, custom, and accounting schedules are managed in your connected program (Paraşüt, BizimHesap, etc.). Use the Sales tab for marketplace summaries and ERP Transfer for sync status.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections"
     },
     "custom": {
       "subtitle": "Manage saved custom reports or create a new one.",
+      "subtitleNative": "Build custom reports with columns, filters, and grouping; manage saved reports below.",
+      "externalErpTitle": "Custom reports live in external ERP",
+      "externalErpDescription": "Custom accounting and analytics reports are maintained in your connected program (Paraşüt, BizimHesap, etc.). Use ERP Transfer for sync status and other report tabs for local sales and stock summaries.",
+      "openErpTransfer": "ERP transfer report",
+      "openConnections": "ERP connections",
       "createNew": "Create New Report",
       "savedList": "Saved custom reports",
       "wizardTitle": "Custom report wizard",
@@ -905,6 +1512,12 @@
     "title": "Pricing & BuyBox",
     "subtitle": "Manage BuyBox status, price rules, competitor analysis, and price history in one place.",
     "runEngine": "Run engine",
+    "analysis": {
+      "pageTitle": "Price analysis",
+      "title": "Price analysis",
+      "subtitle": "Manage price history, competitor matrix, and threshold alerts in one place.",
+      "upgrade": "Price analysis is available on Pro and Enterprise plans."
+    },
     "tabs": {
       "buybox": "BuyBox status",
       "rules": "Price rules",
@@ -1042,6 +1655,59 @@
       "alertAdded": "Price alert added"
     }
   },
+  "sync": {
+    "banner": {
+      "erpTitle": "External ERP transfer",
+      "erpDescription": "Invoice and contact transfer logs are tracked on your ERP connection. Use the Channel tab for marketplace sync and the ERP tab for external transfer logs.",
+      "erpConnectionsLink": "ERP connections"
+    },
+    "history": {
+      "title": "Sync history",
+      "subtitle": "Marketplace sync logs and per-platform success rates."
+    },
+    "conflicts": {
+      "title": "Sync conflicts",
+      "subtitle": "Resolve mismatches between platform and local data."
+    },
+    "logs": {
+      "title": "Sync status",
+      "subtitle": "Track marketplace channel sync and external ERP transfer logs in one place.",
+      "context": {
+        "ecommerceTitle": "E-commerce",
+        "ecommerceDescription": "Order pull, stock and price push, listing sync from Trendyol, Hepsiburada, and store channels.",
+        "erpTitle": "External ERP",
+        "erpDescription": "Invoice, contact, stock, and product transfer to external accounting (Paraşüt, BizimHesap, etc.) in External ERP mode.",
+        "nativeTitle": "Pre-accounting",
+        "nativeDescription": "Invoices, contacts, and VAT are managed in the panel; no external bridge is used (Pre-accounting mode)."
+      },
+      "tabs": {
+        "channel": "Channel sync",
+        "erp": "ERP transfer"
+      },
+      "bundleNative": {
+        "title": "Bundle: channels + native accounting",
+        "body": "Marketplace sync lives here; invoices and contacts are in Accounting. External ERP transfer appears on the ERP tab only in external accounting mode.",
+        "accountingLink": "Go to accounting overview"
+      },
+      "channelHealth": "Platform health",
+      "recordsTitle": "Sync records",
+      "recordsDescription": "Latest jobs (up to 50 entries).",
+      "manualSync": "Manual sync",
+      "noHealth": "No active marketplace connection or no records yet.",
+      "noLogs": "No records for this tab yet.",
+      "erpEmpty": "Add an external ERP connection first, or switch to the Channel sync tab.",
+      "erpConnectionsLink": "ERP connections",
+      "table": {
+        "time": "Time",
+        "platform": "Platform / connection",
+        "jobType": "Job type",
+        "status": "Status",
+        "processed": "Processed",
+        "failed": "Failed",
+        "duration": "Duration"
+      }
+    }
+  },
   "theme": {
     "light": "Light",
     "lightDesc": "Always use light theme.",
@@ -1071,5 +1737,1536 @@
       "high": "High",
       "urgent": "Urgent"
     }
+  },
+  "payment": {
+    "pageTitle": "Payment",
+    "successPageTitle": "Payment successful",
+    "failurePageTitle": "Payment failed",
+    "callbackPageTitle": "Verifying payment",
+    "plans": {
+      "BASLANGIC": "Starter",
+      "GELISIM": "Growth",
+      "PRO": "Pro",
+      "KURUMSAL": "Enterprise"
+    },
+    "billing": {
+      "monthly": "Monthly",
+      "yearly": "Yearly"
+    },
+    "checkout": {
+      "title": "{{plan}} plan — {{period}} billing",
+      "loadingForm": "Loading secure payment form…",
+      "formAriaLabel": "Iyzico payment form",
+      "invalidPlan": "Invalid plan selection",
+      "noPlanSelected": "No valid plan was selected for payment.",
+      "formLoadFailed": "Payment form could not be loaded."
+    },
+    "success": {
+      "title": "Thank you!",
+      "description": "Your payment was received. Your subscription is active; the invoice was sent to your email.",
+      "loadingPlan": "Loading plan details…",
+      "planPackage": "{{plan}} Plan",
+      "subscriptionLabel": "{{period}} subscription",
+      "goToPanel": "Go to dashboard",
+      "features": {
+        "BASLANGIC": ["3 marketplaces", "500 orders/month", "Basic sync"],
+        "GELISIM": ["10 marketplaces", "BuyBox & webhooks", "Multi-currency"],
+        "PRO": ["25 marketplaces", "BuyBox AI", "API access"],
+        "KURUMSAL": ["Unlimited integrations", "Dedicated support", "White-label"]
+      }
+    },
+    "callback": {
+      "title": "Verifying payment",
+      "description": "Please wait while your subscription is being activated…",
+      "missingToken": "Payment verification details are missing."
+    },
+    "failure": {
+      "title": "Payment could not be completed",
+      "description": "Something went wrong or the payment was cancelled. Check your card details and try again.",
+      "retry": "Try again",
+      "backToPanel": "Back to dashboard"
+    }
+  },
+  "register": {
+    "nav": {
+      "pageLabel": "Register",
+      "step": "Step {{step}}"
+    },
+    "documentTitle": "{{stepLabel}} | {{pageLabel}} | Senkronize",
+    "title": "Create account",
+    "description": "Start your 14-day free trial. No credit card required; payment comes later.",
+    "partnerInvite": {
+      "verifying": "Verifying invitation…",
+      "errorPrefix": "Could not verify invitation:",
+      "registeringSuffix": "partner invitation — you are registering with us. Referral code applied automatically."
+    },
+    "progress": {
+      "stepOf": "Step {{current}} / {{total}}"
+    },
+    "step1": {
+      "nameLabel": "Full name",
+      "namePlaceholder": "Your full name",
+      "emailLabel": "Email",
+      "emailPlaceholder": "you@company.com",
+      "phoneLabel": "Phone",
+      "phoneHint": "10 digits without a leading 0 (e.g. 5XXXXXXXXX).",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "confirmPasswordLabel": "Confirm password",
+      "confirmPasswordPlaceholder": "Re-enter your password"
+    },
+    "step2": {
+      "companyNameLabel": "Company name",
+      "companyNamePlaceholder": "Legal business name",
+      "taxNumberLabel": "Tax ID",
+      "taxNumberPlaceholder": "10 digits",
+      "taxOfficeLabel": "Tax office",
+      "taxOfficePlaceholder": "Your tax office",
+      "addressLabel": "Address",
+      "addressPlaceholder": "Street address",
+      "cityLabel": "City",
+      "cityPlaceholder": "Select province",
+      "websiteLabel": "Website (optional)",
+      "websitePlaceholder": "https://...",
+      "referralCodeLabel": "Referral code (optional)",
+      "referralCodePlaceholder": "Enter your partner referral code if you have one"
+    },
+    "step3": {
+      "productLineLabel": "Product line",
+      "productLineHint": "Choose Integration, Accounting, or Bundle — same product lines as on the pricing page. After selection you can preview where stock appears in the menu.",
+      "accountingModeLabel": "Where do you manage accounting?",
+      "accountingModeBundleHint": "For Bundle, your choice shapes the menu and connection screens.",
+      "accountingModeAccountingHint": "Optional; if you skip this, Senkronize accounting is used. External ERP opens connection screens accordingly."
+    },
+    "step4": {
+      "erpQuestion": "Do you use an ERP?",
+      "erpAriaLabel": "ERP usage",
+      "marketplaceQuestion": "Which marketplaces do you sell on?",
+      "ecommerceQuestion": "Do you have an e-commerce site?",
+      "ecommerceAriaLabel": "E-commerce site"
+    },
+    "step5": {
+      "recommendLoading": "Calculating plan recommendation…",
+      "recommendedTitle": "Recommended plan",
+      "planSelectionLabel": "Choose a plan",
+      "recommendedBadge": "Recommended",
+      "pricePerYear": "/year",
+      "monthlyEquivalent": "Equivalent to {{amount}} ₺/month",
+      "tosLabel": "I have read and accept Senkronize terms of use and privacy policy.",
+      "submitPending": "Saving…",
+      "submit": "Start 14-Day Free Trial"
+    },
+    "footer": {
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign in"
+    },
+    "choices": {
+      "other": "Other"
+    },
+    "validation": {
+      "phoneDigits": "Enter a valid mobile number (10 digits, starts with 5, no leading 0).",
+      "passwordMin": "Password must be at least 8 characters.",
+      "taxNumber": "Tax ID must be 10 digits",
+      "acceptTos": "You must accept the terms of use.",
+      "passwordMismatch": "Passwords do not match."
+    },
+    "toast": {
+      "success": "Registration complete. Welcome!",
+      "productRequired": "Select a product option to continue.",
+      "accountingModeRequired": "Choose where you manage accounting for the bundle.",
+      "erpRequired": "Select at least one ERP or mark that you do not use ERP.",
+      "marketplaceRequired": "Select at least one marketplace.",
+      "ecommerceRequired": "Select an e-commerce platform or mark that you have no site.",
+      "productMissing": "No product selected. Go back to the previous step.",
+      "inviteInvalid": "Invitation code is invalid or could not be verified."
+    }
+  },
+  "acceptInvite": {
+    "pageTitle": "Accept invitation",
+    "inviteTitle": "Invitation",
+    "invalidLink": "The invitation link is invalid or missing.",
+    "backToLogin": "Back to sign in",
+    "verifying": "Verifying invitation…",
+    "unavailableTitle": "Invitation unavailable",
+    "notFound": "Invitation not found.",
+    "joinTitle": "Join organization",
+    "invitedBySuffix": "invited you.",
+    "completeAccount": "Complete your account (invitation email: {{email}}).",
+    "nameLabel": "Your name",
+    "namePlaceholder": "Full name",
+    "passwordLabel": "Password",
+    "passwordMin": "At least 8 characters",
+    "submit": "Create account and join",
+    "alreadyHaveAccount": "I already have an account",
+    "successToast": "Your account is ready. Welcome!"
+  },
+  "partnerInviteAccept": {
+    "pageTitle": "Partner invitation",
+    "inviteTitle": "Invitation",
+    "invalidLink": "Invalid invitation link.",
+    "partnerTitle": "Partner invitation",
+    "loginRequired": "Sign in or register to accept this invitation.",
+    "signIn": "Sign in",
+    "register": "Register",
+    "failedTitle": "Could not process invitation",
+    "backToPanel": "Back to dashboard",
+    "confirmDescription": "Confirm to establish the partner relationship. You will be redirected to the dashboard when done.",
+    "accept": "Accept invitation",
+    "processing": "Processing…",
+    "loadingAria": "Loading"
+  },
+  "offline": {
+    "pageTitle": "Offline",
+    "title": "You are offline",
+    "description": "Try again when your connection is back. Pending actions will sync once you are online.",
+    "retry": "Try again",
+    "snapshotAria": "Last known summary data",
+    "snapshotTitle": "Last known data",
+    "savedAt": "Saved: {{date}}",
+    "ordersToday": "Orders today: {{count}}",
+    "revenueToday": "Revenue today: {{amount}}",
+    "pendingOrders": "Pending orders: {{count}}",
+    "lowStockCount": "Low stock alerts: {{count}}",
+    "noSnapshot": "No cached summary yet. Use the panel online first to see data here.",
+    "queuePending": "{{count}} offline action(s) queued."
+  },
+  "admin": {
+    "orgType": {
+      "DIRECT": "Direct",
+      "PARTNER": "Partner"
+    },
+    "partner": {
+      "editCommission": "Edit commission",
+      "editCommissionReason": "Reason for change",
+      "editCommissionSaved": "Commission rate updated.",
+      "payout": {
+        "rejectNote": "Rejection note (optional)"
+      },
+      "linkRequest": {
+        "rejectReason": "Rejection reason (required)",
+        "rejectReasonMinLength": "Rejection reason must be at least 10 characters."
+      },
+      "clientStatus": {
+        "ACTIVE": "Active",
+        "PENDING": "Pending"
+      }
+    },
+    "userRole": {
+      "OWNER": "Owner",
+      "ADMIN": "Administrator",
+      "MANAGER": "Manager",
+      "VIEWER": "Viewer",
+      "SUPER_ADMIN": "System administrator"
+    },
+    "subscriptionStatus": {
+      "TRIAL": "Trial",
+      "ACTIVE": "Active",
+      "PAUSED": "Paused",
+      "CANCELING": "Cancelling",
+      "CANCELLED": "Cancelled",
+      "EXPIRED": "Expired"
+    },
+    "planTier": {
+      "BASLANGIC": "Starter",
+      "GELISIM": "Growth",
+      "PRO": "Pro",
+      "KURUMSAL": "Enterprise"
+    },
+    "paymentStatus": {
+      "PENDING": "Pending",
+      "SUCCESS": "Successful",
+      "FAILED": "Failed",
+      "REFUNDED": "Refunded"
+    },
+    "productSelection": {
+      "INTEGRATION": "Integration",
+      "ACCOUNTING": "Accounting",
+      "BUNDLE": "Full bundle"
+    },
+    "productLine": {
+      "INTEGRATION": "Integration",
+      "ACCOUNTING": "Accounting"
+    },
+    "accountingMode": {
+      "NATIVE": "Native accounting",
+      "EXTERNAL_ERP": "External ERP"
+    },
+    "accountStatus": {
+      "active": "Active",
+      "suspended": "Suspended"
+    },
+    "noSubscription": "No subscription",
+    "orgDelete": {
+      "blocked": {
+        "platform": "Platform organization cannot be deleted.",
+        "partner": "Partner organizations cannot be deleted from this screen. Use the partner management page."
+      }
+    },
+    "partnerLinkStatus": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "unknown": "Unknown"
+    },
+    "partnerPayoutStatus": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "layout": {
+      "title": "Super Admin",
+      "badge": "Platform",
+      "platformOrgLink": "Platform organization",
+      "backToPanel": "← Back to panel"
+    },
+    "nav": {
+      "dashboard": "Platform statistics",
+      "organizations": "Organizations",
+      "users": "Users",
+      "partners": "Partners",
+      "partnerLinks": "Partner connections",
+      "subscriptions": "Subscriptions",
+      "tickets": "Support tickets",
+      "auditLogs": "Audit logs",
+      "integrations": "Integrations",
+      "security": "Security"
+    },
+    "pageHeader": {
+      "breadcrumbAria": "Location"
+    },
+    "pages": {
+      "dashboard": {
+        "title": "Platform statistics",
+        "description": "Platform overview of organization, revenue, and growth metrics.",
+        "productFilterNote": "Summary cards are filtered by {{product}} product line. Revenue and growth charts cover the entire platform.",
+        "listOrganizations": "List organizations",
+        "loadingOverview": "Loading platform overview…",
+        "chartsLoading": "Loading charts…",
+        "noRecordsYet": "No records yet"
+      },
+      "organizations": {
+        "title": "Organizations",
+        "description": "View and manage all customer organizations.",
+        "exportCsv": "Export CSV"
+      },
+      "users": {
+        "title": "Users",
+        "description": "List all platform users and manage roles and access.",
+        "exportCsv": "Export CSV"
+      },
+      "userDetail": {
+        "title": "User detail",
+        "tabs": {
+          "general": "General",
+          "activity": "Activity"
+        },
+        "orgLabel": "Organization",
+        "orgOtherUsers": "{{count}} other users in organization",
+        "registeredAt": "Registered",
+        "lastLogin": "Last login",
+        "actions": {
+          "changeRole": "Change role",
+          "resetPassword": "Reset password",
+          "killSessions": "End sessions",
+          "suspend": "Suspend",
+          "unsuspend": "Unsuspend"
+        },
+        "emptyActivity": "No activity records found.",
+        "backToUsers": "Back to users"
+      },
+      "partners": {
+        "title": "Partner organizations",
+        "description": "Partner dealers, commission rates, and linked customers.",
+        "loadingAria": "Loading partners",
+        "loading": "Loading partners…",
+        "empty": "No partner organizations on file. Create partners via seed or registration.",
+        "table": {
+          "partner": "Partner",
+          "activeClients": "Active clients",
+          "commission": "Commission (%)",
+          "registered": "Registered",
+          "actions": "Actions"
+        },
+        "demo": "Demo",
+        "clientsExpanded": "Clients expanded",
+        "list": "List",
+        "editRate": "Edit rate",
+        "commissionDialogTitle": "{{name}} — commission rate",
+        "rateLabel": "Rate (%)",
+        "demoPartnerTitle": "Demo partner",
+        "demoPartnerHint": "Seed clients: {{slug1}} (full bundle · PRO trial), {{slug2}} (integration only). Sign in: {{login1}} / {{login2}}.",
+        "partnerNotInList": "Partner from the link was not found in the list.",
+        "selectedPartnerNotFound": "Selected partner record was not found.",
+        "toast": {
+          "commissionRange": "Commission rate must be between 0 and 50.",
+          "commissionUpdated": "Commission rate updated",
+          "commissionReasonRequired": "Reason for change is required."
+        }
+      },
+      "partnerClients": {
+        "defaultPartnerName": "Partner",
+        "title": "{{name}} — linked clients",
+        "subtitle": "Same product line and accounting badges as the organization list",
+        "listAll": "View full list",
+        "loadingAria": "Loading clients",
+        "exportCsv": "Export CSV",
+        "table": {
+          "organization": "Organization",
+          "accounting": "Accounting",
+          "plan": "Plan",
+          "status": "Status",
+          "detail": "Details"
+        },
+        "empty": "No active client connections.",
+        "demoHint": {
+          "demo-partner-musteri": "Full bundle (integration + accounting) · PRO trial",
+          "demo-partner-musteri-2": "Integration only · Gelişim trial"
+        },
+        "csv": {
+          "organization": "Organization",
+          "slug": "Slug",
+          "products": "Products",
+          "accounting": "Accounting",
+          "plan": "Plan",
+          "accountStatus": "Account status",
+          "subscription": "Subscription",
+          "registered": "Registered"
+        },
+        "toast": {
+          "exportCsvSuccess": "CSV downloaded.",
+          "exportEmpty": "No client records to export."
+        },
+        "filename": "partner-clients-{{date}}.csv"
+      },
+      "partnerLinks": {
+        "title": "Partner connection requests",
+        "description": "Approve or reject pending partner–customer connection requests.",
+        "loadingAria": "Loading connection requests",
+        "loading": "Loading connection requests…",
+        "empty": "No records found.",
+        "tabs": {
+          "pending": "Pending",
+          "history": "History"
+        },
+        "table": {
+          "client": "Client",
+          "partner": "Partner",
+          "date": "Date",
+          "actions": "Actions",
+          "status": "Status"
+        },
+        "requestNote": "Request note:",
+        "approve": "Approve",
+        "reject": "Reject",
+        "approveDialog": {
+          "title": "Approve connection request",
+          "description": "Client {{client}} will be linked to partner {{partner}}. The partner relationship and commission rate are applied automatically."
+        },
+        "rejectDialog": {
+          "title": "Reject request",
+          "noteLabel": "Rejection note",
+          "notePlaceholder": "Enter rejection reason (may be shared with the customer)"
+        },
+        "toast": {
+          "approved": "Connection request approved",
+          "rejected": "Connection request rejected",
+          "rejectNoteRequired": "Rejection note is required."
+        }
+      },
+      "subscriptions": {
+        "title": "Subscriptions",
+        "description": "View subscription status for all organizations.",
+        "statusLabel": "Status",
+        "table": {
+          "organization": "Organization",
+          "productLines": "Product lines",
+          "accountingMode": "Accounting mode",
+          "plan": "Plan",
+          "status": "Status",
+          "periodStart": "Period start",
+          "periodEnd": "Period end"
+        },
+        "empty": "No subscription records yet.",
+        "emptyFiltered": "No subscriptions match the selected filters.",
+        "orgSuspended": "Org suspended"
+      },
+      "auditLogs": {
+        "title": "Platform audit log",
+        "description": "Audit trail of all system actions.",
+        "exportCsv": "Export CSV",
+        "cardTitle": "Platform audit records",
+        "cardDescriptionBefore": "In the tenant panel,",
+        "tenantAuditLink": "Audit logs",
+        "cardDescriptionAfter": "only covers the signed-in organization; this list includes all tenants.",
+        "table": {
+          "date": "Date",
+          "action": "Action",
+          "resource": "Resource",
+          "actorOrg": "Actor org",
+          "impersonation": "Impersonation"
+        },
+        "toast": {
+          "csvDownloaded": "CSV downloaded.",
+          "csvDownloadedLocal": "CSV downloaded (local).",
+          "exportEmpty": "No records to export.",
+          "exportFailed": "Could not create CSV."
+        },
+        "csv": {
+          "date": "Date",
+          "action": "Action",
+          "resource": "Resource",
+          "actorOrg": "Actor org",
+          "actorOrgId": "Actor org ID",
+          "impersonationOrg": "Impersonation org",
+          "impersonationOrgId": "Impersonation org ID",
+          "filename": "platform-audit-{{date}}.csv"
+        }
+      },
+      "integrations": {
+        "title": "Integrations & API health",
+        "description": "Manage sync, rate limit, and circuit breaker settings per integration.",
+        "listTitle": "Integration list",
+        "searchPlaceholder": "Search platform or name…",
+        "openHint": "Double-click a row to open settings.",
+        "backToList": "Back to integration list",
+        "loadingDetail": "Loading integration…",
+        "saved": "Integration settings saved.",
+        "circuitReset": "Circuit breaker reset.",
+        "healthTitle": "API health",
+        "healthScore": "Health score",
+        "circuitStateLabel": "Circuit breaker",
+        "requestsToday": "Requests today",
+        "violationsToday": "Violations today",
+        "resetCircuit": "Reset circuit breaker",
+        "settingsTitle": "Integration settings",
+        "settingsDescription": "Empty fields use platform defaults.",
+        "useDefault": "Default",
+        "effectiveValue": "Effective value: {{value}}",
+        "lastUpdated": "Last updated: {{date}}",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "categories": {
+          "marketplace": "Marketplace",
+          "ecommerce": "E-commerce",
+          "erp": "ERP"
+        },
+        "sections": {
+          "general": "General",
+          "sync": "Synchronization",
+          "rateLimit": "Rate limit"
+        },
+        "circuitState": {
+          "CLOSED": "Healthy",
+          "OPEN": "Open (blocked)",
+          "HALF_OPEN": "Half-open"
+        },
+        "table": {
+          "name": "Integration",
+          "category": "Category",
+          "health": "Health",
+          "rpm": "RPM",
+          "requestsToday": "Requests today",
+          "status": "Status",
+          "circuit": "Circuit breaker"
+        }
+      },
+      "security": {
+        "title": "Security",
+        "description": "Blocked IP addresses and rate limit metrics.",
+        "blockedIps": {
+          "title": "Blocked IP addresses",
+          "addButton": "Block IP",
+          "removeButton": "Remove",
+          "empty": "No blocked IP addresses.",
+          "addDialog": {
+            "title": "Block IP address",
+            "label": "IP address",
+            "confirm": "Block"
+          },
+          "table": {
+            "ip": "IP address",
+            "blockedAt": "Blocked at"
+          },
+          "toast": {
+            "blocked": "IP address blocked.",
+            "unblocked": "IP block removed."
+          }
+        },
+        "rateLimit": {
+          "title": "Rate limit statistics",
+          "violationsToday": "Violations today",
+          "requestsTitle": "Platform requests (today)",
+          "violationsTitle": "Violation summary (platform:source)",
+          "table": {
+            "platform": "Platform",
+            "requests": "Request count",
+            "source": "Source",
+            "throttleCount": "Throttle / violations"
+          }
+        },
+        "health": {
+          "title": "Platform connection health",
+          "resetButton": "Reset",
+          "resetSuccess": "Platform health reset.",
+          "table": {
+            "platform": "Platform",
+            "score": "Health score",
+            "errors": "Errors in window",
+            "state": "Circuit breaker",
+            "failures": "Consecutive failures"
+          },
+          "circuitState": {
+            "CLOSED": "Closed (healthy)",
+            "OPEN": "Open (blocked)",
+            "HALF_OPEN": "Half-open"
+          }
+        }
+      },
+      "tickets": {
+        "title": "Support tickets",
+        "description": "View and manage all customer support tickets."
+      },
+      "orgDetail": {
+        "invalidUrl": "Invalid URL.",
+        "invalidResponse": "Invalid organization response",
+        "backToList": "Back to list",
+        "backToOrganizations": "Back to organizations",
+        "partnerErrorHint": "Partner organizations are managed from the",
+        "partnerErrorLink": "Partners",
+        "partnerErrorSuffix": "page.",
+        "goToPartners": "Go to partners",
+        "taxNumber": "Tax ID {{value}}",
+        "accountingModeResolvedTitle": "No stored mode; resolved from ERP connections",
+        "partnerPrefix": "Partner:",
+        "period": "Period:",
+        "trialEnds": "Trial ends:",
+        "activitySummary": "Activity summary",
+        "last30Days": "Last 30 days",
+        "sync": "Sync",
+        "orders": "Orders",
+        "errors": "Errors",
+        "notes": "Notes",
+        "notePlaceholder": "Add an internal note…",
+        "addNote": "Add note",
+        "noNotesYet": "No notes yet.",
+        "dangerZone": "Danger zone",
+        "exportZip": "Export data (ZIP)",
+        "goToPartnerManagement": "Go to partner management",
+        "deleteOrg": "Delete organization",
+        "deleteConfirmTitle": "Delete organization",
+        "deleteConfirmDescription": "This permanently suspends the organization and applies soft-delete. All user sessions may be affected. Are you sure you want to continue?",
+        "tabs": {
+          "settings": "Settings",
+          "general": "General",
+          "users": "Users",
+          "connections": "Connections",
+          "orders": "Recent orders",
+          "audit": "Audit log",
+          "invoices": "Invoice history"
+        },
+        "settingsHintBefore": "For subscription, product line, and partner assignment, use the",
+        "settingsHintLink": "Settings",
+        "settingsHintAfter": "tab.",
+        "contactAddress": "Contact and address",
+        "taxOffice": "Tax office",
+        "city": "City",
+        "address": "Address",
+        "website": "Website",
+        "registeredAt": "Registered",
+        "orgType": "Organization type",
+        "usersTable": {
+          "name": "Name",
+          "email": "Email",
+          "role": "Role",
+          "lastLogin": "Last login",
+          "empty": "No users."
+        },
+        "connectionsTable": {
+          "platform": "Platform",
+          "status": "Status",
+          "lastSync": "Last sync",
+          "errorCount": "Error count",
+          "empty": "No marketplace connections.",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "ordersTable": {
+          "platform": "Platform",
+          "order": "Order",
+          "customer": "Customer",
+          "status": "Status",
+          "amount": "Amount",
+          "date": "Date",
+          "empty": "No orders."
+        },
+        "auditTable": {
+          "date": "Date",
+          "action": "Action",
+          "resource": "Resource",
+          "empty": "No records.",
+          "exportCsv": "Export CSV"
+        },
+        "invoicesTable": {
+          "date": "Date",
+          "plan": "Plan",
+          "status": "Status",
+          "amount": "Amount",
+          "empty": "No payment records.",
+          "billingExempt": "Internal account — billing disabled."
+        },
+        "toast": {
+          "noteAdded": "Note added.",
+          "orgDeleted": "Organization deleted.",
+          "exportFailed": "Export failed.",
+          "exportDownloaded": "Export downloaded.",
+          "auditCsvDownloaded": "Audit CSV downloaded."
+        }
+      },
+      "orgSettings": {
+        "subscriptionTitle": "Subscription and product line",
+        "subscriptionDescription": "Plan, trial status, and purchased product modules",
+        "planLabel": "Plan:",
+        "changePlan": "Change plan",
+        "platformOrgLocked": "Platform organization subscription status cannot be changed.",
+        "internalAccountBadge": "Internal account",
+        "internalAccountTitle": "Internal account / billing exempt",
+        "internalAccountDescription": "Billing and payment flows are disabled; plan limits are applied as unlimited (Enterprise). You can still update subscription status below.",
+        "internalAccountReason": "Audit reason",
+        "internalAccountDefaultReason": "Platform internal account",
+        "applyInternalAccount": "Apply unlimited internal account",
+        "internalAccountActive": "This organization is marked as an internal account; billing is hidden.",
+        "subscriptionStatus": "Subscription status",
+        "statusLabel": "Status",
+        "trialEndsLabel": "Trial end date",
+        "extendTrial": "Extend trial (+7 days)",
+        "currentStatus": "Current:",
+        "reasonPlaceholder": "Reason for change (audit log)…",
+        "saveSubscription": "Save subscription status",
+        "noSubscription": "No subscription record.",
+        "productLineLabel": "Product line:",
+        "accountingPrefix": "Accounting:",
+        "accountingResolved": " (resolved)",
+        "activeErpCount": "{{count}} active ERP",
+        "changeAccountingMode": "Change accounting mode",
+        "changeProductLine": "Change product line",
+        "partnerAssignTitle": "Partner assignment",
+        "partnerAssignDescription": "Link the customer to a partner organization (no admin approval required)",
+        "noActivePartner": "No active partner link.",
+        "commission": "Commission {{pct}}%",
+        "impersonationOn": " · Impersonation enabled",
+        "clients": "Clients",
+        "remove": "Remove",
+        "noPartnersInSystem": "No partner organizations in the system. Create a partner via seed or registration first.",
+        "allPartnersAssigned": "All partners are already assigned to this customer.",
+        "assignPartner": "Assign partner",
+        "partnerOrgTitle": "Partner organization",
+        "partnerOrgDescription": "This is a partner account; customer partner assignment applies only to DIRECT organizations.",
+        "changePlanTitle": "Change plan",
+        "newPlan": "New plan",
+        "assignPartnerTitle": "Assign partner",
+        "assignPartnerDescription": "Link customer {{orgName}} to a partner organization. The link is active immediately; partner approval is not required.",
+        "partnerOrgSelect": "Partner organization",
+        "partnerSelectPlaceholder": "Select partner…",
+        "demoSuffix": " · Demo",
+        "commissionActiveClients": "Commission {{rate}}% · {{count}} active clients",
+        "goToPartnerProfile": "Go to partner profile",
+        "selectPartnerHint": "Select a partner from the list; commission and client count appear here.",
+        "optionalNote": "Note (optional)",
+        "auditNotePlaceholder": "Short note for audit log…",
+        "assignPartnerConfirm": "Assign partner",
+        "changeAccountingTitle": "Change accounting mode",
+        "changeAccountingDescription": "Native accounting in the panel: invoicing and ledger here; external program: accounting in Paraşüt, BizimHesap, etc. Changes are written to the audit log.",
+        "newMode": "New mode",
+        "nativeBlockedTitle": "Cannot switch to native mode",
+        "nativeBlockedDescription": "There are {{count}} active external ERP connections. Disable or remove connections before switching to native accounting.",
+        "changeProductTitle": "Change product line",
+        "productSelection": "Product selection",
+        "toast": {
+          "planUpdated": "Plan updated.",
+          "productLineUpdated": "Product line updated.",
+          "accountingModeUpdated": "Accounting mode updated.",
+          "partnerAssigned": "Partner assigned.",
+          "subscriptionUpdated": "Subscription status updated.",
+          "trialExtended": "Trial extended by 7 days.",
+          "partnerRemoved": "Partner link removed.",
+          "invalidTrialDate": "Invalid trial end date.",
+          "internalAccountEnabled": "Internal account and unlimited limits applied.",
+          "internalAccountDisabled": "Internal account flag removed."
+        }
+      },
+      "partnerPayouts": {
+        "title": "Payout requests",
+        "description": "Approve or reject partner commission payout requests.",
+        "loading": "Loading requests…",
+        "filterPending": "Pending",
+        "filterApproved": "Approved",
+        "filterRejected": "Rejected",
+        "filterAll": "All",
+        "emptyPending": "No pending payout requests.",
+        "emptyFiltered": "No records for this filter.",
+        "viewPartner": "Go to {{name}} row",
+        "table": {
+          "partner": "Partner",
+          "date": "Date",
+          "amount": "Amount",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "approve": "Approve",
+        "reject": "Reject",
+        "approveDialog": {
+          "title": "Approve payout request",
+          "description": "Approve {{amount}} for {{partner}}; commission balance will be settled in the ledger."
+        },
+        "rejectDialog": {
+          "title": "Reject payout request",
+          "summary": "{{partner}} · {{amount}}",
+          "noteLabel": "Rejection note",
+          "notePlaceholder": "Enter the reason (stored in audit log)"
+        },
+        "toast": {
+          "approved": "Payout request approved.",
+          "rejected": "Payout request rejected.",
+          "rejectNoteRequired": "Rejection note is required."
+        }
+      }
+    },
+    "support": {
+      "kpi": {
+        "open": "Open tickets",
+        "inProgress": "In progress",
+        "waitingCustomer": "Waiting on customer",
+        "avgFirstResponse": "Avg. first response",
+        "avgResolution": "Avg. resolution time",
+        "slaCompliance": "SLA compliance rate"
+      },
+      "status": {
+        "OPEN": "Open",
+        "IN_PROGRESS": "In progress",
+        "WAITING_CUSTOMER": "Waiting on customer",
+        "RESOLVED": "Resolved",
+        "CLOSED": "Closed"
+      },
+      "priority": {
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High",
+        "URGENT": "Urgent"
+      },
+      "loading": "Loading support tickets…",
+      "loadingAria": "Loading support tickets",
+      "retry": "Try again",
+      "emptyFilteredTitle": "No tickets match filters",
+      "emptyFilteredDescription": "Change status, priority, or organization filter and try again.",
+      "emptyTitle": "No support tickets yet",
+      "emptyDescription": "Tickets appear here when customers create support requests.",
+      "toast": {
+        "internalNoteAdded": "Internal note added",
+        "replySent": "Reply sent",
+        "statusUpdated": "Status updated",
+        "assigned": "Ticket assigned"
+      },
+      "allOrganizations": "All organizations",
+      "allStatuses": "All statuses",
+      "allPriorities": "All priorities",
+      "orgFilterPlaceholder": "Select organization",
+      "table": {
+        "ticket": "Ticket",
+        "organization": "Organization",
+        "assignee": "Assignee",
+        "status": "Status",
+        "priority": "Priority",
+        "sla": "SLA",
+        "unassigned": "Unassigned",
+        "manage": "Manage",
+        "slaDays": "{{count}} d",
+        "slaHours": "{{count}} h"
+      },
+      "detail": {
+        "title": "Ticket details",
+        "loading": "Loading ticket details…",
+        "loadingAria": "Loading ticket details",
+        "noMessages": "No messages on this ticket yet.",
+        "internalNoteSuffix": " (internal note)",
+        "saveStatus": "Save status",
+        "assign": "Assign",
+        "replyHeading": "Send reply",
+        "internalCheckbox": "Send as internal note (not visible to customer)",
+        "replyPlaceholder": "Your reply…",
+        "internalPlaceholder": "Internal note…",
+        "send": "Send",
+        "internalHeading": "Add internal note",
+        "saveInternal": "Save internal note",
+        "close": "Close"
+      },
+      "assignDialog": {
+        "title": "Assign ticket",
+        "descriptionWithNumber": "Assign ticket {{ticketNumber}} to a super admin user.",
+        "description": "Assign this ticket to a super admin user.",
+        "assigneeLabel": "Support agent",
+        "loadingAssignees": "Loading user list…",
+        "noAssigneesTitle": "No assignable super admins",
+        "noAssigneesDescription": "At least one active user with the SUPER_ADMIN role is required to assign tickets. Assign roles from the Users page.",
+        "manageUsers": "Manage users",
+        "selectPlaceholder": "Select user…",
+        "currentAssignment": "Current assignee: {{name}}",
+        "hint": "Select a super admin from the list; the ticket will be linked to that user when saved.",
+        "cancel": "Cancel",
+        "confirm": "Assign"
+      },
+      "slaTarget": "Target: {{hours}} h",
+      "resolutionCompliance": "Resolution: {{rate}}%",
+      "hoursMinutes": "{{minutes}} min",
+      "hoursDecimal": "{{hours}} h"
+    },
+    "common": {
+      "retry": "Try again",
+      "refresh": "Refresh",
+      "all": "All",
+      "allProducts": "All products",
+      "search": "Search",
+      "previous": "Previous",
+      "next": "Next",
+      "cancel": "Cancel",
+      "dismiss": "Dismiss",
+      "save": "Save",
+      "yesDelete": "Yes, delete",
+      "menu": "Menu",
+      "menuAria": "Menu",
+      "productLine": "Product line",
+      "productLines": "Product lines",
+      "accountingMode": "Accounting mode",
+      "plan": "Plan",
+      "status": "Status",
+      "organization": "Organization",
+      "role": "Role",
+      "priority": "Priority",
+      "noRecords": "No records found.",
+      "noData": "No data found.",
+      "noRecordsYet": "No records yet",
+      "noRecordsYetDot": "No records yet.",
+      "emDash": "—",
+      "taxNumber": "Tax ID: {{value}}",
+      "partnerClients": "clients",
+      "selectedPartner": "Selected partner",
+      "pagination": "{{total}} {{entity}} total — Page {{page}} / {{totalPages}}",
+      "entityOrganizations": "organizations",
+      "entityUsers": "users",
+      "listEmpty": {
+        "organizations": "No organizations yet.",
+        "users": "No users found.",
+        "audit": "No platform audit records yet.",
+        "subscriptions": "No subscriptions yet.",
+        "partners": "No partner organizations yet.",
+        "partnerLinks": "No partner link requests."
+      },
+      "loadingActivityHealth": "Loading activity and health data…",
+      "detail": "Details",
+      "delete": "Delete",
+      "currentPlan": "Current: {{plan}}",
+      "newPlan": "New plan",
+      "reason": "Reason"
+    },
+    "orgListStatus": {
+      "AKTIF": "Active (excluding trial)",
+      "DENEME": "Trial",
+      "ASKIDA": "Suspended"
+    },
+    "dashboard": {
+      "kpi": {
+        "totalOrganizations": "Total organizations",
+        "totalOrganizationsSub": "{{active}} active · {{inactive}} suspended",
+        "newSignups30d": "New sign-ups this month (30 days)",
+        "newSignups30dSub": "{{count}} orgs active in last 7 days",
+        "mrr": "Monthly recurring revenue (MRR)",
+        "mrrSub": "Active subscriptions",
+        "arr": "Annual recurring revenue (ARR)",
+        "arrSub": "MRR × 12 (list price)",
+        "growth30d": "Growth (30 days)",
+        "growth30dSub": "MRR vs previous period",
+        "churnRate": "Churn rate",
+        "churnRateSub": "{{count}} cancellations (30 days)",
+        "activeTrials": "Active trials",
+        "activeTrialsSub": "Trial subscription",
+        "productLines": "Product lines",
+        "accountingMode": "Accounting mode",
+        "platformHealth": "Platform health",
+        "platformHealthSub": "0–100 score (24h error rate)",
+        "distributionEntry": "{{label}} {{count}}"
+      },
+      "charts": {
+        "growthTrend": "Growth trend (last 12 months)",
+        "growthEmpty": "No growth data for this period.",
+        "planDistribution": "Plan distribution",
+        "planEmpty": "No active plan distribution yet.",
+        "topMarketplaces": "Top 10 marketplace connections",
+        "marketplaceEmpty": "No active marketplace connections yet.",
+        "topErp": "Top 5 ERP connections",
+        "erpEmpty": "No active ERP connections yet.",
+        "revenue12m": "Revenue last 12 months (successful payments)",
+        "revenueEmpty": "No successful payments in the last 12 months.",
+        "revenueLoading": "Loading revenue chart…",
+        "dailySignups": "Daily new sign-ups (30 days)",
+        "ordersThisMonth": "Orders this month:",
+        "activeConnections": "Active connections:",
+        "signupEmpty": "No new sign-ups in the last 30 days.",
+        "cohortMatrix": "Cohort retention matrix",
+        "cohortEmpty": "No cohort data yet.",
+        "cohortSignupMonth": "Sign-up month",
+        "cohortSize": "Size",
+        "cohortMonthOffset": "+{{months}} mo",
+        "cohortLegend": "Color: ≥80% green · ≥50% yellow · <50% red",
+        "tooltipMrr": "MRR",
+        "tooltipNewSignup": "New sign-ups",
+        "tooltipActiveOrg": "Active orgs",
+        "tooltipCount": "Count",
+        "tooltipOrgCount": "{{count}} orgs",
+        "tooltipConnection": "Connections",
+        "tooltipRevenue": "Revenue",
+        "tooltipNewOrg": "New orgs",
+        "tooltipCommission": "Commission"
+      },
+      "activity": {
+        "title": "Recent activity",
+        "viewAllAudit": "All audit logs"
+      },
+      "health": {
+        "title": "Marketplace health",
+        "platform": "Platform",
+        "connections": "Connections",
+        "errorRate24h": "24h error rate",
+        "avgDurationMs": "Avg. duration (ms)",
+        "lastSync": "Last sync"
+      },
+      "legend": {
+        "newSignup": "New sign-ups",
+        "activeOrg": "Active orgs",
+        "mrr": "MRR"
+      }
+    },
+    "organizations": {
+      "searchPlaceholder": "Company, tax ID, or email…",
+      "partnerFilter": "Partner filter:",
+      "clearPartnerFilter": "Clear filter",
+      "goToPartnerRow": "Go to partner row",
+      "table": {
+        "organization": "Organization",
+        "partner": "Partner",
+        "accounting": "Accounting",
+        "plan": "Plan",
+        "status": "Status",
+        "orders": "Orders",
+        "registered": "Registered",
+        "lastActivity": "Last activity",
+        "menu": "Menu"
+      },
+      "actions": {
+        "changePlan": "Change plan",
+        "extendTrial": "Extend trial (+7 days)",
+        "unsuspend": "Remove suspension",
+        "suspend": "Suspend",
+        "enterAccount": "Enter account"
+      },
+      "dialogs": {
+        "suspendTitle": "Suspend organization",
+        "suspendReasonPlaceholder": "Brief reason…",
+        "suspendConfirm": "Suspend",
+        "deleteTitle": "Delete organization",
+        "deleteDescription": "{{name}} will be permanently suspended and soft-deleted. All user sessions may be affected. Are you sure you want to continue?",
+        "deleteDescriptionGeneric": "This action cannot be undone. Are you sure you want to continue?",
+        "changePlanTitle": "Change plan",
+        "changePlanNotePlaceholder": "Change note…"
+      },
+      "toast": {
+        "suspended": "Organization suspended.",
+        "unsuspended": "Suspension removed.",
+        "trialExtended": "Trial extended by 7 days.",
+        "planUpdated": "Plan updated.",
+        "deleted": "Organization deleted.",
+        "exportEmpty": "No records to export.",
+        "csvDownloaded": "CSV downloaded."
+      },
+      "csv": {
+        "organization": "Organization",
+        "taxNumber": "Tax ID",
+        "products": "Products",
+        "accounting": "Accounting mode",
+        "partner": "Partner",
+        "plan": "Plan",
+        "accountStatus": "Account status",
+        "subscription": "Subscription",
+        "trialEnd": "Trial end",
+        "orders": "Orders",
+        "registered": "Registered",
+        "lastActivity": "Last activity",
+        "filename": "organizations-{{date}}.csv"
+      },
+      "enterOrg": {
+        "invalidSession": "Invalid session response",
+        "failed": "Could not switch to the client account.",
+        "redirecting": "Redirecting to the client panel…",
+        "confirmTitle": "Switch to client panel",
+        "confirmDescription": "You will sign in to {{name}}. Do you want to continue?",
+        "confirmAction": "Go to panel"
+      }
+    },
+    "users": {
+      "searchPlaceholder": "Name or email…",
+      "table": {
+        "user": "User",
+        "organization": "Organization",
+        "role": "Role",
+        "lastLogin": "Last login",
+        "actions": "Actions"
+      },
+      "empty": "No users found.",
+      "editName": "Edit name",
+      "editNameDialog": {
+        "title": "Edit user name",
+        "label": "Full name",
+        "saved": "User name updated."
+      },
+      "actions": {
+        "changeRole": "Change role",
+        "editName": "Edit name",
+        "endSessions": "End sessions",
+        "resetPassword": "Reset password",
+        "unsuspend": "Remove suspension",
+        "suspend": "Suspend"
+      },
+      "dialogs": {
+        "suspendTitle": "Suspend user",
+        "suspendDescription": "{{name}} ({{email}}) will be suspended. They cannot access the panel and all sessions will be ended. Do you confirm?",
+        "suspendDescriptionGeneric": "This user will be suspended. Do you want to continue?",
+        "suspendConfirm": "Suspend",
+        "changeRoleTitle": "Change role",
+        "changeRoleDescription": "{{name}} — current role: {{role}}",
+        "newRole": "New role"
+      },
+      "filename": "users-{{date}}.csv",
+      "toast": {
+        "csvDownloaded": "CSV downloaded.",
+        "exportEmpty": "No users match the current filters to export.",
+        "suspended": "User suspended.",
+        "unsuspended": "Suspension removed.",
+        "roleUpdated": "Role updated.",
+        "sessionsEnded": "Sessions ended.",
+        "resetEmailSent": "Password reset email sent.",
+        "nameUpdated": "User name updated."
+      }
+    },
+    "orgDetail": {
+      "editInfo": "Edit details",
+      "editInfoDialog": {
+        "title": "Edit organization details",
+        "saved": "Organization details updated.",
+        "name": "Company name",
+        "taxId": "Tax ID",
+        "taxOffice": "Tax office",
+        "city": "City",
+        "address": "Address",
+        "website": "Website"
+      }
+    }
+  },
+  "partner": {
+    "portalLabel": "Partner",
+    "layout": {
+      "title": "Partner panel",
+      "badge": "Reseller",
+      "hint": "Select a client to switch to the client panel",
+      "accountMenuAria": "Account menu",
+      "navAria": "Partner panel navigation",
+      "backToDashboard": "Back to main panel",
+      "settings": "Settings",
+      "logout": "Sign out",
+      "kurumsalUpsell": {
+        "feature": "Enterprise partner features",
+        "description": "Custom SLA, advanced reporting, and priority integration support are available on the Enterprise plan. Basic partner panel is available on Growth and above."
+      }
+    },
+    "nav": {
+      "dashboard": "My clients",
+      "clients": "All clients",
+      "commission": "Commission",
+      "commissionReport": "Commission report",
+      "performance": "Performance",
+      "onboarding": "Invitations",
+      "whiteLabel": "White label"
+    },
+    "pages": {
+      "dashboard": {
+        "title": "My clients",
+        "description": "Select an active client to switch to the client panel.",
+        "loadFailed": "Could not load clients.",
+        "loadingAria": "Loading",
+        "emptyTitle": "No linked clients yet",
+        "emptyDescription": "Invite your first client. After they accept, they appear here; use Enter client to open the client panel.",
+        "demoAlertTitle": "Demo reseller account",
+        "demoAlertDescription": "This environment has two sample clients: Demo Partner Inc. (full package) and Demo Store Two (integration). Use Enter client on a card to open that client panel; use Return to my account in the orange bar to come back to the partner panel.",
+        "impersonationAlertTitle": "Switching to a client panel",
+        "impersonationAlertDescription": "Click Enter client on an active client card to work in that client's panel. Use Return to my account in the orange bar to return to the partner panel.",
+        "commissionLink": "Commission",
+        "allClientsLink": "All clients",
+        "manageInvitesLink": "Manage invitations",
+        "commissionInfoLink": "Commission info",
+        "commissionSummaryTitle": "Commission summary",
+        "commissionSummaryThisMonth": "This month {{amount}}",
+        "commissionSummaryTotal": "Total {{amount}}",
+        "commissionDetailLink": "Commission details"
+      },
+      "clients": {
+        "description": "Manage linked clients, switch to their panel, or send a new invitation.",
+        "emptyTitle": "No client records yet",
+        "emptyDescription": "Invite a new client to start a partner relationship. They appear here once the invitation is accepted.",
+        "emptyFilteredTitle": "No clients match filters",
+        "emptyFilteredDescription": "Change search, plan, or status filters and try again.",
+        "invitePending": "Invitation pending",
+        "searchPlaceholder": "Search company name or slug…",
+        "loadingAria": "Loading",
+        "inviteClient": "Invite client",
+        "exportCsv": "Export CSV",
+        "exportCsvSuccess": "CSV downloaded.",
+        "exportEmptyAll": "No client records to export.",
+        "exportEmptyFiltered": "No records match filters to export.",
+        "filterPlanAll": "All plans",
+        "filterStatusAll": "All statuses",
+        "filterStatusActive": "Active",
+        "filterStatusPending": "Trial",
+        "filterStatusSuspended": "Suspended",
+        "sortLabel": "Sort",
+        "sortNameAsc": "Company name (A–Z)",
+        "sortNameDesc": "Company name (Z–A)",
+        "sortOrdersDesc": "Orders (30 days) — high to low",
+        "sortOrdersAsc": "Orders (30 days) — low to high",
+        "enterClient": "Enter client",
+        "enteringClient": "Entering…",
+        "enterClientFailed": "Could not switch to the client account.",
+        "enterClientAria": "Enter {{name}} client panel",
+        "table": {
+          "company": "Company",
+          "plan": "Plan",
+          "orders30d": "Orders (30 days)",
+          "monthlyRevenue": "Monthly revenue",
+          "commissionPct": "Commission %",
+          "commission": "Commission",
+          "status": "Status",
+          "registered": "Registered",
+          "actions": "Actions"
+        }
+      },
+      "commission": {
+        "title": "Commission",
+        "description": "Balance summary, period report, payout requests, and transaction history.",
+        "authPending": "Verifying session…",
+        "partnerOnly": "Commission data is only available with a partner account.",
+        "tabs": {
+          "overview": "Overview",
+          "report": "Period report",
+          "history": "History",
+          "payoutRequests": "Payout requests"
+        }
+      },
+      "performance": {
+        "title": "Performance",
+        "description": "Growth and commission performance summary for your client portfolio.",
+        "loading": "Loading performance data…",
+        "loadingAria": "Loading",
+        "loadFailed": "Could not load performance data.",
+        "errorTitle": "Could not load performance summary",
+        "errorDescription": "Check your connection and try again.",
+        "retry": "Try again",
+        "emptyTitle": "No performance data",
+        "emptyDescription": "Summary appears here once you have active clients and commission activity.",
+        "activeClients": "Active clients",
+        "newClientsThisMonth": "New clients this month",
+        "avgCommissionPerClient": "Average monthly commission per client",
+        "distributionSummary": "This month's distribution summary",
+        "topProfitableHeading": "Most profitable clients (this month)",
+        "tableClient": "Client",
+        "tableCommissionTry": "Commission (TRY)",
+        "noData": "No data yet.",
+        "noDescription": "No description"
+      },
+      "discovery": {
+        "backToSettings": "Back to settings",
+        "title": "Discover partners",
+        "subtitle": "Browse agency partners and send a connection request.",
+        "expertisePlaceholder": "Expertise",
+        "locationPlaceholder": "Search location or city…",
+        "loading": "Loading partner list…",
+        "emptyListTitle": "No partners to show yet",
+        "emptyListDescription": "New partners will appear here when they are added.",
+        "emptyFilteredTitle": "No results",
+        "emptyFilteredDescription": "No partners match your filters. Try changing the search or expertise filter.",
+        "errorTitle": "Could not load partners",
+        "errorDescription": "Check your connection and try again.",
+        "retry": "Try again",
+        "clearFilters": "Clear filters",
+        "pendingBadge": "Pending approval",
+        "requestCta": "Send connection request",
+        "dialogTitle": "{{name}} — connection request",
+        "messageLabel": "Your message (optional)",
+        "messagePlaceholder": "You can add a short note for the partner.",
+        "cancel": "Cancel",
+        "send": "Send",
+        "sending": "Sending…",
+        "requestSuccess": "Your connection request was sent for admin approval.",
+        "starRating": "{{value}} stars",
+        "clientCount": "{{count}} clients",
+        "noDescription": "No description",
+        "expertise": {
+          "all": "All",
+          "marketplace": "Marketplace integration",
+          "erp": "ERP bridge",
+          "full": "Full integration"
+        }
+      },
+      "onboarding": {
+        "title": "Invitations",
+        "description": "Send a registration link by email; the relationship is created automatically after signup.",
+        "inviteClient": "Invite client",
+        "loading": "Loading invitation list…",
+        "loadFailed": "Could not load invitation list.",
+        "errorTitle": "Could not load invitation list",
+        "errorDescription": "Check your connection and try again.",
+        "retry": "Try again",
+        "emptyTitle": "No invitations sent yet",
+        "emptyDescription": "Send an invitation email to your first client. Copy or resend the link from the list.",
+        "tableEmail": "Email",
+        "tableInviteDate": "Invitation date",
+        "tableStatus": "Status",
+        "tableActions": "Actions",
+        "copyLink": "Copy link",
+        "resend": "Resend",
+        "status": {
+          "expired": "Expired",
+          "INVITED": "Pending",
+          "REGISTERED": "Registered",
+          "ONBOARDED": "Onboarding",
+          "ACTIVE": "Active"
+        },
+        "toast": {
+          "linkCopied": "Invitation link copied.",
+          "copyFailed": "Could not copy to clipboard.",
+          "resent": "Invitation resent."
+        }
+      },
+      "whiteLabel": {
+        "title": "White label",
+        "description": "Configure brand information shown in the client interface.",
+        "loading": "Loading…",
+        "partnerOnly": "White label settings are only available with a partner account.",
+        "errorTitle": "Could not load white label settings",
+        "errorDescription": "Check your connection and try again.",
+        "retry": "Try again",
+        "brandSettingsTitle": "Brand settings",
+        "brandSettingsDescription": "Enter your logo, color, and support contact details.",
+        "brandName": "Brand name",
+        "brandNamePlaceholder": "Your agency integration",
+        "logo": "Logo",
+        "logoUploading": "Uploading logo…",
+        "logoUrl": "Logo URL",
+        "logoUrlPlaceholder": "https://…",
+        "primaryColor": "Primary color",
+        "supportEmail": "Support email",
+        "supportEmailPlaceholder": "support@agency.com",
+        "supportPhone": "Support phone",
+        "supportPhonePlaceholder": "+1 …",
+        "hideSenkronize": "Hide Senkronize branding",
+        "hideSenkronizeHint": "Do not show the platform name in the white-label experience",
+        "saving": "Saving…",
+        "previewTitle": "Preview",
+        "previewDescription": "How your logo and brand name appear",
+        "previewBrandFallback": "Your brand name",
+        "previewLogoInitials": "LOG",
+        "previewLogoAlt": "Brand logo preview",
+        "previewHidden": "Platform branding hidden",
+        "previewPoweredBy": "Powered by Senkronize",
+        "validation": {
+          "brandNameMax": "Brand name can be at most 200 characters.",
+          "logoUrlInvalid": "Enter a valid logo URL (https://…).",
+          "supportEmailInvalid": "Enter a valid support email.",
+          "supportPhoneMax": "Phone can be at most 40 characters.",
+          "customDomainMax": "Domain can be at most 200 characters."
+        },
+        "toast": {
+          "saved": "Settings saved.",
+          "logoUploaded": "Logo uploaded."
+        }
+      }
+    },
+    "commission": {
+      "paymentStatus": {
+        "pending": "Pending",
+        "paid": "Paid"
+      },
+      "ledgerStatus": {
+        "PENDING": "Pending",
+        "SETTLED": "Paid",
+        "CANCELLED": "Cancelled"
+      },
+      "type": {
+        "SUBSCRIPTION_FEE": "Subscription",
+        "SERVICE_FEE": "Service",
+        "BONUS": "Bonus",
+        "DEDUCTION": "Deduction"
+      },
+      "unknown": "Unknown",
+      "other": "Other",
+      "noDataTitle": "No commission data",
+      "noDataDescription": "Could not build a summary for the selected period. Try another month or check your client invitations.",
+      "reportNoDataTitle": "No report data",
+      "reportNoDataDescription": "Could not build a report for the selected period. Try another month.",
+      "emptyHistoryTitle": "No commission records yet",
+      "emptyHistoryDescription": "Client subscription and service commissions are listed here.",
+      "emptyMonthlyTitle": "No commission records yet",
+      "emptyMonthlyDescription": "Monthly summaries appear here as active clients' subscription payments are processed.",
+      "emptyPeriodTitle": "No records for {{period}}",
+      "emptyPeriodDescription": "No paid subscriptions or calculated commission in the selected month. You can choose another period.",
+      "perClientRate": "Per client",
+      "loading": "Loading commission data…",
+      "loadFailed": "Could not load commission data:",
+      "reportLoading": "Loading period report…",
+      "reportLoadFailed": "Could not load report:",
+      "historyLoading": "Loading commission history…",
+      "historyLoadFailed": "Could not load commission list.",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "payoutStatus": {
+        "PENDING": "Pending",
+        "APPROVED": "Approved",
+        "REJECTED": "Rejected"
+      },
+      "payoutLoading": "Loading payout requests…",
+      "payoutLoadFailed": "Could not load payout requests:",
+      "emptyPayoutTitle": "No payout requests yet",
+      "emptyPayoutDescription": "Create a payout request from the Overview or Period report tab when you have a pending balance.",
+      "cards": {
+        "pendingBalance": "Pending balance",
+        "pendingBalanceHint": "Amount eligible for payout request",
+        "settledTotal": "Total paid out",
+        "settledTotalHint": "Transferred after finance approval",
+        "periodCommission": "{{period}} commission",
+        "periodCommissionHint": "{{count}} active clients · default rate 10%",
+        "periodCommissionShort": "{{period}} commission",
+        "previousMonth": "Previous month",
+        "lifetime": "Lifetime (pending / paid)"
+      },
+      "periodYear": "Period year",
+      "periodMonth": "Period month",
+      "payoutMinHint": "Pending balance must be at least {{amount}} to request a payout.",
+      "createPayoutRequest": "Create payout request",
+      "summary6mTitle": "Last 6 months — commission summary",
+      "summary6mDescription": "For the current month, client and subscription columns come from the selected period; other months show commission amount only.",
+      "breakdownTitle": "{{period}} — client breakdown",
+      "breakdownEmpty": "No active client commission for this period.",
+      "breakdownCount": "Listing {{count}} clients.",
+      "breakdownNoRecords": "No commission records for this period.",
+      "periodTotal": "Period total: {{amount}}",
+      "trendTitle": "Commission trend — last 6 months",
+      "trendDescription": "Monthly total commission amounts (TRY).",
+      "historyTitle": "Commission history",
+      "historyDescription": "Paginated ledger and monthly summary.",
+      "monthTotal": "This month total ({{month}})",
+      "exportCsvPage": "Download CSV (this page)",
+      "table": {
+        "period": "Period",
+        "client": "Client",
+        "clients": "Clients",
+        "subscriptionTry": "Subscription (TRY)",
+        "rate": "Rate",
+        "commissionTry": "Commission (TRY)",
+        "paymentStatus": "Payment status",
+        "plan": "Plan",
+        "date": "Date",
+        "amount": "Amount",
+        "type": "Type",
+        "status": "Status",
+        "payoutAmount": "Amount",
+        "processedAt": "Processed at"
+      },
+      "months": {
+        "1": "January",
+        "2": "February",
+        "3": "March",
+        "4": "April",
+        "5": "May",
+        "6": "June",
+        "7": "July",
+        "8": "August",
+        "9": "September",
+        "10": "October",
+        "11": "November",
+        "12": "December"
+      },
+      "payoutDialog": {
+        "title": "Create payout request",
+        "description": "Pending balance: {{amount}}. Enter the requested amount; it will be sent for finance approval.",
+        "amountLabel": "Amount (TRY)",
+        "amountRequired": "Enter an amount.",
+        "minAmountError": "Minimum request amount is 1 TRY.",
+        "useFullBalance": "Use full balance",
+        "maxHint": "You can request up to {{amount}}.",
+        "minBalanceHint": "Pending balance must be at least 1 TRY to request a payout.",
+        "dismiss": "Dismiss",
+        "submitting": "Submitting…",
+        "submit": "Submit request"
+      },
+      "toast": {
+        "invalidAmount": "Enter a valid amount.",
+        "amountExceedsBalance": "Amount cannot exceed pending balance ({{amount}}).",
+        "payoutSubmitted": "Payout request saved.",
+        "csvDownloaded": "CSV downloaded."
+      },
+      "pagination": "{{total}} records total — page {{page}} / {{totalPages}}"
+    },
+    "status": {
+      "PENDING": "Trial",
+      "ACTIVE": "Active",
+      "SUSPENDED": "Suspended",
+      "TERMINATED": "Terminated"
+    },
+    "clientCard": {
+      "unnamedClient": "Client",
+      "commissionBadge": "Commission {{pct}}%",
+      "orders30dBadge": "Last 30 days: {{count}} orders",
+      "invitePendingBadge": "Invitation pending",
+      "enterClient": "Enter client",
+      "enteringClient": "Entering…",
+      "copyInvite": "Copy invitation",
+      "detail": "Details",
+      "terminate": "End relationship",
+      "terminateTitle": "End relationship",
+      "terminateDescription": "Are you sure you want to end the partner relationship with {{name}}? This cannot be undone.",
+      "cancel": "Cancel",
+      "confirmTerminate": "End",
+      "toast": {
+        "inviteUrlMissing": "No invitation link to copy.",
+        "inviteCopied": "Invitation link copied.",
+        "copyFailed": "Could not copy to clipboard."
+      }
+    },
+    "invite": {
+      "sent": "Invitation sent."
+    },
+    "linkStatus": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "unknown": "Unknown"
+    },
+    "common": {
+      "loading": "Loading…",
+      "save": "Save",
+      "retry": "Try again",
+      "cancel": "Cancel"
+    }
+  },
+  "notFound": {
+    "pageTitle": "Page not found",
+    "title": "Page not found",
+    "description": "The address you entered does not exist or may have been moved.",
+    "backToPanel": "Back to dashboard"
   }
 }

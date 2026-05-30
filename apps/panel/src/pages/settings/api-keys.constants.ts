@@ -1,12 +1,64 @@
 export const API_KEY_PERMISSIONS = [
-  { value: 'orders:read', labelKey: 'settings.apiKeys.permissions.ordersRead' },
-  { value: 'orders:write', labelKey: 'settings.apiKeys.permissions.ordersWrite' },
-  { value: 'products:read', labelKey: 'settings.apiKeys.permissions.productsRead' },
-  { value: 'products:write', labelKey: 'settings.apiKeys.permissions.productsWrite' },
-  { value: 'stock:read', labelKey: 'settings.apiKeys.permissions.stockRead' },
-  { value: 'stock:write', labelKey: 'settings.apiKeys.permissions.stockWrite' },
-  { value: 'reports:read', labelKey: 'settings.apiKeys.permissions.reportsRead' },
+  {
+    value: 'orders:read',
+    labelKey: 'settings.apiKeys.permissions.ordersRead',
+    label: 'Sipariş okuma',
+  },
+  {
+    value: 'orders:write',
+    labelKey: 'settings.apiKeys.permissions.ordersWrite',
+    label: 'Sipariş yazma',
+  },
+  {
+    value: 'products:read',
+    labelKey: 'settings.apiKeys.permissions.productsRead',
+    label: 'Ürün okuma',
+  },
+  {
+    value: 'products:write',
+    labelKey: 'settings.apiKeys.permissions.productsWrite',
+    label: 'Ürün yazma',
+  },
+  {
+    value: 'stock:read',
+    labelKey: 'settings.apiKeys.permissions.stockRead',
+    label: 'Stok okuma',
+  },
+  {
+    value: 'stock:write',
+    labelKey: 'settings.apiKeys.permissions.stockWrite',
+    label: 'Stok yazma',
+  },
+  {
+    value: 'webhooks:manage',
+    labelKey: 'settings.apiKeys.permissions.webhooksManage',
+    label: 'Webhook yönetimi',
+  },
+  {
+    value: 'reports:read',
+    labelKey: 'settings.apiKeys.permissions.reportsRead',
+    label: 'Rapor okuma',
+  },
 ] as const;
+
+/** Bilinmeyen veya i18n dışı izin kodları için Türkçe yedek etiketler. */
+export const API_KEY_PERMISSION_LABELS: Record<string, string> = Object.fromEntries(
+  API_KEY_PERMISSIONS.map((p) => [p.value, p.label]),
+);
+
+export function apiKeyPermissionLabel(
+  permission: string,
+  t?: (key: string) => string,
+): string {
+  const item = API_KEY_PERMISSIONS.find((p) => p.value === permission);
+  if (item && t) {
+    const translated = t(item.labelKey);
+    if (translated !== item.labelKey) {
+      return translated;
+    }
+  }
+  return API_KEY_PERMISSION_LABELS[permission] ?? permission;
+}
 
 /** Backend şu an yalnızca bu izinleri kabul eder (reports:read henüz yok). */
 export const API_KEY_PERMISSIONS_ACCEPTED = [

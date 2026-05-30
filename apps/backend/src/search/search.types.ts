@@ -1,7 +1,7 @@
 export interface SearchProductResult {
   id: string;
   name: string;
-  barcode: string;
+  barcode: string | null;
   sku: string | null;
   imageUrls: string[];
 }

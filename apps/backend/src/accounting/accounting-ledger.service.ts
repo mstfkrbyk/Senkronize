@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InvoiceStatus, Prisma, type Invoice } from '@prisma/client';
 
+import { accountingPaymentMethodLabel } from './accounting-payment-labels';
 import {
   type LedgerEntry,
   type LedgerEntryType,
@@ -15,28 +16,64 @@ const OPEN_STATUSES: InvoiceStatus[] = [
 
 @Injectable()
 export class AccountingLedgerService {
-  invoiceToLedgerEntry(invoice: Invoice): LedgerEntry {
+  invoiceToLedgerEntries(invoice: Invoice): LedgerEntry[] {
     const total = invoice.totalAmount.toString();
-    const isPayment = invoice.status === InvoiceStatus.PAID;
-    const type: LedgerEntryType = isPayment ? 'PAYMENT' : 'INVOICE';
-    return {
-      id: `ledger-${invoice.id}`,
-      date: (isPayment && invoice.paidAt ? invoice.paidAt : invoice.createdAt).toISOString(),
-      type,
-      description: `${invoice.invoiceNumber} — ${invoice.customerName}`,
-      debit: isPayment ? '0' : total,
-      credit: isPayment ? total : '0',
-      referenceId: invoice.id,
-      referenceType: 'invoice',
-      status: toAccountingStatus(invoice.status),
-    };
+    const status = toAccountingStatus(invoice.status);
+    const invoiceDescription = `${invoice.invoiceNumber} — ${invoice.customerName}`;
+
+    if (invoice.status === InvoiceStatus.PAID) {
+      const methodLabel = accountingPaymentMethodLabel(invoice.paymentMethod);
+      const paymentDescription = methodLabel
+        ? `${invoice.invoiceNumber} — Tahsilat (${methodLabel})`
+        : `${invoice.invoiceNumber} — Tahsilat`;
+
+      return [
+        {
+          id: `ledger-invoice-${invoice.id}`,
+          date: invoice.createdAt.toISOString(),
+          type: 'INVOICE',
+          description: invoiceDescription,
+          debit: total,
+          credit: '0',
+          referenceId: invoice.id,
+          referenceType: 'invoice',
+          status,
+        },
+        {
+          id: `ledger-payment-${invoice.id}`,
+          date: (invoice.paidAt ?? invoice.createdAt).toISOString(),
+          type: 'PAYMENT',
+          description: paymentDescription,
+          debit: '0',
+          credit: total,
+          referenceId: invoice.id,
+          referenceType: 'invoice',
+          status,
+        },
+      ];
+    }
+
+    const type: LedgerEntryType = 'INVOICE';
+    return [
+      {
+        id: `ledger-invoice-${invoice.id}`,
+        date: invoice.createdAt.toISOString(),
+        type,
+        description: invoiceDescription,
+        debit: total,
+        credit: '0',
+        referenceId: invoice.id,
+        referenceType: 'invoice',
+        status,
+      },
+    ];
   }
 
   buildLedgerFromInvoices(invoices: Invoice[]): LedgerEntry[] {
     return invoices
       .filter((inv) => inv.status !== InvoiceStatus.CANCELLED)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((inv) => this.invoiceToLedgerEntry(inv));
+      .flatMap((inv) => this.invoiceToLedgerEntries(inv))
+      .sort((a, b) => b.date.localeCompare(a.date));
   }
 
   computeBalanceFromInvoices(invoices: Invoice[], currency = 'TRY'): {

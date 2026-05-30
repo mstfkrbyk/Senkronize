@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +8,6 @@ import {
   ArrowLeft,
   ClipboardList,
   LineChart,
-  Loader2,
   MessageSquare,
   Plus,
   Store,
@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,10 +47,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { resolveInvoicesNavGroupLabel } from '@/pages/invoices/invoices-nav-context';
+import { useAuthStore } from '@/store/auth.store';
 import { PO_STATUS_LABEL_TR, poStatusBadgeClass } from '@/lib/po-status';
 import { StarRating } from '@/pages/suppliers/components/StarRating';
 import {
@@ -69,6 +75,9 @@ const CONTACT_METHODS = [
 ] as const;
 
 export function SupplierDetailPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const supplierId = id ?? '';
@@ -116,7 +125,14 @@ export function SupplierDetailPage(): ReactElement {
     },
   });
 
-  usePageTitle(supplierQuery.data?.name ?? 'Tedarikçi');
+  const supplierName = supplierQuery.data?.name;
+  usePageTitle(supplierName ?? 'Tedarikçi');
+
+  const navContextLine = formatNavPageContext(
+    resolveInvoicesNavGroupLabel(groupLabel, orgProducts, t),
+    t('nav.suppliers'),
+    supplierName,
+  );
 
   const spendTrend = useMemo(
     () => buildSpendTrendFromOrders(performanceQuery.data?.orderHistory ?? []),
@@ -134,33 +150,58 @@ export function SupplierDetailPage(): ReactElement {
 
   if (!supplierId) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={Store}
-          title="Geçersiz bağlantı"
-          description="Tedarikçi seçilemedi."
-        />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <EmptyState
+            icon={Store}
+            title="Geçersiz bağlantı"
+            description="Tedarikçi seçilemedi."
+          />
+        </CardContent>
+      </Card>
     );
   }
 
   if (supplierQuery.isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-36" />
+            <Skeleton className="h-9 w-40" />
+          </div>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+              <Skeleton className="h-80 w-full rounded-lg" />
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full max-w-md" />
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (supplierQuery.isError || !supplierQuery.data) {
     return (
-      <div className="p-6">
-        <EmptyState
-          icon={Store}
-          title="Tedarikçi bulunamadı"
-          description={getApiErrorMessage(supplierQuery.error)}
-        />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <EmptyState
+            icon={Store}
+            title="Tedarikçi bulunamadı"
+            description={getApiErrorMessage(supplierQuery.error)}
+          />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -169,25 +210,32 @@ export function SupplierDetailPage(): ReactElement {
   const contacts = s.contacts ?? [];
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <Link to="/suppliers">
-            <ArrowLeft className="mr-1 size-4" />
-            Listeye dön
-          </Link>
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => {
-            void navigate(`/purchase-orders?supplierId=${supplierId}&create=1`);
-          }}
-        >
-          <Plus className="mr-1 size-4" />
-          Yeni sipariş oluştur
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={s.name}
+        description="Tedarikçi detayı, sipariş geçmişi ve performans"
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/suppliers">
+                <ArrowLeft className="mr-2 size-4" />
+                Tedarikçilere dön
+              </Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                void navigate(`/purchase-orders?supplierId=${supplierId}&create=1`);
+              }}
+            >
+              <Plus className="mr-1 size-4" />
+              Yeni sipariş oluştur
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <Card className="h-fit">
@@ -255,6 +303,8 @@ export function SupplierDetailPage(): ReactElement {
         </Card>
 
         <div className="min-w-0">
+          <Card>
+            <CardContent className="pt-6">
           <Tabs defaultValue="orders">
             <TabsList className="mb-4 w-full justify-start">
               <TabsTrigger value="orders">
@@ -273,8 +323,10 @@ export function SupplierDetailPage(): ReactElement {
 
             <TabsContent value="orders" className="mt-0">
               {performanceQuery.isLoading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
                 </div>
               ) : !perf?.orderHistory.length ? (
                 <EmptyState
@@ -333,8 +385,14 @@ export function SupplierDetailPage(): ReactElement {
 
             <TabsContent value="performance" className="mt-0 space-y-4">
               {performanceQuery.isLoading ? (
-                <div className="flex justify-center py-12">
-                  <Loader2 className="size-6 animate-spin text-muted-foreground" />
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-24 w-full rounded-lg" />
+                    ))}
+                  </div>
+                  <Skeleton className="h-56 w-full rounded-lg" />
+                  <Skeleton className="h-56 w-full rounded-lg" />
                 </div>
               ) : (
                 <>
@@ -508,6 +566,8 @@ export function SupplierDetailPage(): ReactElement {
               )}
             </TabsContent>
           </Tabs>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

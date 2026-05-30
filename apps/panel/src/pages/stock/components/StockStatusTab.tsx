@@ -141,8 +141,14 @@ export function StockStatusTab(): ReactElement {
   const [statusFilter, setStatusFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
 
-  const warehouses: WarehouseDto[] = warehousesQuery.data ?? [];
-  const metaMap = metaMapQuery.data ?? new Map();
+  const warehouses: WarehouseDto[] = useMemo(
+    () => warehousesQuery.data ?? [],
+    [warehousesQuery.data],
+  );
+  const metaMap = useMemo(
+    () => metaMapQuery.data ?? new Map(),
+    [metaMapQuery.data],
+  );
 
   const categories = useMemo(() => {
     const set = new Set<string>();

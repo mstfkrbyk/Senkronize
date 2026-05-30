@@ -268,7 +268,7 @@ export class ProductVariantService {
       throw new NotFoundException('Ürün bulunamadı');
     }
 
-    const baseSku = (product.sku ?? product.barcode).trim();
+    const baseSku = (product.sku ?? product.barcode ?? '').trim();
     const existingCount = await this.prisma.productVariant.count({
       where: { organizationId, productId, deletedAt: null },
     });

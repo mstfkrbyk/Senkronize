@@ -4,9 +4,28 @@ import { CacheService } from '../common/cache/cache.service';
 
 const REDIS_BLOCKED_IPS = CacheService.key('security', 'blocked_ips');
 const IP_REQUEST_WINDOW_SEC = 300;
-const IP_REQUEST_THRESHOLD = 100;
+const IP_REQUEST_THRESHOLD =
+  process.env.NODE_ENV === 'production' ? 100 : 2_000;
 const IP_TEMP_BLOCK_SEC = 900;
 const IP_TEMP_BLOCK_MAX = 3;
+
+/** Geliştirme ortamında localhost / özel ağ — otomatik IP engeli uygulanmaz. */
+export function isTrustedLocalIp(ip: string): boolean {
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'unknown') {
+    return true;
+  }
+  if (ip.startsWith('127.') || ip.startsWith('::ffff:127.')) {
+    return true;
+  }
+  if (
+    ip.startsWith('192.168.') ||
+    ip.startsWith('10.') ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(ip)
+  ) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  return false;
+}
 
 @Injectable()
 export class IpBlockService {
@@ -41,6 +60,9 @@ export class IpBlockService {
     if (!ip) {
       return false;
     }
+    if (isTrustedLocalIp(ip)) {
+      return false;
+    }
     if (this.memoryFallback.has(ip)) {
       return true;
     }
@@ -53,6 +75,9 @@ export class IpBlockService {
 
   async recordRequest(ip: string | null): Promise<'ok' | 'temp_blocked' | 'permanent_blocked'> {
     if (!ip) {
+      return 'ok';
+    }
+    if (isTrustedLocalIp(ip)) {
       return 'ok';
     }
     if (await this.isBlocked(ip)) {

@@ -1,7 +1,9 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,20 +24,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { AuditLogMetadataCell } from '@/components/audit/AuditLogMetadataCell';
+import {
+  buildAuditLogActionPresets,
+  buildAuditLogProductCategoryOptions,
+  filterAuditLogsForDisplay,
+  showAuditLogProductCategoryChips,
+  type AuditLogProductCategory,
+} from '@/lib/audit-log-categories';
+import {
+  auditLogUserLabel,
+  formatAuditLogAction,
+  formatAuditLogResourceDisplay,
+} from '@/lib/audit-log-labels';
+import { useActiveNav } from '@/hooks/useActiveNav';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { useAuthStore } from '@/store/auth.store';
 import type { AuditLogsPageResponse } from '@/types/audit-log';
 
 const PAGE_SIZE = 50;
-
-const ACTION_PRESETS: { value: string; label: string }[] = [
-  { value: '', label: 'Tüm eylemler' },
-  { value: 'sync_*', label: 'Senkronizasyon' },
-  { value: 'user.*', label: 'Kullanıcı' },
-  { value: 'subscription.*', label: 'Abonelik' },
-  { value: 'partner.*', label: 'Partner' },
-  { value: 'auth.*', label: 'Kimlik ve güvenlik' },
-  { value: 'email.*', label: 'E-posta' },
-];
 
 function boundaryISO(d: Date, end: boolean): string {
   const x = new Date(d);
@@ -58,21 +67,44 @@ function formatDateTime(iso: string): string {
   }
 }
 
-function metadataPreview(meta: Record<string, unknown>): string {
-  try {
-    return JSON.stringify(meta);
-  } catch {
-    return '{}';
-  }
-}
-
 export function AuditLogPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.auditLogs'));
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const showProductChips = showAuditLogProductCategoryChips(orgProducts);
+  const productCategoryOptions = useMemo(
+    () => buildAuditLogProductCategoryOptions(orgProducts),
+    [orgProducts],
+  );
+  const actionPresets = useMemo(
+    () => buildAuditLogActionPresets(orgProducts),
+    [orgProducts],
+  );
+  usePageTitle('Denetim Günlüğü');
+
   const [page, setPage] = useState(1);
   const [preset, setPreset] = useState<'7' | '30' | 'custom'>('7');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [action, setAction] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [productCategory, setProductCategory] =
+    useState<AuditLogProductCategory>('all');
+
+  useEffect(() => {
+    if (!productCategoryOptions.some((o) => o.value === productCategory)) {
+      setProductCategory('all');
+      setPage(1);
+    }
+  }, [productCategory, productCategoryOptions]);
+
+  useEffect(() => {
+    if (!actionPresets.some((p) => p.value === action)) {
+      setAction('');
+      setPage(1);
+    }
+  }, [action, actionPresets]);
 
   const { from, to } = useMemo(() => {
     if (preset === 'custom') {
@@ -131,19 +163,53 @@ export function AuditLogPage(): ReactElement {
     },
   });
 
-  const total = query.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const displayedLogs = useMemo(() => {
+    if (!query.data?.logs) {
+      return [];
+    }
+    return filterAuditLogsForDisplay(query.data.logs, {
+      orgProducts,
+      productCategory,
+    });
+  }, [query.data?.logs, orgProducts, productCategory]);
+
+  const apiTotal = query.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(apiTotal / PAGE_SIZE));
+  const pageFiltered = displayedLogs.length < (query.data?.logs.length ?? 0);
+
+  const categoryFilterActions =
+    showProductChips || productCategoryOptions.length > 2 ? (
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="Aktivite kategorisi"
+      >
+        {productCategoryOptions.map((o) => (
+          <Button
+            key={o.value}
+            type="button"
+            size="sm"
+            variant={productCategory === o.value ? 'default' : 'outline'}
+            className="rounded-full"
+            onClick={() => {
+              setProductCategory(o.value);
+              setPage(1);
+            }}
+          >
+            {o.label}
+          </Button>
+        ))}
+      </div>
+    ) : undefined;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Aktivite Geçmişi
-        </h1>
-        <p className="text-muted-foreground">
-          Yönetimsel işlemlerin kaydı: kim, ne yaptı, ne zaman.
-        </p>
-      </div>
+      <PageHeader
+        title={t('nav.auditLogs')}
+        description={subtitle}
+        context={navContextLine}
+        actions={categoryFilterActions}
+      />
 
       <Card>
         <CardHeader>
@@ -213,7 +279,7 @@ export function AuditLogPage(): ReactElement {
                 <SelectValue placeholder="Eylem" />
               </SelectTrigger>
               <SelectContent>
-                {ACTION_PRESETS.map((p) => (
+                {actionPresets.map((p) => (
                   <SelectItem
                     key={p.value || 'all'}
                     value={p.value === '' ? '__all__' : p.value}
@@ -266,94 +332,116 @@ export function AuditLogPage(): ReactElement {
       ) : null}
 
       {!query.isLoading && !query.isError && query.data ? (
-        <>
-          <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <div className="inline-block min-w-[700px] w-full sm:min-w-0">
-              <div className="rounded-md border">
-                <Table className="min-w-[700px] sm:min-w-full">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Tarih</TableHead>
-                      <TableHead>Kullanıcı</TableHead>
-                      <TableHead>Eylem</TableHead>
-                      <TableHead>Kaynak</TableHead>
-                      <TableHead>Detay</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {query.data.logs.length === 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Kayıtlar</CardTitle>
+            <CardDescription>
+              {pageFiltered
+                ? `Bu sayfada ${displayedLogs.length} kayıt (kategori filtresi uygulandı)`
+                : `Toplam ${apiTotal} kayıt`}
+              {' · '}
+              Sayfa {page} / {totalPages}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-[700px] w-full sm:min-w-0">
+                <div className="rounded-md border">
+                  <Table className="min-w-[700px] sm:min-w-full">
+                    <TableHeader>
                       <TableRow>
-                        <TableCell
-                          colSpan={5}
-                          className="h-24 text-center text-muted-foreground"
-                        >
-                          Bu filtrelere uygun kayıt yok.
-                        </TableCell>
+                        <TableHead>Tarih</TableHead>
+                        <TableHead>Kullanıcı</TableHead>
+                        <TableHead>Eylem</TableHead>
+                        <TableHead>Kaynak</TableHead>
+                        <TableHead>Detay</TableHead>
                       </TableRow>
-                    ) : (
-                      query.data.logs.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell className="whitespace-nowrap text-muted-foreground">
-                            {formatDateTime(row.createdAt)}
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate font-medium">
-                            {row.userEmail ?? row.userId}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {row.action}
-                          </TableCell>
-                          <TableCell className="max-w-[180px] truncate text-sm">
-                            {row.resource}
-                            {row.resourceId ? (
-                              <span className="text-muted-foreground">
-                                :{row.resourceId}
-                              </span>
-                            ) : null}
-                          </TableCell>
-                          <TableCell>
-                            <pre className="max-w-[280px] overflow-x-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">
-                              {metadataPreview(row.metadata)}
-                            </pre>
+                    </TableHeader>
+                    <TableBody>
+                      {displayedLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={5}
+                            className="h-24 text-center text-muted-foreground"
+                          >
+                            Bu filtrelere uygun kayıt yok.
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : (
+                        displayedLogs.map((row) => (
+                          <TableRow key={row.id}>
+                            <TableCell className="whitespace-nowrap text-muted-foreground">
+                              {formatDateTime(row.createdAt)}
+                            </TableCell>
+                            <TableCell className="max-w-[200px] truncate font-medium">
+                              {auditLogUserLabel(row)}
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {formatAuditLogAction(row.action)}
+                            </TableCell>
+                            <TableCell
+                              className="max-w-[200px] truncate text-sm text-muted-foreground"
+                              title={
+                                row.resourceId
+                                  ? `${row.resource} · ${row.resourceId}`
+                                  : row.resource
+                              }
+                            >
+                              {formatAuditLogResourceDisplay(
+                                row.resource,
+                                row.resourceId,
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <AuditLogMetadataCell
+                                metadata={row.metadata}
+                                action={row.action}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
-            <p className="text-sm text-muted-foreground">
-              Toplam {total} kayıt · Sayfa {page} / {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => {
-                  setPage((p) => Math.max(1, p - 1));
-                }}
-              >
-                Önceki
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => {
-                  setPage((p) => Math.min(totalPages, p + 1));
-                }}
-              >
-                Sonraki
-              </Button>
+            <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
+              <p className="text-sm text-muted-foreground">
+                {pageFiltered
+                  ? `Bu sayfada ${displayedLogs.length} kayıt (kategori filtresi uygulandı)`
+                  : `Toplam ${apiTotal} kayıt`}
+                {' · '}
+                Sayfa {page} / {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => {
+                    setPage((p) => Math.max(1, p - 1));
+                  }}
+                >
+                  Önceki
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => {
+                    setPage((p) => Math.min(totalPages, p + 1));
+                  }}
+                >
+                  Sonraki
+                </Button>
+              </div>
             </div>
-          </div>
-        </>
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

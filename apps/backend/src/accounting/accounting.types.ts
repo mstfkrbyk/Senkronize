@@ -15,6 +15,10 @@ export function toAccountingStatus(status: InvoiceStatus): AccountingInvoiceStat
 export type AccountingOverview = {
   openInvoiceCount: number;
   openInvoiceTotal: string;
+  /** Cari borç toplamı (`CustomersBalanceSummary.totalDebit`) */
+  openReceivablesAmount: string;
+  /** E-postalı cari sayısı (`CustomersBalanceSummary.customerCount`) */
+  customerCount: number;
   collectedTotal: string;
   collectedCount: number;
   vatSummary: {
@@ -65,6 +69,15 @@ export type CustomerLedgerSummary = {
 
 export type CustomerLedgerSummariesMap = Record<string, CustomerLedgerSummary>;
 
+/** `GET /accounting/customers/balance-summary` — tüm cariler toplamı */
+export type CustomersBalanceSummary = {
+  totalDebit: string;
+  totalCredit: string;
+  netBalance: string;
+  customerCount: number;
+  currency: string;
+};
+
 export type LedgerEntryType = 'INVOICE' | 'PAYMENT';
 
 export type LedgerEntry = {
@@ -98,4 +111,13 @@ export type AccountingBulkResult = {
   success: number;
   failed: number;
   errors: { id: string; message: string }[];
+};
+
+/** `GET /accounting/inventory-valuation?warehouseId=` */
+export type AccountingInventoryValuation = {
+  warehouseId: string | null;
+  totalQuantity: number;
+  totalValue: string;
+  skuCount: number;
+  currency: string;
 };

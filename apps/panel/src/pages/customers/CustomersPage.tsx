@@ -1,13 +1,16 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Banknote,
   Download,
   Loader2,
   MoreHorizontal,
   PieChart,
+  Scale,
   Tag,
   TrendingDown,
   TrendingUp,
@@ -17,6 +20,7 @@ import {
 import { toast } from 'sonner';
 
 import { AdvancedFilters } from '@/components/AdvancedFilters';
+import { PageHeader } from '@/components/PageHeader';
 import type { FilterConfig } from '@/components/AdvancedFilters';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
@@ -48,8 +52,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { platformLabel } from '@/pages/campaigns/campaign-labels';
+import {
+  CustomersExportNoDataError,
+  exportNativeCariCsv,
+  type CustomersExportFilters,
+} from '@/pages/customers/customers-list-csv';
+import { ledgerBalanceClass } from '@/pages/customers/customer-ledger-utils';
+import { customersT } from '@/pages/customers/translations';
+import { useCustomerBalanceSummary } from '@/pages/customers/useCustomerBalanceSummary';
+import { useCustomerLedgerSummaries } from '@/pages/customers/useCustomerLedgerSummaries';
 import {
   formatCustomerDate,
   formatTryAmount,
@@ -125,7 +141,13 @@ function parseOptionalNumber(value: unknown): number | undefined {
 }
 
 export function CustomersPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.customers'));
+
   usePageTitle('Müşteriler');
+  const { mode, isLoading: accountingModeLoading } = useAccountingMode();
+  const isNativeAccounting = mode === 'NATIVE';
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [filterValues, setFilterValues] =
@@ -169,11 +191,16 @@ export function CustomersPage(): ReactElement {
 
   const summaryQuery = useQuery({
     queryKey: ['customers-summary'],
+    enabled: !isNativeAccounting && !accountingModeLoading,
     queryFn: async (): Promise<CustomerSummary> => {
       const { data } = await api.get<{ data: CustomerSummary }>('/customers/summary');
       return data.data;
     },
   });
+
+  const balanceSummaryQuery = useCustomerBalanceSummary(
+    isNativeAccounting && !accountingModeLoading,
+  );
 
   const tagSuggestionsQuery = useQuery({
     queryKey: ['customers-tag-suggestions'],
@@ -218,21 +245,45 @@ export function CustomersPage(): ReactElement {
     setPage(1);
   }, []);
 
+  const exportFilters = useMemo((): CustomersExportFilters => {
+    return {
+      search: search || undefined,
+      platform: String(filterValues.platform || '') || undefined,
+      segment: String(filterValues.segment || '') || undefined,
+      tag: String(filterValues.tag || '').trim() || undefined,
+      startDate: String(filterValues.startDate || '') || undefined,
+      endDate: String(filterValues.endDate || '') || undefined,
+      minSpent: parseOptionalNumber(filterValues.minSpent),
+      maxSpent: parseOptionalNumber(filterValues.maxSpent),
+      minOrders: parseOptionalNumber(filterValues.minOrders),
+      maxOrders: parseOptionalNumber(filterValues.maxOrders),
+    };
+  }, [filterValues, search]);
+
   const handleExport = async (): Promise<void> => {
     setExporting(true);
     try {
-      const { data } = await api.get<string>('/customers/export', {
-        responseType: 'text',
-      });
-      const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'musteriler.csv';
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success('Müşteri listesi indirildi.');
+      if (isNativeAccounting) {
+        await exportNativeCariCsv(exportFilters);
+        toast.success(customersT('list.export.successNative'));
+      } else {
+        const { data } = await api.get<string>('/customers/export', {
+          responseType: 'text',
+        });
+        const blob = new Blob([data], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'musteriler.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(customersT('list.export.successIntegration'));
+      }
     } catch (e: unknown) {
+      if (e instanceof CustomersExportNoDataError) {
+        toast.message(customersT('list.export.noData'));
+        return;
+      }
       toast.error(getApiErrorMessage(e));
     } finally {
       setExporting(false);
@@ -242,6 +293,12 @@ export function CustomersPage(): ReactElement {
   const items = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const tableColCount = isNativeAccounting ? 10 : 8;
+
+  const ledgerSummariesQuery = useCustomerLedgerSummaries(
+    items.map((c) => c.id),
+    isNativeAccounting,
+  );
   const allOnPageSelected =
     items.length > 0 && items.every((c) => selectedIds.has(c.id));
 
@@ -274,120 +331,213 @@ export function CustomersPage(): ReactElement {
   };
 
   const summary = summaryQuery.data;
+  const balanceSummary = balanceSummaryQuery.data;
+  const balanceSummaryFailed =
+    isNativeAccounting && balanceSummaryQuery.isError;
+  const ledgerSummariesFailed =
+    isNativeAccounting && ledgerSummariesQuery.isError;
+  const kpiLoading =
+    accountingModeLoading ||
+    (isNativeAccounting
+      ? balanceSummaryQuery.isLoading
+      : summaryQuery.isLoading);
 
   return (
-    <div className="flex flex-1 flex-col gap-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Müşteriler</h1>
-          <p className="text-sm text-muted-foreground">
-            Pazaryeri müşterilerinizi segmentasyon ve sipariş geçmişi ile yönetin.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" asChild>
-            <Link to="/customers/segments">
-              <PieChart className="mr-2 size-4" />
-              Segmentler
-            </Link>
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => void handleExport()}
-            disabled={exporting}
-          >
-            {exporting ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 size-4" />
+    <div className="space-y-6">
+      <PageHeader
+        title={t('nav.customers')}
+        description={
+          isNativeAccounting
+            ? customersT('list.subtitle.native')
+            : customersT('list.subtitle.integration')
+        }
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            {isNativeAccounting && !accountingModeLoading ? null : (
+              <Button variant="outline" asChild>
+                <Link to="/customers/segments">
+                  <PieChart className="mr-2 size-4" />
+                  Segmentler
+                </Link>
+              </Button>
             )}
-            CSV Dışa Aktar
-          </Button>
-        </div>
-      </div>
+            <Button
+              variant="outline"
+              onClick={() => void handleExport()}
+              disabled={exporting}
+            >
+              {exporting ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 size-4" />
+              )}
+              {customersT('list.export.csv')}
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam müşteri
-            </CardTitle>
-            <Users className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
-              {summaryQuery.isLoading
-                ? '…'
-                : (summary?.total ?? 0).toLocaleString('tr-TR')}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Yeni (bu ay)
-            </CardTitle>
-            <UserPlus className="size-4 text-sky-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
-              {summaryQuery.isLoading
-                ? '…'
-                : (summary?.newThisMonth ?? 0).toLocaleString('tr-TR')}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Yüksek değerli (üst %10)
-            </CardTitle>
-            <TrendingUp className="size-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
-              {summaryQuery.isLoading
-                ? '…'
-                : (summary?.highValue ?? 0).toLocaleString('tr-TR')}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Kayıp (90+ gün)
-            </CardTitle>
-            <TrendingDown className="size-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold tabular-nums">
-              {summaryQuery.isLoading
-                ? '…'
-                : (summary?.churned ?? 0).toLocaleString('tr-TR')}
-            </p>
-          </CardContent>
-        </Card>
+        {isNativeAccounting ? (
+          balanceSummaryFailed ? (
+            <Card className="sm:col-span-2 xl:col-span-4">
+              <CardContent className="py-6 text-center text-sm text-destructive">
+                {customersT('list.error.balanceSummaryFailed')}
+                {balanceSummaryQuery.error ? (
+                  <p className="mt-1 text-muted-foreground">
+                    {getApiErrorMessage(balanceSummaryQuery.error)}
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {customersT('list.kpi.customerCount')}
+                </CardTitle>
+                <Users className="size-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading
+                    ? '…'
+                    : (balanceSummary?.customerCount ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {customersT('list.kpi.totalDebit')}
+                </CardTitle>
+                <TrendingUp className="size-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading ? '…' : formatTryAmount(balanceSummary?.totalDebit ?? '0')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {customersT('list.kpi.totalCredit')}
+                </CardTitle>
+                <Banknote className="size-4 text-emerald-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading ? '…' : formatTryAmount(balanceSummary?.totalCredit ?? '0')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {customersT('list.kpi.netBalance')}
+                </CardTitle>
+                <Scale className="size-4 text-sky-500" />
+              </CardHeader>
+              <CardContent>
+                <p
+                  className={`text-2xl font-semibold tabular-nums ${ledgerBalanceClass(balanceSummary?.netBalance ?? '0')}`}
+                >
+                  {kpiLoading ? '…' : formatTryAmount(balanceSummary?.netBalance ?? '0')}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+          )
+        ) : (
+          <>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Toplam müşteri
+                </CardTitle>
+                <Users className="size-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading
+                    ? '…'
+                    : (summary?.total ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Yeni (bu ay)
+                </CardTitle>
+                <UserPlus className="size-4 text-sky-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading
+                    ? '…'
+                    : (summary?.newThisMonth ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Yüksek değerli (üst %10)
+                </CardTitle>
+                <TrendingUp className="size-4 text-amber-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading
+                    ? '…'
+                    : (summary?.highValue ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  Kayıp (90+ gün)
+                </CardTitle>
+                <TrendingDown className="size-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {kpiLoading
+                    ? '…'
+                    : (summary?.churned ?? 0).toLocaleString('tr-TR')}
+                </p>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Input
-          placeholder="Ad, e-posta veya telefon ara…"
-          value={search}
-          onChange={(e) =>
-            handleFilterChange({ ...filterValues, search: e.target.value })
-          }
-          className="sm:max-w-sm"
-        />
-        <AdvancedFilters
-          filters={FILTER_CONFIG}
-          values={filterValues}
-          onChange={handleFilterChange}
-          onReset={() => {
-            setFilterValues(FILTER_DEFAULTS);
-            setPage(1);
-          }}
-        />
-      </div>
+      <Card>
+        <CardContent className="flex flex-col gap-3 pt-6 sm:flex-row sm:items-center">
+          <Input
+            placeholder="Ad, e-posta veya telefon ara…"
+            value={search}
+            onChange={(e) =>
+              handleFilterChange({ ...filterValues, search: e.target.value })
+            }
+            className="sm:max-w-sm"
+          />
+          <AdvancedFilters
+            filters={FILTER_CONFIG}
+            values={filterValues}
+            onChange={handleFilterChange}
+            onReset={() => {
+              setFilterValues(FILTER_DEFAULTS);
+              setPage(1);
+            }}
+          />
+        </CardContent>
+      </Card>
 
       {selectedIds.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-4 py-2">
@@ -425,23 +575,28 @@ export function CustomersPage(): ReactElement {
         </div>
       ) : null}
 
-      {listQuery.isLoading ? (
-        <TableSkeleton cols={9} rows={8} />
+      {listQuery.isLoading || (isNativeAccounting && accountingModeLoading) ? (
+        <TableSkeleton cols={tableColCount} rows={8} />
       ) : listQuery.isError ? (
         <EmptyState
           icon={Users}
-          title="Müşteriler yüklenemedi"
+          title={customersT('list.error.loadFailed')}
           description={getApiErrorMessage(listQuery.error)}
         />
       ) : items.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="Henüz müşteri yok"
-          description="Siparişler senkronize edildikçe müşteri kayıtları otomatik oluşturulur."
+          title={customersT('list.empty.title')}
+          description={
+            isNativeAccounting
+              ? customersT('list.empty.descriptionNative')
+              : customersT('list.empty.descriptionIntegration')
+          }
         />
       ) : (
         <>
-          <div className="rounded-lg border bg-card">
+          <Card>
+            <CardContent className="p-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -455,15 +610,43 @@ export function CustomersPage(): ReactElement {
                   <TableHead>Müşteri</TableHead>
                   <TableHead>E-posta</TableHead>
                   <TableHead>Platform</TableHead>
-                  <TableHead className="text-right">Sipariş</TableHead>
-                  <TableHead className="text-right">Harcama</TableHead>
+                  {isNativeAccounting ? (
+                    <>
+                      <TableHead className="text-right">
+                        {customersT('list.columns.debit')}
+                      </TableHead>
+                      <TableHead className="text-right">
+                        {customersT('list.columns.credit')}
+                      </TableHead>
+                      <TableHead className="text-right">
+                        {customersT('list.columns.balance')}
+                      </TableHead>
+                    </>
+                  ) : (
+                    <TableHead className="text-right font-medium">
+                      {customersT('list.columns.orders')}
+                    </TableHead>
+                  )}
                   <TableHead>Etiketler</TableHead>
                   <TableHead>Son sipariş</TableHead>
                   <TableHead className="w-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((c) => (
+                {items.map((c) => {
+                  const ledger = ledgerSummariesQuery.data?.[c.id];
+                  const ledgerLoading =
+                    isNativeAccounting &&
+                    !ledgerSummariesFailed &&
+                    (ledgerSummariesQuery.isLoading || ledgerSummariesQuery.isFetching);
+                  const ledgerCell =
+                    ledgerSummariesFailed
+                      ? customersT('list.error.ledgerFailed')
+                      : ledgerLoading
+                        ? '…'
+                        : null;
+
+                  return (
                   <TableRow key={c.id}>
                     <TableCell>
                       <Checkbox
@@ -486,12 +669,31 @@ export function CustomersPage(): ReactElement {
                     <TableCell>
                       {c.platform ? platformLabel(c.platform) : '—'}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {c.totalOrders}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatTryAmount(c.totalSpent)}
-                    </TableCell>
+                    {isNativeAccounting ? (
+                      <>
+                        <TableCell className="text-right tabular-nums">
+                          {ledgerCell ?? formatTryAmount(ledger?.debit ?? '0')}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {ledgerCell ?? formatTryAmount(ledger?.credit ?? '0')}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-medium tabular-nums ${
+                            ledgerCell
+                              ? 'text-destructive'
+                              : ledger?.balance
+                                ? ledgerBalanceClass(ledger.balance)
+                                : 'text-muted-foreground'
+                          }`}
+                        >
+                          {ledgerCell ?? formatTryAmount(ledger?.balance ?? '0')}
+                        </TableCell>
+                      </>
+                    ) : (
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {c.totalOrders.toLocaleString('tr-TR')}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex max-w-[180px] flex-wrap gap-1">
                         {c.tags.length === 0 ? (
@@ -526,10 +728,12 @@ export function CustomersPage(): ReactElement {
                       </DropdownMenu>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
-          </div>
+            </CardContent>
+          </Card>
 
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <span>

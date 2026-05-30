@@ -1,19 +1,22 @@
 import {
   BadRequestException,
-  ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ErpType, type ErpConnection } from '@prisma/client';
+import { ErpConnectionRole, ErpType, type ErpConnection } from '@prisma/client';
 import type { ERPConnectionResult } from '@senkronize/shared';
 
 import { AdapterRegistry } from '../adapters/adapter.registry';
+import { BizimHesapErpAdapter } from '../adapters/erp/bizimhesap/bizimhesap.adapter';
 import {
   setOrganizationAccountingModeExternal,
   syncOrganizationAccountingModeFromErp,
 } from '../common/accounting-mode';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
+import { isInternalAccount } from '../organization/organization-internal';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -22,6 +25,8 @@ import type {
   UpdateErpConnectionDto,
 } from './erp-connection.dto';
 import { validateAndNormalizeErpCredentials } from './erp-credentials.schema';
+import { resolveRoleForNewConnection } from './erp-connection-role.util';
+import { effectiveErpSlotLimit } from './erp-slot-limit.util';
 
 export type PublicErpConnection = Omit<ErpConnection, 'credentialsEnc'> & {
   accountLabel: string | null;
@@ -75,7 +80,7 @@ export class ErpConnectionService {
       return creds.storeUrl ?? null;
     }
     if (erpType === ErpType.TICIMAX) {
-      return creds.siteUrl ?? null;
+      return creds.storeUrl ?? creds.siteUrl ?? null;
     }
     if (erpType === ErpType.PARASUT) {
       return creds.companyId ?? null;
@@ -164,16 +169,63 @@ export class ErpConnectionService {
       id: row.id,
       organizationId: row.organizationId,
       erpType: row.erpType,
+      displayName: row.displayName,
+      role: row.role,
       isActive: row.isActive,
       lastSyncAt: row.lastSyncAt,
       syncErrorCount: row.syncErrorCount,
       lastErrorAt: row.lastErrorAt,
       lastErrorMessage: row.lastErrorMessage,
+      productMatchKey: row.productMatchKey,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       deletedAt: row.deletedAt,
       accountLabel: this.accountLabel(row.erpType, creds),
     };
+  }
+
+  private normalizeDisplayName(value: string | undefined): string | null {
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed.slice(0, 120) : null;
+  }
+
+  private async assertCanAddErpConnection(organizationId: string): Promise<void> {
+    const [org, subscription, activeCount] = await Promise.all([
+      this.prisma.organization.findFirst({
+        where: { id: organizationId, deletedAt: null },
+        select: { metadata: true, slug: true },
+      }),
+      this.prisma.subscription.findUnique({
+        where: { organizationId },
+        select: { addons: true },
+      }),
+      this.prisma.erpConnection.count({
+        where: { organizationId, deletedAt: null, isActive: true },
+      }),
+    ]);
+    const limit = effectiveErpSlotLimit({
+      subscription,
+      isInternalAccount: org ? isInternalAccount(org) : false,
+    });
+    if (limit !== null && activeCount >= limit) {
+      throw new HttpException(
+        'ERP bağlantı limitine ulaştınız. Ek ERP modülü satın alarak yeni bağlantı ekleyebilirsiniz.',
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+  }
+
+  async findPrimaryConnection(
+    organizationId: string,
+  ): Promise<ErpConnection | null> {
+    return this.prisma.erpConnection.findFirst({
+      where: {
+        organizationId,
+        role: ErpConnectionRole.PRIMARY,
+        deletedAt: null,
+        isActive: true,
+      },
+    });
   }
 
   async findAll(organizationId: string): Promise<PublicErpConnection[]> {
@@ -203,12 +255,14 @@ export class ErpConnectionService {
         'Bu ERP türü için henüz bir adaptör tanımlı değil veya desteklenmiyor.',
       );
     }
-    const existing = await this.prisma.erpConnection.findFirst({
-      where: { organizationId, erpType: dto.erpType },
-    });
-    if (existing && existing.deletedAt === null) {
-      throw new ConflictException('Bu ERP için zaten aktif bir bağlantı mevcut');
-    }
+    await this.assertCanAddErpConnection(organizationId);
+
+    const primary = await this.findPrimaryConnection(organizationId);
+    const role = resolveRoleForNewConnection(
+      primary !== null,
+      dto.role,
+    );
+
     const normalizedCredentials = validateAndNormalizeErpCredentials(
       dto.erpType,
       dto.credentials,
@@ -216,39 +270,22 @@ export class ErpConnectionService {
     const credentialsEnc = this.encryptionService.encrypt(
       JSON.stringify(normalizedCredentials),
     );
-    if (existing) {
-      const row = await this.prisma.erpConnection.update({
-        where: { id: existing.id },
-        data: {
-          credentialsEnc,
-          deletedAt: null,
-          isActive: true,
-          syncErrorCount: 0,
-          lastErrorAt: null,
-          lastErrorMessage: null,
-        },
-      });
-      await this.erpSyncSettingsService.createDefaultForConnection(
-        organizationId,
-        row.id,
-      );
-      if (row.isActive) {
-        await setOrganizationAccountingModeExternal(this.prisma, organizationId);
-      }
-      return this.toPublic(row);
-    }
     const row = await this.prisma.erpConnection.create({
       data: {
         organizationId,
         erpType: dto.erpType,
         credentialsEnc,
+        role,
+        displayName: this.normalizeDisplayName(dto.displayName),
       },
     });
     await this.erpSyncSettingsService.createDefaultForConnection(
       organizationId,
       row.id,
     );
-    await setOrganizationAccountingModeExternal(this.prisma, organizationId);
+    if (row.isActive) {
+      await setOrganizationAccountingModeExternal(this.prisma, organizationId);
+    }
     return this.toPublic(row);
   }
 
@@ -286,13 +323,23 @@ export class ErpConnectionService {
     }
     try {
       const adapter = this.adapterRegistry.getErp(row.erpType);
-      const testResult = await adapter.testConnection(creds);
+      const testResult =
+        row.erpType === ErpType.BIZIMHESAP
+          ? await (adapter as BizimHesapErpAdapter).testConnection(creds, organizationId)
+          : await adapter.testConnection(creds);
       if (!testResult.success) {
         return {
           success: false,
           responseTimeMs: Date.now() - started,
           version: testResult.version,
           error: testResult.message ?? 'Bağlantı testi başarısız.',
+        };
+      }
+      if (row.erpType === ErpType.BIZIMHESAP) {
+        return {
+          success: true,
+          responseTimeMs: Date.now() - started,
+          version: testResult.version,
         };
       }
       const products = await adapter.getProducts(creds);
@@ -333,7 +380,10 @@ export class ErpConnectionService {
         return { success: false, connected: false };
       }
       const adapter = this.adapterRegistry.getErp(row.erpType);
-      const result = await adapter.testConnection(creds);
+      const result =
+        row.erpType === ErpType.BIZIMHESAP
+          ? await (adapter as BizimHesapErpAdapter).testConnection(creds, organizationId)
+          : await adapter.testConnection(creds);
       return { ...result, connected: result.success };
     }
     if (dto.erpType === undefined || dto.credentials === undefined) {
@@ -381,6 +431,12 @@ export class ErpConnectionService {
       data: {
         credentialsEnc,
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.displayName !== undefined
+          ? { displayName: this.normalizeDisplayName(dto.displayName) }
+          : {}),
+        ...(dto.productMatchKey !== undefined
+          ? { productMatchKey: dto.productMatchKey }
+          : {}),
       },
     });
     if (updated.isActive) {
@@ -391,6 +447,54 @@ export class ErpConnectionService {
     return this.toPublic(updated);
   }
 
+  async setPrimaryRole(
+    organizationId: string,
+    connectionId: string,
+  ): Promise<PublicErpConnection> {
+    const target = await this.prisma.erpConnection.findFirst({
+      where: { id: connectionId, organizationId, deletedAt: null },
+    });
+    if (!target) {
+      throw new NotFoundException('ERP bağlantısı bulunamadı');
+    }
+    if (target.role === ErpConnectionRole.PRIMARY) {
+      return this.toPublic(target);
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const currentPrimary = await tx.erpConnection.findFirst({
+        where: {
+          organizationId,
+          role: ErpConnectionRole.PRIMARY,
+          deletedAt: null,
+        },
+      });
+      if (currentPrimary) {
+        await tx.erpConnection.update({
+          where: { id: currentPrimary.id },
+          data: { role: ErpConnectionRole.SECONDARY },
+        });
+        await this.erpSyncSettingsService.applySecondarySyncProfile(
+          organizationId,
+          currentPrimary.id,
+          tx,
+        );
+      }
+      const promoted = await tx.erpConnection.update({
+        where: { id: target.id },
+        data: { role: ErpConnectionRole.PRIMARY },
+      });
+      await this.erpSyncSettingsService.applyPrimarySyncProfile(
+        organizationId,
+        target.id,
+        tx,
+      );
+      return promoted;
+    });
+
+    return this.toPublic(updated);
+  }
+
   async remove(organizationId: string, id: string): Promise<void> {
     const row = await this.prisma.erpConnection.findFirst({
       where: { id, organizationId, deletedAt: null },
@@ -398,9 +502,33 @@ export class ErpConnectionService {
     if (!row) {
       throw new NotFoundException('ERP bağlantısı bulunamadı');
     }
-    await this.prisma.erpConnection.update({
-      where: { id: row.id },
-      data: { deletedAt: new Date() },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.erpConnection.update({
+        where: { id: row.id },
+        data: { deletedAt: new Date() },
+      });
+      if (row.role === ErpConnectionRole.PRIMARY) {
+        const nextPrimary = await tx.erpConnection.findFirst({
+          where: {
+            organizationId,
+            deletedAt: null,
+            isActive: true,
+            id: { not: row.id },
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (nextPrimary) {
+          await tx.erpConnection.update({
+            where: { id: nextPrimary.id },
+            data: { role: ErpConnectionRole.PRIMARY },
+          });
+          await this.erpSyncSettingsService.applyPrimarySyncProfile(
+            organizationId,
+            nextPrimary.id,
+            tx,
+          );
+        }
+      }
     });
     await syncOrganizationAccountingModeFromErp(this.prisma, organizationId);
   }
@@ -411,15 +539,29 @@ export class ErpConnectionService {
   async getDecryptedCredentialsForJob(
     organizationId: string,
     erpType: ErpType,
+    erpConnectionId?: string,
   ): Promise<Record<string, string> | null> {
-    const row = await this.prisma.erpConnection.findFirst({
-      where: {
-        organizationId,
-        erpType,
-        deletedAt: null,
-        isActive: true,
-      },
-    });
+    let row: ErpConnection | null = null;
+    if (erpConnectionId) {
+      row = await this.prisma.erpConnection.findFirst({
+        where: {
+          id: erpConnectionId,
+          organizationId,
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+    }
+    if (!row) {
+      row = await this.prisma.erpConnection.findFirst({
+        where: {
+          organizationId,
+          erpType,
+          deletedAt: null,
+          isActive: true,
+        },
+      });
+    }
     if (!row) {
       return null;
     }
@@ -444,8 +586,17 @@ export class ErpConnectionService {
     });
   }
 
-  async recordSyncSuccess(organizationId: string, erpType: ErpType): Promise<void> {
-    const conn = await this.findActiveByOrgAndType(organizationId, erpType);
+  async recordSyncSuccess(
+    organizationId: string,
+    erpConnectionId: string,
+  ): Promise<void> {
+    const conn = await this.prisma.erpConnection.findFirst({
+      where: {
+        id: erpConnectionId,
+        organizationId,
+        deletedAt: null,
+      },
+    });
     if (!conn) {
       return;
     }
@@ -462,10 +613,16 @@ export class ErpConnectionService {
 
   async recordSyncError(
     organizationId: string,
-    erpType: ErpType,
+    erpConnectionId: string,
     errorMessage?: string,
   ): Promise<void> {
-    const conn = await this.findActiveByOrgAndType(organizationId, erpType);
+    const conn = await this.prisma.erpConnection.findFirst({
+      where: {
+        id: erpConnectionId,
+        organizationId,
+        deletedAt: null,
+      },
+    });
     if (!conn) {
       return;
     }
@@ -493,6 +650,11 @@ export class ErpConnectionService {
     });
     if (!connection) {
       throw new NotFoundException('ERP bağlantısı bulunamadı');
+    }
+    if (connection.role !== ErpConnectionRole.PRIMARY) {
+      throw new BadRequestException(
+        'Fatura yalnızca birincil ERP bağlantısına gönderilebilir.',
+      );
     }
     if (!this.adapterRegistry.hasErpAdapter(connection.erpType)) {
       throw new BadRequestException(

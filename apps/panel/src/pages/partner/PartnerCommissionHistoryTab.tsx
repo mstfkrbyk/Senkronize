@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, History, Loader2 } from 'lucide-react';
 
+import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,70 +18,53 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
-import type { CommissionEntry } from '@/types/partner';
+import { useAuth } from '@/hooks/useAuth';
+import { usePartnerCommissions, usePartnerQueriesEnabled } from './hooks/usePartner';
+import { downloadPartnerCommissionHistoryCsv } from './partner-commission-csv';
+import {
+  commissionLedgerStatusLabel,
+  commissionTypeLabel,
+} from './partner-commission-labels';
+import { formatTry } from './partner-utils';
 
-import { usePartnerCommissions } from './hooks/usePartner';
-
-const tryFormatter = new Intl.NumberFormat('tr-TR', {
-  style: 'currency',
-  currency: 'TRY',
-  maximumFractionDigits: 2,
-});
-
-function formatTryAmount(value: string): string {
-  const n = Number(value);
-  if (Number.isFinite(n)) {
-    return tryFormatter.format(n);
-  }
-  return `${value} TL`;
-}
-
-function ledgerStatusBadge(status: string): ReactElement {
-  const upper = status.toUpperCase();
+function ledgerStatusBadge(
+  status: string,
+  t: ReturnType<typeof useTranslation>['t'],
+): ReactElement {
+  const label = commissionLedgerStatusLabel(status, t);
+  const upper = status.trim().toUpperCase();
   if (upper === 'PENDING') {
-    return <Badge className="bg-amber-500 text-white hover:bg-amber-500">Beklemede</Badge>;
+    return <Badge className="bg-amber-500 text-white hover:bg-amber-500">{label}</Badge>;
   }
   if (upper === 'SETTLED') {
-    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Ödendi</Badge>;
+    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">{label}</Badge>;
   }
   if (upper === 'CANCELLED') {
-    return <Badge variant="secondary">İptal</Badge>;
+    return <Badge variant="secondary">{label}</Badge>;
   }
-  return <Badge variant="outline">{status}</Badge>;
+  return <Badge variant="outline">{label}</Badge>;
 }
 
-const commissionTypeTr: Record<string, string> = {
-  SUBSCRIPTION_FEE: 'Abonelik',
-  SERVICE_FEE: 'Hizmet',
-  BONUS: 'Prim',
-  DEDUCTION: 'Kesinti',
-};
-
-function typeLabel(type: string): string {
-  return commissionTypeTr[type] ?? type;
-}
-
-function toCsv(rows: CommissionEntry[]): string {
-  const header = ['Tarih', 'Müşteri', 'Miktar (TRY)', 'Tür', 'Durum', 'Açıklama'];
-  const lines = rows.map((row) => {
-    const date = format(new Date(row.createdAt), 'yyyy-MM-dd HH:mm', { locale: tr });
-    const client = row.clientOrg?.name ?? '—';
-    const amount = row.amount;
-    const type = typeLabel(row.type);
-    const status = row.status;
-    const desc = (row.description ?? '').replaceAll('"', '""');
-    return `"${date}","${client}","${amount}","${type}","${status}","${desc}"`;
-  });
-  return [header.join(','), ...lines].join('\n');
+function formatLedgerAmount(amount: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) {
+    return '—';
+  }
+  return formatTry(n);
 }
 
 export function PartnerCommissionHistoryTab(): ReactElement {
+  const { t } = useTranslation();
+  const { isPending: authPending } = useAuth();
+  const partnerQueriesEnabled = usePartnerQueriesEnabled();
   const [page, setPage] = useState(1);
   const limit = 20;
-  const { data, isLoading, isError, error } = usePartnerCommissions(page, limit);
+  const { data, isPending, isError, error, refetch } = usePartnerCommissions(
+    page,
+    limit,
+  );
 
-  const items = data?.items ?? [];
+  const items = useMemo(() => data?.items ?? [], [data]);
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.limit)) : 1;
 
   const monthLabel = useMemo(() => {
@@ -89,49 +75,72 @@ export function PartnerCommissionHistoryTab(): ReactElement {
     if (items.length === 0) {
       return;
     }
-    const csv = '\uFEFF' + toCsv(items);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `komisyon-gecmisi-sayfa-${page}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadPartnerCommissionHistoryCsv(items, page);
   }, [items, page]);
 
-  if (isLoading) {
+  if (authPending) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+      <p className="text-sm text-muted-foreground" role="status">
+        {t('partner.pages.commission.authPending')}
+      </p>
+    );
+  }
+
+  if (!partnerQueriesEnabled) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t('partner.pages.commission.partnerOnly')}
+      </p>
+    );
+  }
+
+  if (isPending) {
+    return (
+      <div
+        className="flex flex-col items-center justify-center gap-3 py-16 text-center"
+        role="status"
+        aria-live="polite"
+      >
+        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+        <p className="text-sm text-muted-foreground">{t('partner.commission.historyLoading')}</p>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {isError ? getApiErrorMessage(error) : 'Komisyon listesi yüklenemedi.'}
-      </div>
+      <QueryErrorAlert
+        error={error ?? new Error(t('partner.commission.historyLoadFailed'))}
+        onRetry={
+          isError
+            ? () => {
+                void refetch();
+              }
+            : undefined
+        }
+      />
     );
   }
+
+  const monthTotal = data.currentMonthTotal;
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Komisyon geçmişi</h2>
-        <p className="text-sm text-muted-foreground">Sayfalı hareketler ve aylık özet.</p>
+        <h2 className="text-lg font-semibold">{t('partner.commission.historyTitle')}</h2>
+        <p className="text-sm text-muted-foreground">{t('partner.commission.historyDescription')}</p>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <Card className="flex-1 border-sky-200 bg-sky-50/50 dark:bg-sky-950/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Bu ay toplam ({monthLabel})
+              {t('partner.commission.monthTotal', { month: monthLabel })}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">
-              {tryFormatter.format(data.currentMonthTotal)}
+            <p className="text-2xl font-semibold tabular-nums">
+              {formatTry(monthTotal)}
             </p>
           </CardContent>
         </Card>
@@ -142,25 +151,27 @@ export function PartnerCommissionHistoryTab(): ReactElement {
           onClick={exportCsv}
         >
           <Download className="mr-2 size-4" />
-          CSV indir (bu sayfa)
+          {t('partner.commission.exportCsvPage')}
         </Button>
       </div>
 
       <Card>
         <CardContent className="p-0 sm:px-6">
           {items.length === 0 ? (
-            <p className="px-6 py-8 text-center text-sm text-muted-foreground">
-              Henüz komisyon kaydı yok.
-            </p>
+            <EmptyState
+              icon={History}
+              title={t('partner.commission.emptyHistoryTitle')}
+              description={t('partner.commission.emptyHistoryDescription')}
+            />
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tarih</TableHead>
-                  <TableHead>Müşteri</TableHead>
-                  <TableHead>Miktar</TableHead>
-                  <TableHead>Tür</TableHead>
-                  <TableHead>Durum</TableHead>
+                  <TableHead>{t('partner.commission.table.date')}</TableHead>
+                  <TableHead>{t('partner.commission.table.client')}</TableHead>
+                  <TableHead>{t('partner.commission.table.amount')}</TableHead>
+                  <TableHead>{t('partner.commission.table.type')}</TableHead>
+                  <TableHead>{t('partner.commission.table.status')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -169,10 +180,12 @@ export function PartnerCommissionHistoryTab(): ReactElement {
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {format(new Date(row.createdAt), 'd MMM yyyy HH:mm', { locale: tr })}
                     </TableCell>
-                    <TableCell>{row.clientOrg?.name ?? '—'}</TableCell>
-                    <TableCell className="font-medium">{formatTryAmount(row.amount)}</TableCell>
-                    <TableCell>{typeLabel(row.type)}</TableCell>
-                    <TableCell>{ledgerStatusBadge(row.status)}</TableCell>
+                    <TableCell>{row.clientOrg?.name ?? t('admin.common.emDash')}</TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      {formatLedgerAmount(row.amount)}
+                    </TableCell>
+                    <TableCell>{commissionTypeLabel(row.type, t)}</TableCell>
+                    <TableCell>{ledgerStatusBadge(row.status, t)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -184,7 +197,11 @@ export function PartnerCommissionHistoryTab(): ReactElement {
       {data.total > limit ? (
         <div className="flex items-center justify-between text-sm">
           <p className="text-muted-foreground">
-            Toplam {data.total} kayıt — sayfa {data.page} / {totalPages}
+            {t('partner.commission.pagination', {
+              total: data.total,
+              page: data.page,
+              totalPages,
+            })}
           </p>
           <div className="flex gap-2">
             <Button
@@ -194,7 +211,7 @@ export function PartnerCommissionHistoryTab(): ReactElement {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              Önceki
+              {t('admin.common.previous')}
             </Button>
             <Button
               type="button"
@@ -203,7 +220,7 @@ export function PartnerCommissionHistoryTab(): ReactElement {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              Sonraki
+              {t('admin.common.next')}
             </Button>
           </div>
         </div>

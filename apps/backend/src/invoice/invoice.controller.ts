@@ -9,6 +9,7 @@ import {
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import { OrgProductLine } from '@prisma/client';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -20,6 +21,10 @@ import {
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  ProductLineGuard,
+  RequireProduct,
+} from '../common/guards/product-line.guard';
 
 import {
   BulkInvoiceBodyDto,
@@ -28,12 +33,13 @@ import {
   UpdateInvoiceStatusDto,
 } from './invoice.dto';
 import { InvoiceService } from './invoice.service';
-import type { InvoiceStats, SerializedInvoice } from './invoice.types';
+import type { InvoiceListMeta, InvoiceStats, SerializedInvoice } from './invoice.types';
 
 @ApiTags('invoices')
 @ApiBearerAuth()
 @Controller('invoices')
-@UseGuards(JwtAuthGuard)
+@RequireProduct(OrgProductLine.ACCOUNTING)
+@UseGuards(JwtAuthGuard, ProductLineGuard)
 export class InvoiceController {
   constructor(private readonly invoiceService: InvoiceService) {}
 
@@ -58,6 +64,7 @@ export class InvoiceController {
     total: number;
     page: number;
     limit: number;
+    meta: InvoiceListMeta;
   }> {
     return this.invoiceService.findAll(org.id, query);
   }

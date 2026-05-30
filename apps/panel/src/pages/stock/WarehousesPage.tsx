@@ -54,6 +54,8 @@ import {
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 import type { StockOverviewRow, WarehouseDto } from '@/types/stock';
 
@@ -152,7 +154,7 @@ const EMPTY_FORM: WarehouseFormState = {
 };
 
 export function WarehousesPage(): ReactElement {
-  usePageTitle('Depo yönetimi');
+  usePageTitle('Depolar');
 
   const warehousesQuery = useWarehouses();
   const overviewQuery = useStockOverview();
@@ -165,9 +167,18 @@ export function WarehousesPage(): ReactElement {
   const [form, setForm] = useState<WarehouseFormState>(EMPTY_FORM);
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const costMap = costMapQuery.data ?? new Map<string, number>();
-  const overview = overviewQuery.data ?? [];
-  const warehouses: WarehouseDto[] = warehousesQuery.data ?? [];
+  const costMap = useMemo(
+    () => costMapQuery.data ?? new Map<string, number>(),
+    [costMapQuery.data],
+  );
+  const overview = useMemo(
+    () => overviewQuery.data ?? [],
+    [overviewQuery.data],
+  );
+  const warehouses: WarehouseDto[] = useMemo(
+    () => warehousesQuery.data ?? [],
+    [warehousesQuery.data],
+  );
 
   const orgTotalQty = useMemo(
     () => overview.reduce((s, r) => s + r.totalQuantity, 0),
@@ -272,26 +283,20 @@ export function WarehousesPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Depo yönetimi
-          </h1>
-          <p className="text-muted-foreground">
-            Depolarınızı yönetin, stok dağılımını ve hareket özetini görün.
-          </p>
-        </div>
-        <Button onClick={openCreate}>Depo ekle</Button>
-      </div>
+      <StockPageHeader
+        title="Depolar"
+        description="Stok lokasyonlarınızı yönetin."
+        actions={<Button onClick={openCreate}>Depo ekle</Button>}
+      />
 
+      <Card>
+        <CardContent className="pt-6">
       {warehousesQuery.isLoading ? (
         <p className="text-muted-foreground text-sm">Yükleniyor…</p>
       ) : warehouses.length === 0 ? (
-        <Card>
-          <CardContent className="py-10 text-center text-muted-foreground text-sm">
+          <p className="py-10 text-center text-muted-foreground text-sm">
             Henüz depo tanımlı değil. İlk deponuzu oluşturun.
-          </CardContent>
-        </Card>
+          </p>
       ) : (
         <>
           <div className="overflow-x-auto rounded-md border md:hidden">
@@ -412,6 +417,8 @@ export function WarehousesPage(): ReactElement {
           </div>
         </>
       )}
+        </CardContent>
+      </Card>
 
       <Sheet open={detailId !== null} onOpenChange={(o) => !o && setDetailId(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">

@@ -6,8 +6,11 @@ import { PrismaModule } from '../prisma/prisma.module';
 
 import { AccountingController } from './accounting.controller';
 import { AccountingCustomerService } from './accounting-customer.service';
+import { AccountingInventoryService } from './accounting-inventory.service';
 import { AccountingInvoiceService } from './accounting-invoice.service';
 import { AccountingLedgerService } from './accounting-ledger.service';
+import { AccountingOverdueService } from './accounting-overdue.service';
+import { AccountingOverdueTask } from './accounting-overdue.task';
 
 @Module({
   imports: [PrismaModule, InvoiceModule, EncryptionModule],
@@ -15,12 +18,17 @@ import { AccountingLedgerService } from './accounting-ledger.service';
   providers: [
     AccountingInvoiceService,
     AccountingCustomerService,
+    AccountingInventoryService,
     AccountingLedgerService,
+    AccountingOverdueService,
+    AccountingOverdueTask,
   ],
   exports: [
     AccountingInvoiceService,
     AccountingCustomerService,
+    AccountingInventoryService,
     AccountingLedgerService,
+    AccountingOverdueService,
   ],
 })
 export class AccountingModule {}

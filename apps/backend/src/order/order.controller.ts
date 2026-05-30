@@ -22,6 +22,11 @@ import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import {
+  ProductLineGuard,
+  RequireProduct,
+} from '../common/guards/product-line.guard';
+import { OrgProductLine } from '@prisma/client';
 
 import {
   AddOrderNoteDto,
@@ -46,6 +51,8 @@ import { ReturnService, type ReturnDetailDto } from '../return/return.service';
 @ApiTags('orders')
 @ApiBearerAuth()
 @Controller('orders')
+@RequireProduct(OrgProductLine.INTEGRATION)
+@UseGuards(JwtAuthGuard, ProductLineGuard)
 export class OrderController {
   constructor(
     private readonly orderService: OrderService,

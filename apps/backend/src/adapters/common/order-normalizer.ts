@@ -169,11 +169,22 @@ export function mapShopifyStatus(
   return OrderStatus.NEW;
 }
 
+function formatNormalizedAddress(address: NormalizedOrderAddress): string | undefined {
+  const line = address.line1.trim();
+  const city = address.city.trim();
+  const parts = [line, city, address.country.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(', ') : undefined;
+}
+
 export function toMarketplaceOrder(order: NormalizedOrder): MarketplaceOrder {
+  const customerEmail = order.customer.email.trim();
   return {
     platformOrderId: order.externalId,
     status: order.rawStatus ?? String(order.status),
     customerName: order.customer.name,
+    customerPhone: order.customer.phone,
+    customerEmail: customerEmail.length > 0 ? customerEmail : undefined,
+    shippingAddress: formatNormalizedAddress(order.shippingAddress),
     items: order.items.map((item, index) => ({
       sku: item.sku,
       barcode: item.sku,

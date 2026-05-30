@@ -1,6 +1,6 @@
 import './instrument';
 
-import { RequestMethod, ValidationPipe } from '@nestjs/common';
+import { Logger, RequestMethod, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -233,7 +233,7 @@ Yanıt: \`{ data: T[], total: number, page: number, limit: number }\`
 
   const port = process.env.BACKEND_PORT ?? 3001;
   await app.listen(port);
-  console.log(`Backend ${port} portunda çalışıyor`);
+  Logger.log(`Backend ${port} portunda çalışıyor`, 'Bootstrap');
 }
 
 bootstrap();

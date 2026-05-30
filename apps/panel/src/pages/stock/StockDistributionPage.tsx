@@ -30,6 +30,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { StockDistributionStrategy } from '@/types/sync-conflict';
@@ -166,14 +168,10 @@ export function StockDistributionPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Stok dağılımı
-        </h1>
-        <p className="text-muted-foreground">
-          Platform başına stok tahsisi, otomatik dağıtım ve rezerv kuralları.
-        </p>
-      </div>
+      <StockPageHeader
+        title="Stok Dağılımı"
+        description="Platform başına stok tahsisi, otomatik dağıtım ve rezerv kuralları."
+      />
 
       <Card>
         <CardHeader>
@@ -340,7 +338,7 @@ export function StockDistributionPage(): ReactElement {
             reserveRules.map((rule) => (
               <div
                 key={rule.id}
-                className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4"
+                className="grid gap-3 rounded-lg border bg-card p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
               >
                 <div className="space-y-1">
                   <Label>Platform</Label>

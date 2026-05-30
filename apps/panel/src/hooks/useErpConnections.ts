@@ -7,16 +7,23 @@ import {
 } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
+import {
+  normalizeErpTestConnectionResult,
+  type ErpTestConnectionResult,
+} from '@/lib/connection-test-message';
 
 export interface ErpConnectionDto {
   id: string;
   erpType: string;
+  displayName?: string | null;
+  role: 'PRIMARY' | 'SECONDARY';
   isActive: boolean;
   lastSyncAt: string | null;
   syncErrorCount: number;
   lastErrorMessage: string | null;
   createdAt: string;
   accountLabel?: string | null;
+  productMatchKey?: 'BARCODE' | 'SKU' | 'MANUAL' | null;
 }
 
 export type TestErpConnectionPayload =
@@ -33,15 +40,7 @@ export function useErpConnections(): UseQueryResult<ErpConnectionDto[], Error> {
   });
 }
 
-export interface ErpTestConnectionResult {
-  connected: boolean;
-  success: boolean;
-  companyName?: string;
-  version?: string;
-  productCount?: number;
-  responseTimeMs?: number;
-  message?: string;
-}
+export type { ErpTestConnectionResult } from '@/lib/connection-test-message';
 
 export function useTestErpConnection(): UseMutationResult<
   ErpTestConnectionResult,
@@ -52,11 +51,11 @@ export function useTestErpConnection(): UseMutationResult<
     mutationFn: async (
       payload: TestErpConnectionPayload,
     ): Promise<ErpTestConnectionResult> => {
-      const { data } = await api.post<ErpTestConnectionResult>(
+      const { data } = await api.post<ErpTestConnectionResult | { data: ErpTestConnectionResult }>(
         '/erp-connections/test',
         payload,
       );
-      return data;
+      return normalizeErpTestConnectionResult(data);
     },
   });
 }
@@ -67,16 +66,16 @@ export function useTestErpConnectionById(
   return useMutation({
     mutationFn: async (): Promise<ErpTestConnectionResult> => {
       try {
-        const { data } = await api.post<ErpTestConnectionResult>(
+        const { data } = await api.post<ErpTestConnectionResult | { data: ErpTestConnectionResult }>(
           `/erp-connections/${connectionId}/test`,
         );
-        return data;
+        return normalizeErpTestConnectionResult(data);
       } catch {
-        const { data } = await api.post<ErpTestConnectionResult>(
+        const { data } = await api.post<ErpTestConnectionResult | { data: ErpTestConnectionResult }>(
           '/erp-connections/test',
           { connectionId },
         );
-        return data;
+        return normalizeErpTestConnectionResult(data);
       }
     },
   });
@@ -85,13 +84,20 @@ export function useTestErpConnectionById(
 export function useCreateErpConnection(): UseMutationResult<
   ErpConnectionDto,
   Error,
-  { erpType: string; credentials: Record<string, string> }
+  {
+    erpType: string;
+    credentials: Record<string, string>;
+    displayName?: string;
+    role?: 'PRIMARY' | 'SECONDARY';
+  }
 > {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: {
       erpType: string;
       credentials: Record<string, string>;
+      displayName?: string;
+      role?: 'PRIMARY' | 'SECONDARY';
     }): Promise<ErpConnectionDto> => {
       const { data } = await api.post<ErpConnectionDto>('/erp-connections', body);
       return data;
@@ -143,24 +149,55 @@ export function useToggleErpConnection(): UseMutationResult<
 export function useUpdateErpConnection(): UseMutationResult<
   ErpConnectionDto,
   Error,
-  { id: string; credentials: Record<string, string> }
+  {
+    id: string;
+    credentials?: Record<string, string>;
+    productMatchKey?: 'BARCODE' | 'SKU' | 'MANUAL' | null;
+    displayName?: string;
+  }
 > {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       id,
       credentials,
+      productMatchKey,
+      displayName,
     }: {
       id: string;
-      credentials: Record<string, string>;
+      credentials?: Record<string, string>;
+      productMatchKey?: 'BARCODE' | 'SKU' | 'MANUAL' | null;
+      displayName?: string;
     }): Promise<ErpConnectionDto> => {
       const { data } = await api.patch<ErpConnectionDto>(`/erp-connections/${id}`, {
-        credentials,
+        ...(credentials !== undefined ? { credentials } : {}),
+        ...(productMatchKey !== undefined ? { productMatchKey } : {}),
+        ...(displayName !== undefined ? { displayName } : {}),
       });
       return data;
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['erp-connections'] });
+    },
+  });
+}
+
+export function useSetPrimaryErpConnection(): UseMutationResult<
+  ErpConnectionDto,
+  Error,
+  string
+> {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<ErpConnectionDto> => {
+      const { data } = await api.post<{ data: ErpConnectionDto }>(
+        `/erp-connections/${id}/set-primary`,
+      );
+      return data.data;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['erp-connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['erp-sync-settings'] });
     },
   });
 }

@@ -9,6 +9,7 @@ import type {
   CustomerLedgerSummariesMap,
   CustomerLedgerSummary,
   CustomerStatement,
+  CustomersBalanceSummary,
 } from './accounting.types';
 
 @Injectable()
@@ -44,6 +45,25 @@ export class AccountingCustomerService {
       balance,
       entries,
       invoices: serializedInvoices,
+    };
+  }
+
+  async getBalanceSummary(organizationId: string): Promise<CustomersBalanceSummary> {
+    const summaries = await this.getLedgerSummaries(organizationId);
+    const values = Object.values(summaries);
+    let debitSum = 0;
+    let creditSum = 0;
+    for (const summary of values) {
+      debitSum += Number(summary.debit);
+      creditSum += Number(summary.credit);
+    }
+    const round2 = (n: number): string => (Math.round(n * 100) / 100).toFixed(2);
+    return {
+      totalDebit: round2(debitSum),
+      totalCredit: round2(creditSum),
+      netBalance: round2(debitSum - creditSum),
+      customerCount: values.length,
+      currency: values[0]?.currency ?? 'TRY',
     };
   }
 

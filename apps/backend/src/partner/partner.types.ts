@@ -18,6 +18,8 @@ export interface AdminPartnerRow {
   commissionRate: number;
   activeClientCount: number;
   createdAt: Date;
+  /** Seed demo partner org'ları (ör. demo-partner) */
+  isDemo: boolean;
 }
 
 export interface CommissionReportRow {
@@ -49,4 +51,16 @@ export interface PartnerPerformance {
     name: string;
     commissionThisMonthTRY: number;
   }>;
+}
+
+export type PartnerPayoutRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface PartnerPayoutRequestRow {
+  id: string;
+  partnerOrgId: string;
+  partnerName?: string;
+  amountTRY: number;
+  status: PartnerPayoutRequestStatus;
+  createdAt: string;
+  reviewedAt?: string | null;
 }

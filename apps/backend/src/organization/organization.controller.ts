@@ -51,7 +51,11 @@ export class OrganizationController {
 
   @Get('settings')
   @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Organizasyon ayarları (fatura numaralandırma)' })
+  @ApiOperation({
+    summary: 'Organizasyon ayarları',
+    description:
+      'Fatura numaralandırma (önek, sıra) ve NATIVE modda siparişten otomatik fatura varsayılanı (`defaultAutoInvoice`).',
+  })
   @ApiResponse({ status: 200, type: OrganizationSettingsResponseDto })
   async getSettings(
     @CurrentOrg() org: CurrentOrgPayload,
@@ -62,7 +66,11 @@ export class OrganizationController {
   @Patch('settings')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.OWNER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Organizasyon ayarlarını güncelle' })
+  @ApiOperation({
+    summary: 'Organizasyon ayarlarını güncelle',
+    description:
+      'Kısmi güncelleme: `invoiceNumberPrefix`, `nextSequence`, `defaultAutoInvoice` (NATIVE otomatik fatura).',
+  })
   @ApiResponse({ status: 200, type: OrganizationSettingsResponseDto })
   async patchSettings(
     @CurrentOrg() org: CurrentOrgPayload,

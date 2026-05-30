@@ -62,6 +62,7 @@ describe('SubscriptionService', () => {
     product: { count: jest.Mock };
     user: { count: jest.Mock };
     warehouse: { count: jest.Mock };
+    erpConnection: { count: jest.Mock };
   } = {
     subscription: {
       findUnique: jest.fn(),
@@ -70,6 +71,8 @@ describe('SubscriptionService', () => {
       findFirst: jest.fn().mockResolvedValue({
         id: orgId,
         productLines: ['INTEGRATION', 'ACCOUNTING'],
+        slug: 'test-org',
+        metadata: {},
       }),
       update: jest.fn(),
     },
@@ -84,6 +87,7 @@ describe('SubscriptionService', () => {
     product: { count: jest.fn() },
     user: { count: jest.fn() },
     warehouse: { count: jest.fn() },
+    erpConnection: { count: jest.fn() },
   };
 
   const cache = {
@@ -101,7 +105,10 @@ describe('SubscriptionService', () => {
     prisma.organization.findFirst.mockResolvedValue({
       id: orgId,
       productLines: ['INTEGRATION', 'ACCOUNTING'],
+      slug: 'test-org',
+      metadata: {},
     });
+    prisma.erpConnection.count.mockResolvedValue(0);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -201,6 +208,8 @@ describe('SubscriptionService', () => {
       );
       expect(overview.usage.orders.used).toBe(12);
       expect(overview.usage.orders.limit).toBe(PLAN_LIMITS.BASLANGIC.orders);
+      expect(overview.usage.erpConnections.used).toBe(0);
+      expect(overview.usage.erpConnections.limit).toBe(1);
     });
   });
 
@@ -224,7 +233,7 @@ describe('SubscriptionService', () => {
 
       expect(overview.trialDaysLeft).toBeGreaterThanOrEqual(4);
       expect(overview.trialDaysLeft).toBeLessThanOrEqual(5);
-      expect(overview.usage.products.limit).toBe(PLAN_LIMITS.BASLANGIC.products);
+      expect(overview.usage.products.limit).toBe(PLAN_LIMITS.GELISIM.products);
     });
 
     it('getUsageOverview — süresi dolmuş trial için 0 gün döner', async () => {

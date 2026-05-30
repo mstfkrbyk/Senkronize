@@ -31,6 +31,7 @@ import { SecurityNotificationService } from '../security/security-notification.s
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
+  ResetPasswordDto,
   LoginDto,
   RecommendPlanDto,
   RegisterDto,
@@ -47,6 +48,12 @@ import {
   resolveOrganizationAccountingMode,
 } from '../common/accounting-mode';
 import { productSelectionToProductLines } from '../common/product-lines';
+import {
+  isBillingExempt,
+  isInternalAccount,
+  internalAccountDisplayPlan,
+} from '../organization/organization-internal';
+import { resolveEffectivePlanTier } from '../subscription/subscription-effective-plan';
 import { SubscriptionService } from '../subscription/subscription.service';
 
 const BCRYPT_ROUNDS = 10;
@@ -140,9 +147,12 @@ export class AuthService {
           referralCode:
             (partnerOrgIdFromInvite ?? dto.referralCode?.trim()) || null,
           productLines: productSelectionToProductLines(dto.productSelection),
-          accountingMode: productSelectionToInitialAccountingMode(
-            dto.productSelection,
-          ),
+          accountingMode:
+            (dto.productSelection === 'BUNDLE' ||
+              dto.productSelection === 'ACCOUNTING') &&
+            dto.accountingMode != null
+              ? dto.accountingMode
+              : productSelectionToInitialAccountingMode(dto.productSelection),
         },
       });
 
@@ -595,6 +605,42 @@ export class AuthService {
     return { ok: true };
   }
 
+  async resetPassword(dto: ResetPasswordDto): Promise<{ ok: true }> {
+    const cacheKey = CacheService.key('password_reset', dto.token);
+    const stored = await this.cache.get<{ userId: string }>(cacheKey);
+
+    if (!stored) {
+      throw new BadRequestException(
+        'Şifre sıfırlama bağlantısı geçersiz veya süresi dolmuş.',
+      );
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: stored.userId, deletedAt: null },
+    });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    if (user.organizationId) {
+      await this.passwordPolicy.assertValidPasswordForOrg(
+        user.organizationId,
+        dto.newPassword,
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    await this.cache.del(cacheKey);
+    await this.sessionService.revokeAllUserSessions(user.id);
+
+    return { ok: true };
+  }
+
   async changePassword(
     actor: AuthenticatedUser,
     dto: ChangePasswordDto,
@@ -675,8 +721,12 @@ export class AuthService {
       include: { subscription: true },
     });
     const { subscription, ...rest } = org;
-    const plan = this.resolveUiPlanTier(subscription);
-    const orgProducts = await this.subscriptionService.getOrgProducts(org.id);
+    const internalAccount = isInternalAccount(org);
+    const billingExempt = isBillingExempt(org);
+    const plan = internalAccount
+      ? internalAccountDisplayPlan(subscription?.plan)
+      : resolveEffectivePlanTier(subscription);
+    const productLines = await this.subscriptionService.getOrgProducts(org.id);
     const activeErpCount = await this.prisma.erpConnection.count({
       where: {
         organizationId: org.id,
@@ -703,7 +753,10 @@ export class AuthService {
       createdAt: rest.createdAt,
       onboardingCompleted: rest.onboardingCompleted,
       plan,
-      orgProducts,
+      internalAccount,
+      billingExempt,
+      productLines,
+      orgProducts: productLines,
       accountingMode,
       require2FA: org.require2FA,
       passwordPolicy: {
@@ -772,34 +825,6 @@ export class AuthService {
         'Deneme süreniz sona erdi. Abonelik başlatarak devam edebilirsiniz.',
       );
     }
-  }
-
-  private resolveUiPlanTier(subscription: Subscription | null): PlanTier {
-    const now = new Date();
-    if (!subscription) {
-      return PlanTier.BASLANGIC;
-    }
-    if (
-      subscription.status === SubStatus.EXPIRED ||
-      subscription.status === SubStatus.PAUSED
-    ) {
-      return PlanTier.BASLANGIC;
-    }
-    if (
-      (subscription.status === SubStatus.CANCELLED ||
-        subscription.status === SubStatus.CANCELING) &&
-      now >
-        (subscription.subscriptionEndsAt ?? subscription.currentPeriodEnd)
-    ) {
-      return PlanTier.BASLANGIC;
-    }
-    if (subscription.status === SubStatus.TRIAL) {
-      if (subscription.trialEndsAt && now > subscription.trialEndsAt) {
-        return PlanTier.BASLANGIC;
-      }
-      return PlanTier.BASLANGIC;
-    }
-    return subscription.plan;
   }
 
   private async generateUniqueOrgSlug(email: string): Promise<string> {

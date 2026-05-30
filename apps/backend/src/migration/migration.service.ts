@@ -6,11 +6,18 @@ import {
 import { InjectQueue } from '@nestjs/bull';
 import type { Queue } from 'bull';
 
+import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_DATA_IMPORT } from '../queue/queue.constants';
 import type { DataImportJobData } from '../queue/queue.types';
 
 import { detectSourceFormat } from './migration.format-detector';
+import {
+  appendMigrationImportHistory,
+  buildHistoryRecordFromSession,
+  parseMigrationImportHistory,
+  toMigrationHistoryItem,
+} from './migration-history';
 import { MigrationImportExecutor } from './migration-import.executor';
 import { suggestColumnMapping } from './migration.mapper';
 import { parseMigrationFile } from './migration.parser';
@@ -20,6 +27,7 @@ import { validateMigrationRows } from './migration.validator';
 import type {
   MigrationDataType,
   MigrationExecuteResponse,
+  MigrationHistoryItem,
   MigrationImportResult,
   MigrationPreviewResponse,
   MigrationRow,
@@ -49,6 +57,7 @@ export class MigrationService {
   constructor(
     private readonly sessionStore: MigrationSessionStore,
     private readonly importExecutor: MigrationImportExecutor,
+    private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_DATA_IMPORT)
     private readonly dataImportQueue: Queue<DataImportJobData>,
   ) {}
@@ -261,8 +270,24 @@ export class MigrationService {
       onProgress?.(session);
     }
 
-    return this.sessionStore.update(sessionId, organizationId, {
+    const completed = await this.sessionStore.update(sessionId, organizationId, {
       status: 'completed',
+    });
+    await this.persistImportHistory(organizationId, completed, 'completed');
+    return completed;
+  }
+
+  async markImportFailed(
+    sessionId: string,
+    organizationId: string,
+  ): Promise<void> {
+    const failed = await this.sessionStore.update(sessionId, organizationId, {
+      status: 'failed',
+    });
+    await this.persistImportHistory(organizationId, failed, 'failed');
+    this.logger.warn('Veri taşıma oturumu başarısız', {
+      organizationId,
+      sessionId,
     });
   }
 
@@ -303,8 +328,46 @@ export class MigrationService {
     return { imported, updated, skipped, errors };
   }
 
-  async getImportHistory(_organizationId: string): Promise<unknown[]> {
-    return [];
+  async getImportHistory(organizationId: string): Promise<MigrationHistoryItem[]> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { metadata: true },
+    });
+    if (!org) {
+      return [];
+    }
+    return parseMigrationImportHistory(org.metadata).map(toMigrationHistoryItem);
+  }
+
+  private async persistImportHistory(
+    organizationId: string,
+    session: MigrationSession,
+    status: MigrationSession['status'],
+  ): Promise<void> {
+    try {
+      const record = buildHistoryRecordFromSession(session, status);
+      await this.prisma.$transaction(async (tx) => {
+        const org = await tx.organization.findFirst({
+          where: { id: organizationId, deletedAt: null },
+          select: { metadata: true },
+        });
+        if (!org) {
+          return;
+        }
+        await tx.organization.update({
+          where: { id: organizationId },
+          data: {
+            metadata: appendMigrationImportHistory(org.metadata, record),
+          },
+        });
+      });
+    } catch (error) {
+      this.logger.error('İçe aktarma geçmişi kaydedilemedi', {
+        organizationId,
+        sessionId: session.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   parseCsvForLegacy(csv: string): MigrationRow[] {

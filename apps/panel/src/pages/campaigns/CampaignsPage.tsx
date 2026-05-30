@@ -1,8 +1,11 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { Megaphone, Percent, Plus, ShoppingBag, TrendingUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { PageHeader } from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
 import { Badge } from '@/components/ui/badge';
@@ -18,8 +21,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { useAuthStore } from '@/store/auth.store';
 import type { CampaignStatus } from '@/types/campaign';
 
@@ -66,6 +70,9 @@ function statusBadgeVariant(
 }
 
 export function CampaignsPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.campaigns'));
   usePageTitle('Kampanyalar');
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const proAccess = hasProAccess(plan);
@@ -84,14 +91,11 @@ export function CampaignsPage(): ReactElement {
   if (!proAccess) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Kampanya yönetimi
-          </h1>
-          <p className="text-muted-foreground">
-            Flaş indirim, sezonsal kampanyalar ve otomatik zamanlama.
-          </p>
-        </div>
+        <PageHeader
+          title="Kampanya yönetimi"
+          description="Flaş indirim, sezonsal kampanyalar ve otomatik zamanlama."
+          context={navContextLine}
+        />
         <UpgradePrompt
           feature="Kampanya ve indirim yönetimi"
           requiredPlan="PRO"
@@ -104,25 +108,21 @@ export function CampaignsPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Kampanya yönetimi
-          </h1>
-          <p className="text-muted-foreground">
-            Flaş indirim, sezonsal kampanyalar, etki analizi ve otomatik
-            zamanlama.
-          </p>
-        </div>
-        <Button
-          type="button"
-          className="shrink-0 gap-2"
-          onClick={() => setWizardOpen(true)}
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Yeni kampanya
-        </Button>
-      </div>
+      <PageHeader
+        title="Kampanya yönetimi"
+        description="Flaş indirim, sezonsal kampanyalar, etki analizi ve otomatik zamanlama."
+        context={navContextLine}
+        actions={
+          <Button
+            type="button"
+            className="shrink-0 gap-2"
+            onClick={() => setWizardOpen(true)}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Yeni kampanya
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpisQuery.isLoading ? (
@@ -194,25 +194,32 @@ export function CampaignsPage(): ReactElement {
         )}
       </div>
 
-      <Tabs
-        value={statusFilter}
-        onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-      >
-        <TabsList>
-          {FILTER_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <Card>
+        <CardContent className="pt-6">
+          <Tabs
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
+            <TabsList>
+              {FILTER_TABS.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       {campaignsQuery.isLoading ? (
         <TableSkeleton rows={5} cols={8} />
       ) : campaignsQuery.isError ? (
-        <p className="text-sm text-destructive">
-          {getApiErrorMessage(campaignsQuery.error)}
-        </p>
+        <QueryErrorAlert
+          error={campaignsQuery.error}
+          onRetry={() => {
+            void campaignsQuery.refetch();
+          }}
+        />
       ) : (campaignsQuery.data ?? []).length === 0 ? (
         <EmptyState
           icon={Megaphone}
@@ -224,8 +231,9 @@ export function CampaignsPage(): ReactElement {
           }}
         />
       ) : (
-        <div className="rounded-md border">
-          <Table>
+        <Card>
+          <CardContent className="p-0">
+            <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>İsim</TableHead>
@@ -290,7 +298,8 @@ export function CampaignsPage(): ReactElement {
               ))}
             </TableBody>
           </Table>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <CampaignWizardDialog open={wizardOpen} onOpenChange={setWizardOpen} />

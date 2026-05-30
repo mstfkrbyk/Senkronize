@@ -19,4 +19,10 @@ export const CacheKeys = {
   exchangeRates: () => `exchange:rates`,
   buyboxScore: (listingId: string) => `buybox:${listingId}`,
   migrationSession: (sessionId: string) => `migration:session:${sessionId}`,
+  adminStatsPlatform: (product: string) => `admin:stats:platform:${product}`,
+  adminStatsRevenue: () => `admin:stats:revenue`,
+  adminStatsGrowth: (period: string) => `admin:stats:growth:${period}`,
+  adminStatsMrrHistory: () => `admin:stats:mrr-history`,
+  adminStatsPlatformUsage: () => `admin:stats:platform-usage`,
+  adminStatsCohort: () => `admin:stats:cohort-retention`,
 } as const;

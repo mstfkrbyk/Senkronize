@@ -32,6 +32,7 @@ import {
 import type { SerializedInvoice } from '../invoice/invoice.types';
 
 import { AccountingCustomerService } from './accounting-customer.service';
+import { AccountingInventoryService } from './accounting-inventory.service';
 import {
   BulkAccountingInvoiceIdsDto,
   CreateAccountingInvoiceDto,
@@ -40,10 +41,12 @@ import {
 import { AccountingInvoiceService } from './accounting-invoice.service';
 import type {
   AccountingBulkResult,
+  AccountingInventoryValuation,
   AccountingOverview,
   AccountingRevenueTrend,
   AccountingVatSummary,
   CustomerLedgerSummariesMap,
+  CustomersBalanceSummary,
   CustomerStatement,
   PushToErpResult,
 } from './accounting.types';
@@ -57,11 +60,15 @@ export class AccountingController {
   constructor(
     private readonly accountingInvoiceService: AccountingInvoiceService,
     private readonly accountingCustomerService: AccountingCustomerService,
+    private readonly accountingInventoryService: AccountingInventoryService,
   ) {}
 
   @Get('overview')
   @ApiOperation({ summary: 'Ön muhasebe KPI özeti' })
-  @ApiResponse({ status: 200, description: 'Açık fatura, tahsilat, KDV özeti' })
+  @ApiResponse({
+    status: 200,
+    description: 'Açık fatura, tahsilat, KDV ve cari alacak özeti',
+  })
   async getOverview(
     @CurrentOrg() org: CurrentOrgPayload,
   ): Promise<{ data: AccountingOverview }> {
@@ -77,6 +84,21 @@ export class AccountingController {
     @Query('months', new DefaultValuePipe(6), ParseIntPipe) months: number,
   ): Promise<{ data: AccountingRevenueTrend }> {
     const data = await this.accountingInvoiceService.getRevenueTrend(org.id, months);
+    return { data };
+  }
+
+  @Get('inventory-valuation')
+  @ApiOperation({ summary: 'Stok değerleme (miktar × maliyet)' })
+  @ApiResponse({ status: 200, description: 'Toplam miktar ve stok değeri' })
+  @ApiResponse({ status: 404, description: 'Depo bulunamadı' })
+  async getInventoryValuation(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Query('warehouseId') warehouseId?: string,
+  ): Promise<{ data: AccountingInventoryValuation }> {
+    const data = await this.accountingInventoryService.getInventoryValuation(
+      org.id,
+      warehouseId,
+    );
     return { data };
   }
 
@@ -110,6 +132,16 @@ export class AccountingController {
       org.id,
       customerIds?.length ? customerIds : undefined,
     );
+    return { data };
+  }
+
+  @Get('customers/balance-summary')
+  @ApiOperation({ summary: 'Tüm müşteriler cari borç/alacak toplamı' })
+  @ApiResponse({ status: 200, description: 'Toplam borç, alacak, bakiye ve müşteri sayısı' })
+  async getCustomersBalanceSummary(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<{ data: CustomersBalanceSummary }> {
+    const data = await this.accountingCustomerService.getBalanceSummary(org.id);
     return { data };
   }
 

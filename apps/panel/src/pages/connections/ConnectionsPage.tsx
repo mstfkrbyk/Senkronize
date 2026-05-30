@@ -1,15 +1,17 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   Plug,
+  Plus,
   XCircle,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 import {
   ConnectionFormModal,
@@ -17,26 +19,63 @@ import {
 } from '@/components/ConnectionFormModal';
 import { SyncMonitorPanel } from '@/components/connections/SyncMonitorPanel';
 import { EmptyState } from '@/components/EmptyState';
+import { AccountingModeBadge } from '@/components/AccountingModeBadge';
+import { IntegrationConnectionsEmptyState } from '@/components/IntegrationConnectionsEmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useMarketplaceConnections } from '@/hooks/useConnections';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useErpConnections, type ErpConnectionDto } from '@/hooks/useErpConnections';
 import { fromApiSyncFrequency, type ErpSyncSettingsDto } from '@/hooks/useErpSyncSettings';
+import { useSubscriptionUsage } from '@/hooks/useSubscriptionUsage';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { erpSlotUsageLabel, isErpSlotQuotaFull } from '@/lib/erp-slot-usage';
 import type { SyncLogEntry } from '@/types/sync-log';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 
 import {
   computeConnectionKpis,
-  erpSyncFrequencyLabel,
+  erpSyncScheduleLabel,
   erpToRow,
   marketplaceToRow,
   type UnifiedConnectionRow,
 } from './connection-utils';
+import {
+  resolveConnectionsProductAccess,
+  showExternalErpBridgeUi,
+} from './connections-product-access';
+import {
+  defaultConnectionTab,
+  isConnectionTabId,
+  resolveConnectionChannelTabs,
+  resolveConnectionErpTab,
+  resolveConnectionsSubtitleKey,
+  type ConnectionTabId,
+} from './connections-tabs.config';
+import { resolveConnectionsNavGroupId } from './connections-nav-context';
+import { ConnectionsChannelPanel } from './ConnectionsChannelPanel';
 import { ConnectionsTable } from './ConnectionsTable';
+import { ConnectionsBundleNativeGuide } from './ConnectionsBundleNativeGuide';
+import { ErpBridgeSection } from './ErpBridgeSection';
 import { ErpSetupWizard } from './ErpSetupWizard';
+import { IntegrationProductPrompt } from './IntegrationProductPrompt';
+import { useConnectionsPageMarketplace } from './useConnectionsPageQueries';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { NAV_GROUP_LABEL_KEYS } from '@/lib/nav-match';
+import { isBundleOrg } from '@/lib/org-products';
+import { useAuthStore } from '@/store/auth.store';
+import { cn } from '@/lib/utils';
+
+const CONNECTION_TAB_TRIGGER_CLASS =
+  'rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:text-foreground data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-sky-500/25';
+
+const CONNECTION_ERP_TAB_ACTIVE_CLASS =
+  'data-[state=active]:ring-sky-500/30';
 
 interface KpiCardProps {
   title: string;
@@ -66,11 +105,8 @@ function KpiCard({ title, value, icon: Icon, tone, loading }: KpiCardProps): Rea
 
 function filterRows(
   rows: UnifiedConnectionRow[],
-  tab: 'all' | 'marketplace' | 'ecommerce' | 'erp' | 'cargo',
+  tab: ConnectionTabId,
 ): UnifiedConnectionRow[] {
-  if (tab === 'all') {
-    return rows;
-  }
   if (tab === 'erp') {
     return rows.filter((r) => r.kind === 'erp');
   }
@@ -113,12 +149,100 @@ function aggregateErpDocuments(
 export function ConnectionsPage(): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [mainTab, setMainTab] = useState<
-    'all' | 'marketplace' | 'ecommerce' | 'erp' | 'cargo'
-  >('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const opsAccess = useIntegrationOpsAccess();
+  const productAccess = useMemo(
+    () => resolveConnectionsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const channelTabs = useMemo(
+    () => resolveConnectionChannelTabs(productAccess),
+    [productAccess],
+  );
+  const erpTab = useMemo(
+    () => resolveConnectionErpTab(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const defaultTab = useMemo(
+    () => defaultConnectionTab(productAccess),
+    [productAccess],
+  );
+  const subtitleKey = useMemo(
+    () => resolveConnectionsSubtitleKey(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const externalErpUi = useMemo(
+    () => showExternalErpBridgeUi(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const isNativeAccounting = accountingMode === 'NATIVE';
+  const showBundleNativeGuide =
+    !accountingModeLoading &&
+    isNativeAccounting &&
+    isBundleOrg(orgProducts) &&
+    productAccess.showIntegrationTabs;
+  const showNativeAccountingNotice =
+    !accountingModeLoading &&
+    isNativeAccounting &&
+    productAccess.accountingOnly;
+  const [mainTab, setMainTab] = useState<ConnectionTabId>(defaultTab);
+  const urlTab = searchParams.get('tab');
+  const navGroupId = useMemo(
+    () =>
+      resolveConnectionsNavGroupId(
+        productAccess,
+        accountingMode,
+        mainTab,
+        urlTab,
+      ),
+    [productAccess, accountingMode, mainTab, urlTab],
+  );
+  const navContextLine = formatNavPageContext(
+    t(NAV_GROUP_LABEL_KEYS[navGroupId]),
+    t('nav.connections'),
+  );
+  usePageTitle(t('nav.connections'));
   const [modalOpen, setModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ConnectionFormModalConfig | null>(null);
   const [erpWizardOpen, setErpWizardOpen] = useState(false);
+
+  useEffect(() => {
+    const urlTabParam = searchParams.get('tab');
+    if (urlTabParam === 'erp' && erpTab) {
+      setMainTab('erp');
+      return;
+    }
+    if (
+      urlTabParam &&
+      channelTabs.some((item) => item.id === urlTabParam)
+    ) {
+      setMainTab(urlTabParam as ConnectionTabId);
+      return;
+    }
+    if (urlTabParam === 'erp' && !erpTab && searchParams.has('tab')) {
+      setSearchParams({}, { replace: true });
+    }
+  }, [erpTab, channelTabs, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!isConnectionTabId(mainTab, channelTabs, erpTab)) {
+      setMainTab(defaultTab);
+    }
+  }, [mainTab, channelTabs, erpTab, defaultTab]);
+
+  const handleMainTabChange = (value: ConnectionTabId): void => {
+    setMainTab(value);
+    if (value === 'erp') {
+      setSearchParams({ tab: 'erp' }, { replace: true });
+      return;
+    }
+    if (channelTabs.some((item) => item.id === value)) {
+      setSearchParams({ tab: value }, { replace: true });
+    }
+  };
 
   const {
     data: connections,
@@ -126,7 +250,7 @@ export function ConnectionsPage(): ReactElement {
     isError: mpError,
     error: mpErr,
     refetch: refetchMp,
-  } = useMarketplaceConnections();
+  } = useConnectionsPageMarketplace(productAccess.showIntegrationTabs);
 
   const {
     data: erpConnections,
@@ -136,8 +260,14 @@ export function ConnectionsPage(): ReactElement {
     refetch: refetchErp,
   } = useErpConnections();
 
+  const usageQuery = useSubscriptionUsage(externalErpUi);
+  const erpSlotFull = isErpSlotQuotaFull(usageQuery.data);
+
+  const erpQueriesEnabled = externalErpUi;
+
   const erpSettingsQueries = useQueries({
-    queries: (erpConnections ?? []).map((c) => ({
+    queries: erpQueriesEnabled
+      ? (erpConnections ?? []).map((c) => ({
       queryKey: ['erp-sync-settings', c.id],
       queryFn: async (): Promise<ErpSyncSettingsDto> => {
         const { data } = await api.get<{ data: ErpSyncSettingsDto }>(
@@ -148,11 +278,13 @@ export function ConnectionsPage(): ReactElement {
           syncFrequency: fromApiSyncFrequency(data.data.syncFrequency),
         };
       },
-    })),
+    }))
+      : [],
   });
 
   const erpLogsQuery = useQueries({
-    queries: (erpConnections ?? []).map((c) => ({
+    queries: erpQueriesEnabled
+      ? (erpConnections ?? []).map((c) => ({
       queryKey: ['erp-sync-logs', c.id, 'summary'],
       queryFn: async (): Promise<SyncLogEntry[]> => {
         const params = new URLSearchParams({
@@ -164,7 +296,8 @@ export function ConnectionsPage(): ReactElement {
         );
         return data.data;
       },
-    })),
+    }))
+      : [],
   });
 
   const erpSettingsById = useMemo(() => {
@@ -187,29 +320,49 @@ export function ConnectionsPage(): ReactElement {
   }, [erpConnections, erpLogsQuery]);
 
   const allRows = useMemo((): UnifiedConnectionRow[] => {
-    const mpRows = (connections ?? []).map((c) => marketplaceToRow(c));
-    const erpRows = (erpConnections ?? []).map((c) => {
-      const settings = erpSettingsById.get(c.id);
-      const freqLabel = settings
-        ? erpSyncFrequencyLabel(settings.syncFrequency)
-        : '—';
-      const docsLabel = aggregateErpDocuments(c.id, erpLogsById.get(c.id) ?? []);
-      return erpToRow(c, freqLabel, docsLabel);
-    });
+    const mpRows = productAccess.showIntegrationTabs
+      ? (connections ?? []).map((c) => marketplaceToRow(c))
+      : [];
+    const erpRows = externalErpUi
+      ? (erpConnections ?? []).map((c) => {
+          const settings = erpSettingsById.get(c.id);
+          const freqLabel = erpSyncScheduleLabel(c.erpType);
+          const docsLabel = aggregateErpDocuments(c.id, erpLogsById.get(c.id) ?? []);
+          return erpToRow(c, freqLabel, docsLabel);
+        })
+      : [];
     return [...mpRows, ...erpRows];
-  }, [connections, erpConnections, erpSettingsById, erpLogsById]);
-
-  const visibleRows = useMemo(
-    () => filterRows(allRows, mainTab),
-    [allRows, mainTab],
-  );
+  }, [
+    connections,
+    erpConnections,
+    erpSettingsById,
+    erpLogsById,
+    productAccess.showIntegrationTabs,
+    externalErpUi,
+  ]);
 
   const kpis = useMemo(() => computeConnectionKpis(allRows), [allRows]);
-  const loading = mpLoading || erpLoading;
-  const hasError = mpError || erpIsError;
+  const loading =
+    (productAccess.showIntegrationTabs && mpLoading) ||
+    (externalErpUi && erpLoading);
+  const hasError =
+    (productAccess.showIntegrationTabs && mpError) ||
+    (externalErpUi && erpIsError);
+  const erpRowsOnly = useMemo(
+    () => allRows.filter((r) => r.kind === 'erp'),
+    [allRows],
+  );
+  const showErpSection =
+    externalErpUi && (productAccess.accountingOnly || mainTab === 'erp');
 
   const openAddModal = (): void => {
     if (mainTab === 'erp') {
+      if (erpSlotFull) {
+        toast.error(
+          `ERP bağlantı kotası dolu (${erpSlotUsageLabel(usageQuery.data)}). Ek slot için abonelik veya yönetici tanımı gerekir.`,
+        );
+        return;
+      }
       setModalConfig({ kind: 'erp', mode: 'create' });
     } else if (mainTab === 'ecommerce') {
       setModalConfig({
@@ -245,64 +398,125 @@ export function ConnectionsPage(): ReactElement {
   };
 
   const isEmpty = !loading && !hasError && allRows.length === 0;
+  const isErpEmpty =
+    !loading &&
+    !hasError &&
+    externalErpUi &&
+    erpRowsOnly.length === 0;
+  const showErpModeDot =
+    externalErpUi && accountingMode === 'EXTERNAL_ERP' && !accountingModeLoading;
+  const canAddConnection =
+    (productAccess.showIntegrationTabs && mainTab !== 'erp') ||
+    (productAccess.accountingOnly && externalErpUi);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            {t('connections.title')}
-          </h1>
-          <p className="text-muted-foreground">{t('connections.subtitle')}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {mainTab === 'erp' ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => navigate('/connections/erp/setup')}
-            >
-              ERP Kurulum Sihirbazı
-            </Button>
-          ) : null}
-          <Button type="button" onClick={() => openAddModal()}>
-            {t('connections.add')}
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={t('connections.title')}
+        description={t(subtitleKey)}
+        context={navContextLine}
+        badges={
+          !accountingModeLoading && accountingMode ? (
+            <AccountingModeBadge mode={accountingMode} />
+          ) : null
+        }
+        actions={
+          <>
+            {showErpSection ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={erpSlotFull}
+                title={
+                  erpSlotFull
+                    ? `ERP kotası dolu (${erpSlotUsageLabel(usageQuery.data)})`
+                    : undefined
+                }
+                onClick={() => {
+                  if (erpSlotFull) {
+                    toast.error(
+                      `ERP bağlantı kotası dolu (${erpSlotUsageLabel(usageQuery.data)}).`,
+                    );
+                    return;
+                  }
+                  navigate('/connections/erp/setup');
+                }}
+              >
+                {t('connections.erpBridge.wizardButton')}
+              </Button>
+            ) : null}
+            {canAddConnection ? (
+              <Button
+                type="button"
+                size="default"
+                disabled={
+                  (mainTab === 'erp' || productAccess.accountingOnly) && erpSlotFull
+                }
+                title={
+                  (mainTab === 'erp' || productAccess.accountingOnly) && erpSlotFull
+                    ? `ERP kotası dolu (${erpSlotUsageLabel(usageQuery.data)})`
+                    : undefined
+                }
+                onClick={() => openAddModal()}
+              >
+                <Plus className="mr-2 h-4 w-4" aria-hidden />
+                {productAccess.accountingOnly || mainTab === 'erp'
+                  ? t('connections.erpBridge.addConnection')
+                  : t('connections.add')}
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {productAccess.accountingOnly ? (
+        <IntegrationProductPrompt showNativeAccountingCta={isNativeAccounting} />
+      ) : null}
+
+      {showBundleNativeGuide ? <ConnectionsBundleNativeGuide /> : null}
+
+      {showNativeAccountingNotice ? (
+        <ErpBridgeSection variant="nativeNotice" />
+      ) : null}
+
+      {productAccess.showIntegrationTabs ? (
+      <div className={`grid gap-4 ${opsAccess ? 'sm:grid-cols-2 lg:grid-cols-4' : 'sm:grid-cols-2'}`}>
         <KpiCard
-          title="Aktif"
+          title={t('connections.kpi.active')}
           value={String(kpis.active)}
           icon={CheckCircle2}
           tone="text-green-600"
           loading={loading}
         />
+        {opsAccess ? (
+          <>
+            <KpiCard
+              title={t('connections.kpi.error')}
+              value={String(kpis.error)}
+              icon={XCircle}
+              tone="text-red-600"
+              loading={loading}
+            />
+            <KpiCard
+              title={t('connections.kpi.pending')}
+              value={String(kpis.pending)}
+              icon={AlertTriangle}
+              tone="text-amber-600"
+              loading={loading}
+            />
+          </>
+        ) : null}
         <KpiCard
-          title="Hata"
-          value={String(kpis.error)}
-          icon={XCircle}
-          tone="text-red-600"
-          loading={loading}
-        />
-        <KpiCard
-          title="Bekleyen"
-          value={String(kpis.pending)}
-          icon={AlertTriangle}
-          tone="text-amber-600"
-          loading={loading}
-        />
-        <KpiCard
-          title="Toplam"
+          title={t('connections.kpi.total')}
           value={String(kpis.total)}
           icon={Clock}
           tone="text-sky-600"
           loading={loading}
         />
       </div>
+      ) : null}
 
-      <SyncMonitorPanel />
+      {productAccess.showIntegrationTabs ? <SyncMonitorPanel /> : null}
 
       {loading ? (
         <div className="space-y-3">
@@ -321,8 +535,12 @@ export function ConnectionsPage(): ReactElement {
             variant="outline"
             className="mt-4"
             onClick={() => {
-              void refetchMp();
-              void refetchErp();
+              if (productAccess.showIntegrationTabs) {
+                void refetchMp();
+              }
+              if (externalErpUi) {
+                void refetchErp();
+              }
             }}
           >
             {t('common.retry')}
@@ -330,45 +548,174 @@ export function ConnectionsPage(): ReactElement {
         </div>
       ) : null}
 
-      {isEmpty ? (
-        <EmptyState
-          icon={Plug}
-          title={t('connections.emptyMarketplaceTitle')}
-          description={t('connections.emptyMarketplaceDescription')}
-          action={{
-            label: t('connections.emptyMarketplaceAction'),
-            onClick: () => {
-              setModalConfig({
-                kind: 'marketplace',
-                mode: 'create',
-                listFilter: 'marketplace',
-              });
-              setModalOpen(true);
-            },
+      {isEmpty && productAccess.showIntegrationTabs && !productAccess.accountingOnly ? (
+        <IntegrationConnectionsEmptyState
+          onAddMarketplace={() => {
+            setModalConfig({
+              kind: 'marketplace',
+              mode: 'create',
+              listFilter: 'marketplace',
+            });
+            setModalOpen(true);
+          }}
+          onAddEcommerce={() => {
+            setModalConfig({
+              kind: 'marketplace',
+              mode: 'create',
+              listFilter: 'ecommerce',
+            });
+            setModalOpen(true);
           }}
         />
       ) : null}
 
-      {!loading && !hasError && allRows.length > 0 ? (
-        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as typeof mainTab)}>
-          <TabsList className="flex h-auto flex-wrap gap-1">
-            <TabsTrigger value="all">Tümü</TabsTrigger>
-            <TabsTrigger value="marketplace">{t('connections.marketplace')}</TabsTrigger>
-            <TabsTrigger value="ecommerce">{t('connections.ecommerce')}</TabsTrigger>
-            <TabsTrigger value="erp">{t('connections.erp')}</TabsTrigger>
-            <TabsTrigger value="cargo">{t('connections.cargo')}</TabsTrigger>
+      {isErpEmpty && showErpSection ? (
+        <ErpBridgeSection variant="externalBridge">
+          <EmptyState
+            icon={Plug}
+            title={t('connections.emptyErpTitle')}
+            description={t('connections.emptyErpDescription')}
+            actionSlot={
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  size="lg"
+                  disabled={erpSlotFull}
+                  onClick={() => {
+                    if (erpSlotFull) {
+                      toast.error(
+                        `ERP bağlantı kotası dolu (${erpSlotUsageLabel(usageQuery.data)}).`,
+                      );
+                      return;
+                    }
+                    setModalConfig({ kind: 'erp', mode: 'create' });
+                    setModalOpen(true);
+                  }}
+                >
+                  <Plus className="mr-2 h-4 w-4" aria-hidden />
+                  {t('connections.emptyErpAction')}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  disabled={erpSlotFull}
+                  onClick={() => {
+                    if (erpSlotFull) {
+                      toast.error(
+                        `ERP bağlantı kotası dolu (${erpSlotUsageLabel(usageQuery.data)}).`,
+                      );
+                      return;
+                    }
+                    navigate('/connections/erp/setup');
+                  }}
+                >
+                  {t('connections.erpBridge.wizardButton')}
+                </Button>
+              </div>
+            }
+          />
+        </ErpBridgeSection>
+      ) : null}
+
+      {productAccess.accountingOnly &&
+      externalErpUi &&
+      !loading &&
+      !hasError &&
+      erpRowsOnly.length > 0 ? (
+        <ErpBridgeSection variant="externalBridge">
+          <ConnectionsTable
+            rows={erpRowsOnly}
+            marketplaceConnections={[]}
+            erpConnections={erpConnections ?? []}
+            onEditMarketplace={openEditMarketplace}
+            onEditErp={openEditErp}
+            variant="erp"
+          />
+        </ErpBridgeSection>
+      ) : null}
+
+      {!loading && !hasError && productAccess.showIntegrationTabs ? (
+        <Tabs
+          value={mainTab}
+          onValueChange={(v) => {
+            if (isConnectionTabId(v, channelTabs, erpTab)) {
+              handleMainTabChange(v);
+            }
+          }}
+        >
+          <TabsList
+            className="flex h-auto w-full max-w-full flex-wrap items-center gap-1 rounded-lg border border-border/80 bg-muted/40 p-1.5 shadow-sm"
+            aria-label={t('connections.title')}
+          >
+            <span className="sr-only">{t('connections.tabs.groupChannels')}</span>
+            {channelTabs.map((item) => (
+              <TabsTrigger
+                key={item.id}
+                value={item.id}
+                className={CONNECTION_TAB_TRIGGER_CLASS}
+              >
+                {t(item.labelKey)}
+              </TabsTrigger>
+            ))}
+            {erpTab ? (
+              <>
+                <span
+                  className="mx-1 hidden h-6 w-px shrink-0 bg-border sm:inline-block"
+                  aria-hidden
+                />
+                <span className="sr-only">
+                  {t('connections.tabs.groupExternalErp')}
+                </span>
+                <TabsTrigger
+                  value={erpTab.id}
+                  className={cn(
+                    CONNECTION_TAB_TRIGGER_CLASS,
+                    CONNECTION_ERP_TAB_ACTIVE_CLASS,
+                  )}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    {t(erpTab.labelKey)}
+                    {showErpModeDot ? (
+                      <Badge
+                        variant="outline"
+                        className="hidden border-sky-300 bg-sky-50 px-1.5 py-0 text-[10px] font-normal text-sky-700 sm:inline-flex"
+                      >
+                        {t('connections.tabs.externalErpHint')}
+                      </Badge>
+                    ) : null}
+                  </span>
+                </TabsTrigger>
+              </>
+            ) : null}
           </TabsList>
 
-          <TabsContent value={mainTab} className="mt-6">
-            <ConnectionsTable
-              rows={visibleRows}
-              marketplaceConnections={connections ?? []}
-              erpConnections={erpConnections ?? []}
-              onEditMarketplace={openEditMarketplace}
-              onEditErp={openEditErp}
-              variant={mainTab === 'erp' ? 'erp' : 'default'}
-            />
-          </TabsContent>
+          {channelTabs.map((item) => (
+            <TabsContent key={item.id} value={item.id} className="mt-6">
+              <ConnectionsChannelPanel
+                rows={filterRows(allRows, item.id)}
+                marketplaceConnections={connections ?? []}
+                erpConnections={erpConnections ?? []}
+                onEditMarketplace={openEditMarketplace}
+                onEditErp={openEditErp}
+                groupByRegion={item.id === 'marketplace'}
+              />
+            </TabsContent>
+          ))}
+          {erpTab && externalErpUi ? (
+            <TabsContent value="erp" className="mt-6">
+              <ErpBridgeSection variant="externalBridge">
+                <ConnectionsTable
+                  rows={filterRows(allRows, 'erp')}
+                  marketplaceConnections={connections ?? []}
+                  erpConnections={erpConnections ?? []}
+                  onEditMarketplace={openEditMarketplace}
+                  onEditErp={openEditErp}
+                  variant="erp"
+                />
+              </ErpBridgeSection>
+            </TabsContent>
+          ) : null}
         </Tabs>
       ) : null}
 

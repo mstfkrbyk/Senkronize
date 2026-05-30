@@ -7,14 +7,10 @@ import { validate } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
-  LISTING_SYNC_STOCK_JOB_OPTIONS,
-  QUEUE_LISTING_SYNC,
   QUEUE_MARKETPLACE_PUSH,
 } from '../queue/queue.constants';
-import type {
-  ListingSyncStockJobData,
-  MarketplacePushJobData,
-} from '../queue/queue.types';
+import type { MarketplacePushJobData } from '../queue/queue.types';
+import { ListingPushService } from '../sync/listing-push.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
@@ -45,9 +41,9 @@ describe('StockService', () => {
     const marketplacePushQueue = {
       add: queueAdd,
     } as unknown as Queue<MarketplacePushJobData>;
-    const listingSyncQueue = {
-      add: jest.fn().mockResolvedValue({ id: 'listing-job-1' }),
-    } as unknown as Queue<ListingSyncStockJobData>;
+    const listingPushService = {
+      enqueueStockPushForBarcode: jest.fn().mockResolvedValue(0),
+    };
 
     prisma = {
       marketplaceConnection: { findMany: jest.fn() },
@@ -78,8 +74,8 @@ describe('StockService', () => {
           useValue: marketplacePushQueue,
         },
         {
-          provide: getQueueToken(QUEUE_LISTING_SYNC),
-          useValue: listingSyncQueue,
+          provide: ListingPushService,
+          useValue: listingPushService,
         },
         {
           provide: WarehouseService,

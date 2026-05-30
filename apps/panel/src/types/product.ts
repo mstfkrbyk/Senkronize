@@ -151,7 +151,7 @@ export interface ProductDetailPayload {
   product: {
     id: string;
     organizationId: string;
-    barcode: string;
+    barcode: string | null;
     sku: string | null;
     name: string;
     description: string | null;
@@ -161,6 +161,9 @@ export interface ProductDetailPayload {
     tags: string[];
     imageUrls: string[];
     isActive: boolean;
+    productMatchKey?: 'BARCODE' | 'SKU' | 'MANUAL' | null;
+    pushStockEnabled?: boolean | null;
+    pushPriceEnabled?: boolean | null;
     createdAt: string;
     updatedAt: string;
   };

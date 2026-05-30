@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PlanTier, SubStatus } from '@prisma/client';
 
+import { ensureArray } from './admin-array.util';
+import {
+  CUSTOMER_ORG_WHERE,
+  PLATFORM_ORG_SLUG,
+  customerOrgWhere,
+} from './admin-customer-org';
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CACHE_TTL } from '../common/cache/cache-ttl';
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type {
   CohortData,
@@ -47,9 +56,20 @@ function monthKeyUtc(d: Date): string {
 
 @Injectable()
 export class AdminStatsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CacheService,
+  ) {}
 
   async getGrowthMetrics(period: GrowthPeriod): Promise<GrowthMetrics> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsGrowth(period),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadGrowthMetrics(period),
+    );
+  }
+
+  private async loadGrowthMetrics(period: GrowthPeriod): Promise<GrowthMetrics> {
     const now = new Date();
     const days = PERIOD_DAYS[period];
     const periodStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
@@ -63,13 +83,13 @@ export class AdminStatsService {
       previousMrrKurus,
     ] = await Promise.all([
       this.prisma.organization.count({
-        where: { deletedAt: null, createdAt: { gte: periodStart } },
+        where: customerOrgWhere({ createdAt: { gte: periodStart } }),
       }),
       this.prisma.subscription.count({
         where: {
           status: SubStatus.CANCELLED,
           canceledAt: { gte: periodStart },
-          organization: { deletedAt: null },
+          organization: CUSTOMER_ORG_WHERE,
         },
       }),
       this.countActiveOrganizations(activeSince),
@@ -110,6 +130,14 @@ export class AdminStatsService {
   }
 
   async getPlatformUsageStats(): Promise<PlatformUsageItem[]> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsPlatformUsage(),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadPlatformUsageStats(),
+    );
+  }
+
+  private async loadPlatformUsageStats(): Promise<PlatformUsageItem[]> {
     const [
       marketplaceGroups,
       erpGroups,
@@ -139,10 +167,10 @@ export class AdminStatsService {
         },
       }),
       this.prisma.pricingRule.count({
-        where: { organization: { deletedAt: null } },
+        where: { organization: CUSTOMER_ORG_WHERE },
       }),
       this.prisma.reportSchedule.count({
-        where: { organization: { deletedAt: null }, deletedAt: null },
+        where: { organization: CUSTOMER_ORG_WHERE, deletedAt: null },
       }),
     ]);
 
@@ -191,15 +219,22 @@ export class AdminStatsService {
   }
 
   async getCohortRetention(): Promise<CohortData[]> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsCohort(),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadCohortRetention(),
+    );
+  }
+
+  private async loadCohortRetention(): Promise<CohortData[]> {
     const now = new Date();
     const cohortStart = addUtcMonths(startOfUtcMonth(now), -11);
     const cohortEnd = endOfUtcMonth(now);
 
     const cohortOrgs = await this.prisma.organization.findMany({
-      where: {
-        deletedAt: null,
+      where: customerOrgWhere({
         createdAt: { gte: cohortStart, lte: cohortEnd },
-      },
+      }),
       select: { id: true, createdAt: true },
     });
 
@@ -292,14 +327,22 @@ export class AdminStatsService {
       result.push({
         cohortMonth,
         cohortSize: members.length,
-        retention,
+        retention: ensureArray(retention),
       });
     }
 
-    return result;
+    return ensureArray(result);
   }
 
   async getMrrHistory(): Promise<MrrHistoryPoint[]> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsMrrHistory(),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadMrrHistory(),
+    );
+  }
+
+  private async loadMrrHistory(): Promise<MrrHistoryPoint[]> {
     const now = new Date();
     const seriesStart = addUtcMonths(startOfUtcMonth(now), -11);
     const monthEnds: Date[] = [];
@@ -309,7 +352,7 @@ export class AdminStatsService {
 
     const [subscriptions, signupRows, activeRows] = await Promise.all([
       this.prisma.subscription.findMany({
-        where: { organization: { deletedAt: null } },
+        where: { organization: CUSTOMER_ORG_WHERE },
         select: {
           plan: true,
           status: true,
@@ -322,20 +365,32 @@ export class AdminStatsService {
                COUNT(*)::bigint AS c
         FROM "Organization"
         WHERE "deletedAt" IS NULL
+          AND "type" = 'DIRECT'::"OrgType"
+          AND "slug" <> ${PLATFORM_ORG_SLUG}
           AND "createdAt" >= ${seriesStart}
         GROUP BY 1
       `,
       this.prisma.$queryRaw<{ month_key: string; org_id: string }[]>`
         SELECT DISTINCT month_key, org_id FROM (
-          SELECT to_char(date_trunc('month', "lastLoginAt" AT TIME ZONE 'UTC'), 'YYYY-MM') AS month_key,
-                 "organizationId" AS org_id
-          FROM "User"
-          WHERE "deletedAt" IS NULL AND "lastLoginAt" >= ${seriesStart}
+          SELECT to_char(date_trunc('month', u."lastLoginAt" AT TIME ZONE 'UTC'), 'YYYY-MM') AS month_key,
+                 u."organizationId" AS org_id
+          FROM "User" u
+          INNER JOIN "Organization" o ON o.id = u."organizationId"
+          WHERE u."deletedAt" IS NULL
+            AND u."lastLoginAt" >= ${seriesStart}
+            AND o."deletedAt" IS NULL
+            AND o."type" = 'DIRECT'::"OrgType"
+            AND o."slug" <> ${PLATFORM_ORG_SLUG}
           UNION
-          SELECT to_char(date_trunc('month', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM') AS month_key,
-                 "organizationId" AS org_id
-          FROM "Order"
-          WHERE "deletedAt" IS NULL AND "createdAt" >= ${seriesStart}
+          SELECT to_char(date_trunc('month', ord."createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM') AS month_key,
+                 ord."organizationId" AS org_id
+          FROM "Order" ord
+          INNER JOIN "Organization" o ON o.id = ord."organizationId"
+          WHERE ord."deletedAt" IS NULL
+            AND ord."createdAt" >= ${seriesStart}
+            AND o."deletedAt" IS NULL
+            AND o."type" = 'DIRECT'::"OrgType"
+            AND o."slug" <> ${PLATFORM_ORG_SLUG}
         ) t
       `,
     ]);
@@ -391,7 +446,7 @@ export class AdminStatsService {
       where: {
         status: SubStatus.ACTIVE,
         createdAt: { lte: at },
-        organization: { deletedAt: null },
+        organization: CUSTOMER_ORG_WHERE,
         OR: [{ canceledAt: null }, { canceledAt: { gt: at } }],
       },
       select: { plan: true },
@@ -405,7 +460,7 @@ export class AdminStatsService {
         where: {
           deletedAt: null,
           lastLoginAt: { gte: since },
-          organization: { deletedAt: null },
+          organization: CUSTOMER_ORG_WHERE,
         },
         select: { organizationId: true },
         distinct: ['organizationId'],
@@ -414,7 +469,7 @@ export class AdminStatsService {
         where: {
           deletedAt: null,
           createdAt: { gte: since },
-          organization: { deletedAt: null },
+          organization: CUSTOMER_ORG_WHERE,
         },
         select: { organizationId: true },
         distinct: ['organizationId'],
@@ -424,7 +479,7 @@ export class AdminStatsService {
           deletedAt: null,
           isActive: true,
           lastSyncAt: { gte: since },
-          organization: { deletedAt: null },
+          organization: CUSTOMER_ORG_WHERE,
         },
         select: { organizationId: true },
         distinct: ['organizationId'],

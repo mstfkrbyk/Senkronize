@@ -1,10 +1,11 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
-import { Download, FileText, Loader2 } from 'lucide-react';
+import { FileText, Info } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EmptyState } from '@/components/EmptyState';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -15,20 +16,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { useFileDownload } from '@/hooks/useFileDownload';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { getApiErrorMessage } from '@/lib/api';
-import { exportToCsv } from '@/lib/csv-export';
+import { formatInvoiceAmount } from '@/pages/invoices/invoice-utils';
+import { useAuthStore } from '@/store/auth.store';
 
-import { useBaBsReport, useVatDeclaration } from './hooks/useTaxReports';
-import { formatTry, platformDisplayName } from './report-utils';
+import { useAccountingVatSummary } from './hooks/useAccountingVatSummary';
+import {
+  resolveReportsProductAccess,
+  resolveTaxReportPresentation,
+} from './reports-tabs.config';
 
 const MONTHS = [
   { value: 1, label: 'Ocak' },
@@ -46,67 +43,74 @@ const MONTHS = [
 ];
 
 const YEARS = [2026, 2025, 2024];
-const VAT_COLORS = ['#22c55e', '#0ea5e9', '#94a3b8'];
 
 function monthPeriodKey(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
-function vatRateAmount(
-  rates: { vatRatePercent: number; vatAmount: number }[],
-  target: number,
-): number {
-  return rates.find((r) => r.vatRatePercent === target)?.vatAmount ?? 0;
-}
-
-function quarterFromMonth(year: number, month: number): string {
-  const q = Math.ceil(month / 3);
-  return `${year}-Q${q}`;
-}
-
 export function TaxReportTab(): ReactElement {
   const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const productAccess = useMemo(
+    () => resolveReportsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const taxPresentation = useMemo(
+    () => resolveTaxReportPresentation(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const showFullTax = taxPresentation === 'full';
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
-  const { downloading, download } = useFileDownload();
 
   const periodKey = monthPeriodKey(year, month);
-  const quarter = quarterFromMonth(year, month);
+  const vatQuery = useAccountingVatSummary({
+    month: periodKey,
+    enabled: showFullTax,
+  });
+  const currency = vatQuery.data?.currency ?? 'TRY';
 
-  const vatQuery = useVatDeclaration({ periodKey });
-  const baBsQuery = useBaBsReport({ periodKey: quarter });
+  if (accountingModeLoading && productAccess.hasAccounting) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    );
+  }
 
-  const vatRates = useMemo(
-    () => vatQuery.data?.byVatRate ?? [],
-    [vatQuery.data?.byVatRate],
-  );
-
-  const vatPieData = useMemo(
-    () => [
-      { name: '%8 KDV', value: vatRateAmount(vatRates, 8) },
-      { name: '%18 KDV', value: vatRateAmount(vatRates, 18) },
-      { name: '%0 KDV', value: vatRateAmount(vatRates, 0) },
-    ].filter((d) => d.value > 0),
-    [vatRates],
-  );
-
-  const collectedVat = vatQuery.data?.vatAmount ?? 0;
-  const payableVat = collectedVat;
-
-  function handleVatCsvExport(): void {
-    const rows = (vatQuery.data?.invoiceDetails ?? []).map((inv) => ({
-      siparis_no: inv.platformOrderId,
-      fatura_no: inv.invoiceNumber ?? '',
-      platform: inv.platform,
-      tutar: inv.grossAmount,
-      kdv: inv.vatAmount,
-    }));
-    exportToCsv(rows, `kdv-beyanname-${periodKey}`);
+  if (!showFullTax) {
+    return (
+      <div id="report-tax" className="space-y-6">
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950">
+          <Info className="h-4 w-4 text-sky-600" aria-hidden />
+          <AlertTitle className="text-sky-950">
+            {t('reports.tax.externalErpTitle')}
+          </AlertTitle>
+          <AlertDescription className="text-sky-900/90">
+            <p>{t('reports.tax.externalErpDescription')}</p>
+            <p className="mt-3 flex flex-wrap gap-3">
+              <Link
+                to="/reports?tab=erp-transfer"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.tax.openErpTransfer')}
+              </Link>
+              <Link
+                to="/connections?tab=erp"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.tax.openConnections')}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div id="report-tax" className="space-y-6">
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <span className="text-xs text-muted-foreground">{t('reports.tax.year')}</span>
@@ -138,50 +142,12 @@ export function TaxReportTab(): ReactElement {
             </SelectContent>
           </Select>
         </div>
-        <div className="ml-auto flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={downloading === 'tax-pdf'}
-            onClick={() =>
-              void download({
-                key: 'tax-pdf',
-                url: '/reports/tax-report/pdf',
-                params: { period: periodKey },
-                filename: `kdv-raporu-${periodKey}.pdf`,
-                mimeType: 'application/pdf',
-              })
-            }
-          >
-            {downloading === 'tax-pdf' ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
+        <div className="ml-auto">
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link to="/invoices">
               <FileText className="mr-2 h-4 w-4" />
-            )}
-            {t('reports.tax.downloadVatPdf')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={downloading === 'babs-pdf'}
-            onClick={() =>
-              void download({
-                key: 'babs-pdf',
-                url: '/reports/ba-bs/pdf',
-                params: { period: quarter },
-                filename: `ba-bs-${quarter}.pdf`,
-                mimeType: 'application/pdf',
-              })
-            }
-          >
-            {downloading === 'babs-pdf' ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            {t('reports.tax.downloadBaBsPdf')}
+              {t('accounting.viewAllInvoices')}
+            </Link>
           </Button>
         </div>
       </div>
@@ -194,160 +160,78 @@ export function TaxReportTab(): ReactElement {
         </div>
       ) : vatQuery.isError ? (
         <Alert variant="destructive">
-          <AlertDescription>{getApiErrorMessage(vatQuery.error)}</AlertDescription>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>{getApiErrorMessage(vatQuery.error)}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void vatQuery.refetch()}
+            >
+              {t('common.retry')}
+            </Button>
+          </AlertDescription>
         </Alert>
+      ) : vatQuery.data?.invoiceCount === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title={t('reports.tax.emptyTitle')}
+          description={t('reports.tax.emptyDesc')}
+          secondaryAction={{ label: t('accounting.viewAllInvoices'), href: '/invoices' }}
+        />
       ) : (
         <>
+          <p className="text-sm text-muted-foreground">{t('reports.tax.accountingNote')}</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {t('reports.tax.grossSales')}
+                  {t('reports.tax.invoiceCount')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold tabular-nums">
-                  {formatTry(vatQuery.data?.grossSales ?? 0)}
+                  {vatQuery.data?.invoiceCount ?? 0}
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {t('reports.tax.collectedVat')}
+                  {t('accounting.vatSubtotal')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold tabular-nums">
-                  {formatTry(collectedVat)}
+                  {formatInvoiceAmount(vatQuery.data?.subtotal ?? '0', currency)}
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {t('reports.tax.payableVat')}
+                  {t('accounting.vatTax')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-semibold tabular-nums">{formatTry(payableVat)}</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {formatInvoiceAmount(vatQuery.data?.taxAmount ?? '0', currency)}
+                </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {t('reports.tax.vatBreakdown')}
+                  {t('reports.tax.totalWithVat')}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="h-24">
-                {vatPieData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">{t('reports.noChartData')}</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={vatPieData}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={28}
-                        outerRadius={42}
-                      >
-                        {vatPieData.map((_, i) => (
-                          <Cell key={i} fill={VAT_COLORS[i % VAT_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(v) => formatTry(Number(v ?? 0))} />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t('reports.tax.rateBreakdown')}</CardTitle>
-              </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {[8, 18, 0].map((rate) => (
-                    <div key={rate} className="flex items-center justify-between text-sm">
-                      <span>%{rate} KDV</span>
-                      <span className="font-medium tabular-nums">
-                        {formatTry(vatRateAmount(vatRates, rate))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-base">{t('reports.tax.platformVat')}</CardTitle>
-                <Button type="button" variant="ghost" size="sm" onClick={handleVatCsvExport}>
-                  <Download className="mr-2 h-4 w-4" />
-                  CSV
-                </Button>
-              </CardHeader>
-              <CardContent className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('reports.columns.platform')}</TableHead>
-                      <TableHead className="text-right">{t('reports.columns.orders')}</TableHead>
-                      <TableHead className="text-right">{t('reports.tax.grossSales')}</TableHead>
-                      <TableHead className="text-right">KDV</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(vatQuery.data?.byPlatform ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-muted-foreground">
-                          {t('reports.noTableData')}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      (vatQuery.data?.byPlatform ?? []).map((row) => (
-                        <TableRow key={row.platform}>
-                          <TableCell>{platformDisplayName(row.platform)}</TableCell>
-                          <TableCell className="text-right tabular-nums">{row.orderCount}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatTry(row.grossSales)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatTry(row.vatAmount)}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {formatInvoiceAmount(vatQuery.data?.totalAmount ?? '0', currency)}
+                </p>
               </CardContent>
             </Card>
           </div>
-
-          {baBsQuery.data ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">{t('reports.tax.baBsPreview')}</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {t('reports.tax.quarter')}: {quarter}
-                </p>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                {baBsQuery.data.reportingNote ?? t('reports.tax.baBsHint')}
-              </CardContent>
-            </Card>
-          ) : null}
-
-          {vatQuery.data?.reportingNote ? (
-            <p className="text-sm text-muted-foreground">{vatQuery.data.reportingNote}</p>
-          ) : null}
         </>
       )}
     </div>

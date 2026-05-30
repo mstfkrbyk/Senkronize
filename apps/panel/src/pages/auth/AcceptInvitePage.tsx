@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -9,6 +10,7 @@ import { useForm } from 'react-hook-form';
 
 import { getApiErrorMessage, api } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useAuthStore } from '@/store/auth.store';
 import type { MeResponse, TokenPair } from '@/types/auth';
 import { Button } from '@/components/ui/button';
@@ -30,13 +32,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 
-const schema = z.object({
-  name: z.string().min(2, FORM_MESSAGES.required).max(100),
-  password: z.string().min(8, 'En az 8 karakter'),
-});
-
-type FormValues = z.infer<typeof schema>;
-
 interface InvitePreview {
   organizationName: string;
   email: string;
@@ -44,6 +39,9 @@ interface InvitePreview {
 }
 
 export function AcceptInvitePage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('acceptInvite.pageTitle'));
+
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token')?.trim() ?? '';
   const navigate = useNavigate();
@@ -56,18 +54,24 @@ export function AcceptInvitePage(): ReactElement {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(true);
 
+  const schema = useMemo(
+    () =>
+      z.object({
+        name: z.string().min(2, FORM_MESSAGES.required).max(100),
+        password: z.string().min(8, t('acceptInvite.passwordMin')),
+      }),
+    [t],
+  );
+
+  type FormValues = z.infer<typeof schema>;
+
   const form = useForm<FormValues>({
     resolver: zodFormResolver(schema),
     defaultValues: { name: '', password: '' },
   });
 
   useEffect(() => {
-    document.title = 'Daveti kabul et — Senkronize';
-  }, []);
-
-  useEffect(() => {
     if (!token) {
-      setPreviewError('Davet bağlantısı geçersiz veya eksik.');
       setPreviewLoading(false);
       return;
     }
@@ -124,8 +128,10 @@ export function AcceptInvitePage(): ReactElement {
         type: me.organization.type,
         onboardingCompleted: me.organization.onboardingCompleted,
         plan: me.organization.plan,
+        orgProducts: me.organization.orgProducts,
+        accountingMode: me.organization.accountingMode,
       });
-      toast.success('Hesabınız hazır. Hoş geldiniz!');
+      toast.success(t('acceptInvite.successToast'));
       navigate('/dashboard', { replace: true });
     },
     onError: (e: unknown) => {
@@ -135,15 +141,15 @@ export function AcceptInvitePage(): ReactElement {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <Card className="w-full max-w-md">
+      <div className="flex w-full justify-center">
+        <Card className="mx-auto w-full max-w-md">
           <CardHeader>
-            <CardTitle>Davet</CardTitle>
-            <CardDescription>Davet bağlantısı geçersiz veya eksik.</CardDescription>
+            <CardTitle>{t('acceptInvite.inviteTitle')}</CardTitle>
+            <CardDescription>{t('acceptInvite.invalidLink')}</CardDescription>
           </CardHeader>
           <CardFooter>
             <Button asChild variant="outline">
-              <Link to="/login">Giriş sayfasına dön</Link>
+              <Link to="/login">{t('acceptInvite.backToLogin')}</Link>
             </Button>
           </CardFooter>
         </Card>
@@ -153,11 +159,11 @@ export function AcceptInvitePage(): ReactElement {
 
   if (previewLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <Card className="w-full max-w-md">
+      <div className="flex w-full justify-center">
+        <Card className="mx-auto w-full max-w-md">
           <CardHeader>
-            <CardTitle>Davet</CardTitle>
-            <CardDescription>Davet doğrulanıyor…</CardDescription>
+            <CardTitle>{t('acceptInvite.inviteTitle')}</CardTitle>
+            <CardDescription>{t('acceptInvite.verifying')}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -166,15 +172,17 @@ export function AcceptInvitePage(): ReactElement {
 
   if (previewError || !preview) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-        <Card className="w-full max-w-md">
+      <div className="flex w-full justify-center">
+        <Card className="mx-auto w-full max-w-md">
           <CardHeader>
-            <CardTitle>Davet kullanılamıyor</CardTitle>
-            <CardDescription>{previewError ?? 'Davet bulunamadı.'}</CardDescription>
+            <CardTitle>{t('acceptInvite.unavailableTitle')}</CardTitle>
+            <CardDescription>
+              {previewError ?? t('acceptInvite.notFound')}
+            </CardDescription>
           </CardHeader>
           <CardFooter>
             <Button asChild variant="outline">
-              <Link to="/login">Giriş sayfasına dön</Link>
+              <Link to="/login">{t('acceptInvite.backToLogin')}</Link>
             </Button>
           </CardFooter>
         </Card>
@@ -183,13 +191,15 @@ export function AcceptInvitePage(): ReactElement {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <Card className="w-full max-w-md">
+    <div className="flex w-full justify-center">
+      <Card className="mx-auto w-full max-w-md">
         <CardHeader>
-          <CardTitle>Organizasyona katıl</CardTitle>
-          <CardDescription>
-            <strong>{preview.organizationName}</strong> sizi davet etti. Hesabınızı tamamlayın
-            (davet e-postası: {preview.email}).
+          <CardTitle>{t('acceptInvite.joinTitle')}</CardTitle>
+          <CardDescription className="space-y-1">
+            <span>
+              <strong>{preview.organizationName}</strong> {t('acceptInvite.invitedBySuffix')}
+            </span>
+            <span>{t('acceptInvite.completeAccount', { email: preview.email })}</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -205,9 +215,13 @@ export function AcceptInvitePage(): ReactElement {
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Adınız</FormLabel>
+                    <FormLabel>{t('acceptInvite.nameLabel')}</FormLabel>
                     <FormControl>
-                      <Input autoComplete="name" placeholder="Ad Soyad" {...field} />
+                      <Input
+                        autoComplete="name"
+                        placeholder={t('acceptInvite.namePlaceholder')}
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -218,7 +232,7 @@ export function AcceptInvitePage(): ReactElement {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Şifre</FormLabel>
+                    <FormLabel>{t('acceptInvite.passwordLabel')}</FormLabel>
                     <FormControl>
                       <Input type="password" autoComplete="new-password" {...field} />
                     </FormControl>
@@ -227,14 +241,14 @@ export function AcceptInvitePage(): ReactElement {
                 )}
               />
               <Button type="submit" className="w-full" disabled={acceptMutation.isPending}>
-                Hesabı oluştur ve katıl
+                {t('acceptInvite.submit')}
               </Button>
             </form>
           </Form>
         </CardContent>
         <CardFooter className="flex justify-center border-t pt-4">
           <Button asChild variant="link">
-            <Link to="/login">Zaten hesabım var</Link>
+            <Link to="/login">{t('acceptInvite.alreadyHaveAccount')}</Link>
           </Button>
         </CardFooter>
       </Card>

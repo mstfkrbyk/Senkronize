@@ -90,7 +90,7 @@ export default function BuyboxKazanmaStratejileriPage(): ReactElement {
           Fiyat kararı vermeden önce net marjı hesaplamak şarttır. Liste fiyatı,
           kampanya indirimi, platform komisyonu, kargo maliyeti ve iade oranı aynı
           tabloda değilse, otomasyon &quot;rekabetçi&quot; görünürken aslında zarar
-          eden satış üretir. ERP veya muhasebe tarafındaki           maliyet güncellemeleri
+          eden satış üretir. ERP veya muhasebe tarafındaki maliyet güncellemeleri
           panelde gecikirse, algoritma eski dünyaya göre karar verir. Çözüm: maliyet,
           komisyon ve kargo girdilerini tek kaynakta toplayın; değişiklikleri
           versiyonlayın ve fiyat motorunun her çalıştığında bu versiyonu okuyun.

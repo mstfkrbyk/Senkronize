@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, isValid } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
 import { Badge } from '@/components/ui/badge';
@@ -11,10 +11,12 @@ import {
 } from '@/components/ui/tooltip';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import {
   statusBadgeClass,
   statusLabel,
 } from '@/pages/connections/connection-utils';
+import { customerConnectionStatusLabel } from '@/lib/integration-ops-access';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 import type { ConnectionHealthStatus } from '@/types/connection-health';
 
@@ -34,40 +36,56 @@ function dotClass(status: ConnectionHealthStatus): string {
   return map[status];
 }
 
+function formatLastSyncLabel(value: string | null | undefined): string {
+  if (!value) {
+    return 'Henüz yok';
+  }
+  const date = new Date(value);
+  if (!isValid(date)) {
+    return 'Henüz yok';
+  }
+  return formatDistanceToNow(date, {
+    addSuffix: true,
+    locale: tr,
+  });
+}
+
 export function ConnectionHealthBadge({
   connectionId,
   fallbackConnection,
   showLabel = true,
 }: Props): ReactElement {
+  const opsAccess = useIntegrationOpsAccess();
   const healthQuery = useConnectionHealth(connectionId, fallbackConnection);
   const health = healthQuery.data;
-  const status = health?.status ?? 'inactive';
+  const status: ConnectionHealthStatus = health?.status ?? 'inactive';
 
   if (healthQuery.isLoading) {
     return <Skeleton className="h-5 w-16 rounded-full" />;
   }
 
-  const lastSyncLabel = health?.lastSuccessfulSyncAt
-    ? formatDistanceToNow(new Date(health.lastSuccessfulSyncAt), {
-        addSuffix: true,
-        locale: tr,
-      })
-    : 'Henüz yok';
+  const lastSyncLabel = formatLastSyncLabel(health?.lastSuccessfulSyncAt);
 
-  const tooltipLines = [
-    health?.lastErrorMessage ? `Son hata: ${health.lastErrorMessage}` : null,
-    `Son başarılı sync: ${lastSyncLabel}`,
-    health?.circuitBreaker ? `Circuit breaker: ${health.circuitBreaker}` : null,
-  ].filter((line): line is string => line !== null);
+  const displayLabel = opsAccess
+    ? statusLabel(status)
+    : customerConnectionStatusLabel(status);
+
+  const tooltipLines = opsAccess
+    ? [
+        health?.lastErrorMessage ? `Son hata: ${health.lastErrorMessage}` : null,
+        `Son başarılı sync: ${lastSyncLabel}`,
+        health?.circuitBreaker ? `Circuit breaker: ${health.circuitBreaker}` : null,
+      ].filter((line): line is string => line !== null)
+    : [`Son senkron: ${lastSyncLabel}`];
 
   const badge = showLabel ? (
     <Badge variant="outline" className={statusBadgeClass(status)}>
-      {statusLabel(status)}
+      {displayLabel}
     </Badge>
   ) : (
     <span
       className={`inline-block h-2.5 w-2.5 rounded-full ${dotClass(status)}`}
-      aria-label={statusLabel(status)}
+      aria-label={displayLabel}
     />
   );
 

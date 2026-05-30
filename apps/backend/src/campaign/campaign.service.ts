@@ -48,7 +48,7 @@ type ListingWithProduct = Listing & {
   product: {
     id: string;
     name: string;
-    barcode: string;
+    barcode: string | null;
     costPrice: Prisma.Decimal | null;
   } | null;
 };

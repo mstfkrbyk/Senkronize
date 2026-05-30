@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
@@ -36,6 +37,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { openQuickStockAdjust } from '@/lib/quick-stock-adjust';
 import {
@@ -47,6 +49,8 @@ import type {
   DailyMovementFlowPoint,
   StockoutEstimateDto,
 } from '@/types/stock-forecast';
+
+import { StockPageHeader } from './StockPageHeader';
 
 function reorderRows(rows: StockoutEstimateDto[]): StockoutEstimateDto[] {
   return rows.filter(
@@ -383,7 +387,12 @@ function ReorderSuggestionsTab(): ReactElement {
   );
 }
 
-export function StockStatusPage(): ReactElement {
+export interface StockStatusPageProps {
+  /** Üst sayfa kendi başlığını gösteriyorsa (ör. eski stok yönetimi sekmesi). */
+  embedded?: boolean;
+}
+
+function StockStatusTabs(): ReactElement {
   return (
     <Tabs defaultValue="status" className="space-y-4">
       <TabsList>
@@ -408,5 +417,28 @@ export function StockStatusPage(): ReactElement {
         <ReorderSuggestionsTab />
       </TabsContent>
     </Tabs>
+  );
+}
+
+export function StockStatusPage({
+  embedded = false,
+}: StockStatusPageProps): ReactElement {
+  const { t } = useTranslation();
+  const pageTitle = t('nav.stockStatus');
+
+  usePageTitle(pageTitle);
+
+  if (embedded) {
+    return <StockStatusTabs />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <StockPageHeader
+        title={pageTitle}
+        description={t('stock.status.pageDesc')}
+      />
+      <StockStatusTabs />
+    </div>
   );
 }

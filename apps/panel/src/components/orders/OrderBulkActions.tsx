@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -46,12 +47,16 @@ interface Props {
   selectedOrderIds: string[];
   selectedOrders: Order[];
   onClearSelection: () => void;
+  showNativeInvoiceActions?: boolean;
+  showExternalErpActions?: boolean;
 }
 
 export function OrderBulkActions({
   selectedOrderIds,
   selectedOrders,
   onClearSelection,
+  showNativeInvoiceActions = false,
+  showExternalErpActions = false,
 }: Props): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -157,7 +162,7 @@ export function OrderBulkActions({
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur dark:shadow-[0_-4px_16px_rgba(0,0,0,0.45)] supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
+      <div className="fixed inset-x-0 bottom-16 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur md:bottom-0 dark:shadow-[0_-4px_16px_rgba(0,0,0,0.45)] supports-[padding:max(0px)]:pb-[max(12px,env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Badge variant="secondary" className="w-fit">
             {t('orders.bulk.selected', { count: selectedOrderIds.length })}
@@ -176,47 +181,59 @@ export function OrderBulkActions({
               <Truck className="h-3.5 w-3.5" aria-hidden />
               {t('orders.bulk.ship')}
             </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="gap-1"
-              disabled={
-                selectedOrders.length === 0 || bulkCreateInvoicesMutation.isPending
-              }
-              onClick={() => {
-                bulkCreateInvoicesMutation.mutate(selectedOrderIds);
-              }}
-            >
-              {bulkCreateInvoicesMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : (
-                <FileText className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {t('orders.bulk.createInvoices')}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="gap-1"
-              disabled={
-                selectedOrders.length === 0 ||
-                selectedOrders.length > 50 ||
-                bulkInvoiceZipMutation.isPending
-              }
-              onClick={() => {
-                bulkInvoiceZipMutation.mutate(selectedOrderIds);
-                track('orders_bulk_invoice', { count: selectedOrderIds.length });
-              }}
-            >
-              {bulkInvoiceZipMutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-              ) : (
-                <FileArchive className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {t('orders.bulk.bulkInvoice')}
-            </Button>
+            {showNativeInvoiceActions ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedOrders.length === 0 || bulkCreateInvoicesMutation.isPending
+                }
+                onClick={() => {
+                  bulkCreateInvoicesMutation.mutate(selectedOrderIds);
+                }}
+              >
+                {bulkCreateInvoicesMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {t('orders.bulk.createInvoices')}
+              </Button>
+            ) : null}
+            {showNativeInvoiceActions ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1"
+                disabled={
+                  selectedOrders.length === 0 ||
+                  selectedOrders.length > 50 ||
+                  bulkInvoiceZipMutation.isPending
+                }
+                onClick={() => {
+                  bulkInvoiceZipMutation.mutate(selectedOrderIds);
+                  track('orders_bulk_invoice', { count: selectedOrderIds.length });
+                }}
+              >
+                {bulkInvoiceZipMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                ) : (
+                  <FileArchive className="h-3.5 w-3.5" aria-hidden />
+                )}
+                {t('orders.bulk.bulkInvoice')}
+              </Button>
+            ) : null}
+            {showExternalErpActions ? (
+              <Button type="button" variant="secondary" size="sm" className="gap-1" asChild>
+                <Link to="/connections?tab=erp">
+                  <FileText className="h-3.5 w-3.5" aria-hidden />
+                  {t('orders.bulk.goToErpConnections')}
+                </Link>
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="secondary"

@@ -1,9 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
-import { SyncFrequency } from '@prisma/client';
+import { ErpType, SyncFrequency } from '@prisma/client';
 
+import { BizimHesapRateLimitService } from '../adapters/erp/bizimhesap/bizimhesap-rate-limit.service';
 import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { ErpSyncSettings } from '@prisma/client';
 
 @Injectable()
 export class ErpSyncTask {
@@ -12,6 +14,7 @@ export class ErpSyncTask {
   constructor(
     private readonly prisma: PrismaService,
     private readonly erpSyncSettingsService: ErpSyncSettingsService,
+    private readonly bizimHesapRateLimit: BizimHesapRateLimitService,
   ) {}
 
   /** Her dakika zamanı gelen ERP senkron işlerini kuyruğa alır */
@@ -35,8 +38,54 @@ export class ErpSyncTask {
       return;
     }
 
+    const bizimHesapDue = due.filter(
+      (settings) => settings.erpConnection.erpType === ErpType.BIZIMHESAP,
+    );
+    const otherDue = due.filter(
+      (settings) => settings.erpConnection.erpType !== ErpType.BIZIMHESAP,
+    );
+
     let queued = 0;
-    for (const settings of due) {
+
+    const bizimHesapByOrg = new Map<string, typeof bizimHesapDue>();
+    for (const settings of bizimHesapDue) {
+      const list = bizimHesapByOrg.get(settings.organizationId) ?? [];
+      list.push(settings);
+      bizimHesapByOrg.set(settings.organizationId, list);
+    }
+
+    for (const [organizationId, settingsList] of bizimHesapByOrg) {
+      if (await this.bizimHesapRateLimit.isBlocked(organizationId)) {
+        const status = await this.bizimHesapRateLimit.getStatus(organizationId);
+        await this.bizimHesapRateLimit.recordSyncSkipped(
+          organizationId,
+          status.reason ??
+            'BizimHesap istek limiti aktif — planlı senkron atlandı',
+        );
+        for (const settings of settingsList) {
+          const nextSyncAt = await this.erpSyncSettingsService.deferNextSyncAt(
+            settings,
+            status.blockedUntil ? new Date(status.blockedUntil) : null,
+          );
+          await this.prisma.erpSyncSettings.update({
+            where: { id: settings.id },
+            data: { nextSyncAt },
+          });
+        }
+        continue;
+      }
+
+      const connectionIds = settingsList.map((item) => item.erpConnectionId);
+      await this.erpSyncSettingsService.enqueueBizimHesapOrgBatch(
+        organizationId,
+        connectionIds,
+      );
+      queued += 1;
+
+      await this.deferSettingsNextSync(settingsList);
+    }
+
+    for (const settings of otherDue) {
       const count = await this.erpSyncSettingsService.enqueueSyncJobs(
         settings.erpConnection,
         settings,
@@ -44,18 +93,31 @@ export class ErpSyncTask {
       if (count > 0) {
         queued += count;
       }
-      const nextSyncAt = this.erpSyncSettingsService.getNextSyncTime({
+      await this.deferSettingsNextSync([settings]);
+    }
+
+    this.logger.log(
+      `ERP zamanlanmış sync: ${String(due.length)} bağlantı, ${String(queued)} iş`,
+    );
+  }
+
+  private async deferSettingsNextSync(
+    settingsList: Array<
+      ErpSyncSettings & {
+        erpConnection: { erpType: ErpType };
+      }
+    >,
+  ): Promise<void> {
+    for (const settings of settingsList) {
+      const nextSyncAt = await this.erpSyncSettingsService.getNextSyncTime({
         syncFrequency: settings.syncFrequency,
         lastSyncAt: settings.lastSyncAt,
+        erpType: settings.erpConnection.erpType,
       });
       await this.prisma.erpSyncSettings.update({
         where: { id: settings.id },
         data: { nextSyncAt },
       });
     }
-
-    this.logger.log(
-      `ERP zamanlanmış sync: ${String(due.length)} bağlantı, ${String(queued)} iş`,
-    );
   }
 }

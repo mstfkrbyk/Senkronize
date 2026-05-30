@@ -8,13 +8,16 @@ import {
 
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
+import {
+  resolveErpSyncLogErpType,
+} from '../erp/erp-sync-log.util';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { SyncResult } from './listing-sync.types';
 import { SyncGateway } from './sync-gateway';
 
 export interface PlatformSyncStat {
-  platform: Marketplace;
+  platform: Marketplace | string;
   totalRuns: number;
   successRuns: number;
   partialRuns: number;
@@ -22,6 +25,10 @@ export interface PlatformSyncStat {
   successRate: number;
   lastRunAt: string | null;
   lastStatus: SyncLogStatus | null;
+  /** ERP senkron istatistiği ise true */
+  isErpJob?: boolean;
+  /** UI etiketi (ERP türü veya pazaryeri) */
+  displayPlatform?: string;
 }
 
 export interface ListingSyncCompletion {
@@ -62,6 +69,10 @@ export class SyncLogService {
     itemsFailed = 0,
   ): Promise<void> {
     const status = this.resolveStatus(itemsProcessed, itemsFailed);
+    const errorMessage =
+      itemsFailed > 0 && itemsProcessed === 0
+        ? `${String(itemsFailed)} kayıt işlenemedi`
+        : null;
     await this.prisma.syncLog.update({
       where: { id: logId },
       data: {
@@ -69,7 +80,7 @@ export class SyncLogService {
         itemsProcessed,
         itemsFailed,
         completedAt: new Date(),
-        errorMessage: null,
+        errorMessage,
       },
     });
   }
@@ -170,72 +181,110 @@ export class SyncLogService {
   }
 
   async getPlatformSyncStats(orgId: string): Promise<PlatformSyncStat[]> {
-    const rows = await this.prisma.syncLog.groupBy({
-      by: ['platform', 'status'],
+    const rows = await this.prisma.syncLog.findMany({
       where: {
         organizationId: orgId,
         status: { not: SyncLogStatus.RUNNING },
       },
-      _count: { _all: true },
-    });
-
-    const lastByPlatform = await this.prisma.syncLog.findMany({
-      where: { organizationId: orgId },
-      orderBy: { startedAt: 'desc' },
-      distinct: ['platform'],
       select: {
         platform: true,
-        startedAt: true,
         status: true,
+        jobType: true,
+        startedAt: true,
       },
+      orderBy: { startedAt: 'desc' },
     });
-    const lastMap = new Map(
-      lastByPlatform.map((r) => [r.platform, r] as const),
+
+    const erpConnections = await this.prisma.erpConnection.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { id: true, erpType: true },
+    });
+    const erpTypeByConnectionId = new Map(
+      erpConnections.map((c) => [c.id, c.erpType] as const),
     );
 
-    const platformSet = new Set<Marketplace>();
+    type StatBucket = {
+      totalRuns: number;
+      successRuns: number;
+      partialRuns: number;
+      failedRuns: number;
+      lastRunAt: Date | null;
+      lastStatus: SyncLogStatus | null;
+      isErpJob: boolean;
+      displayPlatform: string;
+      sortKey: string;
+    };
+
+    const buckets = new Map<string, StatBucket>();
+
     for (const row of rows) {
-      platformSet.add(row.platform);
-    }
-    for (const row of lastByPlatform) {
-      platformSet.add(row.platform);
+      const erpType = row.jobType.startsWith('erp:')
+        ? resolveErpSyncLogErpType(row.jobType, erpTypeByConnectionId)
+        : null;
+      const isErpJob = erpType !== null;
+      const key = isErpJob ? `erp:${erpType}` : row.platform;
+      const displayPlatform = isErpJob ? erpType : row.platform;
+
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          totalRuns: 0,
+          successRuns: 0,
+          partialRuns: 0,
+          failedRuns: 0,
+          lastRunAt: null,
+          lastStatus: null,
+          isErpJob,
+          displayPlatform,
+          sortKey: displayPlatform,
+        };
+        buckets.set(key, bucket);
+      }
+
+      bucket.totalRuns += 1;
+      if (row.status === SyncLogStatus.SUCCESS) {
+        bucket.successRuns += 1;
+      } else if (row.status === SyncLogStatus.PARTIAL) {
+        bucket.partialRuns += 1;
+      } else if (row.status === SyncLogStatus.FAILED) {
+        bucket.failedRuns += 1;
+      }
+
+      if (bucket.lastRunAt === null) {
+        bucket.lastRunAt = row.startedAt;
+        bucket.lastStatus = row.status;
+      }
     }
 
     const stats: PlatformSyncStat[] = [];
-    for (const platform of platformSet) {
-      const platformRows = rows.filter((r) => r.platform === platform);
-      let successRuns = 0;
-      let partialRuns = 0;
-      let failedRuns = 0;
-      for (const r of platformRows) {
-        const count = r._count._all;
-        if (r.status === SyncLogStatus.SUCCESS) {
-          successRuns += count;
-        } else if (r.status === SyncLogStatus.PARTIAL) {
-          partialRuns += count;
-        } else if (r.status === SyncLogStatus.FAILED) {
-          failedRuns += count;
-        }
-      }
-      const totalRuns = successRuns + partialRuns + failedRuns;
+    for (const bucket of buckets.values()) {
+      const finishedRuns =
+        bucket.successRuns + bucket.partialRuns + bucket.failedRuns;
       const successRate =
-        totalRuns > 0
-          ? Math.round((successRuns / totalRuns) * 1000) / 10
+        finishedRuns > 0
+          ? Math.round((bucket.successRuns / finishedRuns) * 1000) / 10
           : 0;
-      const last = lastMap.get(platform);
       stats.push({
-        platform,
-        totalRuns,
-        successRuns,
-        partialRuns,
-        failedRuns,
+        platform: bucket.isErpJob
+          ? bucket.displayPlatform
+          : (bucket.displayPlatform as Marketplace),
+        totalRuns: bucket.totalRuns,
+        successRuns: bucket.successRuns,
+        partialRuns: bucket.partialRuns,
+        failedRuns: bucket.failedRuns,
         successRate,
-        lastRunAt: last?.startedAt.toISOString() ?? null,
-        lastStatus: last?.status ?? null,
+        lastRunAt: bucket.lastRunAt?.toISOString() ?? null,
+        lastStatus: bucket.lastStatus,
+        isErpJob: bucket.isErpJob,
+        displayPlatform: bucket.displayPlatform,
       });
     }
 
-    return stats.sort((a, b) => a.platform.localeCompare(b.platform));
+    return stats.sort((a, b) =>
+      (a.displayPlatform ?? String(a.platform)).localeCompare(
+        b.displayPlatform ?? String(b.platform),
+      ),
+    );
   }
 
   private resolveStatus(

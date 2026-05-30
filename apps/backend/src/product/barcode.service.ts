@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface ProductBarcodeSearchResult {
   id: string;
-  barcode: string;
+  barcode: string | null;
   name: string;
   sku: string | null;
   brand: string | null;
@@ -68,10 +68,10 @@ export class BarcodeService {
     if (!product) {
       throw new NotFoundException('Ürün bulunamadı.');
     }
-    if (product.barcode.trim().length > 0) {
-      const existingValid = this.validateBarcode(product.barcode);
+    if ((product.barcode ?? '').trim().length > 0) {
+      const existingValid = this.validateBarcode(product.barcode!);
       if (existingValid) {
-        return { barcode: product.barcode };
+        return { barcode: product.barcode! };
       }
     }
 

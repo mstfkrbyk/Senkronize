@@ -1,9 +1,12 @@
 import type { ReactElement } from 'react';
 import { Fragment, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowLeft } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,8 +23,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 
+import { resolveSettingsProductAccess } from './settings-tabs.config';
+import { SettingsIntegrationUpgrade } from './SettingsIntegrationUpgrade';
 import {
   deliveryStatusLabel,
   endpointStatusLabel,
@@ -37,6 +45,10 @@ export function WebhookDetailPage(): ReactElement {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const { accountingOnly } = resolveSettingsProductAccess(orgProducts);
 
   const endpointQuery = useQuery({
     queryKey: ['webhook-endpoint', id],
@@ -110,6 +122,7 @@ export function WebhookDetailPage(): ReactElement {
   });
 
   const endpoint = endpointQuery.data;
+  usePageTitle(endpoint?.name ?? 'Webhook');
   const selectedEvents = useMemo(
     () => new Set(endpoint?.events ?? []),
     [endpoint?.events],
@@ -142,6 +155,18 @@ export function WebhookDetailPage(): ReactElement {
     updateMutation.mutate({ events: [...next] });
   };
 
+  if (accountingOnly) {
+    return (
+      <div className="space-y-6">
+        <SettingsIntegrationUpgrade
+          showNativeAccountingCta={
+            accountingMode === 'NATIVE' && !accountingModeLoading
+          }
+        />
+      </div>
+    );
+  }
+
   if (!id) {
     return <p className="text-sm text-destructive">Geçersiz endpoint.</p>;
   }
@@ -153,7 +178,16 @@ export function WebhookDetailPage(): ReactElement {
   if (endpointQuery.isError || !endpoint) {
     return (
       <div className="space-y-4">
-        <p className="text-sm text-destructive">Endpoint yüklenemedi.</p>
+        <QueryErrorAlert
+          error={endpointQuery.error ?? new Error('Endpoint yüklenemedi.')}
+          onRetry={
+            endpointQuery.isError
+              ? () => {
+                  void endpointQuery.refetch();
+                }
+              : undefined
+          }
+        />
         <Button type="button" variant="outline" asChild>
           <Link to="/settings/webhooks">Listeye dön</Link>
         </Button>
@@ -167,44 +201,37 @@ export function WebhookDetailPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            <Link to="/settings/webhooks" className="hover:underline">
-              Webhook&apos;lar
-            </Link>
-            {' / '}
-            <span className="text-foreground">{endpoint.name}</span>
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">{endpoint.name}</h1>
-          <p className="max-w-2xl truncate text-sm text-muted-foreground" title={endpoint.url}>
-            {endpoint.url}
-          </p>
-          <Badge
-            variant={
-              endpoint.status === 'DISABLED' || !endpoint.isActive
-                ? 'destructive'
-                : 'default'
-            }
-            className="mt-2 w-fit"
-          >
-            {endpointStatusLabel(endpoint.status, endpoint.isActive)}
-          </Badge>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={testMutation.isPending}
-            onClick={() => testMutation.mutate()}
-          >
-            Test event gönder
-          </Button>
-          <Button type="button" variant="outline" asChild>
-            <Link to="/settings/webhooks">Listeye dön</Link>
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={endpoint.url}
+        description={endpoint.name}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant={
+                endpoint.status === 'DISABLED' || !endpoint.isActive
+                  ? 'destructive'
+                  : 'default'
+              }
+            >
+              {endpointStatusLabel(endpoint.status, endpoint.isActive)}
+            </Badge>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={testMutation.isPending}
+              onClick={() => testMutation.mutate()}
+            >
+              Test event gönder
+            </Button>
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/settings/webhooks">
+                <ArrowLeft className="mr-2 size-4" aria-hidden />
+                Webhook&apos;lara dön
+              </Link>
+            </Button>
+          </div>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -262,10 +289,7 @@ export function WebhookDetailPage(): ReactElement {
                       disabled={updateMutation.isPending}
                       onCheckedChange={(v) => toggleSubscription(ev.id, v === true)}
                     />
-                    <span className="text-sm">
-                      {ev.label}{' '}
-                      <span className="text-muted-foreground">({ev.id})</span>
-                    </span>
+                    <span className="text-sm">{ev.label}</span>
                   </label>
                 ))}
               </div>
@@ -287,7 +311,12 @@ export function WebhookDetailPage(): ReactElement {
           {logsQuery.isLoading ? (
             <Skeleton className="h-32 w-full" />
           ) : logsQuery.isError ? (
-            <p className="text-sm text-destructive">Loglar yüklenemedi.</p>
+            <QueryErrorAlert
+              error={logsQuery.error}
+              onRetry={() => {
+                void logsQuery.refetch();
+              }}
+            />
           ) : !logsQuery.data?.data.length ? (
             <p className="text-sm text-muted-foreground">Henüz teslimat kaydı yok.</p>
           ) : (

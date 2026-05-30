@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,12 +11,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
 import { BulkPriceUpdateModal } from '@/components/listings/BulkPriceUpdateModal';
 import { DataTablePagination } from '@/components/DataTablePagination';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TablePageEmptyState } from '@/components/TablePageEmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -39,12 +44,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useListingSyncProgressListener } from '@/hooks/useListingSyncProgress';
+import { useHasMarketplacePlatforms } from '@/hooks/useHasMarketplacePlatforms';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { useSocket } from '@/hooks/useSocket';
-import { getApiErrorMessage } from '@/lib/api';
 import { useListingsPageStore } from '@/store/tablePages.store';
 import type {
   Listing,
@@ -102,11 +109,17 @@ function matchesBuyBoxFilter(
 }
 
 export function ListingsPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.listings'));
+
   usePageTitle('Listelemeler');
   useListingSyncProgressListener();
 
   const queryClient = useQueryClient();
   const { on } = useSocket();
+  const [searchParams] = useSearchParams();
+  const showBuyBox = useHasMarketplacePlatforms();
 
   const [filters, setFilters] = useState<ListingFilters>({
     page: 1,
@@ -129,7 +142,7 @@ export function ListingsPage(): ReactElement {
   const setSelectedListingIds = useListingsPageStore((s) => s.setSelectedListingIds);
 
   const connectionsQuery = useMarketplaceConnections();
-  const buyBoxMapQuery = useBuyBoxSnapshotMap();
+  const buyBoxMapQuery = useBuyBoxSnapshotMap(showBuyBox);
   const syncListingsMutation = useSyncListings();
   const syncOneMutation = useSyncListing();
   const updatePriceMutation = useUpdatePrice();
@@ -156,7 +169,10 @@ export function ListingsPage(): ReactElement {
   }, [filters, debouncedSearch]);
 
   const listingsQuery = useListings(listingQueryFilters);
-  const buyBoxMap = buyBoxMapQuery.data ?? new Map();
+  const buyBoxMap = useMemo(
+    () => buyBoxMapQuery.data ?? new Map(),
+    [buyBoxMapQuery.data],
+  );
 
   const buyBoxPriceByKey = useMemo(() => {
     const map = new Map<string, number>();
@@ -165,6 +181,16 @@ export function ListingsPage(): ReactElement {
     }
     return map;
   }, [buyBoxMap]);
+
+  useEffect(() => {
+    const platform = searchParams.get('platform')?.trim();
+    if (!platform) {
+      return;
+    }
+    setFilters((prev) =>
+      prev.platform === platform ? prev : { ...prev, platform, page: 1 },
+    );
+  }, [searchParams]);
 
   useEffect(() => {
     clearListingSelection();
@@ -304,35 +330,33 @@ export function ListingsPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Listelemeler
-          </h1>
-          <p className="text-muted-foreground">
-            Pazaryeri ürünlerinizi yönetin, filtreleyin ve toplu işlem yapın.
-          </p>
-        </div>
-        <Button
-          type="button"
-          className="shrink-0 gap-2"
-          disabled={syncListingsMutation.isPending}
-          onClick={() => {
-            syncListingsMutation.mutate();
-          }}
-        >
-          {syncListingsMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          Senkronize et
-        </Button>
-      </div>
+      <PageHeader
+        title={t('nav.listings')}
+        description="Pazaryeri ürünlerinizi yönetin, filtreleyin ve toplu işlem yapın."
+        context={navContextLine}
+        actions={
+          <Button
+            type="button"
+            className="shrink-0 gap-2"
+            disabled={syncListingsMutation.isPending}
+            onClick={() => {
+              syncListingsMutation.mutate();
+            }}
+          >
+            {syncListingsMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCw className="h-4 w-4" aria-hidden />
+            )}
+            Senkronize et
+          </Button>
+        }
+      />
 
-      <ListingsKpiRow />
+      <ListingsKpiRow showBuyBox={showBuyBox} />
 
       <ListingFiltersPanel
+        showBuyBoxFilter={showBuyBox}
         filters={filters}
         onChange={setFilters}
         searchInput={searchInput}
@@ -446,20 +470,12 @@ export function ListingsPage(): ReactElement {
       {listingsQuery.isLoading ? <TableSkeleton rows={8} cols={9} /> : null}
 
       {listingsQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(listingsQuery.error)}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => {
-              void listingsQuery.refetch();
-            }}
-          >
-            Tekrar dene
-          </Button>
-        </div>
+        <QueryErrorAlert
+          error={listingsQuery.error}
+          onRetry={() => {
+            void listingsQuery.refetch();
+          }}
+        />
       ) : null}
 
       {!listingsQuery.isLoading &&
@@ -482,46 +498,45 @@ export function ListingsPage(): ReactElement {
       !listingsQuery.isError &&
       rawData &&
       filteredItems.length > 0 ? (
-        <ListingsTable
-          listings={filteredItems}
-          selectedIds={selectedIdSet}
-          buyBoxMap={buyBoxMap}
-          onToggleRow={toggleListingRow}
-          onToggleAllOnPage={(selected) => {
-            toggleAllOnPage(
-              filteredItems.map((l) => l.id),
-              selected,
-            );
-          }}
-          onInlinePriceSave={handleInlinePriceSave}
-          onInlineStockSave={handleInlineStockSave}
-          onForceSync={(listing) => {
-            syncOneMutation.mutate(listing.id);
-          }}
-          onRemove={(listing) => {
-            bulkDeleteMutation.mutate([listing.id]);
-          }}
-          priceSavingId={priceSavingId}
-          stockSavingId={stockSavingId}
-        />
-      ) : null}
-
-      {!listingsQuery.isLoading &&
-      !listingsQuery.isError &&
-      rawData &&
-      filteredItems.length > 0 ? (
-        <DataTablePagination
-          page={page}
-          totalPages={totalPages}
-          total={total}
-          limit={limit}
-          onPageChange={(nextPage) => {
-            setFilters((prev) => ({ ...prev, page: nextPage }));
-          }}
-          onLimitChange={(nextLimit) => {
-            setFilters((prev) => ({ ...prev, limit: nextLimit, page: 1 }));
-          }}
-        />
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <ListingsTable
+              listings={filteredItems}
+              selectedIds={selectedIdSet}
+              showBuyBoxColumn={showBuyBox}
+              buyBoxMap={showBuyBox ? buyBoxMap : undefined}
+              onToggleRow={toggleListingRow}
+              onToggleAllOnPage={(selected) => {
+                toggleAllOnPage(
+                  filteredItems.map((l) => l.id),
+                  selected,
+                );
+              }}
+              onInlinePriceSave={handleInlinePriceSave}
+              onInlineStockSave={handleInlineStockSave}
+              onForceSync={(listing) => {
+                syncOneMutation.mutate(listing.id);
+              }}
+              onRemove={(listing) => {
+                bulkDeleteMutation.mutate([listing.id]);
+              }}
+              priceSavingId={priceSavingId}
+              stockSavingId={stockSavingId}
+            />
+            <DataTablePagination
+              page={page}
+              totalPages={totalPages}
+              total={total}
+              limit={limit}
+              onPageChange={(nextPage) => {
+                setFilters((prev) => ({ ...prev, page: nextPage }));
+              }}
+              onLimitChange={(nextLimit) => {
+                setFilters((prev) => ({ ...prev, limit: nextLimit, page: 1 }));
+              }}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
       <BulkPriceUpdateModal

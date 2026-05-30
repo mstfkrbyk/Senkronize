@@ -1,29 +1,35 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export function PaymentFailurePage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('payment.failurePageTitle'));
+
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <Card className="w-full max-w-lg text-center">
+    <div className="mx-auto min-h-[60vh] max-w-lg space-y-6 p-6">
+      <PageHeader
+        title={t('payment.failurePageTitle')}
+        description={t('payment.failure.description')}
+      />
+      <Card className="w-full text-center">
         <CardHeader className="items-center space-y-3">
           <AlertCircle className="h-14 w-14 text-destructive" aria-hidden />
-          <CardTitle className="text-2xl">Ödeme tamamlanamadı</CardTitle>
+          <CardTitle className="text-2xl">{t('payment.failure.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            İşlem sırasında bir sorun oluştu veya ödeme iptal edildi. Kart bilgilerinizi
-            kontrol ederek tekrar deneyebilirsiniz.
-          </p>
           <div className="flex flex-wrap justify-center gap-3">
             <Button asChild>
-              <Link to="/settings/subscription">Tekrar dene</Link>
+              <Link to="/settings/subscription">{t('payment.failure.retry')}</Link>
             </Button>
             <Button variant="outline" asChild>
-              <Link to="/dashboard">Panele dön</Link>
+              <Link to="/dashboard">{t('payment.failure.backToPanel')}</Link>
             </Button>
           </div>
         </CardContent>

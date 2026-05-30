@@ -1,32 +1,28 @@
 import type { ReactElement } from 'react';
-import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
 import { stockStatusFromQuantity } from '@/pages/products/productStockStatus';
+import { cn } from '@/lib/utils';
 
 interface Props {
   quantity: number;
 }
 
 export function ProductStockStatusBadge({ quantity }: Props): ReactElement {
-  const { t } = useTranslation();
   const status = stockStatusFromQuantity(quantity);
 
-  if (status === 'out') {
-    return (
-      <Badge variant="destructive">{t('products.stockStatus.out')}</Badge>
-    );
-  }
-  if (status === 'low') {
-    return (
-      <Badge className="border-0 bg-amber-500 text-amber-950 hover:bg-amber-500/90 dark:bg-amber-600 dark:text-amber-50">
-        {t('products.stockStatus.low')}
-      </Badge>
-    );
-  }
   return (
-    <Badge className="border-0 bg-emerald-600 text-white hover:bg-emerald-600/90 dark:bg-emerald-700">
-      {t('products.stockStatus.ok')}
+    <Badge
+      variant={status === 'out' ? 'destructive' : 'outline'}
+      className={cn(
+        'tabular-nums font-semibold',
+        status === 'low' &&
+          'border-amber-300 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100',
+        status === 'ok' &&
+          'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100',
+      )}
+    >
+      {quantity}
     </Badge>
   );
 }

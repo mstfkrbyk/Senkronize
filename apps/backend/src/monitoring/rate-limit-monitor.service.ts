@@ -66,6 +66,18 @@ export class RateLimitMonitorService {
   }
 
   async recordIpRateLimitViolation(ip: string): Promise<void> {
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const dedupeKey = CacheService.key(
+      'metrics',
+      'rate_violation_logged_ip',
+      dateKey,
+      ip,
+    );
+    const already = await this.cache.get<{ v: true }>(dedupeKey);
+    if (already) {
+      return;
+    }
+    await this.cache.set(dedupeKey, { v: true }, VIOLATION_FLAG_TTL_SEC);
     await this.recordViolation('ip', 'blocked', null, { ip });
   }
 
@@ -120,11 +132,13 @@ export class RateLimitMonitorService {
       });
     }
 
-    this.logger.warn('Rate limit ihlali kaydedildi', {
-      source,
-      platform: platform.toUpperCase(),
-      organizationId,
-    });
+    if (source !== 'ip') {
+      this.logger.warn('Rate limit ihlali kaydedildi', {
+        source,
+        platform: platform.toUpperCase(),
+        organizationId,
+      });
+    }
   }
 
   private async logAnomaly(

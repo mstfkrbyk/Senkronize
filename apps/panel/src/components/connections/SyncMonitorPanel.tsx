@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useSyncMonitorCleanup, useSyncMonitorListener } from '@/hooks/useSyncMonitorListener';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import { useTriggerManualSync } from '@/hooks/useConnections';
 import { getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -113,10 +114,11 @@ export function useSyncMonitorEffects(): void {
 }
 
 export function SyncMonitorPanel({ className, compact = false }: Props): ReactElement | null {
+  const opsAccess = useIntegrationOpsAccess();
   const entries = useSyncMonitorStore((s) => s.entries);
   const hasEntries = Object.keys(entries).length > 0;
 
-  if (!hasEntries) {
+  if (!opsAccess || !hasEntries) {
     return null;
   }
 

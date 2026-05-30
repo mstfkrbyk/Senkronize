@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,8 +16,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+import { FORM_MESSAGES } from '@/lib/form-messages';
+
 import {
   API_KEY_PERMISSIONS,
+  apiKeyPermissionLabel,
   type ApiKeyPermission,
   sanitizePermissionsForApi,
 } from '../api-keys.constants';
@@ -59,7 +63,12 @@ export function CreateApiKeyModal({
 
   const handleSubmit = (): void => {
     const trimmed = name.trim();
-    if (!trimmed || selectedPermissions.size === 0) {
+    if (!trimmed) {
+      toast.error(FORM_MESSAGES.required);
+      return;
+    }
+    if (selectedPermissions.size === 0) {
+      toast.error('En az bir izin seçin.');
       return;
     }
     const accepted = sanitizePermissionsForApi([...selectedPermissions]);
@@ -109,7 +118,7 @@ export function CreateApiKeyModal({
                       }
                     />
                     <span className={isReports ? 'text-muted-foreground' : undefined}>
-                      {t(perm.labelKey)}
+                      {apiKeyPermissionLabel(perm.value, t)}
                       {isReports ? ` (${t('settings.apiKeys.comingSoon')})` : null}
                     </span>
                   </label>

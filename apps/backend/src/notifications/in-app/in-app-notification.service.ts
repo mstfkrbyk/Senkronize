@@ -8,7 +8,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { InAppService } from '../in-app.service';
 
-import type { InAppNotificationListFilter } from './in-app-notification.dto';
+import {
+  type InAppNotificationListFilter,
+  typesForListFilter,
+} from '../notification-list-filters';
 
 function visibilityWhere(
   userId: string,
@@ -16,24 +19,6 @@ function visibilityWhere(
   return {
     OR: [{ userId: null }, { userId }],
   };
-}
-
-function filterTypes(
-  filter: InAppNotificationListFilter,
-): NotificationType[] | undefined {
-  switch (filter) {
-    case 'unread':
-    case 'all':
-      return undefined;
-    case 'order':
-      return [NotificationType.ORDER_NEW, NotificationType.ORDER_STATUS_CHANGED];
-    case 'stock':
-      return [NotificationType.STOCK_LOW, NotificationType.STOCK_OUT];
-    case 'error':
-      return [NotificationType.SYNC_ERROR, NotificationType.PAYMENT_FAILED];
-    default:
-      return undefined;
-  }
 }
 
 /** Geriye dönük uyumluluk — yeni kod InAppService kullanmalı */
@@ -75,12 +60,14 @@ export class InAppNotificationService {
     limit: number,
     filter: InAppNotificationListFilter,
   ): Promise<{ data: InAppNotification[]; total: number }> {
-    const types = filterTypes(filter);
+    const types = typesForListFilter(filter);
     const where: Prisma.InAppNotificationWhereInput = {
       organizationId,
       ...visibilityWhere(userId),
       ...(filter === 'unread' ? { isRead: false } : {}),
-      ...(types && types.length > 0 ? { type: { in: types } } : {}),
+      ...(types !== undefined
+        ? { type: { in: types.length > 0 ? types : [] } }
+        : {}),
     };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.inAppNotification.findMany({

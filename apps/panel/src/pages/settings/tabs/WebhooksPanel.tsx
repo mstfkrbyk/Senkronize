@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -364,12 +366,23 @@ export function WebhooksPanel({ showHeader = true, openCreateSignal = 0 }: Props
       ) : null}
 
       {endpointsQuery.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
       ) : endpointsQuery.isError ? (
-        <p className="text-sm text-destructive">{getApiErrorMessage(endpointsQuery.error)}</p>
+        <Card>
+          <CardContent className="pt-6">
+            <QueryErrorAlert
+              error={endpointsQuery.error}
+              onRetry={() => {
+                void endpointsQuery.refetch();
+              }}
+            />
+          </CardContent>
+        </Card>
       ) : endpoints.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('settings.webhooks.empty')}</p>
       ) : (
@@ -520,7 +533,12 @@ export function WebhooksPanel({ showHeader = true, openCreateSignal = 0 }: Props
           {deliveriesQuery.isLoading ? (
             <Skeleton className="h-32 w-full" />
           ) : deliveriesQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(deliveriesQuery.error)}</p>
+            <QueryErrorAlert
+              error={deliveriesQuery.error}
+              onRetry={() => {
+                void deliveriesQuery.refetch();
+              }}
+            />
           ) : !deliveriesQuery.data?.data.length ? (
             <p className="text-sm text-muted-foreground">{t('settings.webhooks.noDeliveries')}</p>
           ) : (
@@ -692,10 +710,7 @@ export function WebhooksPanel({ showHeader = true, openCreateSignal = 0 }: Props
                           checked={selectedEvents.has(ev.id)}
                           onCheckedChange={(v) => toggleEvent(ev.id, v === true)}
                         />
-                        <span className="text-sm">
-                          {ev.label}{' '}
-                          <span className="text-muted-foreground">({ev.id})</span>
-                        </span>
+                        <span className="text-sm">{ev.label}</span>
                       </label>
                     ))}
                   </div>

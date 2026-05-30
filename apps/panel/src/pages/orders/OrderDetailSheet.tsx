@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, ExternalLink, FileDown, Loader2, PackageSearch } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -9,6 +10,13 @@ import { InvoicePreview } from '@/components/InvoicePreview';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -46,7 +54,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { useErpConnections, useSyncOrderToErp } from '@/hooks/useErpConnections';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
-import { ORDER_STATUS_LABEL_TR, orderStatusTone } from '@/lib/order-status';
+import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { orderStatusTone } from '@/lib/order-status';
+import { cn } from '@/lib/utils';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { useAuthStore } from '@/store/auth.store';
 import type { Order, OrderStatus } from '@/types/order';
@@ -85,17 +95,6 @@ const ERP_LABEL_TR: Record<string, string> = {
   SAP_B1: 'SAP Business One',
   ISNET: 'İşnet',
 };
-
-const FULFILLMENT_STEPS: readonly {
-  key: string;
-  label: string;
-  minRank: number;
-}[] = [
-  { key: 'created', label: 'Sipariş oluşturuldu', minRank: 0 },
-  { key: 'prep', label: 'Hazırlandı', minRank: 1 },
-  { key: 'ship', label: 'Kargoya verildi', minRank: 2 },
-  { key: 'done', label: 'Teslim edildi', minRank: 3 },
-];
 
 function statusRank(status: OrderStatus): number {
   switch (status) {
@@ -144,6 +143,7 @@ export function OrderDetailSheet({
   onOpenChange,
   onCargoUpdated,
 }: Props): ReactElement {
+  const { t } = useTranslation();
   const currentOrg = useAuthStore((s) => s.currentOrg);
   const queryClient = useQueryClient();
   const erpConnectionsQuery = useErpConnections();
@@ -155,8 +155,22 @@ export function OrderDetailSheet({
   const [cancelNote, setCancelNote] = useState('');
 
   const activeErpConnections = useMemo(
-    () => (erpConnectionsQuery.data ?? []).filter((c) => c.isActive),
+    () =>
+      (erpConnectionsQuery.data ?? []).filter(
+        (c) => c.isActive && c.role === 'PRIMARY',
+      ),
     [erpConnectionsQuery.data],
+  );
+
+  const fulfillmentSteps = useMemo(
+    () =>
+      [
+        { key: 'created', label: t('orders.detail.tracking.received'), minRank: 0 },
+        { key: 'prep', label: t('orders.detail.tracking.preparing'), minRank: 1 },
+        { key: 'ship', label: t('orders.detail.tracking.shipped'), minRank: 2 },
+        { key: 'done', label: t('orders.detail.tracking.delivered'), minRank: 3 },
+      ] as const,
+    [t],
   );
 
   useEffect(() => {
@@ -315,18 +329,33 @@ export function OrderDetailSheet({
     <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       {order ? (
-        <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-lg">
-          <SheetHeader className="text-left">
-            <SheetTitle className="flex flex-wrap items-center gap-2">
-              <span aria-hidden>
-                {getMarketplaceBranding(order.platform).logo}
-              </span>
-              Sipariş {order.platformOrderId}
-            </SheetTitle>
-            <SheetDescription>
-              {getMarketplaceBranding(order.platform).label} ·{' '}
-              {formatDate(order.platformCreatedAt)}
-            </SheetDescription>
+        <SheetContent className="flex w-full flex-col overflow-y-auto sm:max-w-2xl">
+          <SheetHeader className="space-y-3 text-left">
+            <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
+              <div className="min-w-0 flex-1 space-y-1">
+                <SheetTitle className="flex flex-wrap items-center gap-2">
+                  <span aria-hidden>
+                    {getMarketplaceBranding(order.platform).logo}
+                  </span>
+                  {t('orders.detail.heading', { orderNo: order.platformOrderId })}
+                </SheetTitle>
+                <SheetDescription>
+                  {getMarketplaceBranding(order.platform).label} ·{' '}
+                  {formatDate(order.platformCreatedAt)}
+                </SheetDescription>
+              </div>
+              {displayOrder ? (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    'shrink-0 px-3 py-1 text-sm font-semibold',
+                    orderStatusTone(displayOrder.status),
+                  )}
+                >
+                  {t(ORDER_STATUS_I18N_KEY[displayOrder.status])}
+                </Badge>
+              ) : null}
+            </div>
           </SheetHeader>
 
           {detailQuery.isPending ? (
@@ -338,16 +367,6 @@ export function OrderDetailSheet({
 
           {displayOrder ? (
             <div className="mt-4 space-y-6">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm text-muted-foreground">Durum</span>
-                <Badge
-                  variant="outline"
-                  className={orderStatusTone(displayOrder.status)}
-                >
-                  {ORDER_STATUS_LABEL_TR[displayOrder.status]}
-                </Badge>
-              </div>
-
               {displayOrder.cancellationRequestedAt ? (
                 <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
                   <span className="font-medium">İptal talebi kayıtlı</span>
@@ -376,13 +395,18 @@ export function OrderDetailSheet({
               {['CANCELLED', 'RETURNED'].includes(displayOrder.status) ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   Bu sipariş için operasyon zaman çizelgesi gösterilmez (
-                  {ORDER_STATUS_LABEL_TR[displayOrder.status]}).
+                  {t(ORDER_STATUS_I18N_KEY[displayOrder.status])}).
                 </div>
               ) : (
-                <div>
-                  <p className="mb-3 text-sm font-medium">Zaman çizelgesi</p>
-                  <ul className="space-y-3">
-                    {FULFILLMENT_STEPS.map((step, idx) => {
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">
+                      {t('orders.detail.shipping.timeline')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                  <ul className="space-y-3 border-l-2 border-muted pl-4">
+                    {fulfillmentSteps.map((step, idx) => {
                       const done = currentRank >= step.minRank;
                       const Icon = done ? CheckCircle2 : Circle;
                       return (
@@ -410,25 +434,33 @@ export function OrderDetailSheet({
                       );
                     })}
                   </ul>
-                </div>
+                  </CardContent>
+                </Card>
               )}
 
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-sm font-medium text-foreground">Müşteri</p>
-                <p className="mt-1 text-sm">{displayOrder.customerName}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Tutar:{' '}
-                  <span className="font-semibold text-foreground">
-                    {formatTry(displayOrder.totalAmount, displayOrder.currency)}
-                  </span>
-                </p>
-              </div>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t('orders.customer')}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 pt-0 text-sm">
+                  <p>{displayOrder.customerName}</p>
+                  <p className="text-muted-foreground">
+                    {t('orders.amount')}:{' '}
+                    <span className="font-semibold text-foreground">
+                      {formatTry(displayOrder.totalAmount, displayOrder.currency)}
+                    </span>
+                  </p>
+                </CardContent>
+              </Card>
 
-              <div className="rounded-lg border p-4">
-                <p className="text-sm font-medium">Fatura</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Sunucuda üretilen PDF veya istemci tarafı önizleme ile PDF alın.
-                </p>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t('orders.detail.invoice.title')}</CardTitle>
+                  <CardDescription>
+                    Sunucuda üretilen PDF veya istemci tarafı önizleme ile PDF alın.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-0">
                 <Button
                   type="button"
                   variant="secondary"
@@ -443,27 +475,30 @@ export function OrderDetailSheet({
                   ) : (
                     <FileDown className="h-4 w-4" aria-hidden />
                   )}
-                  Fatura İndir (PDF)
+                  {t('orders.detail.documents.downloadPdf')}
                 </Button>
-                <div className="mt-4">
+                <div>
                   <InvoicePreview
                     order={displayOrder}
                     organizationName={currentOrg?.name ?? '—'}
                   />
                 </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div>
-                <p className="mb-2 text-sm font-medium">Ürünler</p>
-                <div className="rounded-md border">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t('orders.detail.products.title')}</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0 pt-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-14" />
-                        <TableHead>Ürün</TableHead>
-                        <TableHead>Barkod</TableHead>
-                        <TableHead className="text-right">Adet</TableHead>
-                        <TableHead className="text-right">Birim</TableHead>
+                        <TableHead>{t('orders.detail.products.product')}</TableHead>
+                        <TableHead>{t('products.barcode')}</TableHead>
+                        <TableHead className="text-right">{t('orders.detail.products.qty')}</TableHead>
+                        <TableHead className="text-right">{t('orders.detail.products.unitPrice')}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -513,20 +548,23 @@ export function OrderDetailSheet({
                       )}
                     </TableBody>
                   </Table>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
               {displayOrder.cargoTrackingNumber ||
               displayOrder.cargoProvider ? (
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium">Kargo</p>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Kargo</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 pt-0 text-sm">
                   {displayOrder.cargoProvider ? (
-                    <p className="mt-1 text-sm text-muted-foreground">
+                    <p className="text-muted-foreground">
                       {displayOrder.cargoProvider}
                     </p>
                   ) : null}
                   {displayOrder.cargoTrackingNumber ? (
-                    <p className="mt-1 font-mono text-sm">
+                    <p className="font-mono">
                       Takip:{' '}
                       {trackingUrl ? (
                         <a
@@ -543,24 +581,27 @@ export function OrderDetailSheet({
                       )}
                     </p>
                   ) : null}
-                </div>
+                  </CardContent>
+                </Card>
               ) : null}
 
               {activeErpConnections.length > 0 ? (
-                <div className="rounded-lg border p-4">
-                  <p className="text-sm font-medium">ERP</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Siparişi seçili ERP bağlantısında fatura olarak oluşturur.
-                  </p>
-                  <div className="mt-3 space-y-3">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">{t('orders.list.erpColumn')}</CardTitle>
+                    <CardDescription>
+                      Siparişi seçili ERP bağlantısında fatura olarak oluşturur.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-0">
                     <div className="space-y-2">
-                      <Label htmlFor="erp-conn">ERP bağlantısı</Label>
+                      <Label htmlFor="erp-conn">{t('orders.detail.invoice.erpConnection')}</Label>
                       <Select
                         value={erpConnectionId}
                         onValueChange={setErpConnectionId}
                       >
                         <SelectTrigger id="erp-conn">
-                          <SelectValue placeholder="Bağlantı seçin" />
+                          <SelectValue placeholder={t('orders.detail.invoice.erpConnectionPlaceholder')} />
                         </SelectTrigger>
                         <SelectContent>
                           {activeErpConnections.map((c) => (
@@ -608,21 +649,24 @@ export function OrderDetailSheet({
                     >
                       {syncToErpMutation.isPending
                         ? 'Gönderiliyor…'
-                        : 'Faturayı ERP’ye Gönder'}
+                        : t('orders.detail.invoice.sendToErp')}
                     </Button>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
               ) : null}
 
-              <div className="rounded-lg border p-4">
-                <p className="text-sm font-medium">Kargo gönder</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Bağlı kargo hesaplarından fiyatları karşılaştırıp gönderi oluşturabilirsiniz.
-                </p>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Kargo gönder</CardTitle>
+                  <CardDescription>
+                    Bağlı kargo hesaplarından fiyatları karşılaştırıp gönderi oluşturabilirsiniz.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
                 <Button
                   type="button"
                   variant="secondary"
-                  className="mt-3 w-full gap-2"
+                  className="w-full gap-2"
                   disabled={!canEditCargo || !displayOrder}
                   onClick={() => {
                     setCompareDialogOpen(true);
@@ -631,17 +675,20 @@ export function OrderDetailSheet({
                   <PackageSearch className="h-4 w-4 shrink-0" aria-hidden />
                   Kargo gönder
                 </Button>
-              </div>
+                </CardContent>
+              </Card>
 
-              <div className="rounded-lg border p-4">
-                <p className="text-sm font-medium">Kargo bilgisi güncelle</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Takip numarası ve kargo firması girerek siparişi kargoda olarak
-                  işaretleyin.
-                </p>
-                <div className="mt-4 space-y-3">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Kargo bilgisi güncelle</CardTitle>
+                  <CardDescription>
+                    Takip numarası ve kargo firması girerek siparişi kargoda olarak
+                    işaretleyin.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0">
                   <div className="space-y-2">
-                    <Label htmlFor="cargo-tracking">Kargo takip numarası</Label>
+                    <Label htmlFor="cargo-tracking">{t('orders.detail.shipping.trackingNo')}</Label>
                     <Input
                       id="cargo-tracking"
                       name="cargoTrackingNumber"
@@ -655,7 +702,7 @@ export function OrderDetailSheet({
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cargo-provider">Kargo firması</Label>
+                    <Label htmlFor="cargo-provider">{t('orders.filters.cargoProvider')}</Label>
                     <Input
                       id="cargo-provider"
                       name="cargoProvider"
@@ -665,7 +712,7 @@ export function OrderDetailSheet({
                         setProvider(e.target.value);
                       }}
                       disabled={!canEditCargo}
-                      placeholder="Örn. Aras Kargo"
+                      placeholder={t('orders.filters.cargoPlaceholder')}
                     />
                   </div>
                   <Button
@@ -680,10 +727,10 @@ export function OrderDetailSheet({
                       cargoMutation.mutate();
                     }}
                   >
-                    {cargoMutation.isPending ? 'Kaydediliyor…' : 'Güncelle'}
+                    {cargoMutation.isPending ? t('settings.organizationTab.saving') : 'Güncelle'}
                   </Button>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           ) : null}
         </SheetContent>
@@ -768,7 +815,7 @@ export function OrderDetailSheet({
         ) : null}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => setCompareDialogOpen(false)}>
-            Kapat
+            {t('common.close')}
           </Button>
         </DialogFooter>
       </DialogContent>

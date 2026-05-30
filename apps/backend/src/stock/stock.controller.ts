@@ -53,6 +53,7 @@ import { StockDistributionService } from './stock-distribution.service';
 import type {
   DistributionPreview,
   DistributionResult,
+  ErpStockBreakdown,
 } from './stock-distribution.types';
 import { StockForecastService } from './stock-forecast.service';
 import type {
@@ -154,6 +155,21 @@ export class StockController {
     @Param('barcode') barcode: string,
   ): Promise<{ data: DistributionPreview }> {
     const data = await this.stockDistributionService.getCurrentDistribution(
+      org.id,
+      barcode,
+    );
+    return { data };
+  }
+
+  @Get('erp-sources/:barcode')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'ERP kaynaklarına göre stok dağılımı (birleşik merkezi stok)' })
+  @ApiResponse({ status: 200 })
+  async getErpStockBreakdown(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @Param('barcode') barcode: string,
+  ): Promise<{ data: ErpStockBreakdown }> {
+    const data = await this.stockDistributionService.getErpStockBreakdown(
       org.id,
       barcode,
     );

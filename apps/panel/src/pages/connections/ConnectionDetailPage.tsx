@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
@@ -23,7 +24,10 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
 import { ConnectionHealthBadge } from '@/components/connections/ConnectionHealthBadge';
+import { ConnectionProductMatchKeyCard } from '@/components/connections/ConnectionProductMatchKeyCard';
+import { ConnectionPushSettingsCard } from '@/components/connections/ConnectionPushSettingsCard';
 import { SyncMonitorPanel } from '@/components/connections/SyncMonitorPanel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -56,17 +60,30 @@ import {
   useMarketplaceConnections,
   useTestConnection,
   useTriggerManualSync,
+  useUpdateMarketplaceConnection,
 } from '@/hooks/useConnections';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatConnectionTestFailureMessage } from '@/lib/connection-test-message';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { NAV_GROUP_LABEL_KEYS } from '@/lib/nav-match';
 import {
   circuitBreakerBadgeClass,
+  deriveConnectionStatus,
   kindLabel,
   marketplaceKind,
 } from '@/pages/connections/connection-utils';
+import {
+  resolveConnectionsProductAccess,
+  usesExternalIntegrationsNavSection,
+} from '@/pages/connections/connections-product-access';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import { useAuthStore } from '@/store/auth.store';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { customerConnectionStatusLabel } from '@/lib/integration-ops-access';
 import type { SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
 
 function statusBadge(status: SyncLogStatus): ReactElement {
@@ -113,22 +130,42 @@ function jobTypeLabel(jobType: string): string {
 }
 
 export function ConnectionDetailPage(): ReactElement {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const connectionId = id ?? null;
   const navigate = useNavigate();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
+  const productAccess = useMemo(
+    () => resolveConnectionsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const opsAccess = useIntegrationOpsAccess();
 
   const connectionsQuery = useMarketplaceConnections();
   const connection = connectionsQuery.data?.find((c) => c.id === connectionId) ?? null;
   const branding = connection ? getMarketplaceBranding(connection.platform) : null;
+  const platformLabel = branding?.label ?? 'Bağlantı';
   const pageTitle = branding ? `${branding.label} bağlantısı` : 'Bağlantı detayı';
+  const navGroupKey = useMemo(() => {
+    if (usesExternalIntegrationsNavSection(productAccess, accountingMode)) {
+      return NAV_GROUP_LABEL_KEYS.externalErp;
+    }
+    return NAV_GROUP_LABEL_KEYS.ecommerce;
+  }, [productAccess, accountingMode]);
+  const navContextLine = useMemo(
+    () => formatNavPageContext(t(navGroupKey), platformLabel),
+    [t, navGroupKey, platformLabel],
+  );
 
   usePageTitle(pageTitle);
-  useBreadcrumbTail(pageTitle);
+  useBreadcrumbTail(platformLabel);
 
   const healthQuery = useConnectionHealth(connectionId, connection);
   const testMutation = useTestConnection();
   const triggerSync = useTriggerManualSync();
   const deleteMutation = useDeleteConnection();
+  const updateConnection = useUpdateMarketplaceConnection();
 
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -171,7 +208,7 @@ export function ConnectionDetailPage(): ReactElement {
         onError: (error) => {
           setTestResult({
             ok: false,
-            message: getApiErrorMessage(error),
+            message: formatConnectionTestFailureMessage(getApiErrorMessage(error)),
           });
         },
       },
@@ -211,39 +248,48 @@ export function ConnectionDetailPage(): ReactElement {
 
   if (connectionsQuery.isLoading) {
     return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (connectionsQuery.isError) {
     return (
-      <div className="p-6 text-sm text-destructive">
-        {getApiErrorMessage(connectionsQuery.error)}
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-destructive">{getApiErrorMessage(connectionsQuery.error)}</p>
+        </CardContent>
+      </Card>
     );
   }
 
   if (!connection) {
     return (
-      <div className="space-y-4 p-6">
-        <p className="text-muted-foreground">Bağlantı bulunamadı.</p>
-        <Button variant="outline" asChild>
-          <Link to="/connections">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Bağlantılara dön
-          </Link>
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-muted-foreground">Bağlantı bulunamadı.</p>
+          <Button variant="outline" asChild>
+            <Link to="/connections">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Bağlantılara dön
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   const health = healthQuery.data;
   const chartData =
-    health?.hourlyStats.map((row) => ({
+    health?.hourlyStats?.map((row) => ({
       label: row.hour.slice(-5),
       başarı: row.success,
       hata: row.error,
@@ -262,32 +308,58 @@ export function ConnectionDetailPage(): ReactElement {
     : 'Henüz senkron yok';
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/connections">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Bağlantılar
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={branding?.label ?? 'Bağlantı'}
+        description={`${branding?.accountFieldLabel ?? 'Hesap'}: ${connection.accountLabel ?? '—'}`}
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ConnectionHealthBadge connectionId={connection.id} fallbackConnection={connection} />
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/connections">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Bağlantılara dön
+              </Link>
+            </Button>
+          </div>
+        }
+      />
 
       <SyncMonitorPanel />
 
+      <ConnectionProductMatchKeyCard
+        value={connection.productMatchKey}
+        disabled={updateConnection.isPending}
+        onSave={async (productMatchKey) => {
+          if (!connectionId) {
+            return;
+          }
+          await updateConnection.mutateAsync({ id: connectionId, productMatchKey });
+        }}
+      />
+
+      <ConnectionPushSettingsCard
+        pushStock={connection.pushStock ?? true}
+        pushPrice={connection.pushPrice ?? false}
+        disabled={updateConnection.isPending || !connection.isActive}
+        onSave={async (values) => {
+          if (!connectionId) {
+            return;
+          }
+          await updateConnection.mutateAsync({ id: connectionId, ...values });
+        }}
+      />
+
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <span aria-hidden>{branding?.logo}</span>
-                {branding?.label}
-              </CardTitle>
-              <CardDescription className="mt-1">
-                {branding?.accountFieldLabel}: {connection.accountLabel ?? '—'}
-              </CardDescription>
-            </div>
-            <ConnectionHealthBadge connectionId={connection.id} fallbackConnection={connection} />
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <span aria-hidden>{branding?.logo}</span>
+            Bağlantı özeti
+          </CardTitle>
+          <CardDescription>
+            {branding?.accountFieldLabel}: {connection.accountLabel ?? '—'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
@@ -306,11 +378,29 @@ export function ConnectionDetailPage(): ReactElement {
           </div>
           <div>
             <p className="text-muted-foreground">Durum</p>
-            <p className="font-medium">{connection.isActive ? 'Etkin' : 'Pasif'}</p>
+            <p className="font-medium">
+              {opsAccess
+                ? connection.isActive
+                  ? 'Etkin'
+                  : 'Pasif'
+                : !connection.isActive
+                  ? 'Pasif'
+                  : customerConnectionStatusLabel(
+                      healthQuery.data?.status ??
+                        deriveConnectionStatus(
+                          connection.isActive,
+                          connection.syncErrorCount,
+                          connection.lastErrorMessage,
+                          connection.lastSyncAt,
+                        ),
+                    )}
+            </p>
           </div>
         </CardContent>
       </Card>
 
+      {opsAccess ? (
+      <>
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -495,6 +585,35 @@ export function ConnectionDetailPage(): ReactElement {
           ) : null}
         </CardContent>
       </Card>
+      </>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Entegrasyon durumu</CardTitle>
+            <CardDescription>
+              Senkronizasyon otomatik olarak yapılır; ek bir işlem gerekmez.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex items-center gap-2">
+              <ConnectionHealthBadge
+                connectionId={connection.id}
+                fallbackConnection={connection}
+              />
+            </div>
+            <p className="text-muted-foreground">
+              Son senkron: <span className="font-medium text-foreground">{lastSyncLabel}</span>
+            </p>
+            {(healthQuery.data?.status === 'error' ||
+              healthQuery.data?.status === 'warning') && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                Entegrasyonunuz kontrol ediliyor. Sorun devam ederse destek talebi
+                oluşturabilirsiniz.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

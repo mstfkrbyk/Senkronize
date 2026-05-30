@@ -13,6 +13,7 @@ pub struct AutoSyncState {
     pub interval_minutes: Arc<Mutex<u64>>,
     pub last_sync: Arc<Mutex<Option<DateTime<Utc>>>>,
     pub erp_display_name: Arc<Mutex<Option<String>>>,
+    pub org_context_line: Arc<Mutex<Option<String>>>,
     pub is_running: Arc<Mutex<bool>>,
     stop_flag: Arc<AtomicBool>,
     join_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -24,6 +25,7 @@ impl Default for AutoSyncState {
             interval_minutes: Arc::new(Mutex::new(15)),
             last_sync: Arc::new(Mutex::new(None)),
             erp_display_name: Arc::new(Mutex::new(None)),
+            org_context_line: Arc::new(Mutex::new(None)),
             is_running: Arc::new(Mutex::new(false)),
             stop_flag: Arc::new(AtomicBool::new(false)),
             join_handle: Arc::new(Mutex::new(None)),
@@ -243,6 +245,30 @@ pub async fn set_tray_erp_name(
             .erp_display_name
             .lock()
             .map_err(|_| "ERP adı kilidi alınamadı".to_string())?;
+        *guard = value;
+    }
+    tray::refresh_tray_menu(&app).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Tray menüsünde gösterilecek org ürün hattı / muhasebe modu özeti.
+#[tauri::command]
+pub async fn set_tray_org_context(
+    app: AppHandle,
+    state: State<'_, AutoSyncState>,
+    line: String,
+) -> Result<(), String> {
+    let trimmed = line.trim();
+    let value = if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    };
+    {
+        let mut guard = state
+            .org_context_line
+            .lock()
+            .map_err(|_| "Org özeti kilidi alınamadı".to_string())?;
         *guard = value;
     }
     tray::refresh_tray_menu(&app).map_err(|e| e.to_string())?;

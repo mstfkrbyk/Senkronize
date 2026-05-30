@@ -39,9 +39,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
-import { getApiErrorMessage } from '@/lib/api';
 import type { OrgPlanTier } from '@/types/auth';
 import type { PricingRule, PricingStrategy } from '@/types/pricing';
 
@@ -174,7 +174,7 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
   const [orderedIds, setOrderedIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<PricingRule | null>(null);
 
-  const rules = rulesQuery.data ?? [];
+  const rules = useMemo(() => rulesQuery.data ?? [], [rulesQuery.data]);
 
   const sortedRules = useMemo(() => {
     if (orderedIds.length === 0) {
@@ -201,7 +201,7 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
       }
       return ids;
     });
-  }, [rulesQuery.data]);
+  }, [rules]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -271,9 +271,12 @@ export function PriceRulesTab({ proAccess, plan }: Props): ReactElement {
         <TableSkeleton rows={5} cols={6} />
       ) : null}
       {rulesQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(rulesQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={rulesQuery.error}
+          onRetry={() => {
+            void rulesQuery.refetch();
+          }}
+        />
       ) : null}
 
       {!rulesQuery.isLoading && !rulesQuery.isError && rules.length === 0 ? (

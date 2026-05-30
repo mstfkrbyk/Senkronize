@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import {
   CartesianGrid,
@@ -24,6 +25,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { PageHeader } from '@/components/PageHeader';
 import { ProductImage } from '@/components/ProductImage';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,8 +47,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { api, getApiErrorMessage } from '@/lib/api';
 import {
   getListingPlatformUrl,
@@ -61,6 +65,7 @@ import {
 import { formatTry } from '@/pages/pricing/pricing-utils';
 import type { SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
 
+import { ListingDetailPushHint } from './ListingDetailPushHint';
 import {
   useListingDetail,
   useSyncListing,
@@ -100,6 +105,9 @@ function syncStatusBadge(status: SyncLogStatus): ReactElement {
 }
 
 export function ListingDetailPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.listings'));
   const { id } = useParams<{ id: string }>();
   const listingId = id ?? null;
 
@@ -192,27 +200,39 @@ export function ListingDetailPage(): ReactElement {
 
   if (detailQuery.isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
+      <Card>
+        <CardContent className="space-y-6 pt-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-64 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
   if (detailQuery.isError || !listing) {
     return (
-      <div className="space-y-4">
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <Link to="/listings">
-            <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-            Listelemeler
-          </Link>
-        </Button>
-        <p className="text-destructive">
-          {detailQuery.error
-            ? getApiErrorMessage(detailQuery.error)
-            : 'Listeleme bulunamadı'}
-        </p>
+      <div className="space-y-6">
+        <PageHeader
+          title="İlan detayı"
+          context={navContextLine}
+          actions={
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/listings">
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                İlanlara dön
+              </Link>
+            </Button>
+          }
+        />
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">
+              {detailQuery.error
+                ? getApiErrorMessage(detailQuery.error)
+                : 'Listeleme bulunamadı'}
+            </p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -225,56 +245,51 @@ export function ListingDetailPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <Button type="button" variant="ghost" size="sm" className="-ml-2 w-fit" asChild>
-            <Link to="/listings">
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-              Listelemeler
-            </Link>
-          </Button>
+      <PageHeader
+        title={listing.title}
+        description={`${branding.label} · SKU ${listing.barcode}`}
+        context={navContextLine}
+        actions={
           <div className="flex flex-wrap items-center gap-2">
-            <span aria-hidden>{branding.logo}</span>
-            <h1 className="text-2xl font-semibold tracking-tight">{listing.title}</h1>
             <Badge
               variant="outline"
               className={LISTING_STATUS_CLASS[listing.status]}
             >
               {LISTING_STATUS_LABEL[listing.status]}
             </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {branding.label} · SKU{' '}
-            <span className="font-mono">{listing.barcode}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {platformUrl ? (
             <Button type="button" variant="outline" size="sm" asChild>
-              <a href={platformUrl} target="_blank" rel="noopener noreferrer">
-                <ExternalLink className="mr-2 h-4 w-4" aria-hidden />
-                Platformda gör
-              </a>
+              <Link to="/listings">
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                İlanlara dön
+              </Link>
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            className="gap-2"
-            disabled={syncMutation.isPending}
-            onClick={() => {
-              syncMutation.mutate(listing.id);
-            }}
-          >
-            {syncMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="h-4 w-4" aria-hidden />
-            )}
-            Zorla Sync Et
-          </Button>
-        </div>
-      </div>
+            {platformUrl ? (
+              <Button type="button" variant="outline" size="sm" asChild>
+                <a href={platformUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" aria-hidden />
+                  Platformda gör
+                </a>
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="gap-2"
+              disabled={syncMutation.isPending}
+              onClick={() => {
+                syncMutation.mutate(listing.id);
+              }}
+            >
+              {syncMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="h-4 w-4" aria-hidden />
+              )}
+              Zorla Sync Et
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -310,6 +325,7 @@ export function ListingDetailPage(): ReactElement {
               <div>
                 <dt className="text-muted-foreground">Stok</dt>
                 <dd className="font-semibold tabular-nums">{listing.quantity}</dd>
+                <ListingDetailPushHint kind="stock" className="mt-1.5" />
               </div>
             </dl>
           </CardContent>
@@ -353,6 +369,7 @@ export function ListingDetailPage(): ReactElement {
                 />
               </div>
             </div>
+            <ListingDetailPushHint kind="price" />
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"

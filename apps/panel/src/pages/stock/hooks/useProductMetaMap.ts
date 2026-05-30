@@ -22,9 +22,10 @@ function parseOptionalInt(value: unknown): number | null {
   return null;
 }
 
-export function useProductMetaMap() {
+export function useProductMetaMap(enabled = true) {
   return useQuery({
     queryKey: ['products', 'meta-map'],
+    enabled,
     queryFn: async (): Promise<Map<string, ProductMeta>> => {
       const { data } = await api.get<{ items: ProductListItem[]; total: number }>(
         '/products',

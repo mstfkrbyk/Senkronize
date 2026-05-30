@@ -3,7 +3,8 @@ import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import { enUS, tr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTriggerManualSync } from '@/hooks/useConnections';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -41,7 +43,10 @@ function statusLabel(status: SyncStatusItem['status']): string {
 }
 
 export function SyncStatusWidget(): ReactElement {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language.startsWith('en') ? enUS : tr;
   const triggerSync = useTriggerManualSync();
+  const opsAccess = useIntegrationOpsAccess();
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
 
   const query = useQuery({
@@ -56,7 +61,7 @@ export function SyncStatusWidget(): ReactElement {
     setSyncingIds((prev) => new Set(prev).add(connectionId));
     triggerSync.mutate(connectionId, {
       onSuccess: () => {
-        toast.success('Senkronizasyon kuyruğa alındı.');
+        toast.success(t('dashboard.widgets.sync.queued'));
       },
       onError: (err) => {
         toast.error(getApiErrorMessage(err));
@@ -75,14 +80,14 @@ export function SyncStatusWidget(): ReactElement {
     <Card className="h-full" data-tour="dashboard-sync">
       <CardHeader className="flex flex-row items-start justify-between pb-3">
         <div>
-          <CardTitle>Senkronizasyon</CardTitle>
-          <CardDescription>Aktif bağlantılar ve son sync</CardDescription>
+          <CardTitle>{t('dashboard.widgets.sync.title')}</CardTitle>
+          <CardDescription>{t('dashboard.widgets.sync.desc')}</CardDescription>
         </div>
         {query.isFetching && !query.isLoading ? (
           <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
         ) : null}
       </CardHeader>
-      <CardContent className="space-y-3 max-h-80 overflow-y-auto">
+      <CardContent className="space-y-3 pt-0 max-h-80 overflow-y-auto">
         {query.isLoading ? (
           <>
             <Skeleton className="h-14 w-full" />
@@ -91,8 +96,8 @@ export function SyncStatusWidget(): ReactElement {
         ) : null}
         {!query.isLoading && (query.data?.length ?? 0) === 0 ? (
           <EmptyState
-            title="Bağlantı yok"
-            description="Pazaryeri bağlantısı ekleyerek senkronizasyonu başlatın."
+            title={t('dashboard.widgets.sync.emptyTitle')}
+            description={t('dashboard.widgets.sync.emptyDesc')}
           />
         ) : null}
         {query.data?.map((row) => {
@@ -101,9 +106,9 @@ export function SyncStatusWidget(): ReactElement {
           const last = row.lastSuccessAt
             ? formatDistanceToNow(new Date(row.lastSuccessAt), {
                 addSuffix: true,
-                locale: tr,
+                locale: dateLocale,
               })
-            : 'Henüz yok';
+            : t('settings.erpSyncNever');
 
           return (
             <div
@@ -122,8 +127,11 @@ export function SyncStatusWidget(): ReactElement {
                   />
                   <p className="truncate text-sm font-medium">{branding.label}</p>
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">Son sync: {last}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t('dashboard.widgets.sync.lastSync', { time: last })}
+                </p>
               </div>
+              {opsAccess ? (
               <Button
                 type="button"
                 size="sm"
@@ -137,9 +145,10 @@ export function SyncStatusWidget(): ReactElement {
                 {isSyncing ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
                 ) : (
-                  'Şimdi Sync Et'
+                  t('dashboard.widgets.sync.syncNow')
                 )}
               </Button>
+              ) : null}
             </div>
           );
         })}

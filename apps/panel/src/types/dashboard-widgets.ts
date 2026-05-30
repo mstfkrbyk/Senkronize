@@ -16,7 +16,9 @@ export type WidgetType =
   | 'top-products'
   | 'recent-orders'
   | 'buybox-rate'
-  | 'orders-summary';
+  | 'orders-summary'
+  | 'accounting-kpi'
+  | 'accounting-recent-invoices';
 
 export type WidgetSize = '1x1' | '2x1' | '2x2';
 
@@ -40,6 +42,23 @@ export const DEFAULT_WIDGETS: Widget[] = [
   { id: 'w-top', type: 'top-products', size: '2x1', position: 8, visible: false },
   { id: 'w-sync', type: 'sync-status', size: '1x1', position: 9, visible: false },
   { id: 'w-buybox', type: 'buybox-rate', size: '1x1', position: 10, visible: false },
+];
+
+export const DEFAULT_ACCOUNTING_WIDGETS: Widget[] = [
+  {
+    id: 'w-accounting-kpi',
+    type: 'accounting-kpi',
+    size: '2x1',
+    position: 0,
+    visible: true,
+  },
+  {
+    id: 'w-accounting-recent',
+    type: 'accounting-recent-invoices',
+    size: '2x1',
+    position: 1,
+    visible: true,
+  },
 ];
 
 export const WIDGET_STORAGE_KEY = 'senkronize-dashboard-widgets';
@@ -110,6 +129,8 @@ function normalizeWidget(raw: unknown): Widget | null {
     'top-products',
     'recent-orders',
     'buybox-rate',
+    'accounting-kpi',
+    'accounting-recent-invoices',
   ];
   if (!validTypes.includes(type as WidgetType)) {
     return null;

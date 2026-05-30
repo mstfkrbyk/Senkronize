@@ -6,6 +6,7 @@ import {
   ShoppingCart,
   TrendingUp,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +56,7 @@ function KpiCard({ title, value, sub, icon: Icon, tone, loading }: KpiCardProps)
 }
 
 export function OrdersKpiRow({ summary, loading }: Props): ReactElement {
+  const { t } = useTranslation();
   const todayCount = summary?.todayOrders ?? 0;
   const todayRevenue = summary?.todayRevenue ?? 0;
   const pending = summary?.pendingOrders ?? 0;
@@ -64,7 +66,7 @@ export function OrdersKpiRow({ summary, loading }: Props): ReactElement {
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KpiCard
-        title="Bugün gelen siparişler"
+        title={t('orders.kpi.todayOrders')}
         value={loading ? '—' : String(todayCount)}
         sub={loading ? undefined : formatTry(todayRevenue)}
         icon={ShoppingCart}
@@ -72,25 +74,25 @@ export function OrdersKpiRow({ summary, loading }: Props): ReactElement {
         loading={loading}
       />
       <KpiCard
-        title="Bekleyen siparişler"
+        title={t('orders.kpi.pending')}
         value={loading ? '—' : String(pending)}
-        sub="Kargo verilmemiş"
+        sub={t('orders.kpi.pendingSub')}
         icon={Clock}
         tone="text-amber-600"
         loading={loading}
       />
       <KpiCard
-        title="İptal / iade oranı"
+        title={t('orders.kpi.cancelReturnRate')}
         value={loading ? '—' : `%${String(cancelReturnRate)}`}
-        sub="Tüm siparişlere göre"
+        sub={t('orders.kpi.cancelReturnSub')}
         icon={AlertTriangle}
         tone="text-red-600"
         loading={loading}
       />
       <KpiCard
-        title="Ortalama sipariş değeri"
+        title={t('orders.kpi.avgOrderValue')}
         value={loading ? '—' : formatTry(avgOrder)}
-        sub="Genel ortalama"
+        sub={t('orders.kpi.avgOrderSub')}
         icon={TrendingUp}
         tone="text-green-600"
         loading={loading}

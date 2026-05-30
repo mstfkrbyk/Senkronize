@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Loader2, RefreshCw } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -33,16 +34,30 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { PageHeader } from '@/components/PageHeader';
+import { SyncAccountingModeBanner } from '@/components/sync/SyncAccountingModeBanner';
+import { SyncContextCards } from '@/components/sync/SyncContextCards';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import {
   useMarketplaceConnections,
   useTriggerManualSync,
 } from '@/hooks/useConnections';
 import { api } from '@/lib/api';
+import { getErpDisplay } from '@/lib/platform-display';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { PlatformSyncStat, SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
 
 type PlatformFilter = 'all' | string;
 type StatusFilter = 'all' | SyncLogStatus;
+
+const ERP_JOB_LABELS: Record<string, string> = {
+  orders: 'Sipariş',
+  invoices: 'Fatura',
+  products: 'Ürün',
+  customers: 'Cari',
+  stock: 'Stok',
+};
 
 const JOB_TYPE_LABELS: Record<string, string> = {
   orders: 'Siparişler',
@@ -51,6 +66,25 @@ const JOB_TYPE_LABELS: Record<string, string> = {
   listings: 'İlanlar',
   returns: 'İadeler',
 };
+
+function erpSyncTypeFromJobType(jobType: string): string {
+  const parts = jobType.split(':');
+  if (parts.length === 4) {
+    return parts[3] ?? jobType;
+  }
+  if (parts.length === 3) {
+    return parts[2] ?? jobType;
+  }
+  return jobType;
+}
+
+function syncJobLabel(jobType: string): string {
+  if (jobType.startsWith('erp:')) {
+    const segment = erpSyncTypeFromJobType(jobType);
+    return ERP_JOB_LABELS[segment] ?? segment;
+  }
+  return JOB_TYPE_LABELS[jobType] ?? jobType;
+}
 
 function statusBadge(status: SyncLogStatus): ReactElement {
   const map: Record<
@@ -82,8 +116,18 @@ function formatDuration(ms: number | null): string {
   return rem > 0 ? `${min} dk ${rem} sn` : `${min} dk`;
 }
 
-function platformCell(platform: string): ReactNode {
-  const branding = getMarketplaceBranding(platform);
+function platformCell(row: SyncLogEntry): ReactNode {
+  const displayKey = row.displayPlatform ?? row.erpType ?? row.platform;
+  if (row.isErpJob || row.erpType) {
+    const branding = getErpDisplay(row.erpType ?? displayKey);
+    return (
+      <span className="flex items-center gap-2">
+        {branding.logo}
+        {branding.label}
+      </span>
+    );
+  }
+  const branding = getMarketplaceBranding(displayKey);
   return (
     <span className="flex items-center gap-2">
       {branding.logo}
@@ -92,7 +136,25 @@ function platformCell(platform: string): ReactNode {
   );
 }
 
+function statPlatformBranding(stat: PlatformSyncStat): {
+  logo: ReactNode;
+  label: string;
+} {
+  const displayKey = stat.displayPlatform ?? stat.platform;
+  if (stat.isErpJob) {
+    const branding = getErpDisplay(displayKey);
+    return { logo: branding.logo, label: branding.label };
+  }
+  const branding = getMarketplaceBranding(displayKey);
+  return { logo: branding.logo, label: branding.label };
+}
+
 export function SyncHistoryPage(): ReactElement {
+  const { t } = useTranslation();
+  const { mode: accountingMode } = useAccountingMode();
+  const showErpContext = accountingMode === 'EXTERNAL_ERP';
+
+  usePageTitle(t('sync.history.title'));
   const [searchParams] = useSearchParams();
   const platformFromUrl = searchParams.get('platform');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>(
@@ -159,53 +221,55 @@ export function SyncHistoryPage(): ReactElement {
   };
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Sync Geçmişi</h1>
-          <p className="text-sm text-muted-foreground">
-            Pazaryeri senkronizasyon kayıtları ve platform başarı oranları
-          </p>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sync-connection">Bağlantı</Label>
-            <Select
-              value={syncConnectionId}
-              onValueChange={setSyncConnectionId}
+    <div className="space-y-6">
+      <PageHeader
+        title={t('sync.history.title')}
+        description={t('sync.history.subtitle')}
+        actions={
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="sync-connection">Bağlantı</Label>
+              <Select
+                value={syncConnectionId}
+                onValueChange={setSyncConnectionId}
+              >
+                <SelectTrigger id="sync-connection" className="w-[220px]">
+                  <SelectValue placeholder="Bağlantı seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeConnections.map((c) => {
+                    const b = getMarketplaceBranding(c.platform);
+                    return (
+                      <SelectItem key={c.id} value={c.id}>
+                        <span className="flex items-center gap-2">
+                          {b.logo}
+                          {b.label}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              onClick={handleTriggerSync}
+              disabled={!syncConnectionId || triggerSync.isPending}
             >
-              <SelectTrigger id="sync-connection" className="w-[220px]">
-                <SelectValue placeholder="Bağlantı seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeConnections.map((c) => {
-                  const b = getMarketplaceBranding(c.platform);
-                  return (
-                    <SelectItem key={c.id} value={c.id}>
-                      <span className="flex items-center gap-2">
-                        {b.logo}
-                        {b.label}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+              {triggerSync.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Şimdi Sync Et
+            </Button>
           </div>
-          <Button
-            type="button"
-            onClick={handleTriggerSync}
-            disabled={!syncConnectionId || triggerSync.isPending}
-          >
-            {triggerSync.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" />
-            )}
-            Şimdi Sync Et
-          </Button>
-        </div>
-      </div>
+        }
+      />
+
+      <SyncAccountingModeBanner />
+
+      <SyncContextCards showErpContext={showErpContext} />
 
       {statsQuery.isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -216,9 +280,9 @@ export function SyncHistoryPage(): ReactElement {
       ) : (statsQuery.data?.length ?? 0) > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {statsQuery.data?.map((stat) => {
-            const b = getMarketplaceBranding(stat.platform);
+            const b = statPlatformBranding(stat);
             return (
-              <Card key={stat.platform}>
+              <Card key={stat.displayPlatform ?? stat.platform}>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     {b.logo}
@@ -287,7 +351,7 @@ export function SyncHistoryPage(): ReactElement {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className={logsQuery.data && logsQuery.data.length > 0 ? 'p-0' : undefined}>
           {logsQuery.isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -323,9 +387,9 @@ export function SyncHistoryPage(): ReactElement {
                         locale: tr,
                       })}
                     </TableCell>
-                    <TableCell>{platformCell(row.platform)}</TableCell>
+                    <TableCell>{platformCell(row)}</TableCell>
                     <TableCell>
-                      {JOB_TYPE_LABELS[row.jobType] ?? row.jobType}
+                      {syncJobLabel(row.jobType)}
                     </TableCell>
                     <TableCell>{statusBadge(row.status)}</TableCell>
                     <TableCell className="text-right tabular-nums">

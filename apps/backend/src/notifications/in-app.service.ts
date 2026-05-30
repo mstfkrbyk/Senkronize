@@ -10,6 +10,13 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { WS_EVENTS } from '../event/event.types';
 import { NotificationEmitService } from './notification-emit.service';
+import {
+  intersectNotificationTypes,
+  type InAppNotificationListFilter,
+  type InAppNotificationScope,
+  typesForListFilter,
+  typesForScope,
+} from './notification-list-filters';
 
 export type InAppNotificationCategory =
   | 'order'
@@ -270,12 +277,27 @@ export class InAppService {
   async getPaginatedForOrg(
     organizationId: string,
     userId: string,
-    opts: { page: number; limit: number; unreadOnly?: boolean },
+    opts: {
+      page: number;
+      limit: number;
+      unreadOnly?: boolean;
+      filter?: InAppNotificationListFilter;
+      scope?: InAppNotificationScope;
+    },
   ): Promise<PaginatedResult<InAppNotification>> {
+    const unreadOnly =
+      opts.unreadOnly === true || opts.filter === 'unread';
+    const typeIn = intersectNotificationTypes(
+      typesForListFilter(opts.filter),
+      typesForScope(opts.scope),
+    );
     const where: Prisma.InAppNotificationWhereInput = {
       organizationId,
       ...visibilityWhere(userId),
-      ...(opts.unreadOnly ? { isRead: false } : {}),
+      ...(unreadOnly ? { isRead: false } : {}),
+      ...(typeIn !== undefined
+        ? { type: { in: typeIn.length > 0 ? typeIn : [] } }
+        : {}),
     };
     const page = opts.page;
     const pageSize = opts.limit;

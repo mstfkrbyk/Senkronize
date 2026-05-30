@@ -22,7 +22,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 import { parseCsvRows } from './migration.parse-csv';
 import { MigrationService } from './migration.service';
-import type { MigrationImportResult } from './migration.types';
+import type {
+  MigrationHistoryItem,
+  MigrationImportResult,
+} from './migration.types';
 
 const CSV_MAX_BYTES = 10 * 1024 * 1024;
 const CSV_MIMES = new Set([
@@ -83,9 +86,11 @@ export class MigrationController {
   }
 
   @Get('history')
-  @ApiOperation({ summary: 'İçe aktarma geçmişi (yakında)' })
-  @ApiResponse({ status: 200, description: 'Geçmiş listesi' })
-  async getHistory(@CurrentOrg() org: CurrentOrgPayload): Promise<unknown[]> {
+  @ApiOperation({ summary: 'İçe aktarma geçmişi listesi' })
+  @ApiResponse({ status: 200, description: 'Org kapsamlı geçmiş listesi (boş olabilir)' })
+  async getHistory(
+    @CurrentOrg() org: CurrentOrgPayload,
+  ): Promise<MigrationHistoryItem[]> {
     return this.migrationService.getImportHistory(org.id);
   }
 }

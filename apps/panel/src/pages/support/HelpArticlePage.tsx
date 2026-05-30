@@ -1,21 +1,26 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Eye, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ArrowLeft, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
 import { MarkdownContent } from '@/components/support/MarkdownContent';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useActiveNav } from '@/hooks/useActiveNav';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import {
   fetchHelpArticle,
   fetchHelpArticles,
   markHelpArticleHelpful,
 } from '@/lib/help-api';
+import { formatSupportNavContext } from '@/lib/support-nav-context';
 import { HELP_CATEGORY_OPTIONS } from '@/types/help';
 
 function helpCategoryLabel(value: string): string {
@@ -23,6 +28,8 @@ function helpCategoryLabel(value: string): string {
 }
 
 export function HelpArticlePage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -33,6 +40,13 @@ export function HelpArticlePage(): ReactElement {
     queryFn: () => fetchHelpArticle(slug!),
     enabled: Boolean(slug),
   });
+
+  const navContextLine = formatSupportNavContext(
+    groupLabel,
+    t('nav.support'),
+    article?.title,
+  );
+  usePageTitle(article?.title ?? t('nav.support'));
 
   const { data: relatedArticles } = useQuery({
     queryKey: ['help-articles-related', article?.category, slug],
@@ -51,21 +65,35 @@ export function HelpArticlePage(): ReactElement {
   });
 
   if (!slug) {
-    return <p className="p-6 text-sm text-muted-foreground">Geçersiz makale.</p>;
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">Geçersiz makale.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (isLoading) {
-    return <Skeleton className="m-6 h-96 w-full max-w-3xl" />;
+    return (
+      <Card className="max-w-3xl">
+        <CardContent className="pt-6">
+          <Skeleton className="h-96 w-full" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (isError || !article) {
     return (
-      <div className="p-6">
-        <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
-        <Button type="button" variant="link" className="mt-2 px-0" asChild>
-          <Link to="/support">← Yardım merkezine dön</Link>
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="space-y-2 pt-6">
+          <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
+          <Button type="button" variant="link" className="px-0" asChild>
+            <Link to="/support">← Yardım merkezine dön</Link>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -73,32 +101,24 @@ export function HelpArticlePage(): ReactElement {
     relatedArticles?.filter((a) => a.slug !== slug).slice(0, 4) ?? [];
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6">
-      <Button
-        type="button"
-        variant="ghost"
-        className="w-fit px-0"
-        onClick={() => navigate('/support')}
-      >
-        <ArrowLeft className="mr-2 size-4" aria-hidden />
-        Yardım merkezi
-      </Button>
-
-      <div>
-        <Badge variant="secondary" className="mb-2">
-          {helpCategoryLabel(article.category)}
-        </Badge>
-        <h1 className="text-2xl font-semibold">{article.title}</h1>
-        <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-          <Eye className="size-4" aria-hidden />
-          {article.views} görüntülenme
-        </p>
-      </div>
-
-      <MarkdownContent
-        content={article.content}
-        className="rounded-lg border bg-card p-6"
+    <div className="mx-auto max-w-3xl space-y-6">
+      <PageHeader
+        title={article.title}
+        description={`${helpCategoryLabel(article.category)} · ${article.views} görüntülenme`}
+        context={navContextLine}
+        actions={
+          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/support')}>
+            <ArrowLeft className="mr-2 size-4" aria-hidden />
+            Yardım merkezi
+          </Button>
+        }
       />
+
+      <Card>
+        <CardContent className="pt-6">
+          <MarkdownContent content={article.content} />
+        </CardContent>
+      </Card>
 
       {article.tags.length > 0 ? (
         <div className="flex flex-wrap gap-2">

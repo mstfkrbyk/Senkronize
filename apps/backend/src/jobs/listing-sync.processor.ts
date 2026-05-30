@@ -4,6 +4,7 @@ import { Marketplace } from '@prisma/client';
 import type { Job } from 'bull';
 import type { PriceUpdatePayload, StockUpdatePayload } from '@senkronize/shared';
 
+import { resolveProductStockKey } from '../common/product-match-key';
 import { AdapterRegistry } from '../adapters/adapter.registry';
 import { RedisRateLimiter } from '../adapters/common/redis-rate-limiter';
 import { EventService } from '../event/event.service';
@@ -24,6 +25,11 @@ import { SyncLogService } from '../sync/sync-log.service';
 import { SyncStatusService } from '../sync-status/sync-status.service';
 import { WarehouseService } from '../warehouse/warehouse.service';
 import { getListingSyncBatchLimit } from '../sync/listing-sync-batch.config';
+import {
+  isPricePushEnabled,
+  isStockPushEnabled,
+} from '../sync/listing-push-policy.util';
+import { ListingPushService } from '../sync/listing-push.service';
 
 type BatchSyncMode = 'stock' | 'price' | 'both';
 
@@ -72,6 +78,7 @@ export class ListingSyncProcessor {
     private readonly eventService: EventService,
     private readonly warehouseService: WarehouseService,
     private readonly rateLimiter: RedisRateLimiter,
+    private readonly listingPushService: ListingPushService,
   ) {}
 
   @Process({
@@ -85,7 +92,7 @@ export class ListingSyncProcessor {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { barcode: true },
+      select: { barcode: true, sku: true },
     });
     if (!product) {
       const log = await this.syncLogService.startLog(
@@ -97,13 +104,22 @@ export class ListingSyncProcessor {
       return;
     }
 
+    const productKey = resolveProductStockKey(product);
+    const listingOr: Array<{ productId: string } | { barcode: string }> = [{ productId }];
+    if (product.barcode) {
+      listingOr.push({ barcode: product.barcode });
+    }
+    if (productKey) {
+      listingOr.push({ barcode: productKey });
+    }
+
     const listing = await this.prisma.listing.findFirst({
       where: {
         organizationId: orgId,
         platform: marketplace,
         deletedAt: null,
         isActive: true,
-        OR: [{ productId }, { barcode: product.barcode }],
+        OR: listingOr,
       },
     });
     if (!listing) {
@@ -118,7 +134,7 @@ export class ListingSyncProcessor {
 
     const stockQty = await this.resolveStockQuantity(
       orgId,
-      product.barcode,
+      productKey ?? listing.barcode,
       listing.quantity,
     );
 
@@ -173,44 +189,27 @@ export class ListingSyncProcessor {
   @Process('sync-stock')
   async syncStock(job: Job<ListingSyncStockJobData>): Promise<void> {
     const { orgId, barcode, stock } = job.data;
-    const trimmed = barcode.trim();
-    const listings = await this.prisma.listing.findMany({
-      where: {
-        organizationId: orgId,
-        barcode: trimmed,
-        deletedAt: null,
-        isActive: true,
-      },
-    });
-    if (listings.length === 0) {
+    const batches = await this.listingPushService.buildStockPushBatches(
+      orgId,
+      new Map([[barcode.trim(), stock]]),
+    );
+    if (batches.size === 0) {
       return;
-    }
-
-    const byPlatform = new Map<Marketplace, typeof listings>();
-    for (const row of listings) {
-      const list = byPlatform.get(row.platform) ?? [];
-      list.push(row);
-      byPlatform.set(row.platform, list);
     }
 
     let processed = 0;
     let failed = 0;
-    const platforms = [...byPlatform.keys()];
+    const platforms = [...batches.keys()];
 
     for (let i = 0; i < platforms.length; i += 1) {
       const platform = platforms[i]!;
       const progress = Math.round(((i + 1) / platforms.length) * 100);
       this.syncGateway.emitSyncProgress(orgId, platform, progress);
 
-      const rows = byPlatform.get(platform) ?? [];
       const result = await this.processListingSyncBatch({
         orgId,
         platform,
-        updates: rows.map((listing) => ({
-          barcode: trimmed,
-          stock,
-          listingId: listing.id,
-        })),
+        updates: batches.get(platform) ?? [],
         mode: 'stock',
         jobType: 'listing-sync.sync-stock',
       });
@@ -219,7 +218,7 @@ export class ListingSyncProcessor {
 
       if (result.processed > 0) {
         this.eventService.emit(orgId, WS_EVENTS.LISTING_SYNCED, {
-          barcode: trimmed,
+          barcode: barcode.trim(),
           platform,
         });
       }
@@ -227,7 +226,7 @@ export class ListingSyncProcessor {
 
     this.logger.log('Barkod stok senkronu tamamlandı', {
       orgId,
-      barcode: trimmed,
+      barcode: barcode.trim(),
       processed,
       failed,
     });
@@ -328,10 +327,81 @@ export class ListingSyncProcessor {
         return { processed: 0, failed: updates.length };
       }
 
+      const connection = await this.prisma.marketplaceConnection.findFirst({
+        where: {
+          organizationId: orgId,
+          platform,
+          deletedAt: null,
+          isActive: true,
+        },
+        select: { pushStock: true, pushPrice: true },
+      });
+      if (!connection) {
+        await this.syncLogService.failLog(log.id, 'Bağlantı bulunamadı');
+        return { processed: 0, failed: updates.length };
+      }
+      if ((mode === 'stock' || mode === 'both') && !connection.pushStock) {
+        await this.syncLogService.completeListingSync(
+          orgId,
+          platform,
+          log.id,
+          startedAt,
+          0,
+          0,
+          jobType,
+        );
+        this.syncGateway.emitSyncCompleted(orgId, platform, {
+          platform,
+          success: true,
+          errorMessage: 'Stok push bu bağlantıda kapalı',
+        });
+        return { processed: 0, failed: 0 };
+      }
+      if ((mode === 'price' || mode === 'both') && !connection.pushPrice) {
+        await this.syncLogService.completeListingSync(
+          orgId,
+          platform,
+          log.id,
+          startedAt,
+          0,
+          0,
+          jobType,
+        );
+        this.syncGateway.emitSyncCompleted(orgId, platform, {
+          platform,
+          success: true,
+          errorMessage: 'Fiyat push bu bağlantıda kapalı',
+        });
+        return { processed: 0, failed: 0 };
+      }
+
+      const filteredUpdates = await this.filterUpdatesByProductPushPolicy(
+        orgId,
+        updates,
+        mode,
+        connection,
+      );
+      if (filteredUpdates.length === 0) {
+        await this.syncLogService.completeListingSync(
+          orgId,
+          platform,
+          log.id,
+          startedAt,
+          0,
+          0,
+          jobType,
+        );
+        this.syncGateway.emitSyncCompleted(orgId, platform, {
+          platform,
+          success: true,
+        });
+        return { processed: 0, failed: 0 };
+      }
+
       await this.rateLimiter.acquireBatchWithRetry(
         platform,
         orgId,
-        updates.length,
+        filteredUpdates.length,
       );
 
       const adapter = this.adapterRegistry.get(platform);
@@ -339,7 +409,7 @@ export class ListingSyncProcessor {
       const outcomes = await this.applyUpdatesWithIsolation(
         adapter,
         credentials,
-        updates,
+        filteredUpdates,
         mode,
         batchLimit,
         orgId,
@@ -473,6 +543,7 @@ export class ListingSyncProcessor {
         const stockUpdates: StockUpdatePayload[] = chunk.map((u) => ({
           barcode: u.barcode,
           quantity: u.stock ?? 0,
+          platformProductId: u.platformProductId,
         }));
         await adapter.updateStock(credentials, stockUpdates);
       }
@@ -510,7 +581,11 @@ export class ListingSyncProcessor {
       try {
         if (mode === 'stock' || mode === 'both') {
           await adapter.updateStock(credentials, [
-            { barcode: item.barcode, quantity: item.stock ?? 0 },
+            {
+              barcode: item.barcode,
+              quantity: item.stock ?? 0,
+              platformProductId: item.platformProductId,
+            },
           ]);
         }
         if (mode === 'price' || mode === 'both') {
@@ -548,6 +623,59 @@ export class ListingSyncProcessor {
     }
 
     return itemOutcomes;
+  }
+
+  private async filterUpdatesByProductPushPolicy(
+    orgId: string,
+    updates: ListingSyncBatchUpdate[],
+    mode: BatchSyncMode,
+    connection: { pushStock: boolean; pushPrice: boolean },
+  ): Promise<ListingSyncBatchUpdate[]> {
+    const listingIds = updates
+      .map((u) => u.listingId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    if (listingIds.length === 0) {
+      return updates;
+    }
+
+    const listings = await this.prisma.listing.findMany({
+      where: {
+        organizationId: orgId,
+        id: { in: listingIds },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        product: {
+          select: {
+            pushStockEnabled: true,
+            pushPriceEnabled: true,
+          },
+        },
+      },
+    });
+    const productPolicyByListingId = new Map(
+      listings.map((row) => [row.id, row.product]),
+    );
+
+    return updates.filter((update) => {
+      const product = update.listingId
+        ? productPolicyByListingId.get(update.listingId)
+        : null;
+      if (mode === 'stock') {
+        return isStockPushEnabled(connection, product);
+      }
+      if (mode === 'price') {
+        return isPricePushEnabled(connection, product);
+      }
+      const stockOk =
+        update.stock === undefined || isStockPushEnabled(connection, product);
+      const priceOk =
+        update.price === undefined && update.listPrice === undefined
+          ? true
+          : isPricePushEnabled(connection, product);
+      return stockOk && priceOk;
+    });
   }
 
   private async resolveStockQuantity(

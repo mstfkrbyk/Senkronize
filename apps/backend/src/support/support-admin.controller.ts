@@ -43,8 +43,8 @@ export class SupportAdminController {
   constructor(private readonly supportService: SupportService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Destek istatistikleri' })
-  @ApiResponse({ status: 200, description: 'İstatistikler' })
+  @ApiOperation({ summary: 'Destek talebi durum sayıları (KPI)' })
+  @ApiResponse({ status: 200, description: 'Açık / işlemde / bekleyen sayıları' })
   async stats(): Promise<{ data: SupportStatsDto }> {
     return this.supportService.getSupportStats();
   }

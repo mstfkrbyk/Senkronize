@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -125,9 +126,25 @@ export class UpdateWhiteLabelDto {
 export class PartnerPayoutRequestDto {
   @ApiProperty({ description: 'Talep edilen tutar (TRY)', minimum: 1 })
   @Type(() => Number)
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Min(1)
+  @Max(50_000_000)
   amount!: number;
+}
+
+export class AdminPartnerPayoutQueryDto {
+  @ApiPropertyOptional({ enum: ['PENDING', 'APPROVED', 'REJECTED'] })
+  @IsOptional()
+  @IsIn(['PENDING', 'APPROVED', 'REJECTED'])
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
+export class RejectPartnerPayoutDto {
+  @ApiPropertyOptional({ maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
 }
 
 export class PartnerLinkRequestDto {

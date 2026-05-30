@@ -4,15 +4,16 @@ import { Suspense } from 'react';
 
 import { PricingEarlyAccess } from '@/components/pricing/PricingEarlyAccess';
 import { PricingPageViewTracker } from '@/components/pricing/PricingPageViewTracker';
+import { PricingProductLines } from '@/components/pricing/PricingProductLines';
 import { PricingSection } from '@/components/PricingSection';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { PLANS, PRICING_FAQ } from '@/lib/site-content';
 
 const ogDescription =
-  'Başlangıç, Gelişim, Pro ve Kurumsal planları — yıllık faturalama, karşılaştırma tablosu, erken kayıt listesi ve 14 gün ücretsiz deneme.';
+  'Entegrasyon, Ön Muhasebe ve Paket; Başlangıç, Gelişim, Pro ve Kurumsal planlar — yıllık faturalama, 14 gün deneme.';
 
 export const metadata: Metadata = {
-  title: 'Fiyatlandırma — Paketler ve Karşılaştırma',
+  title: 'Fiyatlandırma — Ürün Hatları ve Planlar',
   description: ogDescription,
   keywords: [
     'senkronize fiyat',
@@ -65,6 +66,7 @@ export default function PricingPage(): ReactElement {
         <PricingPageViewTracker />
       </Suspense>
       <main>
+        <PricingProductLines />
         <PricingSection spacious showComparison />
         <PricingEarlyAccess />
         <section className="border-t border-border bg-[#F9FAFB] py-16 sm:py-20">

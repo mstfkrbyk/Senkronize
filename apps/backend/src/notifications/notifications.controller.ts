@@ -31,6 +31,16 @@ import { NotificationsListQueryDto } from './notifications.dto';
 export class NotificationsController {
   constructor(private readonly inAppService: InAppService) {}
 
+  @Get('unread-count')
+  @ApiOperation({ summary: 'Okunmamış bildirim sayısı (alias)' })
+  @ApiResponse({ status: 200, description: 'Sayı' })
+  async unreadCountAlias(
+    @CurrentOrg() org: CurrentOrgPayload,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ count: number }> {
+    return this.count(org, user);
+  }
+
   @Get('count')
   @ApiOperation({ summary: 'Okunmamış bildirim sayısı' })
   @ApiResponse({ status: 200, description: 'Sayı' })
@@ -54,6 +64,8 @@ export class NotificationsController {
       page: query.page ?? 1,
       limit: query.limit ?? 20,
       unreadOnly: query.unreadOnly,
+      filter: query.filter,
+      scope: query.scope,
     });
   }
 

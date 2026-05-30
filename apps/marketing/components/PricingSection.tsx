@@ -20,6 +20,7 @@ import {
   HOMEPAGE_PRICING_TEASER,
   PLANS,
   PRICING_COMPARISON,
+  PRICING_PAGE_COPY,
   type ComparisonCell,
   type PlanColumnKey,
 } from '@/lib/site-content';
@@ -78,10 +79,7 @@ export function PricingSection({
             <h2 className="text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
               Fiyatlandırma
             </h2>
-            <p className="mt-4 text-muted-foreground">
-              Paketlerimiz çok yakında. Erken erişim ve kurumsal teklifler için bize
-              ulaşın.
-            </p>
+            <p className="mt-4 text-muted-foreground">{PRICING_PAGE_COPY.homepageTeaserLead}</p>
           </div>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {HOMEPAGE_PRICING_TEASER.map((plan, index) => (
@@ -143,11 +141,11 @@ export function PricingSection({
           transition={{ duration: 0.45 }}
         >
           <h2 className="text-3xl font-bold tracking-tight text-[#111827] sm:text-4xl">
-            Paketler — Yıllık Faturalama
+            Abonelik Planları — Yıllık Faturalama
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Resmi fiyatlar yakında açıklanacak. 14 gün ücretsiz deneme ile başlayın;
-            kredi kartı gerekmez.
+            Entegrasyon, Ön Muhasebe veya Paket sonrası limitler Başlangıç, Gelişim, Pro veya
+            Kurumsal planda. 14 gün ücretsiz deneme — kredi kartı gerekmez.
           </p>
         </motion.div>
 
@@ -209,9 +207,9 @@ export function PricingSection({
                     <Button
                       className="w-full"
                       variant={plan.highlighted ? 'default' : 'outline'}
-                      disabled
+                      asChild
                     >
-                      {plan.cta}
+                      <Link href="#erken-erisim">{plan.cta}</Link>
                     </Button>
                   )}
                 </CardFooter>

@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 
 import { SearchableCombobox } from '@/components/SearchableCombobox';
+import { ErpProductImportModeFields } from '@/components/connections/ErpProductImportModeFields';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -35,14 +36,22 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   useCreateErpConnection,
+  useErpConnections,
   useTestErpConnection,
 } from '@/hooks/useErpConnections';
+import type { ErpProductImportMode } from '@/hooks/useErpSyncSettings';
+import { useSubscriptionUsage } from '@/hooks/useSubscriptionUsage';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ErpSyncFrequency } from '@/hooks/useErpSyncSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { getConnectionErrorHint } from '@/lib/connection-error-hints';
 import {
   ERP_CONNECTION_FORM_FIELDS,
   ERP_TYPE_IDS,
@@ -51,70 +60,37 @@ import {
   getErpPlatformMeta,
   type ConnectionFormFieldDef,
 } from '@/lib/connection-form-fields';
-import { FORM_MESSAGES, isValidHttpOrHttpsUrl } from '@/lib/form-messages';
-import { normalizeErpCredentials } from '@/lib/erp-credentials';
+import {
+  applyConnectionFieldDefaults,
+  emptyConnectionFormValues,
+  validateConnectionFields,
+} from '@/lib/connection-form-values';
+import {
+  formatConnectionTestFailureMessage,
+  formatErpTestSuccessMessage,
+  normalizeErpTestConnectionResult,
+} from '@/lib/connection-test-message';
+import { FORM_MESSAGES } from '@/lib/form-messages';
+import { erpConnectionRoleHint, erpConnectionRoleLabel } from '@/lib/erp-connection-display';
+import { erpSlotUsageLabel, isErpSlotQuotaFull } from '@/lib/erp-slot-usage';
 import { getErpDisplay } from '@/lib/platform-display';
 import { cn } from '@/lib/utils';
+import { ConnectionCredentialField } from '@/pages/connections/forms/ConnectionCredentialField';
 
 const STEP_COUNT = 5;
 const STEP_LABELS = [
   'ERP Seç',
   'Bağlantı Bilgileri',
   'Test',
-  'Eşitleme',
+  'Kapsam ve eşitleme',
   'İlk Sync',
 ] as const;
 
-type SyncFrequency = 'realtime' | '15m' | '1h' | 'manual';
-
-interface SyncPreferences {
-  frequency: SyncFrequency;
+type SyncPreferences = {
   syncStock: boolean;
   syncProduct: boolean;
   syncInvoice: boolean;
-}
-
-const FREQUENCY_OPTIONS: { value: SyncFrequency; label: string }[] = [
-  { value: 'realtime', label: 'Anlık' },
-  { value: '15m', label: '15 dakika' },
-  { value: '1h', label: '1 saat' },
-  { value: 'manual', label: 'Manuel' },
-];
-
-const FREQ_TO_API: Record<SyncFrequency, ErpSyncFrequency> = {
-  realtime: 'REALTIME',
-  '15m': 'EVERY_15_MIN',
-  '1h': 'HOURLY',
-  manual: 'MANUAL',
 };
-
-function emptyValuesFromFields(fields: ConnectionFormFieldDef[]): Record<string, string> {
-  return Object.fromEntries(
-    fields.map((f) => [f.key, f.defaultValue !== undefined ? String(f.defaultValue) : '']),
-  );
-}
-
-function validateFields(
-  fields: ConnectionFormFieldDef[],
-  values: Record<string, string>,
-): Record<string, string> {
-  const next: Record<string, string> = {};
-  for (const f of fields) {
-    const raw = (values[f.key] ?? '').trim();
-    if (f.required && raw.length === 0) {
-      next[f.key] = FORM_MESSAGES.required;
-      continue;
-    }
-    if (f.type === 'url' && raw.length > 0 && !isValidHttpOrHttpsUrl(raw)) {
-      next[f.key] = 'Geçerli bir adres girin (http:// veya https://).';
-      continue;
-    }
-    if (f.type === 'number' && raw.length > 0 && Number.isNaN(Number(raw))) {
-      next[f.key] = 'Geçerli bir sayı girin.';
-    }
-  }
-  return next;
-}
 
 interface WizardContentProps {
   variant: 'modal' | 'page';
@@ -138,12 +114,23 @@ export function ErpSetupWizardContent({
   const [testProgress, setTestProgress] = useState(0);
   const [createdConnectionId, setCreatedConnectionId] = useState<string | null>(null);
   const [syncPrefs, setSyncPrefs] = useState<SyncPreferences>({
-    frequency: '15m',
     syncStock: true,
     syncProduct: true,
     syncInvoice: false,
   });
+  const [displayName, setDisplayName] = useState('');
+  const [connectionRole, setConnectionRole] = useState<'PRIMARY' | 'SECONDARY'>('PRIMARY');
+  const [productImportMode, setProductImportMode] =
+    useState<ErpProductImportMode>('ECOMMERCE_ONLY');
+  const [erpCategoryIds, setErpCategoryIds] = useState<string[]>([]);
   const confettiFired = useRef(false);
+
+  const erpConnectionsQuery = useErpConnections();
+  const usageQuery = useSubscriptionUsage(true);
+  const hasPrimaryErp = (erpConnectionsQuery.data ?? []).some((c) => c.role === 'PRIMARY');
+  const erpSlotFull = isErpSlotQuotaFull(usageQuery.data);
+  const erpSlotLimit = usageQuery.data?.usage.erpConnections?.limit ?? null;
+  const isSecondaryRole = hasPrimaryErp || connectionRole === 'SECONDARY';
 
   const form = useForm<Record<string, string>>({ defaultValues: {} });
   const testErp = useTestErpConnection();
@@ -189,16 +176,18 @@ export function ErpSetupWizardContent({
   const upsertSyncMutation = useMutation({
     mutationFn: async (input: {
       connectionId: string;
-      syncFrequency: ErpSyncFrequency;
       syncStock: boolean;
       syncProducts: boolean;
       syncInvoices: boolean;
+      productImportMode?: ErpProductImportMode;
+      erpCategoryIds?: string[];
     }): Promise<void> => {
       await api.put(`/erp-connections/${input.connectionId}/sync-settings`, {
-        syncFrequency: input.syncFrequency,
         syncStock: input.syncStock,
         syncProducts: input.syncProducts,
         syncInvoices: input.syncInvoices,
+        productImportMode: input.productImportMode,
+        erpCategoryIds: input.erpCategoryIds,
       });
     },
   });
@@ -217,24 +206,27 @@ export function ErpSetupWizardContent({
     setTestPassed(false);
     setTestMessage(null);
     setTestFailed(false);
-    form.reset(emptyValuesFromFields(getErpFormFields(erpId)));
+    form.reset(emptyConnectionFormValues(getErpFormFields(erpId)));
     setFieldErrors({});
   };
 
   const readCredentials = (): Record<string, string> => {
     const raw = form.getValues();
-    const out: Record<string, string> = {};
+    const trimmed: Record<string, string> = {};
     for (const f of fieldDefs) {
-      out[f.key] = (raw[f.key] ?? '').trim();
+      trimmed[f.key] = (raw[f.key] ?? '').trim();
     }
+    const withDefaults = applyConnectionFieldDefaults(fieldDefs, trimmed);
     if (!selectedErpId) {
-      return out;
+      return withDefaults;
     }
-    return normalizeErpCredentials(selectedErpId, out);
+    return normalizeErpCredentials(selectedErpId, withDefaults);
   };
 
   const runValidation = (): boolean => {
-    const errs = validateFields(fieldDefs, form.getValues());
+    const errs = validateConnectionFields(fieldDefs, form.getValues(), {
+      required: FORM_MESSAGES.required,
+    });
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -262,15 +254,21 @@ export function ErpSetupWizardContent({
       {
         onSuccess: (res) => {
           setTestProgress(100);
-          if (res.connected) {
+          const normalized = normalizeErpTestConnectionResult(res);
+          if (normalized.connected) {
             setTestPassed(true);
             setTestFailed(false);
-            setTestMessage(res.companyName ?? getErpDisplay(selectedErpId).label);
+            setTestMessage(formatErpTestSuccessMessage(normalized));
             toast.success('Bağlantı testi başarılı.');
           } else {
             setTestPassed(false);
             setTestFailed(true);
-            setTestMessage('Kimlik bilgileri doğrulanamadı.');
+            setTestMessage(
+              formatConnectionTestFailureMessage(
+                normalized.message,
+                'Kimlik bilgileri doğrulanamadı.',
+              ),
+            );
             toast.warning('Bağlantı testi başarısız.');
           }
         },
@@ -279,8 +277,7 @@ export function ErpSetupWizardContent({
           setTestPassed(false);
           setTestFailed(true);
           const msg = getApiErrorMessage(error);
-          const hint = getConnectionErrorHint(msg);
-          setTestMessage(hint ? `${msg} — ${hint}` : msg);
+          setTestMessage(formatConnectionTestFailureMessage(msg));
           toast.error(msg);
         },
       },
@@ -292,7 +289,12 @@ export function ErpSetupWizardContent({
       return;
     }
     createErp.mutate(
-      { erpType: selectedErpId, credentials: readCredentials() },
+      {
+        erpType: selectedErpId,
+        credentials: readCredentials(),
+        ...(displayName.trim() ? { displayName: displayName.trim() } : {}),
+        role: hasPrimaryErp ? 'SECONDARY' : connectionRole,
+      },
       {
         onSuccess: (conn) => {
           setCreatedConnectionId(conn.id);
@@ -313,10 +315,16 @@ export function ErpSetupWizardContent({
     upsertSyncMutation.mutate(
       {
         connectionId: createdConnectionId,
-        syncFrequency: FREQ_TO_API[syncPrefs.frequency],
         syncStock: syncPrefs.syncStock,
         syncProducts: syncPrefs.syncProduct,
-        syncInvoices: syncPrefs.syncInvoice,
+        syncInvoices: isSecondaryRole ? false : syncPrefs.syncInvoice,
+        ...(selectedErpId === 'BIZIMHESAP' && syncPrefs.syncProduct
+          ? {
+              productImportMode,
+              erpCategoryIds:
+                productImportMode === 'CATEGORY' ? erpCategoryIds : [],
+            }
+          : {}),
       },
       {
         onSuccess: () => {
@@ -369,7 +377,20 @@ export function ErpSetupWizardContent({
 
   const progressPercent = Math.round((step / STEP_COUNT) * 100);
 
-  const body = (
+  const body = erpSlotFull ? (
+    <div className="space-y-4 py-8 text-center">
+      <p className="text-sm font-medium">ERP bağlantı kotası dolu</p>
+      <p className="text-sm text-muted-foreground">
+        Paketinizde {erpSlotUsageLabel(usageQuery.data)} ERP bağlantısı var. Ek bağlantı için
+        abonelikte ERP modülü satın alın veya yönetici ek slot tanımlasın.
+      </p>
+      {variant === 'page' ? (
+        <Button type="button" variant="outline" onClick={() => navigate('/connections')}>
+          Entegrasyonlara dön
+        </Button>
+      ) : null}
+    </div>
+  ) : (
     <div className="space-y-6">
       <div className="space-y-2">
         <div className="flex justify-between text-xs text-muted-foreground">
@@ -445,6 +466,21 @@ export function ErpSetupWizardContent({
             </span>
             <p className="font-semibold">{getErpDisplay(selectedErpId).label}</p>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="erp-wizard-display-name">Bağlantı adı</Label>
+            <Input
+              id="erp-wizard-display-name"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              placeholder={
+                hasPrimaryErp ? 'Örn. BizimHesap İLKİŞ (stok)' : 'Örn. BizimHesap MIX'
+              }
+              maxLength={120}
+            />
+            <p className="text-xs text-muted-foreground">
+              Panelde bağlantıları ayırt etmek için kısa bir isim verin.
+            </p>
+          </div>
           {platformMeta?.helpText || platformMeta?.docsUrl ? (
             <details className="group rounded-md border border-sky-100 bg-sky-50 text-sm text-sky-900">
               <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 font-medium [&::-webkit-details-marker]:hidden">
@@ -480,23 +516,11 @@ export function ErpSetupWizardContent({
                         {field.required ? ' *' : ''}
                       </FormLabel>
                       <FormControl>
-                        <Input
-                          {...rhf}
-                          type={
-                            field.type === 'password'
-                              ? 'password'
-                              : field.type === 'number'
-                                ? 'number'
-                                : 'text'
-                          }
-                          autoComplete="off"
-                          placeholder={field.placeholder}
-                          aria-invalid={Boolean(fieldErrors[field.key])}
-                          className={
-                            fieldErrors[field.key] ? 'border-destructive' : undefined
-                          }
-                          onChange={(e) => {
-                            rhf.onChange(e);
+                        <ConnectionCredentialField
+                          field={field}
+                          rhf={rhf}
+                          hasError={Boolean(fieldErrors[field.key])}
+                          onValueChange={() => {
                             setTestPassed(false);
                             setFieldErrors((prev) => {
                               if (!prev[field.key]) {
@@ -509,6 +533,9 @@ export function ErpSetupWizardContent({
                           }}
                         />
                       </FormControl>
+                      {field.hint && !fieldErrors[field.key] ? (
+                        <p className="text-muted-foreground text-xs">{field.hint}</p>
+                      ) : null}
                       {fieldErrors[field.key] ? (
                         <p className="text-destructive text-sm">{fieldErrors[field.key]}</p>
                       ) : null}
@@ -523,26 +550,53 @@ export function ErpSetupWizardContent({
 
       {step === 3 && selectedErpId ? (
         <div className="space-y-6 py-4">
-          <p className="text-sm text-muted-foreground">
-            Bağlantı bilgilerinizi doğruluyoruz. Test başarılı olmadan devam edemezsiniz.
-          </p>
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-sky-400 transition-all duration-300"
-              style={{
-                width: `${testErp.isPending ? testProgress : testPassed || testFailed ? 100 : 0}%`,
-              }}
-            />
-          </div>
-          <Button
-            type="button"
-            className="w-full sm:w-auto"
-            variant="secondary"
-            disabled={testErp.isPending}
-            onClick={() => handleTest()}
-          >
-            {testErp.isPending ? 'Test ediliyor…' : 'Bağlantıyı Test Et'}
-          </Button>
+          {selectedErpId === 'BIZIMHESAP' ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                BizimHesap saatlik API kotası sınırlı olduğu için canlı bağlantı testi
+                yapılmaz. Token alanı doluysa bir sonraki adıma geçebilirsiniz; ilk gerçek
+                doğrulama ürün senkronu sırasında olur.
+              </p>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                variant="secondary"
+                onClick={() => {
+                  if (!runValidation()) {
+                    return;
+                  }
+                  setTestPassed(true);
+                  setTestFailed(false);
+                  setTestMessage('Token formatı doğrulandı (canlı API çağrısı yapılmadı).');
+                }}
+              >
+                Token alanlarını kontrol et
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Bağlantı bilgilerinizi doğruluyoruz. Test başarılı olmadan devam edemezsiniz.
+              </p>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full bg-sky-400 transition-all duration-300"
+                  style={{
+                    width: `${testErp.isPending ? testProgress : testPassed || testFailed ? 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <Button
+                type="button"
+                className="w-full sm:w-auto"
+                variant="secondary"
+                disabled={testErp.isPending}
+                onClick={() => handleTest()}
+              >
+                {testErp.isPending ? 'Test ediliyor…' : 'Bağlantıyı Test Et'}
+              </Button>
+            </>
+          )}
           {testPassed && testMessage ? (
             <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-900">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -560,39 +614,70 @@ export function ErpSetupWizardContent({
 
       {step === 4 && selectedErpId ? (
         <div className="space-y-6">
-          <div className="space-y-3">
-            <Label>Ne sıklıkla senkronize edilsin?</Label>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {FREQUENCY_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={cn(
-                    'rounded-lg border px-4 py-3 text-left text-sm transition-colors',
-                    syncPrefs.frequency === opt.value
-                      ? 'border-primary bg-primary/5 font-medium'
-                      : 'border-border hover:border-primary/40',
-                  )}
-                  onClick={() =>
-                    setSyncPrefs((p) => ({ ...p, frequency: opt.value }))
-                  }
-                >
-                  {opt.label}
-                </button>
-              ))}
+          <p className="text-sm text-muted-foreground">
+            Senkronizasyon sıklığı Senkronize tarafından otomatik belirlenir.
+            {selectedErpId === 'BIZIMHESAP'
+              ? ' BizimHesap API kotası: saatte en fazla 10 istek (~6 dakikada bir).'
+              : null}
+          </p>
+
+          {hasPrimaryErp ? (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <p className="font-medium">{erpConnectionRoleLabel('SECONDARY')}</p>
+              <p className="text-muted-foreground">{erpConnectionRoleHint('SECONDARY')}</p>
             </div>
-          </div>
+          ) : erpSlotLimit !== null && erpSlotLimit > 1 ? (
+            <div className="space-y-2">
+              <Label htmlFor="erp-wizard-role">ERP rolü</Label>
+              <Select
+                value={connectionRole}
+                onValueChange={(value) => {
+                  const role = value === 'SECONDARY' ? 'SECONDARY' : 'PRIMARY';
+                  setConnectionRole(role);
+                  if (role === 'SECONDARY') {
+                    setSyncPrefs((p) => ({ ...p, syncInvoice: false }));
+                  }
+                }}
+              >
+                <SelectTrigger id="erp-wizard-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PRIMARY">
+                    Birincil — fatura ve ERP&apos;ye yazma
+                  </SelectItem>
+                  <SelectItem value="SECONDARY">
+                    İkincil — yalnızca stok/ürün okuma
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {erpConnectionRoleHint(connectionRole)}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+              <p className="font-medium">{erpConnectionRoleLabel('PRIMARY')}</p>
+              <p className="text-muted-foreground">{erpConnectionRoleHint('PRIMARY')}</p>
+            </div>
+          )}
+
           <div className="space-y-3">
             <Label>Hangi veriler eşitlensin?</Label>
             {[
               { key: 'syncStock' as const, label: 'Stok' },
               { key: 'syncProduct' as const, label: 'Ürün' },
-              { key: 'syncInvoice' as const, label: 'Fatura' },
+              {
+                key: 'syncInvoice' as const,
+                label: 'Fatura',
+                disabled: isSecondaryRole,
+              },
             ].map((item) => (
               <div key={item.key} className="flex items-center gap-2">
                 <Checkbox
                   id={`erp-sync-${item.key}`}
-                  checked={syncPrefs[item.key]}
+                  checked={item.disabled ? false : syncPrefs[item.key]}
+                  disabled={item.disabled}
                   onCheckedChange={(checked) => {
                     setSyncPrefs((p) => ({
                       ...p,
@@ -602,10 +687,26 @@ export function ErpSetupWizardContent({
                 />
                 <Label htmlFor={`erp-sync-${item.key}`} className="font-normal">
                   {item.label}
+                  {item.disabled ? ' (birincil ERP gerekir)' : ''}
                 </Label>
               </div>
             ))}
           </div>
+
+          {selectedErpId === 'BIZIMHESAP' && syncPrefs.syncProduct ? (
+            <ErpProductImportModeFields
+              productImportMode={productImportMode}
+              erpCategoryIds={erpCategoryIds}
+              onProductImportModeChange={(mode) => {
+                setProductImportMode(mode);
+                if (mode !== 'CATEGORY') {
+                  setErpCategoryIds([]);
+                }
+              }}
+              onCategoryIdsChange={setErpCategoryIds}
+              idPrefix="erp-wizard-import"
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -662,8 +763,13 @@ export function ErpSetupWizardContent({
                 !(
                   syncPrefs.syncStock ||
                   syncPrefs.syncProduct ||
-                  syncPrefs.syncInvoice
-                ))
+                  (!isSecondaryRole && syncPrefs.syncInvoice)
+                )) ||
+              (step === 4 &&
+                productImportMode === 'CATEGORY' &&
+                syncPrefs.syncProduct &&
+                selectedErpId === 'BIZIMHESAP' &&
+                erpCategoryIds.length === 0)
             }
             onClick={() => goNext()}
           >
@@ -674,18 +780,6 @@ export function ErpSetupWizardContent({
       ) : null}
     </div>
   );
-
-  if (variant === 'page') {
-    return (
-      <div>
-        <h1 className="mb-2 text-2xl font-semibold tracking-tight">ERP Kurulum Sihirbazı</h1>
-        <p className="mb-6 text-muted-foreground">
-          {me?.organization.name} için ERP entegrasyonunu adım adım tamamlayın.
-        </p>
-        {body}
-      </div>
-    );
-  }
 
   return body;
 }

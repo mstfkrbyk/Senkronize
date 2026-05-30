@@ -1,17 +1,14 @@
 import type { ReactElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
-  BarChart2,
   Clock,
   FileDown,
-  LayoutDashboard,
   Link2,
   Package,
-  Plug,
   RefreshCw,
   ShoppingCart,
   Store,
@@ -29,16 +26,31 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
+import type { NavGroupId } from '@/constants/navigation';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchHistory } from '@/hooks/useSearchHistory';
 import { useMarketplaceConnections, useTriggerManualSync } from '@/hooks/useConnections';
 import { api } from '@/lib/api';
+import {
+  ACCOUNTING_PALETTE_GROUP_HEADING,
+  buildAccountingPaletteCommands,
+} from '@/lib/command-palette-accounting';
+import {
+  buildPaletteNavCommands,
+  COMMAND_NAV_GROUP_ORDER,
+} from '@/lib/command-palette-nav';
 import { COMMAND_PALETTE_EVENT } from '@/lib/command-palette';
 import { openQuickStockAdjust } from '@/lib/quick-stock-adjust';
 import { fuzzyScore } from '@/lib/fuzzy-match';
+import { NAV_GROUP_LABEL_KEYS } from '@/lib/nav-match';
+import { hasOrgProductLine } from '@/lib/org-products';
 import { modKeyLabel } from '@/lib/platform';
 import { getRecentViews, recordRecentView } from '@/lib/recent-views';
+import { useAuthStore } from '@/store/auth.store';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
+import type { OrgProductLine } from '@/types/auth';
 import type {
   GlobalSearchHit,
   GlobalSearchResults,
@@ -50,13 +62,18 @@ export interface Command {
   title: string;
   subtitle?: string;
   icon: LucideIcon;
-  category: 'navigation' | 'action' | 'recent' | 'search';
+  category: 'navigation' | 'accounting' | 'action' | 'recent' | 'search';
+  /** Ürün hattı — yalnızca navigasyon komutları */
+  navGroup?: NavGroupId;
   action: () => void;
   keywords?: string[];
 }
 
-const CATEGORY_HEADINGS: Record<Command['category'], string> = {
-  navigation: 'Navigasyon',
+const CATEGORY_HEADINGS: Record<
+  Exclude<Command['category'], 'navigation'>,
+  string
+> = {
+  accounting: ACCOUNTING_PALETTE_GROUP_HEADING,
   action: 'Eylemler',
   recent: 'Son Görüntülenenler',
   search: 'Arama Sonuçları',
@@ -134,100 +151,112 @@ function filterCommands(commands: Command[], query: string): Command[] {
     .map((x) => x.cmd);
 }
 
-function useStaticCommands(
+function useNavCommands(
+  navigate: ReturnType<typeof useNavigate>,
+  onClose: () => void,
+): Command[] {
+  const { t } = useTranslation();
+  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
+  const canViewIntegrationOps = useIntegrationOpsAccess();
+
+  return useMemo(() => {
+    const nav = buildPaletteNavCommands(
+      { orgType, orgProducts, accountingMode, canViewIntegrationOps },
+      t,
+      navigate,
+      onClose,
+    );
+    return nav.map(
+      (cmd): Command => ({
+        ...cmd,
+        category: 'navigation',
+        keywords: cmd.keywords,
+      }),
+    );
+  }, [accountingMode, canViewIntegrationOps, navigate, onClose, orgProducts, orgType, t]);
+}
+
+function useAccountingCommands(
+  navigate: ReturnType<typeof useNavigate>,
+  onClose: () => void,
+): Command[] {
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
+
+  return useMemo(() => {
+    return buildAccountingPaletteCommands(
+      orgProducts,
+      accountingMode,
+      navigate,
+      onClose,
+    ).map(
+      (cmd): Command => ({
+        ...cmd,
+        category: 'accounting',
+      }),
+    );
+  }, [accountingMode, navigate, onClose, orgProducts]);
+}
+
+function useActionCommands(
   navigate: ReturnType<typeof useNavigate>,
   onClose: () => void,
   triggerSync: ReturnType<typeof useTriggerManualSync>,
   connections: { id: string; isActive: boolean }[],
+  orgProducts: OrgProductLine[] | undefined,
+  opsAccess: boolean,
 ): Command[] {
-  const wrap =
+  const wrap = useCallback(
     (fn: () => void) =>
-    (): void => {
-      onClose();
-      fn();
-    };
+      (): void => {
+        onClose();
+        fn();
+      },
+    [onClose],
+  );
 
   const firstActive = connections.find((c) => c.isActive);
+  const hasIntegration = hasOrgProductLine(orgProducts, 'INTEGRATION');
 
-  return useMemo(
-    () => [
-      {
-        id: 'nav-dashboard',
-        title: 'Gösterge Paneline Git',
-        icon: LayoutDashboard,
-        category: 'navigation' as const,
-        keywords: ['dashboard', 'ana', 'panel'],
-        action: wrap(() => navigate('/dashboard')),
-      },
-      {
-        id: 'nav-orders',
-        title: 'Siparişlere Git',
-        icon: ShoppingCart,
-        category: 'navigation' as const,
-        keywords: ['sipariş', 'order'],
-        action: wrap(() => navigate('/orders')),
-      },
-      {
-        id: 'nav-products',
-        title: 'Ürünlere Git',
-        icon: Package,
-        category: 'navigation' as const,
-        keywords: ['ürün', 'katalog', 'product'],
-        action: wrap(() => navigate('/products')),
-      },
-      {
-        id: 'nav-stock',
-        title: 'Stoka Git',
-        icon: Warehouse,
-        category: 'navigation' as const,
-        keywords: ['stok', 'depo', 'stock'],
-        action: wrap(() => navigate('/stock')),
-      },
-      {
-        id: 'nav-reports',
-        title: 'Raporlara Git',
-        icon: BarChart2,
-        category: 'navigation' as const,
-        keywords: ['rapor', 'report', 'analiz'],
-        action: wrap(() => navigate('/reports')),
-      },
-      {
-        id: 'nav-connections',
-        title: 'Bağlantılara Git',
-        icon: Plug,
-        category: 'navigation' as const,
-        keywords: ['entegrasyon', 'bağlantı', 'connection'],
-        action: wrap(() => navigate('/connections')),
-      },
-      {
-        id: 'nav-listings',
-        title: 'İlanlara Git',
-        icon: Store,
-        category: 'navigation' as const,
-        keywords: ['listing', 'ilan', 'pazaryeri'],
-        action: wrap(() => navigate('/listings')),
-      },
+  return useMemo(() => {
+    const commands: Command[] = [
       {
         id: 'action-new-connection',
         title: 'Yeni Bağlantı Ekle',
         icon: Link2,
-        category: 'action' as const,
+        category: 'action',
         keywords: ['bağlantı', 'ekle', 'entegrasyon'],
         action: wrap(() => navigate('/connections')),
       },
       {
+        id: 'action-pdf-report',
+        title: 'PDF Rapor İndir',
+        icon: FileDown,
+        category: 'action',
+        keywords: ['pdf', 'rapor', 'indir', 'export'],
+        action: wrap(() => navigate('/reports')),
+      },
+    ];
+
+    if (hasIntegration) {
+      commands.splice(1, 0, {
         id: 'action-quick-stock-adjust',
         title: 'Hızlı stok düzelt',
         icon: Warehouse,
-        category: 'action' as const,
+        category: 'action',
         keywords: ['stok', 'düzelt', 'adjust', 'sayım', 'barkod'],
         action: wrap(() => openQuickStockAdjust()),
-      },
-      {
+      });
+    }
+
+    if (hasIntegration && opsAccess) {
+      commands.splice(2, 0, {
         id: 'action-sync',
         title: 'Şimdi Sync Et',
         icon: RefreshCw,
-        category: 'action' as const,
+        category: 'action',
         keywords: ['senkron', 'sync', 'güncelle'],
         action: wrap(() => {
           if (!firstActive) {
@@ -240,18 +269,11 @@ function useStaticCommands(
             onError: () => toast.error('Senkronizasyon başlatılamadı.'),
           });
         }),
-      },
-      {
-        id: 'action-pdf-report',
-        title: 'PDF Rapor İndir',
-        icon: FileDown,
-        category: 'action' as const,
-        keywords: ['pdf', 'rapor', 'indir', 'export'],
-        action: wrap(() => navigate('/reports')),
-      },
-    ],
-    [navigate, onClose, triggerSync, firstActive, connections],
-  );
+      });
+    }
+
+    return commands;
+  }, [firstActive, hasIntegration, navigate, opsAccess, triggerSync, wrap]);
 }
 
 export function CommandPalette(): ReactElement {
@@ -266,6 +288,8 @@ export function CommandPalette(): ReactElement {
   const { terms, clicked, addTerm, addClicked } = useSearchHistory();
   const { data: connections = [] } = useMarketplaceConnections();
   const triggerSync = useTriggerManualSync();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const opsAccess = useIntegrationOpsAccess();
 
   const searchQuery = useQuery({
     queryKey: ['global-search', searchTrim],
@@ -283,11 +307,15 @@ export function CommandPalette(): ReactElement {
     setOpen(false);
   }, []);
 
-  const staticCommands = useStaticCommands(
+  const navCommands = useNavCommands(navigate, close);
+  const accountingCommands = useAccountingCommands(navigate, close);
+  const actionCommands = useActionCommands(
     navigate,
     close,
     triggerSync,
     connections.map((c) => ({ id: c.id, isActive: c.isActive })),
+    orgProducts,
+    opsAccess,
   );
 
   const navigateToHit = useCallback(
@@ -369,18 +397,26 @@ export function CommandPalette(): ReactElement {
   }, [clicked, navigateToHit]);
 
   const allCommands = useMemo(() => {
-    const base = [...staticCommands, ...recentCommands, ...clickedCommands];
+    const base = [
+      ...navCommands,
+      ...accountingCommands,
+      ...actionCommands,
+      ...recentCommands,
+      ...clickedCommands,
+    ];
     if (canSearch) {
       return [...base, ...historyCommands, ...apiSearchCommands];
     }
     return base;
   }, [
+    accountingCommands,
+    actionCommands,
     apiSearchCommands,
     canSearch,
     clickedCommands,
     historyCommands,
+    navCommands,
     recentCommands,
-    staticCommands,
   ]);
 
   const filtered = useMemo(
@@ -389,14 +425,39 @@ export function CommandPalette(): ReactElement {
   );
 
   const grouped = useMemo(() => {
-    const groups: Partial<Record<Command['category'], Command[]>> = {};
+    const groups: Partial<Record<Exclude<Command['category'], 'navigation'>, Command[]>> =
+      {};
+    const navByGroup: Partial<Record<NavGroupId, Command[]>> = {};
+
     for (const cmd of filtered) {
+      if (cmd.category === 'navigation') {
+        const key = cmd.navGroup ?? 'common';
+        const list = navByGroup[key] ?? [];
+        list.push(cmd);
+        navByGroup[key] = list;
+        continue;
+      }
       const list = groups[cmd.category] ?? [];
       list.push(cmd);
       groups[cmd.category] = list;
     }
-    return groups;
+    return { navByGroup, ...groups };
   }, [filtered]);
+
+  const navGroupSections = useMemo(() => {
+    const sections: { key: string; heading: string; commands: Command[] }[] = [];
+    for (const groupId of COMMAND_NAV_GROUP_ORDER) {
+      const cmds = grouped.navByGroup[groupId];
+      if (cmds?.length) {
+        sections.push({
+          key: groupId,
+          heading: t(NAV_GROUP_LABEL_KEYS[groupId]),
+          commands: cmds,
+        });
+      }
+    }
+    return sections;
+  }, [grouped.navByGroup, t]);
 
   const historyOnly = useMemo(
     () => filterCommands(historyCommands, query),
@@ -420,29 +481,38 @@ export function CommandPalette(): ReactElement {
     !searchQuery.isFetching &&
     (canSearch || query.trim().length > 0);
 
-  const renderGroup = (category: Command['category'], cmds: Command[]): ReactElement | null => {
-    if (cmds.length === 0) {
+  const renderCommands = (cmds: Command[]): ReactElement => (
+    <>
+      {cmds.map((cmd) => (
+        <CommandItem
+          key={cmd.id}
+          value={cmd.id}
+          onSelect={() => cmd.action()}
+        >
+          <cmd.icon className="size-4" aria-hidden />
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{cmd.title}</span>
+            {cmd.subtitle ? (
+              <span className="text-muted-foreground truncate text-xs">
+                {cmd.subtitle}
+              </span>
+            ) : null}
+          </div>
+        </CommandItem>
+      ))}
+    </>
+  );
+
+  const renderCategoryGroup = (
+    category: Exclude<Command['category'], 'navigation'>,
+    cmds: Command[] | undefined,
+  ): ReactElement | null => {
+    if (!cmds?.length) {
       return null;
     }
     return (
       <CommandGroup key={category} heading={CATEGORY_HEADINGS[category]}>
-        {cmds.map((cmd) => (
-          <CommandItem
-            key={cmd.id}
-            value={cmd.id}
-            onSelect={() => cmd.action()}
-          >
-            <cmd.icon className="size-4" aria-hidden />
-            <div className="flex min-w-0 flex-col">
-              <span className="truncate font-medium">{cmd.title}</span>
-              {cmd.subtitle ? (
-                <span className="text-muted-foreground truncate text-xs">
-                  {cmd.subtitle}
-                </span>
-              ) : null}
-            </div>
-          </CommandItem>
-        ))}
+        {renderCommands(cmds)}
       </CommandGroup>
     );
   };
@@ -481,19 +551,36 @@ export function CommandPalette(): ReactElement {
             <CommandSeparator />
           ) : null}
 
-          {renderGroup('navigation', grouped.navigation ?? [])}
-          {(grouped.navigation?.length ?? 0) > 0 &&
-          (grouped.action?.length ?? 0) > 0 ? (
+          {navGroupSections.map((section, index) => (
+            <Fragment key={section.key}>
+              {index > 0 ? <CommandSeparator /> : null}
+              <CommandGroup heading={section.heading}>
+                {renderCommands(section.commands)}
+              </CommandGroup>
+            </Fragment>
+          ))}
+          {navGroupSections.length > 0 && (grouped.accounting?.length ?? 0) > 0 ? (
             <CommandSeparator />
           ) : null}
-          {renderGroup('action', grouped.action ?? [])}
+          {renderCategoryGroup('accounting', grouped.accounting)}
+          {(grouped.accounting?.length ?? 0) > 0 && (grouped.action?.length ?? 0) > 0 ? (
+            <CommandSeparator />
+          ) : null}
+          {navGroupSections.length > 0 &&
+          (grouped.action?.length ?? 0) > 0 &&
+          (grouped.accounting?.length ?? 0) === 0 ? (
+            <CommandSeparator />
+          ) : null}
+          {renderCategoryGroup('action', grouped.action)}
           {(grouped.recent?.length ?? 0) > 0 &&
-          ((grouped.navigation?.length ?? 0) > 0 || (grouped.action?.length ?? 0) > 0) ? (
+          (navGroupSections.length > 0 ||
+            (grouped.action?.length ?? 0) > 0 ||
+            (grouped.accounting?.length ?? 0) > 0) ? (
             <CommandSeparator />
           ) : null}
-          {renderGroup('recent', grouped.recent ?? [])}
+          {renderCategoryGroup('recent', grouped.recent)}
           {(grouped.search?.length ?? 0) > 0 ? <CommandSeparator /> : null}
-          {renderGroup('search', grouped.search ?? [])}
+          {renderCategoryGroup('search', grouped.search)}
 
           {!canSearch &&
           filtered.length === 0 &&

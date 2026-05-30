@@ -45,6 +45,7 @@ export interface AdminSupportTicketListItemDto extends SupportTicketListItemDto 
   slaDays: number;
 }
 
+/** `GET /admin/support/stats` — yalnızca durum sayıları (tek groupBy sorgusu). */
 export interface SupportStatsDto {
   open: number;
   inProgress: number;
@@ -52,8 +53,6 @@ export interface SupportStatsDto {
   resolved: number;
   closed: number;
   totalOpen: number;
-  avgFirstResponseHours: number | null;
-  avgResolutionHours: number | null;
 }
 
 export interface SupportSlaReportDto {

@@ -14,7 +14,7 @@ export interface CategoryTreeNode {
 
 export interface CategoryProductSummary {
   id: string;
-  barcode: string;
+  barcode: string | null;
   name: string;
   sku: string | null;
   isActive: boolean;
@@ -57,7 +57,7 @@ export interface CategoryListRow {
 
 export interface ProductSearchHit {
   id: string;
-  barcode: string;
+  barcode: string | null;
   name: string;
   sku: string | null;
 }

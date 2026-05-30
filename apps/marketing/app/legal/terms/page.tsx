@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 export const metadata: Metadata = {
   title: 'Kullanım Koşulları',
   description:
-    'Senkronize SaaS hizmetinin kullanım koşulları ve sözleşme hükümleri (placeholder metin).',
+    'Senkronize SaaS hizmetinin kullanım koşulları ve sözleşme hükümleri.',
 };
 
 export default function TermsPage(): ReactElement {
@@ -14,8 +14,8 @@ export default function TermsPage(): ReactElement {
         <article className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-primary">
           <h1>Kullanım Koşulları</h1>
           <p className="text-sm text-muted-foreground not-prose">
-            Son güncelleme: Mayıs 2026 — Bu metin yer tutucudur; kesin hukuki metin
-            avukat onayıyla güncellenecektir.
+            Son güncelleme: Mayıs 2026 — Özet bilgilendirme metnidir; kesin hukuki
+            metin avukat onayıyla güncellenecektir.
           </p>
 
           <h2>1. Hizmet tanımı</h2>
@@ -37,9 +37,8 @@ export default function TermsPage(): ReactElement {
           <ul>
             <li>Ücretsiz deneme süresi örnek olarak 14 gün olarak sunulabilir.</li>
             <li>
-              Ödeme sonrası iade uygulaması: yer tutucu metin — iş modeline göre
-              nihai politika ayrıca yayımlanacaktır (örnek ifade: ödeme sonrası iade
-              yapılmamaktadır).
+              Ödeme sonrası iade uygulaması iş modeline göre belirlenir; nihai politika
+              ayrıca yayımlanacaktır.
             </li>
             <li>
               İptal: abonelik iptali halinde erişim, faturalandırılan dönem sonuna
@@ -65,8 +64,8 @@ export default function TermsPage(): ReactElement {
 
           <h2>6. Sorumluluk sınırı</h2>
           <p>
-            Hizmet &quot;olduğu gibi&quot; sunulur; yer tutucu uyarı: belirli garantiler
-            hariç tutulabilir ve tazminat üst sınırı sözleşmede tanımlanır. Üçüncü
+            Hizmet &quot;olduğu gibi&quot; sunulur; belirli garantiler hariç tutulabilir
+            ve tazminat üst sınırı sözleşmede tanımlanır. Üçüncü
             taraf platformlardan kaynaklanan kesintilerden doğrudan sorumluluk
             kabul edilmeyebilir (nihai metin).
           </p>
@@ -81,8 +80,8 @@ export default function TermsPage(): ReactElement {
           <h2>8. Uygulanacak hukuk</h2>
           <p>
             Uyuşmazlıklarda <strong>Türk Hukuku</strong> uygulanır. İstanbul
-            Mahkemeleri ve İcra Daireleri yetkilidir (yer tutucu; nihai yetişim
-            maddesi sözleşmede netleştirilecektir).
+            Mahkemeleri ve İcra Daireleri yetkilidir (nihai yetki maddesi sözleşmede
+            netleştirilecektir).
           </p>
         </article>
       </div>

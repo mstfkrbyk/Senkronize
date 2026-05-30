@@ -10,6 +10,7 @@ import { AdminModule } from './admin/admin.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PostHogModule } from './analytics/posthog.module';
+import { BizimHesapRateLimitModule } from './adapters/erp/bizimhesap/bizimhesap-rate-limit.module';
 import { AdapterModule } from './adapters/adapter.module';
 import { ApiKeyModule } from './api-key/api-key.module';
 import { AuthModule } from './auth/auth.module';
@@ -95,6 +96,7 @@ import { WebhookModule } from './webhook/webhook.module';
     CommonModule,
     CacheModule,
     CargoModule,
+    BizimHesapRateLimitModule,
     AdapterModule,
     ConnectionsModule,
     MarketplaceConnectionModule,

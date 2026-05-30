@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { api } from '@/lib/api';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
@@ -86,20 +86,17 @@ export function RecentOrdersWidget({
           </div>
         ) : null}
         {query.isError ? (
-          <div className="text-sm text-destructive">
-            {getApiErrorMessage(query.error)}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={(e) => {
-                e.stopPropagation();
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <QueryErrorAlert
+              error={query.error}
+              onRetry={() => {
                 void query.refetch();
               }}
-            >
-              Tekrar dene
-            </Button>
+            />
           </div>
         ) : null}
         {!query.isPending && !query.isError && (query.data?.length ?? 0) === 0 ? (

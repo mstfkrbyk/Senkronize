@@ -1,8 +1,8 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { Copy, LogIn } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Copy, Loader2, LogIn } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import {
@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { PartnerClientBadges } from '@/components/PartnerClientBadges';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,24 +26,18 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { getApiErrorMessage } from '@/lib/api';
-import { useImpersonationStore } from '@/store/impersonation.store';
 import type { PartnerRelationship, PartnerStatus } from '@/types/partner';
 
-import {
-  usePartnerClientAccess,
-  useTerminateRelationship,
-} from './hooks/usePartner';
+import { useTerminateRelationship } from './hooks/usePartner';
+import { partnerDemoClientHint } from './partner-demo-client-hints';
+import { resolvePartnerClientDisplay } from './partner-client-display';
+import { useEnterPartnerClient } from './useEnterPartnerClient';
 
 interface Props {
   relationship: PartnerRelationship;
+  /** Liste sayfasına kısayol */
+  showDetailLink?: boolean;
 }
-
-const statusLabels: Record<PartnerStatus, string> = {
-  PENDING: 'Beklemede',
-  ACTIVE: 'Aktif',
-  SUSPENDED: 'Askıda',
-  TERMINATED: 'Sonlandı',
-};
 
 function statusVariant(
   status: PartnerStatus,
@@ -61,101 +56,133 @@ function statusVariant(
   }
 }
 
-export function ClientCard({ relationship }: Props): ReactElement {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const startImpersonation = useImpersonationStore((s) => s.startImpersonation);
-  const startImp = usePartnerClientAccess();
+export function ClientCard({
+  relationship,
+  showDetailLink = false,
+}: Props): ReactElement {
+  const { t } = useTranslation();
+  const { enterClient, isEnteringClient } = useEnterPartnerClient();
   const terminate = useTerminateRelationship();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const display = resolvePartnerClientDisplay(
+    relationship,
+    t('partner.pages.clients.invitePending'),
+  );
   const client = relationship.clientOrg;
-  const title = client?.name ?? 'Müşteri';
-  const slug = client?.slug ?? '—';
-
-  async function handleImpersonate(): Promise<void> {
-    if (!client) {
-      return;
-    }
-    try {
-      const { impersonationToken } = await startImp.mutateAsync(client.id);
-      startImpersonation({ id: client.id, name: client.name }, impersonationToken);
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      navigate('/dashboard');
-    } catch (error: unknown) {
-      toast.error(getApiErrorMessage(error));
-    }
-  }
+  const entering =
+    display.clientOrgId != null && isEnteringClient(display.clientOrgId);
+  const demoHint = partnerDemoClientHint(client?.slug);
 
   async function handleCopyInvite(): Promise<void> {
     const url = relationship.inviteUrl;
     if (!url) {
-      toast.error('Kopyalanacak davet bağlantısı bulunamadı.');
+      toast.error(t('partner.clientCard.toast.inviteUrlMissing'));
       return;
     }
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Davet bağlantısı kopyalandı.');
+      toast.success(t('partner.clientCard.toast.inviteCopied'));
     } catch {
-      toast.error('Panoya kopyalanamadı.');
+      toast.error(t('partner.clientCard.toast.copyFailed'));
     }
   }
 
+  const hasIdentity = Boolean(
+    client?.name?.trim() || relationship.invitedEmail?.trim(),
+  );
+  const title = hasIdentity
+    ? display.name
+    : t('partner.clientCard.unnamedClient');
+
   return (
     <>
-      <Card className="flex flex-col">
+      <Card className="flex flex-col transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-sky-400/60 focus-within:ring-offset-2">
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <CardTitle className="text-lg">{title}</CardTitle>
             <Badge variant={statusVariant(relationship.status)}>
-              {statusLabels[relationship.status]}
+              {t(`partner.status.${relationship.status}`)}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground">@{slug}</p>
+          <p className="text-sm text-muted-foreground">@{display.slug}</p>
+          {demoHint ? (
+            <p className="text-xs text-muted-foreground">{demoHint}</p>
+          ) : null}
+          <PartnerClientBadges
+            orgProducts={client?.orgProducts}
+            accountingMode={client?.accountingMode}
+            className="mt-1"
+          />
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-2 pb-2">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">Komisyon %{relationship.commissionPct}</Badge>
+            <Badge variant="outline">
+              {t('partner.clientCard.commissionBadge', {
+                pct: display.commissionPct,
+              })}
+            </Badge>
+            {display.orders30d !== undefined ? (
+              <Badge variant="secondary">
+                {t('partner.clientCard.orders30dBadge', {
+                  count: display.orders30d,
+                })}
+              </Badge>
+            ) : null}
             {relationship.status === 'PENDING' ? (
-              <Badge variant="secondary">Davet Bekleniyor</Badge>
+              <Badge variant="secondary">
+                {t('partner.clientCard.invitePendingBadge')}
+              </Badge>
             ) : null}
           </div>
         </CardContent>
         <CardFooter className="mt-auto flex flex-wrap gap-2 border-t pt-4">
+          {display.canEnter && client ? (
+            <Button
+              type="button"
+              size="sm"
+              className="min-h-11"
+              disabled={entering}
+              onClick={() => void enterClient(client.id, display.name)}
+            >
+              {entering ? (
+                <Loader2 className="mr-1 size-4 animate-spin" aria-hidden />
+              ) : (
+                <LogIn className="mr-1 size-4" aria-hidden />
+              )}
+              {entering
+                ? t('partner.clientCard.enteringClient')
+                : t('partner.clientCard.enterClient')}
+            </Button>
+          ) : null}
           {relationship.status === 'PENDING' ? (
             <Button
               type="button"
               variant="secondary"
               size="sm"
+              className="min-h-11"
               disabled={!relationship.inviteUrl}
               onClick={() => void handleCopyInvite()}
             >
-              <Copy className="mr-1 size-4" />
-              Daveti Kopyala
+              <Copy className="mr-1 size-4" aria-hidden />
+              {t('partner.clientCard.copyInvite')}
             </Button>
           ) : null}
-          {relationship.status === 'ACTIVE' &&
-          relationship.canImpersonate &&
-          client ? (
-            <Button
-              type="button"
-              size="sm"
-              disabled={startImp.isPending}
-              onClick={() => void handleImpersonate()}
-            >
-              <LogIn className="mr-1 size-4" />
-              Hesabına Geç
+          {showDetailLink ? (
+            <Button type="button" variant="outline" size="sm" className="min-h-11" asChild>
+              <Link to="/partner/clients">{t('partner.clientCard.detail')}</Link>
             </Button>
           ) : null}
           {relationship.status !== 'TERMINATED' ? (
             <Button
               type="button"
-              variant="destructive"
+              variant="ghost"
               size="sm"
+              className="min-h-11 text-destructive hover:text-destructive"
               disabled={terminate.isPending}
               onClick={() => setConfirmOpen(true)}
             >
-              İlişkiyi Sonlandır
+              {t('partner.clientCard.terminate')}
             </Button>
           ) : null}
         </CardFooter>
@@ -164,14 +191,17 @@ export function ClientCard({ relationship }: Props): ReactElement {
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>İlişkiyi sonlandır</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t('partner.clientCard.terminateTitle')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {title} ile partner ilişkisini sonlandırmak istediğinize emin misiniz?
-              Bu işlem geri alınamaz.
+              {t('partner.clientCard.terminateDescription', { name: title })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel>
+              {t('partner.clientCard.cancel')}
+            </AlertDialogCancel>
             <AlertDialogAction
               type="button"
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -185,7 +215,7 @@ export function ClientCard({ relationship }: Props): ReactElement {
                 });
               }}
             >
-              Sonlandır
+              {t('partner.clientCard.confirmTerminate')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

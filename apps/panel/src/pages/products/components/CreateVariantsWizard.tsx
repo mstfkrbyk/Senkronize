@@ -331,7 +331,7 @@ export function CreateVariantsWizard({
 
         {step === 1 ? (
           <div className="grid gap-4 py-2">
-            <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm">
               <Label htmlFor="wiz-color">Renk özelliği</Label>
               <Switch
                 id="wiz-color"
@@ -348,7 +348,7 @@ export function CreateVariantsWizard({
               />
             ) : null}
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm">
               <Label htmlFor="wiz-size">Beden özelliği</Label>
               <Switch
                 id="wiz-size"
@@ -388,7 +388,7 @@ export function CreateVariantsWizard({
                 </Button>
               </div>
               {customAttributes.map((attr) => (
-                <div key={attr.id} className="rounded-lg border p-3 space-y-2">
+                <div key={attr.id} className="rounded-lg border bg-card p-3 shadow-sm space-y-2">
                   <div className="flex gap-2">
                     <Input
                       placeholder="Özellik adı (ör. Malzeme)"

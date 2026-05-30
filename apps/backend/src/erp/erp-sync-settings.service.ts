@@ -5,27 +5,40 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  ErpConnectionRole,
   ErpType,
   Marketplace,
   SyncFrequency,
   type ErpConnection,
   type ErpSyncSettings,
+  type Prisma,
 } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { ErpManualSyncType } from '../erp-connection/erp-connection.dto';
+import {
+  assertSecondaryErpWriteFlags,
+  SECONDARY_ERP_SYNC_DEFAULTS,
+} from '../erp-connection/erp-connection-role.util';
+import { BizimHesapRateLimitService } from '../adapters/erp/bizimhesap/bizimhesap-rate-limit.service';
+import { BizimHesapRateLimitBlockedException } from '../adapters/erp/bizimhesap/bizimhesap-rate-limit.exceptions';
 import { NotificationEmitService } from '../notifications/notification-emit.service';
+import { IntegrationPolicyService } from '../integration-policy/integration-policy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   JOB_DEFAULT_OPTIONS,
   QUEUE_ERP_SYNC,
 } from '../queue/queue.constants';
-import type { ErpSyncJobData } from '../queue/queue.types';
+import type { ErpSyncJobData, BizimHesapOrgSyncJobData, ErpQueueJobData } from '../queue/queue.types';
 
 import type {
   PatchErpSyncSettingsDto,
   UpsertErpSyncSettingsDto,
 } from './erp-sync-settings.dto';
+import {
+  buildErpSyncJobType,
+  erpSyncLogPlatform,
+} from './erp-sync-log.util';
 
 const SYNC_DURATION_ESTIMATE_MS: Record<ErpManualSyncType, number> = {
   [ErpManualSyncType.ALL]: 120_000,
@@ -48,24 +61,28 @@ export class ErpSyncSettingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationEmit: NotificationEmitService,
+    private readonly integrationPolicy: IntegrationPolicyService,
+    private readonly bizimHesapRateLimit: BizimHesapRateLimitService,
     @InjectQueue(QUEUE_ERP_SYNC)
-    private readonly erpSyncQueue: Queue<ErpSyncJobData>,
+    private readonly erpSyncQueue: Queue<ErpQueueJobData>,
   ) {}
 
   async getSettings(
     orgId: string,
     erpConnectionId: string,
   ): Promise<ErpSyncSettings> {
-    await this.assertConnection(orgId, erpConnectionId);
+    const connection = await this.assertConnection(orgId, erpConnectionId);
     const existing = await this.prisma.erpSyncSettings.findUnique({
       where: { erpConnectionId },
     });
     if (existing) {
       return existing;
     }
-    const nextSyncAt = this.getNextSyncTime({
-      syncFrequency: SyncFrequency.HOURLY,
+    const syncFrequency = await this.resolvePlatformSyncFrequency(connection.erpType);
+    const nextSyncAt = await this.getNextSyncTime({
+      syncFrequency,
       lastSyncAt: null,
+      erpType: connection.erpType,
     });
     return this.prisma.erpSyncSettings.create({
       data: {
@@ -81,21 +98,31 @@ export class ErpSyncSettingsService {
     erpConnectionId: string,
     dto: UpsertErpSyncSettingsDto,
   ): Promise<ErpSyncSettings> {
-    await this.assertConnection(orgId, erpConnectionId);
+    const connection = await this.assertConnection(orgId, erpConnectionId);
+    if (connection.role === ErpConnectionRole.SECONDARY) {
+      assertSecondaryErpWriteFlags({
+        syncInvoices: dto.syncInvoices,
+        autoCreateInvoice: dto.autoCreateInvoice,
+      });
+    }
     const current = await this.getSettings(orgId, erpConnectionId);
+    const platformFrequency = await this.resolvePlatformSyncFrequency(connection.erpType);
     const merged: ErpSyncSettings = {
       ...current,
-      syncFrequency: dto.syncFrequency,
+      syncFrequency: platformFrequency,
       syncStock: dto.syncStock ?? current.syncStock,
       syncProducts: dto.syncProducts ?? current.syncProducts,
       syncPrices: dto.syncPrices ?? current.syncPrices,
       syncInvoices: dto.syncInvoices ?? current.syncInvoices,
       syncCustomers: dto.syncCustomers ?? current.syncCustomers,
       autoCreateInvoice: dto.autoCreateInvoice ?? current.autoCreateInvoice,
+      productImportMode: dto.productImportMode ?? current.productImportMode,
+      erpCategoryIds: dto.erpCategoryIds ?? current.erpCategoryIds,
     };
-    const nextSyncAt = this.getNextSyncTime({
+    const nextSyncAt = await this.getNextSyncTime({
       syncFrequency: merged.syncFrequency,
       lastSyncAt: merged.lastSyncAt,
+      erpType: connection.erpType,
     });
     return this.prisma.erpSyncSettings.update({
       where: { erpConnectionId },
@@ -107,6 +134,8 @@ export class ErpSyncSettingsService {
         syncInvoices: merged.syncInvoices,
         syncCustomers: merged.syncCustomers,
         autoCreateInvoice: merged.autoCreateInvoice,
+        productImportMode: merged.productImportMode,
+        erpCategoryIds: merged.erpCategoryIds,
         nextSyncAt,
       },
     });
@@ -117,21 +146,31 @@ export class ErpSyncSettingsService {
     erpConnectionId: string,
     dto: PatchErpSyncSettingsDto,
   ): Promise<ErpSyncSettings> {
-    await this.assertConnection(orgId, erpConnectionId);
+    const connection = await this.assertConnection(orgId, erpConnectionId);
+    if (connection.role === ErpConnectionRole.SECONDARY) {
+      assertSecondaryErpWriteFlags({
+        syncInvoices: dto.syncInvoices,
+        autoCreateInvoice: dto.autoCreateInvoice,
+      });
+    }
     const current = await this.getSettings(orgId, erpConnectionId);
+    const platformFrequency = await this.resolvePlatformSyncFrequency(connection.erpType);
     const merged: ErpSyncSettings = {
       ...current,
-      syncFrequency: dto.syncFrequency ?? current.syncFrequency,
+      syncFrequency: platformFrequency,
       syncStock: dto.syncStock ?? current.syncStock,
       syncProducts: dto.syncProducts ?? current.syncProducts,
       syncPrices: dto.syncPrices ?? current.syncPrices,
       syncInvoices: dto.syncInvoices ?? current.syncInvoices,
       syncCustomers: dto.syncCustomers ?? current.syncCustomers,
       autoCreateInvoice: dto.autoCreateInvoice ?? current.autoCreateInvoice,
+      productImportMode: dto.productImportMode ?? current.productImportMode,
+      erpCategoryIds: dto.erpCategoryIds ?? current.erpCategoryIds,
     };
-    const nextSyncAt = this.getNextSyncTime({
+    const nextSyncAt = await this.getNextSyncTime({
       syncFrequency: merged.syncFrequency,
       lastSyncAt: merged.lastSyncAt,
+      erpType: connection.erpType,
     });
     return this.prisma.erpSyncSettings.update({
       where: { erpConnectionId },
@@ -143,46 +182,112 @@ export class ErpSyncSettingsService {
         syncInvoices: merged.syncInvoices,
         syncCustomers: merged.syncCustomers,
         autoCreateInvoice: merged.autoCreateInvoice,
+        productImportMode: merged.productImportMode,
+        erpCategoryIds: merged.erpCategoryIds,
         nextSyncAt,
       },
     });
   }
 
-  getNextSyncTime(settings: {
+  async getNextSyncTime(settings: {
     syncFrequency: SyncFrequency;
     lastSyncAt: Date | null;
-  }): Date | null {
-    if (settings.syncFrequency === SyncFrequency.MANUAL) {
+    erpType?: ErpType;
+  }): Promise<Date | null> {
+    const frequency = settings.syncFrequency;
+
+    if (frequency === SyncFrequency.MANUAL) {
       return null;
     }
     const now = new Date();
-    if (settings.syncFrequency === SyncFrequency.REALTIME) {
+    if (frequency === SyncFrequency.REALTIME && settings.erpType !== ErpType.BIZIMHESAP) {
       return now;
     }
     const base =
       settings.lastSyncAt && settings.lastSyncAt.getTime() <= now.getTime()
         ? settings.lastSyncAt
         : now;
-    const ms = this.frequencyToMs(settings.syncFrequency);
+    let ms = this.frequencyToMs(frequency);
+    if (settings.erpType === ErpType.BIZIMHESAP) {
+      const platformMinMs =
+        await this.integrationPolicy.getMinSyncIntervalMsForHourlyCap('BIZIMHESAP');
+      ms = Math.max(ms, platformMinMs);
+    }
     return new Date(base.getTime() + ms);
+  }
+
+  /** 429 / saatlik kota nedeniyle atlanan senkron sonrası bir sonraki deneme zamanı */
+  async deferNextSyncAt(
+    settings: Pick<ErpSyncSettings, 'syncFrequency' | 'lastSyncAt'> & {
+      erpConnection: Pick<ErpConnection, 'erpType'>;
+    },
+    blockedUntil: Date | null,
+  ): Promise<Date> {
+    const scheduled = await this.getNextSyncTime({
+      syncFrequency: settings.syncFrequency,
+      lastSyncAt: new Date(),
+      erpType: settings.erpConnection.erpType,
+    });
+    const fromSchedule =
+      scheduled ?? new Date(Date.now() + this.frequencyToMs(settings.syncFrequency));
+    if (blockedUntil && blockedUntil.getTime() > fromSchedule.getTime()) {
+      return blockedUntil;
+    }
+    return fromSchedule;
   }
 
   async createDefaultForConnection(
     organizationId: string,
     erpConnectionId: string,
   ): Promise<ErpSyncSettings> {
-    const nextSyncAt = this.getNextSyncTime({
-      syncFrequency: SyncFrequency.HOURLY,
-      lastSyncAt: null,
+    const connection = await this.prisma.erpConnection.findFirst({
+      where: { id: erpConnectionId, organizationId, deletedAt: null },
     });
+    if (!connection) {
+      throw new NotFoundException('ERP bağlantısı bulunamadı');
+    }
+    const syncFrequency = await this.resolvePlatformSyncFrequency(connection.erpType);
+    const nextSyncAt = await this.getNextSyncTime({
+      syncFrequency,
+      lastSyncAt: null,
+      erpType: connection.erpType,
+    });
+    const isSecondary = connection.role === ErpConnectionRole.SECONDARY;
     return this.prisma.erpSyncSettings.upsert({
       where: { erpConnectionId },
       create: {
         organizationId,
         erpConnectionId,
+        syncFrequency,
         nextSyncAt,
+        ...(isSecondary ? SECONDARY_ERP_SYNC_DEFAULTS : {}),
       },
-      update: {},
+      update: isSecondary ? SECONDARY_ERP_SYNC_DEFAULTS : {},
+    });
+  }
+
+  async applySecondarySyncProfile(
+    organizationId: string,
+    erpConnectionId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    await tx.erpSyncSettings.updateMany({
+      where: { erpConnectionId, organizationId },
+      data: SECONDARY_ERP_SYNC_DEFAULTS,
+    });
+  }
+
+  async applyPrimarySyncProfile(
+    organizationId: string,
+    erpConnectionId: string,
+    tx: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    await tx.erpSyncSettings.updateMany({
+      where: { erpConnectionId, organizationId },
+      data: {
+        syncInvoices: true,
+        autoCreateInvoice: false,
+      },
     });
   }
 
@@ -207,6 +312,26 @@ export class ErpSyncSettingsService {
     if (!connection.isActive) {
       throw new BadRequestException('ERP bağlantısı pasif.');
     }
+    if (connection.erpType === ErpType.BIZIMHESAP) {
+      try {
+        await this.bizimHesapRateLimit.assertCanRequest(orgId);
+      } catch (error) {
+        const message =
+          error instanceof BizimHesapRateLimitBlockedException
+            ? error.message
+            : 'BizimHesap istek limiti aktif. Lütfen bekleme süresi dolunca tekrar deneyin.';
+        throw new BadRequestException(message);
+      }
+      const bizimHesapIds = await this.listActiveBizimHesapConnectionIds(orgId);
+      if (bizimHesapIds.length > 1) {
+        return this.enqueueBizimHesapOrgBatch(
+          orgId,
+          bizimHesapIds,
+          syncType,
+          erpConnectionId,
+        );
+      }
+    }
     const settings = await this.getSettings(orgId, erpConnectionId);
     const payloads = this.buildSyncPayloads(connection, settings, syncType);
     if (payloads.length === 0) {
@@ -218,7 +343,11 @@ export class ErpSyncSettingsService {
     let firstJobId = '';
     const total = payloads.length;
     for (let i = 0; i < payloads.length; i += 1) {
-      const payload = payloads[i];
+      const payload: ErpSyncJobData = {
+        ...payloads[i],
+        batchIndex: i,
+        batchTotal: total,
+      };
       const job = await this.erpSyncQueue.add(
         this.jobNameForType(payload.type),
         payload,
@@ -277,6 +406,102 @@ export class ErpSyncSettingsService {
     return payloads.length;
   }
 
+  async listActiveBizimHesapConnectionIds(orgId: string): Promise<string[]> {
+    const rows = await this.prisma.erpConnection.findMany({
+      where: {
+        organizationId: orgId,
+        erpType: ErpType.BIZIMHESAP,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    return rows.map((row) => row.id);
+  }
+
+  async enqueueBizimHesapOrgBatch(
+    orgId: string,
+    erpConnectionIds: string[],
+    syncType: ErpManualSyncType = ErpManualSyncType.ALL,
+    triggerConnectionId?: string,
+  ): Promise<{ jobId: string; estimatedDuration: number }> {
+    if (erpConnectionIds.length === 0) {
+      throw new BadRequestException('BizimHesap bağlantısı bulunamadı.');
+    }
+    const payload: BizimHesapOrgSyncJobData = {
+      organizationId: orgId,
+      erpConnectionIds,
+      syncType: this.toBizimHesapBatchSyncType(syncType),
+      triggerConnectionId,
+    };
+    const job = await this.erpSyncQueue.add(
+      'bizimhesap-org-sync',
+      payload,
+      JOB_DEFAULT_OPTIONS,
+    );
+    const notifyConnectionId = triggerConnectionId ?? erpConnectionIds[0];
+    this.notificationEmit.emitSyncProgress(orgId, {
+      connectionId: notifyConnectionId,
+      platform: ErpType.BIZIMHESAP,
+      phase: syncType,
+      current: 0,
+      total: erpConnectionIds.length,
+    });
+    const estimatedDuration =
+      syncType === ErpManualSyncType.ALL
+        ? erpConnectionIds.length * SYNC_DURATION_ESTIMATE_MS[ErpManualSyncType.ALL]
+        : erpConnectionIds.length * (SYNC_DURATION_ESTIMATE_MS[syncType] ?? 45_000);
+    return {
+      jobId: job.id !== undefined ? String(job.id) : 'queued',
+      estimatedDuration,
+    };
+  }
+
+  async getSyncPayloadsForConnection(
+    orgId: string,
+    erpConnectionId: string,
+    syncType: ErpManualSyncType,
+  ): Promise<ErpSyncJobData[]> {
+    const connection = await this.assertConnection(orgId, erpConnectionId);
+    const settings = await this.getSettings(orgId, erpConnectionId);
+    return this.buildSyncPayloads(connection, settings, syncType);
+  }
+
+  toManualSyncType(
+    syncType: BizimHesapOrgSyncJobData['syncType'],
+  ): ErpManualSyncType {
+    switch (syncType) {
+      case 'products':
+        return ErpManualSyncType.PRODUCTS;
+      case 'stock':
+        return ErpManualSyncType.STOCK;
+      case 'invoices':
+        return ErpManualSyncType.INVOICES;
+      case 'customers':
+        return ErpManualSyncType.CUSTOMERS;
+      default:
+        return ErpManualSyncType.ALL;
+    }
+  }
+
+  private toBizimHesapBatchSyncType(
+    syncType: ErpManualSyncType,
+  ): BizimHesapOrgSyncJobData['syncType'] {
+    switch (syncType) {
+      case ErpManualSyncType.PRODUCTS:
+        return 'products';
+      case ErpManualSyncType.STOCK:
+        return 'stock';
+      case ErpManualSyncType.INVOICES:
+        return 'invoices';
+      case ErpManualSyncType.CUSTOMERS:
+        return 'customers';
+      default:
+        return 'all';
+    }
+  }
+
   private buildSyncPayloads(
     connection: ErpConnection,
     settings: ErpSyncSettings,
@@ -295,7 +520,11 @@ export class ErpSyncSettingsService {
       syncType === ErpManualSyncType.ALL ||
       syncType === ErpManualSyncType.CUSTOMERS;
 
-    if (includeProducts && settings.syncProducts) {
+    const syncProducts = includeProducts && settings.syncProducts;
+    const syncStock =
+      includeStock && settings.syncStock && !syncProducts;
+
+    if (syncProducts) {
       jobs.push({
         organizationId: connection.organizationId,
         erpConnectionId: connection.id,
@@ -304,7 +533,7 @@ export class ErpSyncSettingsService {
         type: 'products',
       });
     }
-    if (includeStock && settings.syncStock) {
+    if (syncStock) {
       jobs.push({
         organizationId: connection.organizationId,
         erpConnectionId: connection.id,
@@ -355,7 +584,12 @@ export class ErpSyncSettingsService {
     orderId: string,
   ): Promise<void> {
     const connections = await this.prisma.erpConnection.findMany({
-      where: { organizationId, isActive: true, deletedAt: null },
+      where: {
+        organizationId,
+        isActive: true,
+        deletedAt: null,
+        role: ErpConnectionRole.PRIMARY,
+      },
       include: { syncSettings: true },
     });
     for (const connection of connections) {
@@ -374,14 +608,19 @@ export class ErpSyncSettingsService {
     }
   }
 
-  /** Stok değişikliğini ERP'ye push eder */
+  /** Stok değişikliğini ERP'ye push eder (yalnızca birincil ERP) */
   async enqueueStockPush(
     organizationId: string,
     barcode: string,
     quantity: number,
   ): Promise<void> {
     const connections = await this.prisma.erpConnection.findMany({
-      where: { organizationId, isActive: true, deletedAt: null },
+      where: {
+        organizationId,
+        isActive: true,
+        deletedAt: null,
+        role: ErpConnectionRole.PRIMARY,
+      },
       include: { syncSettings: true },
     });
     for (const connection of connections) {
@@ -407,14 +646,16 @@ export class ErpSyncSettingsService {
   ): Promise<void> {
     const settings = await this.prisma.erpSyncSettings.findUnique({
       where: { erpConnectionId },
+      include: { erpConnection: true },
     });
     if (!settings || settings.organizationId !== organizationId) {
       return;
     }
     const lastSyncAt = new Date();
-    const nextSyncAt = this.getNextSyncTime({
+    const nextSyncAt = await this.getNextSyncTime({
       syncFrequency: settings.syncFrequency,
       lastSyncAt,
+      erpType: settings.erpConnection.erpType,
     });
     await this.prisma.erpSyncSettings.update({
       where: { id: settings.id },
@@ -422,13 +663,21 @@ export class ErpSyncSettingsService {
     });
   }
 
-  /** SyncLog.platform alanı ERP kayıtları için sabit değer */
+  /** SyncLog.platform alanı Marketplace enum olduğu için ERP işleri marker ile kaydedilir; gerçek ERP tipi jobType içinde tutulur. */
   static erpSyncLogPlatform(): Marketplace {
-    return Marketplace.IDEASOFT;
+    return erpSyncLogPlatform() as Marketplace;
   }
 
-  static erpSyncJobType(erpConnectionId: string, type: string): string {
-    return `erp:${erpConnectionId}:${type}`;
+  static erpSyncJobType(
+    erpConnectionId: string,
+    erpType: string,
+    type: string,
+  ): string {
+    return buildErpSyncJobType(erpType, erpConnectionId, type);
+  }
+
+  async resolvePlatformSyncFrequency(erpType: ErpType): Promise<SyncFrequency> {
+    return this.integrationPolicy.getDefaultErpSyncFrequency(erpType);
   }
 
   private frequencyToMs(frequency: SyncFrequency): number {

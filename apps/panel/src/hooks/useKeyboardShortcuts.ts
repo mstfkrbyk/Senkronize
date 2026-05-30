@@ -9,7 +9,7 @@ const SEQUENCE_SHORTCUTS: Record<string, string> = {
   'g d': '/dashboard',
   'g o': '/orders',
   'g p': '/products',
-  'g s': '/stock',
+  'g s': '/products?tab=status',
   'g r': '/reports',
   'g c': '/connections',
   'g l': '/listings',

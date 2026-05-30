@@ -23,7 +23,12 @@ import {
 } from '@/components/ui/table';
 import type { MigrationValidationResult } from '@/types/migration';
 
-import { FIELD_LABELS, buildErrorsCsv, downloadCsv } from '../migration.constants';
+import {
+  FIELD_LABELS,
+  buildErrorsCsv,
+  downloadCsv,
+  formatMigrationIssueMessage,
+} from '../migration.constants';
 
 interface Props {
   validationResult: MigrationValidationResult | null;
@@ -140,7 +145,9 @@ export function ValidationStep({
                     <TableRow key={`${err.row}-${err.field}-${idx}`}>
                       <TableCell>{err.row}</TableCell>
                       <TableCell>{FIELD_LABELS[err.field] ?? err.field}</TableCell>
-                      <TableCell className="text-destructive">{err.message}</TableCell>
+                      <TableCell className="text-destructive">
+                        {formatMigrationIssueMessage(err.message)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

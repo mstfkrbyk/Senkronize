@@ -152,6 +152,22 @@ export function formatErpConnectionError(error: unknown): string {
         detail = msg.slice(0, 180);
       }
     }
+    if (status === 429) {
+      const retryAfterHeader = error.response?.headers?.['retry-after'];
+      const retryAfterSec = retryAfterHeader
+        ? parseInt(String(Array.isArray(retryAfterHeader) ? retryAfterHeader[0] : retryAfterHeader), 10)
+        : NaN;
+      if (!Number.isNaN(retryAfterSec) && retryAfterSec > 0) {
+        const minutes = Math.max(1, Math.ceil(retryAfterSec / 60));
+        return `BizimHesap istek limitine takıldı (429). Yaklaşık ${minutes} dakika sonra tekrar deneyin.`;
+      }
+      return 'BizimHesap istek limitine takıldı (429). Lütfen bir süre sonra tekrar deneyin.';
+    }
+    if (status === 401 || status === 403) {
+      return detail.length > 0
+        ? `Kimlik doğrulama başarısız (HTTP ${status}): ${detail}`
+        : 'API token geçersiz veya yetkisiz. BizimHesap panelindeki token değerini kontrol edin.';
+    }
     if (status) {
       return detail.length > 0
         ? `HTTP ${status}: ${detail}`

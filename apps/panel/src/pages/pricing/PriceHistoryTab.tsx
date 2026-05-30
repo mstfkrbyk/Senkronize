@@ -33,9 +33,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
-import { getApiErrorMessage } from '@/lib/api';
+import { marketplacePlatformLabel } from '@/lib/platform-labels';
 import { cn } from '@/lib/utils';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
@@ -215,7 +216,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
                 <SelectItem value="all">{t('pricing.common.all')}</SelectItem>
                 {platforms.map((p) => (
                   <SelectItem key={p} value={p}>
-                    {p}
+                    {marketplacePlatformLabel(p)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -329,11 +330,13 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
 
       {(listingId != null && listingHistoryQuery.isError) ||
       (listingId == null && globalHistoryQuery.isError) ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(
-            listingHistoryQuery.error ?? globalHistoryQuery.error,
-          )}
-        </div>
+        <QueryErrorAlert
+          error={listingHistoryQuery.error ?? globalHistoryQuery.error}
+          onRetry={() => {
+            void listingHistoryQuery.refetch();
+            void globalHistoryQuery.refetch();
+          }}
+        />
       ) : null}
 
       {!isLoading && filteredRows.length === 0 ? (
@@ -380,7 +383,7 @@ export function PriceHistoryTab({ proAccess, plan }: Props): ReactElement {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>{row.platform}</TableCell>
+                  <TableCell>{marketplacePlatformLabel(row.platform)}</TableCell>
                   <TableCell>{row.reason}</TableCell>
                 </TableRow>
               ))}

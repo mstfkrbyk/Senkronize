@@ -11,7 +11,13 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
-import { AccountingMode, OrgType, PlanTier, UserRole } from '@prisma/client';
+import {
+  AccountingMode,
+  OrgProductLine,
+  OrgType,
+  PlanTier,
+  UserRole,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import type { DeepMockProxy } from 'jest-mock-extended';
 import { mockDeep } from 'jest-mock-extended';
@@ -30,6 +36,7 @@ import { SecurityNotificationService } from '../../security/security-notificatio
 import { PostHogService } from '../../analytics/posthog.service';
 import { SubscriptionService } from '../../subscription/subscription.service';
 import { RegisterDto } from '../auth.dto';
+import type { AuthenticatedUser } from '../auth.types';
 import { AuthService } from '../auth.service';
 import { PasswordPolicyService } from '../password-policy.service';
 import { SessionService } from '../session.service';
@@ -39,8 +46,23 @@ describe('AuthService', () => {
   let service: AuthService;
   let prismaService: DeepMockProxy<PrismaService>;
   let jwtSignAsync: jest.Mock;
+  let partnerServiceMock: {
+    validateInviteToken: jest.Mock;
+    completeClientOnboarding: jest.Mock;
+  };
+  let subscriptionServiceMock: { getOrgProducts: jest.Mock };
 
   beforeEach(async () => {
+    partnerServiceMock = {
+      validateInviteToken: jest.fn(),
+      completeClientOnboarding: jest.fn(),
+    };
+    subscriptionServiceMock = {
+      getOrgProducts: jest.fn().mockResolvedValue([
+        OrgProductLine.INTEGRATION,
+        OrgProductLine.ACCOUNTING,
+      ]),
+    };
     (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpasswordhash');
     (bcrypt.compare as jest.Mock).mockReset();
 
@@ -128,10 +150,7 @@ describe('AuthService', () => {
         },
         {
           provide: PartnerService,
-          useValue: {
-            validateInviteToken: jest.fn(),
-            completeClientOnboarding: jest.fn(),
-          },
+          useValue: partnerServiceMock,
         },
         {
           provide: TwoFactorService,
@@ -211,9 +230,7 @@ describe('AuthService', () => {
         },
         {
           provide: SubscriptionService,
-          useValue: {
-            getOrgProducts: jest.fn().mockResolvedValue([]),
-          },
+          useValue: subscriptionServiceMock,
         },
       ],
     }).compile();
@@ -263,7 +280,57 @@ describe('AuthService', () => {
       expect(orgCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
+            productLines: ['ACCOUNTING'],
             accountingMode: AccountingMode.NATIVE,
+          }),
+        }),
+      );
+    });
+
+    it('ACCOUNTING + EXTERNAL_ERP accountingMode ile kayıt olur', async () => {
+      prismaService.user.findFirst.mockResolvedValue(null);
+      prismaService.organization.findFirst.mockResolvedValue(null);
+      const orgCreate = jest.fn().mockResolvedValue({
+        id: 'org-acc-ext',
+        slug: 'acme-acc-ext',
+        name: 'Muhasebe Ext A.Ş.',
+      });
+      prismaService.$transaction
+        .mockReset()
+        .mockImplementationOnce(async (arg: unknown) => {
+          const tx = {
+            organization: { create: orgCreate },
+            user: {
+              create: jest.fn().mockResolvedValue({
+                id: 'user-acc-ext',
+                organizationId: 'org-acc-ext',
+                phone: null,
+              }),
+            },
+            subscription: { create: jest.fn().mockResolvedValue({}) },
+          };
+          return (arg as (t: typeof tx) => Promise<unknown>)(tx);
+        });
+
+      await service.register({
+        email: 'acc-ext@example.com',
+        password: 'Secret123!',
+        name: 'Muhasebe Ext',
+        phone: '05001112233',
+        companyName: 'Muhasebe Ext A.Ş.',
+        taxNumber: '2222222222',
+        taxOffice: 'Kadıköy',
+        address: 'Adres',
+        city: 'İstanbul',
+        productSelection: 'ACCOUNTING',
+        accountingMode: AccountingMode.EXTERNAL_ERP,
+      });
+
+      expect(orgCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            productLines: ['ACCOUNTING'],
+            accountingMode: AccountingMode.EXTERNAL_ERP,
           }),
         }),
       );
@@ -339,6 +406,69 @@ describe('AuthService', () => {
       ).rejects.toBeInstanceOf(ConflictException);
 
       expect(prismaService.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('partner davet token ile kayıtta completeClientOnboarding çağrılmalı', async () => {
+      const inviteToken = 'a'.repeat(64);
+      const partnerOrgId = 'partner-org-invite';
+
+      prismaService.user.findFirst.mockResolvedValue(null);
+      prismaService.organization.findFirst.mockResolvedValue(null);
+      partnerServiceMock.validateInviteToken.mockResolvedValue({
+        partnerOrgId,
+        email: 'invite@example.com',
+        partnerName: 'Demo Partner',
+      });
+      partnerServiceMock.completeClientOnboarding.mockResolvedValue(undefined);
+
+      const orgCreate = jest.fn().mockResolvedValue({
+        id: 'org-invited',
+        slug: 'invited-co',
+        name: 'Invited Co',
+      });
+      prismaService.$transaction
+        .mockReset()
+        .mockImplementationOnce(async (arg: unknown) => {
+          const tx = {
+            organization: { create: orgCreate },
+            user: {
+              create: jest.fn().mockResolvedValue({
+                id: 'user-invited',
+                organizationId: 'org-invited',
+                phone: null,
+              }),
+            },
+            subscription: { create: jest.fn().mockResolvedValue({}) },
+          };
+          return (arg as (t: typeof tx) => Promise<unknown>)(tx);
+        });
+
+      await service.register({
+        email: 'invite@example.com',
+        password: 'Secret123!',
+        name: 'Davetli',
+        phone: '05001112233',
+        companyName: 'Invited Co',
+        taxNumber: '2222222222',
+        taxOffice: 'Kadıköy',
+        address: 'Adres',
+        city: 'İstanbul',
+        inviteToken,
+      });
+
+      expect(partnerServiceMock.validateInviteToken).toHaveBeenCalledWith(inviteToken);
+      expect(orgCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            referralCode: partnerOrgId,
+          }),
+        }),
+      );
+      expect(partnerServiceMock.completeClientOnboarding).toHaveBeenCalledWith(
+        inviteToken,
+        'org-invited',
+        expect.objectContaining({ organization: expect.anything() }),
+      );
     });
 
     it('mevcut vergi numarası için ConflictException vermeli', async () => {
@@ -454,6 +584,118 @@ describe('AuthService', () => {
         service.login({ email: 'a@b.com', password: 'wrong' }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(prismaService.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCurrentOrganization', () => {
+    const baseUser = {
+      id: 'user-me',
+      currentOrgId: 'org-direct',
+      organizationId: 'org-direct',
+      passwordChangedAt: new Date('2024-01-01'),
+      createdAt: new Date('2024-01-01'),
+      twoFactorEnabled: false,
+    } as AuthenticatedUser;
+
+    const mockOrgRow = (overrides: {
+      id: string;
+      accountingMode?: AccountingMode | null;
+      type?: OrgType;
+    }) => ({
+      id: overrides.id,
+      slug: 'test-org',
+      name: 'Test Org',
+      type: overrides.type ?? OrgType.DIRECT,
+      logoUrl: null,
+      createdAt: new Date('2024-01-01'),
+      onboardingCompleted: true,
+      accountingMode: overrides.accountingMode ?? null,
+      require2FA: false,
+      deletedAt: null,
+      subscription: {
+        status: 'ACTIVE',
+        plan: PlanTier.PRO,
+        trialEndsAt: null,
+        currentPeriodEnd: new Date('2025-01-01'),
+        subscriptionEndsAt: null,
+      },
+    });
+
+    beforeEach(() => {
+      prismaService.organization.findFirstOrThrow.mockReset();
+      prismaService.erpConnection.count.mockReset();
+      subscriptionServiceMock.getOrgProducts.mockReset();
+    });
+
+    it('accountingMode ve productLines her zaman döner', async () => {
+      prismaService.organization.findFirstOrThrow.mockResolvedValue(
+        mockOrgRow({ id: 'org-direct', accountingMode: AccountingMode.NATIVE }) as never,
+      );
+      prismaService.erpConnection.count.mockResolvedValue(0);
+      subscriptionServiceMock.getOrgProducts.mockResolvedValue([
+        OrgProductLine.ACCOUNTING,
+      ]);
+
+      const result = await service.getCurrentOrganization(baseUser);
+
+      expect(result.accountingMode).toBe(AccountingMode.NATIVE);
+      expect(result.productLines).toEqual([OrgProductLine.ACCOUNTING]);
+      expect(result.orgProducts).toEqual([OrgProductLine.ACCOUNTING]);
+      expect(subscriptionServiceMock.getOrgProducts).toHaveBeenCalledWith(
+        'org-direct',
+      );
+    });
+
+    it('aktif ERP varken accountingMode EXTERNAL_ERP çözülür', async () => {
+      prismaService.organization.findFirstOrThrow.mockResolvedValue(
+        mockOrgRow({ id: 'org-direct', accountingMode: null }) as never,
+      );
+      prismaService.erpConnection.count.mockResolvedValue(2);
+      subscriptionServiceMock.getOrgProducts.mockResolvedValue([
+        OrgProductLine.INTEGRATION,
+      ]);
+
+      const result = await service.getCurrentOrganization(baseUser);
+
+      expect(result.accountingMode).toBe(AccountingMode.EXTERNAL_ERP);
+      expect(result.productLines).toEqual([OrgProductLine.INTEGRATION]);
+    });
+
+    it('partner impersonation — currentOrgId müşteri org verisini yükler', async () => {
+      const impersonatingUser = {
+        ...baseUser,
+        currentOrgId: 'client-org',
+        organizationId: 'partner-org',
+        isImpersonating: true,
+      } as AuthenticatedUser;
+
+      prismaService.organization.findFirstOrThrow.mockResolvedValue(
+        mockOrgRow({
+          id: 'client-org',
+          accountingMode: AccountingMode.EXTERNAL_ERP,
+          type: OrgType.DIRECT,
+        }) as never,
+      );
+      prismaService.erpConnection.count.mockResolvedValue(1);
+      subscriptionServiceMock.getOrgProducts.mockResolvedValue([
+        OrgProductLine.ACCOUNTING,
+      ]);
+
+      const result = await service.getCurrentOrganization(impersonatingUser);
+
+      expect(prismaService.organization.findFirstOrThrow).toHaveBeenCalledWith({
+        where: { id: 'client-org', deletedAt: null },
+        include: { subscription: true },
+      });
+      expect(result.id).toBe('client-org');
+      expect(result.accountingMode).toBe(AccountingMode.EXTERNAL_ERP);
+      expect(result.productLines).toEqual([OrgProductLine.ACCOUNTING]);
+      expect(subscriptionServiceMock.getOrgProducts).toHaveBeenCalledWith(
+        'client-org',
+      );
+      expect(subscriptionServiceMock.getOrgProducts).not.toHaveBeenCalledWith(
+        'partner-org',
+      );
     });
   });
 

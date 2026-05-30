@@ -1,10 +1,16 @@
+import type { TFunction } from 'i18next';
 import type { ReactElement } from 'react';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Copy, Loader2, RefreshCw } from 'lucide-react';
+import { Copy, RefreshCw, UserPlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { TableSkeleton } from '@/components/TableSkeleton';
+
+import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,27 +25,19 @@ import { getApiErrorMessage } from '@/lib/api';
 import type { ClientOnboardingRow } from '@/types/partner';
 
 import { InviteClientDialog } from './InviteClientDialog';
+import { PartnerPageHeader } from './PartnerPageHeader';
 import {
   usePartnerOnboardingInvites,
   useResendOnboardingInvite,
 } from './hooks/usePartner';
 
-function statusLabel(row: ClientOnboardingRow): string {
+function statusLabel(row: ClientOnboardingRow, t: TFunction): string {
   if (row.expired) {
-    return 'Süresi doldu';
+    return t('partner.pages.onboarding.status.expired');
   }
-  switch (row.displayStatus) {
-    case 'INVITED':
-      return 'Bekliyor';
-    case 'REGISTERED':
-      return 'Kayıtlı';
-    case 'ONBOARDED':
-      return 'Onboarding';
-    case 'ACTIVE':
-      return 'Aktif';
-    default:
-      return row.displayStatus;
-  }
+  return t(`partner.pages.onboarding.status.${row.displayStatus}`, {
+    defaultValue: row.displayStatus,
+  });
 }
 
 function statusVariant(
@@ -58,14 +56,13 @@ function statusVariant(
 }
 
 export function PartnerOnboardingTab(): ReactElement {
-  const { data, isLoading, isError, error } = usePartnerOnboardingInvites();
+  const { t } = useTranslation();
+  const { data, isLoading, isError, error, refetch, isFetching } = usePartnerOnboardingInvites();
   const resend = useResendOnboardingInvite();
 
   const sorted = useMemo((): ClientOnboardingRow[] => {
-    if (!data) {
-      return [];
-    }
-    return [...data].sort(
+    const invites = data ?? [];
+    return [...invites].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [data]);
@@ -73,68 +70,108 @@ export function PartnerOnboardingTab(): ReactElement {
   async function copyUrl(url: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(url);
-      toast.success('Davet bağlantısı kopyalandı.');
+      toast.success(t('partner.pages.onboarding.toast.linkCopied'));
     } catch {
-      toast.error('Panoya kopyalanamadı.');
+      toast.error(t('partner.pages.onboarding.toast.copyFailed'));
     }
   }
 
+  const pageHeader = (
+    <PartnerPageHeader
+      title={t('partner.pages.onboarding.title')}
+      description={t('partner.pages.onboarding.description')}
+      actions={
+        <InviteClientDialog
+          trigger={
+            <Button type="button" size="default">
+              <UserPlus className="mr-2 size-4" aria-hidden />
+              {t('partner.pages.onboarding.inviteClient')}
+            </Button>
+          }
+        />
+      }
+    />
+  );
+
+  const inviteCta = (
+    <InviteClientDialog
+      trigger={
+        <Button type="button" size="default">
+          <UserPlus className="mr-2 size-4" aria-hidden />
+          {t('partner.pages.onboarding.inviteClient')}
+        </Button>
+      }
+    />
+  );
+
   if (isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+      <div className="space-y-6" aria-busy="true" aria-live="polite">
+        {pageHeader}
+        <div className="rounded-md border p-4">
+          <TableSkeleton rows={5} cols={4} />
+        </div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {getApiErrorMessage(error)}
+      <div className="space-y-6">
+        {pageHeader}
+        <EmptyState
+          icon={UserPlus}
+          title={t('partner.pages.onboarding.errorTitle')}
+          description={t('partner.pages.onboarding.errorDescription')}
+          actionSlot={
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isFetching}
+              onClick={() => void refetch()}
+            >
+              {t('partner.pages.onboarding.retry')}
+            </Button>
+          }
+        />
+        <QueryErrorAlert error={error} />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Müşteri onboarding</h2>
-          <p className="text-sm text-muted-foreground">
-            Müşterinize kayıt daveti gönderin; davet listesini ve durumlarını buradan takip edin.
-          </p>
-        </div>
-        <InviteClientDialog
-          trigger={<Button type="button">Müşteri davet et</Button>}
-        />
-      </div>
+      {pageHeader}
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>E-posta</TableHead>
-              <TableHead>Davet tarihi</TableHead>
-              <TableHead>Durum</TableHead>
-              <TableHead className="text-right">İşlemler</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.length === 0 ? (
+      {sorted.length === 0 ? (
+        <EmptyState
+          icon={UserPlus}
+          title={t('partner.pages.onboarding.emptyTitle')}
+          description={t('partner.pages.onboarding.emptyDescription')}
+          actionSlot={inviteCta}
+        />
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                  Henüz davet yok.
-                </TableCell>
+                <TableHead>{t('partner.pages.onboarding.tableEmail')}</TableHead>
+                <TableHead>{t('partner.pages.onboarding.tableInviteDate')}</TableHead>
+                <TableHead>{t('partner.pages.onboarding.tableStatus')}</TableHead>
+                <TableHead className="text-right">
+                  {t('partner.pages.onboarding.tableActions')}
+                </TableHead>
               </TableRow>
-            ) : (
-              sorted.map((row) => (
+            </TableHeader>
+            <TableBody>
+              {sorted.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium">{row.inviteEmail}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {format(new Date(row.createdAt), 'd MMM yyyy HH:mm', { locale: tr })}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(row)}>{statusLabel(row)}</Badge>
+                    <Badge variant={statusVariant(row)}>{statusLabel(row, t)}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
@@ -144,8 +181,8 @@ export function PartnerOnboardingTab(): ReactElement {
                         size="sm"
                         onClick={() => void copyUrl(row.inviteUrl)}
                       >
-                        <Copy className="mr-1 size-3.5" />
-                        Bağlantıyı kopyala
+                        <Copy className="mr-1 size-3.5" aria-hidden />
+                        {t('partner.pages.onboarding.copyLink')}
                       </Button>
                       {row.displayStatus === 'INVITED' && !row.expired ? (
                         <Button
@@ -155,24 +192,25 @@ export function PartnerOnboardingTab(): ReactElement {
                           disabled={resend.isPending}
                           onClick={() =>
                             resend.mutate(row.id, {
-                              onSuccess: () => toast.success('Davet yeniden gönderildi.'),
+                              onSuccess: () =>
+                                toast.success(t('partner.pages.onboarding.toast.resent')),
                               onError: (e: unknown) =>
                                 toast.error(getApiErrorMessage(e)),
                             })
                           }
                         >
-                          <RefreshCw className="mr-1 size-3.5" />
-                          Yeniden gönder
+                          <RefreshCw className="mr-1 size-3.5" aria-hidden />
+                          {t('partner.pages.onboarding.resend')}
                         </Button>
                       ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

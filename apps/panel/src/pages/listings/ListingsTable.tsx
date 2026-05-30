@@ -36,6 +36,7 @@ import type { Listing } from '@/types/listing';
 interface Props {
   listings: Listing[];
   selectedIds: Set<string>;
+  showBuyBoxColumn?: boolean;
   buyBoxMap?: Map<string, { isWinner: boolean; buyBoxPrice: number }>;
   onToggleRow: (id: string, selected: boolean) => void;
   onToggleAllOnPage: (selected: boolean) => void;
@@ -254,6 +255,7 @@ function PlatformBadge({ platform }: { platform: string }): ReactElement {
 export function ListingsTable({
   listings,
   selectedIds,
+  showBuyBoxColumn = false,
   buyBoxMap,
   onToggleRow,
   onToggleAllOnPage,
@@ -290,7 +292,7 @@ export function ListingsTable({
               <TableHead>Platform</TableHead>
               <TableHead className="text-right">Fiyat</TableHead>
               <TableHead className="text-right">Stok</TableHead>
-              <TableHead>BuyBox</TableHead>
+              {showBuyBoxColumn ? <TableHead>BuyBox</TableHead> : null}
               <TableHead>Durum</TableHead>
               <TableHead>Son sync</TableHead>
               <TableHead className="w-[80px]">Aksiyonlar</TableHead>
@@ -364,9 +366,11 @@ export function ListingsTable({
                       }}
                     />
                   </TableCell>
-                  <TableCell>
-                    <BuyBoxBadge listing={listing} buyBoxMap={buyBoxMap} />
-                  </TableCell>
+                  {showBuyBoxColumn ? (
+                    <TableCell>
+                      <BuyBoxBadge listing={listing} buyBoxMap={buyBoxMap} />
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <Badge
                       variant="outline"

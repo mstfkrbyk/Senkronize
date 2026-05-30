@@ -22,6 +22,7 @@ import {
   extractHepsiburadaEventType,
   extractHepsiburadaOrderStatus,
 } from './hepsiburada-payload.util';
+import { extractN11OrderStatus } from './n11-payload.util';
 import {
   extractOrderIdentifiers,
   extractTrendyolEventType,
@@ -500,6 +501,19 @@ export class PlatformWebhookService {
       await this.applyTrendyolInlineOrderUpdate(orgId, payload);
       return;
     }
+    if (platform === Marketplace.N11) {
+      const ids = extractN11OrderStatus(payload);
+      if (ids.platformOrderId && ids.status) {
+        await this.orderService.updateStatusFromPlatform(
+          orgId,
+          platform,
+          ids.platformOrderId,
+          ids.status,
+          { fromPlatformWebhook: true },
+        );
+      }
+      return;
+    }
     if (platform === Marketplace.HEPSIBURADA) {
       const ids = extractHepsiburadaOrderStatus(payload);
       if (ids.platformOrderId && ids.status) {
@@ -508,6 +522,7 @@ export class PlatformWebhookService {
           platform,
           ids.platformOrderId,
           ids.status,
+          { fromPlatformWebhook: true },
         );
       }
       const cargo = extractHepsiburadaCargo(payload);
@@ -557,6 +572,7 @@ export class PlatformWebhookService {
       Marketplace.TRENDYOL,
       ids.platformOrderId,
       ids.status,
+      { fromPlatformWebhook: true },
     );
 
     if (ids.shipmentTrackingNumber) {

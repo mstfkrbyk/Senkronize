@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -9,10 +10,13 @@ import {
   RefreshCw,
   TestTube2,
 } from 'lucide-react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { AccountingModeBadge } from '@/components/AccountingModeBadge';
+import { PageHeader } from '@/components/PageHeader';
 import { SyncMonitorPanel } from '@/components/connections/SyncMonitorPanel';
+import { ConnectionProductMatchKeyCard } from '@/components/connections/ConnectionProductMatchKeyCard';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,39 +57,54 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import {
   useErpConnections,
+  useSetPrimaryErpConnection,
   useTestErpConnectionById,
+  useUpdateErpConnection,
   type ErpTestConnectionResult,
 } from '@/hooks/useErpConnections';
 import {
   useErpSyncSettings,
   useTriggerErpSyncNow,
   useUpsertErpSyncSettings,
+  type ErpProductImportMode,
   type ErpSyncFrequency,
   type ErpSyncScope,
   type ErpSyncSettingsDto,
   type UpsertErpSyncSettingsInput,
 } from '@/hooks/useErpSyncSettings';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { customerConnectionStatusLabel } from '@/lib/integration-ops-access';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import {
+  formatConnectionTestFailureMessage,
+  formatErpTestSuccessMessage,
+  normalizeErpTestConnectionResult,
+} from '@/lib/connection-test-message';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import {
+  erpConnectionDisplayName,
+  erpConnectionRoleHint,
+  erpConnectionRoleLabel,
+} from '@/lib/erp-connection-display';
+import { NAV_GROUP_LABEL_KEYS } from '@/lib/nav-match';
+import { useAuthStore } from '@/store/auth.store';
 import {
   circuitBreakerBadgeClass,
   deriveHealthFromConnection,
   statusBadgeClass,
   statusLabel,
 } from '@/pages/connections/connection-utils';
+import {
+  resolveConnectionsProductAccess,
+  showExternalErpBridgeUi,
+} from '@/pages/connections/connections-product-access';
+import { ErpBridgeSection } from '@/pages/connections/ErpBridgeSection';
+import { erpSyncScheduleLabel } from '@/pages/connections/connection-utils';
 import { getErpBranding } from '@/pages/connections/erp-display';
 import { useSyncMonitorStore } from '@/store/syncMonitor.store';
 import type { SyncLogEntry, SyncLogStatus } from '@/types/sync-log';
-
-const FREQUENCY_OPTIONS: { value: ErpSyncFrequency; label: string }[] = [
-  { value: 'MANUAL', label: 'Manuel' },
-  { value: 'EVERY_5_MIN', label: '5 dk' },
-  { value: 'EVERY_15_MIN', label: '15 dk' },
-  { value: 'EVERY_30_MIN', label: '30 dk' },
-  { value: 'HOURLY', label: '1 saat' },
-  { value: 'EVERY_4_HOURS', label: '4 saat' },
-  { value: 'DAILY', label: 'Günlük' },
-];
 
 const SYNC_SCOPE_OPTIONS: { value: ErpSyncScope; label: string }[] = [
   { value: 'all', label: 'Tüm Veriler' },
@@ -124,7 +143,7 @@ function statusBadge(status: SyncLogStatus): ReactElement {
     PARTIAL: { label: 'Kısmi', variant: 'outline' },
     FAILED: { label: 'Hata', variant: 'destructive' },
   };
-  const c = map[status];
+  const c = map[status] ?? { label: status, variant: 'outline' as const };
   return <Badge variant={c.variant}>{c.label}</Badge>;
 }
 
@@ -162,18 +181,19 @@ function formatDuration(ms: number | null): string {
   return rem > 0 ? `${min} dk ${rem} sn` : `${min} dk`;
 }
 
-function formatTestResult(res: ErpTestConnectionResult): string {
-  const parts: string[] = [];
-  if (res.responseTimeMs !== undefined) {
-    parts.push(`${res.responseTimeMs} ms`);
+const ERP_PRODUCT_IMPORT_MODES: ErpProductImportMode[] = [
+  'ECOMMERCE_ONLY',
+  'CATEGORY',
+  'ALL',
+];
+
+function normalizeProductImportMode(
+  value: ErpProductImportMode | string | null | undefined,
+): ErpProductImportMode {
+  if (value && ERP_PRODUCT_IMPORT_MODES.includes(value as ErpProductImportMode)) {
+    return value as ErpProductImportMode;
   }
-  if (res.version) {
-    parts.push(`v${res.version}`);
-  }
-  if (res.companyName) {
-    parts.push(res.companyName);
-  }
-  return parts.length > 0 ? parts.join(' · ') : 'Bağlantı testi başarılı.';
+  return 'ECOMMERCE_ONLY';
 }
 
 function settingsToForm(settings: ErpSyncSettingsDto): UpsertErpSyncSettingsInput {
@@ -186,6 +206,8 @@ function settingsToForm(settings: ErpSyncSettingsDto): UpsertErpSyncSettingsInpu
     syncOrders: settings.syncOrders ?? settings.syncInvoices,
     syncCustomers: settings.syncCustomers ?? false,
     autoInvoiceOnDelivered: settings.autoInvoiceOnDelivered ?? false,
+    productImportMode: normalizeProductImportMode(settings.productImportMode),
+    erpCategoryIds: settings.erpCategoryIds ?? [],
   };
 }
 
@@ -232,16 +254,39 @@ function healthDotClass(status: string): string {
 }
 
 export function ErpConnectionDetailPage(): ReactElement {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const connectionId = id ?? null;
+  const initialTab = searchParams.get('tab');
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const productAccess = useMemo(
+    () => resolveConnectionsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const externalErpUi = useMemo(
+    () => showExternalErpBridgeUi(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const opsAccess = useIntegrationOpsAccess();
 
   const connectionsQuery = useErpConnections();
   const settingsQuery = useErpSyncSettings(connectionId);
   const saveSettings = useUpsertErpSyncSettings(connectionId ?? '');
   const syncNow = useTriggerErpSyncNow(connectionId ?? '');
+  const setPrimary = useSetPrimaryErpConnection();
   const testErp = useTestErpConnectionById(connectionId ?? '');
+  const updateErpConnection = useUpdateErpConnection();
 
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(() =>
+    initialTab === 'settings' ||
+    initialTab === 'history' ||
+    initialTab === 'logs'
+      ? initialTab
+      : 'overview',
+  );
   const [syncScope, setSyncScope] = useState<ErpSyncScope>('all');
   const [testResult, setTestResult] = useState<{
     ok: boolean;
@@ -254,7 +299,25 @@ export function ErpConnectionDetailPage(): ReactElement {
   const [historyDateTo, setHistoryDateTo] = useState('');
   const [errorLog, setErrorLog] = useState<SyncLogEntry | null>(null);
 
+  useEffect(() => {
+    if (!opsAccess && (activeTab === 'history' || activeTab === 'logs')) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, opsAccess]);
+  const [form, setForm] = useState<UpsertErpSyncSettingsInput>({
+    syncStock: true,
+    syncProducts: true,
+    syncInvoices: false,
+    syncPrices: true,
+    syncOrders: false,
+    syncCustomers: false,
+    autoInvoiceOnDelivered: false,
+    productImportMode: 'ECOMMERCE_ONLY',
+    erpCategoryIds: [],
+  });
+
   const upsertRunning = useSyncMonitorStore((s) => s.upsertRunning);
+  const markError = useSyncMonitorStore((s) => s.markError);
   const monitorEntries = useSyncMonitorStore((s) => s.entries);
   const activeMonitor = useMemo(() => {
     if (!connectionId) {
@@ -269,27 +332,35 @@ export function ErpConnectionDetailPage(): ReactElement {
 
   const connection = connectionsQuery.data?.find((c) => c.id === connectionId);
   const branding = connection ? getErpBranding(connection.erpType) : null;
+  const platformLabel = branding?.label ?? 'ERP bağlantısı';
   const pageTitle = branding ? `${branding.label} — ERP` : 'ERP bağlantısı';
+  const navContextLine = useMemo(
+    () => formatNavPageContext(t(NAV_GROUP_LABEL_KEYS.externalErp), platformLabel),
+    [t, platformLabel],
+  );
 
-  usePageTitle(pageTitle);
-  useBreadcrumbTail(pageTitle);
+  const blockedByNativeMode = !accountingModeLoading && !externalErpUi;
+  const effectivePageTitle = blockedByNativeMode ? t('nav.connections') : pageTitle;
+  const effectiveBreadcrumb = blockedByNativeMode ? t('nav.connections') : platformLabel;
 
-  const [form, setForm] = useState<UpsertErpSyncSettingsInput>({
-    syncFrequency: 'HOURLY',
-    syncStock: true,
-    syncProducts: true,
-    syncInvoices: false,
-    syncPrices: true,
-    syncOrders: false,
-    syncCustomers: false,
-    autoInvoiceOnDelivered: false,
-  });
+  usePageTitle(effectivePageTitle);
+  useBreadcrumbTail(effectiveBreadcrumb);
 
   useEffect(() => {
     if (settingsQuery.data) {
       setForm(settingsToForm(settingsQuery.data));
     }
   }, [settingsQuery.data]);
+
+  useEffect(() => {
+    if (
+      initialTab === 'settings' ||
+      initialTab === 'history' ||
+      initialTab === 'logs'
+    ) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const logsQuery = useQuery({
     queryKey: ['erp-sync-logs', connectionId],
@@ -369,19 +440,29 @@ export function ErpConnectionDetailPage(): ReactElement {
     setTestResult(null);
     testErp.mutate(undefined, {
       onSuccess: (res) => {
-        if (res.connected) {
-          setTestResult({ ok: true, message: formatTestResult(res) });
+        const normalized = normalizeErpTestConnectionResult(res);
+        if (normalized.connected) {
+          const withLabel: ErpTestConnectionResult = {
+            ...normalized,
+            companyName:
+              normalized.companyName ?? connection?.accountLabel ?? undefined,
+          };
+          setTestResult({
+            ok: true,
+            message: formatErpTestSuccessMessage(withLabel),
+          });
         } else {
           setTestResult({
             ok: false,
-            message: res.message ?? 'Bağlantı testi başarısız oldu.',
+            message: formatConnectionTestFailureMessage(normalized.message),
           });
         }
       },
       onError: (error) => {
+        const msg = getApiErrorMessage(error);
         setTestResult({
           ok: false,
-          message: getApiErrorMessage(error),
+          message: formatConnectionTestFailureMessage(msg),
         });
       },
     });
@@ -419,40 +500,65 @@ export function ErpConnectionDetailPage(): ReactElement {
         void logsQuery.refetch();
       },
       onError: (error) => {
-        toast.error(getApiErrorMessage(error));
+        const message = getApiErrorMessage(error);
+        markError(connectionId, message);
+        toast.error(message);
       },
     });
   };
 
-  if (connectionsQuery.isLoading || settingsQuery.isLoading) {
+  if (connectionsQuery.isLoading || settingsQuery.isLoading || accountingModeLoading) {
     return (
-      <div className="space-y-6 p-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-64" />
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!externalErpUi) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/connections">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            {t('connections.erpDetail.backToConnections')}
+          </Link>
+        </Button>
+        <ErpBridgeSection variant="nativeNotice" />
       </div>
     );
   }
 
   if (connectionsQuery.isError) {
     return (
-      <div className="p-6 text-sm text-destructive">
-        {getApiErrorMessage(connectionsQuery.error)}
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-destructive">{getApiErrorMessage(connectionsQuery.error)}</p>
+        </CardContent>
+      </Card>
     );
   }
 
   if (!connection) {
     return (
-      <div className="space-y-4 p-6">
-        <p className="text-muted-foreground">ERP bağlantısı bulunamadı.</p>
-        <Button variant="outline" asChild>
-          <Link to="/connections">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Bağlantılara dön
-          </Link>
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-muted-foreground">ERP bağlantısı bulunamadı.</p>
+          <Button variant="outline" asChild>
+            <Link to="/connections">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Bağlantılara dön
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -472,55 +578,114 @@ export function ErpConnectionDetailPage(): ReactElement {
         : 0;
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link to="/connections">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Bağlantılar
-          </Link>
-        </Button>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={syncScope}
-            onValueChange={(v) => {
-              setSyncScope(v as ErpSyncScope);
-            }}
-          >
-            <SelectTrigger className="w-[180px]" aria-label="Senkron tipi">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SYNC_SCOPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            type="button"
-            disabled={syncNow.isPending || !connection.isActive}
-            onClick={() => {
-              handleSyncNow();
-            }}
-          >
-            {syncNow.isPending ? (
+    <div className="space-y-6">
+      <PageHeader
+        title={erpConnectionDisplayName(connection)}
+        description={`${branding?.label ?? connection.erpType} · ${branding?.accountFieldLabel ?? 'Hesap'}: ${connection.accountLabel ?? '—'}`}
+        context={navContextLine}
+        badges={
+          <>
+            <Badge
+              variant="outline"
+              className={
+                connection.role === 'PRIMARY'
+                  ? 'border-sky-200 bg-sky-50 font-medium text-sky-900'
+                  : 'border-violet-200 bg-violet-50 font-medium text-violet-900'
+              }
+            >
+              {erpConnectionRoleLabel(connection.role)}
+            </Badge>
+            <Badge
+              variant="outline"
+              className="border-violet-200 bg-violet-50 font-medium text-violet-900"
+            >
+              Harici ERP bağlantısı
+            </Badge>
+            {health ? (
+              <Badge variant="outline" className={statusBadgeClass(health.status)}>
+                {opsAccess
+                  ? statusLabel(health.status)
+                  : customerConnectionStatusLabel(health.status)}
+              </Badge>
+            ) : null}
+            {!accountingModeLoading && accountingMode ? (
+              <AccountingModeBadge mode={accountingMode} />
+            ) : null}
+          </>
+        }
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/connections">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Bağlantılara dön
+              </Link>
+            </Button>
+            {connection.role === 'SECONDARY' ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={setPrimary.isPending}
+                onClick={() => {
+                  setPrimary.mutate(connection.id, {
+                    onSuccess: () => {
+                      toast.success('Birincil ERP bağlantısı güncellendi.');
+                    },
+                    onError: (error) => {
+                      toast.error(getApiErrorMessage(error));
+                    },
+                  });
+                }}
+              >
+                Birincil ERP yap
+              </Button>
+            ) : null}
+            {opsAccess ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Senkronize ediliyor…
+                <Select
+                  value={syncScope}
+                  onValueChange={(v) => {
+                    setSyncScope(v as ErpSyncScope);
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]" aria-label="Senkron tipi">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SYNC_SCOPE_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  disabled={syncNow.isPending || !connection.isActive}
+                  onClick={() => {
+                    handleSyncNow();
+                  }}
+                >
+                  {syncNow.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Senkronize ediliyor…
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Şimdi Sync Et
+                    </>
+                  )}
+                </Button>
               </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Şimdi Sync Et
-              </>
-            )}
-          </Button>
-        </div>
-      </div>
+            ) : null}
+          </div>
+        }
+      />
 
-      {(syncNow.isPending || activeMonitor) && (
+      {opsAccess && (syncNow.isPending || activeMonitor) && (
         <Card>
           <CardContent className="space-y-2 pt-6">
             <div className="flex items-center justify-between text-sm">
@@ -537,24 +702,49 @@ export function ErpConnectionDetailPage(): ReactElement {
 
       <SyncMonitorPanel />
 
-      <div className="flex flex-wrap items-start gap-3">
-        <span className="text-3xl" aria-hidden>
-          {branding?.logo}
-        </span>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{branding?.label}</h1>
-          <p className="text-sm text-muted-foreground">
-            {branding?.accountFieldLabel}: {connection.accountLabel ?? '—'}
-          </p>
-        </div>
-      </div>
+      {connection ? (
+        <ConnectionProductMatchKeyCard
+          value={connection.productMatchKey}
+          disabled={updateErpConnection.isPending}
+          onSave={async (productMatchKey) => {
+            if (!connectionId) {
+              return;
+            }
+            await updateErpConnection.mutateAsync({ id: connectionId, productMatchKey });
+          }}
+        />
+      ) : null}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex h-auto flex-wrap gap-1">
-          <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-          <TabsTrigger value="settings">Sync Ayarları</TabsTrigger>
-          <TabsTrigger value="history">Sync Geçmişi</TabsTrigger>
-          <TabsTrigger value="logs">Log</TabsTrigger>
+        <TabsList className="flex h-auto flex-wrap gap-1 rounded-lg border border-border/80 bg-muted/40 p-1.5 shadow-sm">
+          <TabsTrigger
+            value="overview"
+            className="rounded-md px-4 py-2 data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-emerald-500/25"
+          >
+            Genel Bakış
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="rounded-md px-4 py-2 data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-emerald-500/25"
+          >
+            Sync Ayarları
+          </TabsTrigger>
+          {opsAccess ? (
+            <>
+              <TabsTrigger
+                value="history"
+                className="rounded-md px-4 py-2 data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-emerald-500/25"
+              >
+                Sync Geçmişi
+              </TabsTrigger>
+              <TabsTrigger
+                value="logs"
+                className="rounded-md px-4 py-2 data-[state=active]:bg-background data-[state=active]:font-semibold data-[state=active]:shadow-md data-[state=active]:ring-2 data-[state=active]:ring-emerald-500/25"
+              >
+                Log
+              </TabsTrigger>
+            </>
+          ) : null}
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-6">
@@ -576,10 +766,16 @@ export function ErpConnectionDetailPage(): ReactElement {
                 <div>
                   <p className="text-muted-foreground">Son bağlantı testi</p>
                   <p className="font-medium">
-                    {testResult
-                      ? testResult.message
+                    {opsAccess
+                      ? testResult
+                        ? testResult.ok
+                          ? testResult.message
+                          : 'Başarısız'
+                        : connection.isActive
+                          ? 'Henüz test edilmedi'
+                          : 'Pasif'
                       : connection.isActive
-                        ? 'Test edilmedi'
+                        ? 'Otomatik doğrulanır'
                         : 'Pasif'}
                   </p>
                 </div>
@@ -597,7 +793,9 @@ export function ErpConnectionDetailPage(): ReactElement {
                   <p className="text-muted-foreground">Durum</p>
                   {health ? (
                     <Badge variant="outline" className={statusBadgeClass(health.status)}>
-                      {statusLabel(health.status)}
+                      {opsAccess
+                        ? statusLabel(health.status)
+                        : customerConnectionStatusLabel(health.status)}
                     </Badge>
                   ) : (
                     <span className="font-medium">—</span>
@@ -616,24 +814,38 @@ export function ErpConnectionDetailPage(): ReactElement {
               ) : null}
 
               <div className="flex flex-wrap gap-2 border-t pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={testErp.isPending}
-                  onClick={() => {
-                    handleTest();
-                  }}
-                >
-                  {testErp.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {opsAccess ? (
+                  connection.erpType === 'BIZIMHESAP' ? (
+                    <p className="text-sm text-muted-foreground">
+                      BizimHesap API kotası (saatte ~10 istek) nedeniyle canlı bağlantı testi
+                      yapılmaz. Token kaydedildiğinde bağlantı aktif sayılır; ilk doğrulama
+                      planlı veya manuel ürün senkronu ile olur.
+                    </p>
                   ) : (
-                    <TestTube2 className="mr-2 h-4 w-4" />
-                  )}
-                  Test Bağlantısı
-                </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={testErp.isPending}
+                      onClick={() => {
+                        handleTest();
+                      }}
+                    >
+                      {testErp.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <TestTube2 className="mr-2 h-4 w-4" />
+                      )}
+                      Test Bağlantısı
+                    </Button>
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Senkronizasyon otomatik olarak yapılır; ek bir işlem gerekmez.
+                  </p>
+                )}
               </div>
-              {testResult ? (
+              {opsAccess && testResult && connection.erpType !== 'BIZIMHESAP' ? (
                 <p
                   className={`rounded-md border px-3 py-2 text-sm ${
                     testResult.ok
@@ -648,6 +860,7 @@ export function ErpConnectionDetailPage(): ReactElement {
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-2">
+            {opsAccess ? (
             <Card>
               <CardHeader>
                 <CardTitle>Sağlık durumu</CardTitle>
@@ -688,24 +901,49 @@ export function ErpConnectionDetailPage(): ReactElement {
                 )}
               </CardContent>
             </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Entegrasyon durumu</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {health ? (
+                    <Badge variant="outline" className={statusBadgeClass(health.status)}>
+                      {customerConnectionStatusLabel(health.status)}
+                    </Badge>
+                  ) : (
+                    <Skeleton className="h-6 w-24" />
+                  )}
+                  {(health?.status === 'error' || health?.status === 'warning') && (
+                    <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
+                      Entegrasyonunuz kontrol ediliyor. Sorun devam ederse destek talebi
+                      oluşturabilirsiniz.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
-                <CardTitle>Son sync özeti</CardTitle>
+                <CardTitle>{opsAccess ? 'Son sync özeti' : 'Son senkron'}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div>
-                  <p className="text-muted-foreground">Son başarılı</p>
+                  <p className="text-muted-foreground">
+                    {opsAccess ? 'Son başarılı' : 'Son güncelleme'}
+                  </p>
                   <p className="font-medium">
                     {lastSuccessLog
-                      ? `${erpJobLabel(lastSuccessLog.jobType)} · ${format(
+                      ? `${opsAccess ? `${erpJobLabel(lastSuccessLog.jobType)} · ` : ''}${format(
                           new Date(lastSuccessLog.startedAt),
                           'd MMM yyyy HH:mm',
                           { locale: tr },
-                        )} · ${lastSuccessLog.itemsProcessed} kayıt`
-                      : '—'}
+                        )}${opsAccess ? ` · ${lastSuccessLog.itemsProcessed} kayıt` : ''}`
+                      : lastSyncLabel}
                   </p>
                 </div>
+                {opsAccess ? (
                 <div>
                   <p className="text-muted-foreground">Son hata</p>
                   <p className="font-medium text-red-800">
@@ -718,6 +956,7 @@ export function ErpConnectionDetailPage(): ReactElement {
                       : connection.lastErrorMessage ?? '—'}
                   </p>
                 </div>
+                ) : null}
               </CardContent>
             </Card>
           </div>
@@ -728,36 +967,30 @@ export function ErpConnectionDetailPage(): ReactElement {
             <CardHeader>
               <CardTitle>Senkron ayarları</CardTitle>
               <CardDescription>
-                ERP verilerinin ne sıklıkla ve hangi türlerde senkronize edileceğini belirleyin.
+                Hangi verilerin senkronize edileceğini seçin. Sıklık platform tarafından
+                otomatik yönetilir.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <Label>Sync sıklığı</Label>
-                <div
-                  className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"
-                  role="radiogroup"
-                  aria-label="Senkron sıklığı"
-                >
-                  {FREQUENCY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      role="radio"
-                      aria-checked={form.syncFrequency === opt.value}
-                      className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                        form.syncFrequency === opt.value
-                          ? 'border-primary bg-primary/5 font-medium'
-                          : 'border-border hover:border-primary/40'
-                      }`}
-                      onClick={() => {
-                        setForm((f) => ({ ...f, syncFrequency: opt.value }));
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+              {connection.role === 'SECONDARY' ? (
+                <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950">
+                  {erpConnectionRoleHint('SECONDARY')}
+                </p>
+              ) : null}
+              <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+                <p className="font-medium">Senkronizasyon sıklığı</p>
+                <p className="mt-1 text-muted-foreground">
+                  {erpSyncScheduleLabel(connection.erpType)} — müşteri tarafından
+                  değiştirilemez.
+                </p>
+                {settingsQuery.data?.nextSyncAt ? (
+                  <p className="mt-2 text-muted-foreground">
+                    Sonraki planlı senkron:{' '}
+                    {format(new Date(settingsQuery.data.nextSyncAt), 'd MMM yyyy HH:mm', {
+                      locale: tr,
+                    })}
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-4">
@@ -788,27 +1021,95 @@ export function ErpConnectionDetailPage(): ReactElement {
                     title: 'Müşteriler',
                     desc: 'Senkronize → ERP cari',
                   },
-                ].map((item) => (
+                ].map((item) => {
+                  const writeDisabled =
+                    connection.role === 'SECONDARY' &&
+                    (item.key === 'syncOrders' || item.key === 'syncPrices');
+                  return (
                   <div
                     key={item.key}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between rounded-lg border bg-card p-3 shadow-sm"
                   >
                     <div>
                       <p className="font-medium">{item.title}</p>
-                      <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {writeDisabled
+                          ? 'İkincil ERP — yalnızca okuma'
+                          : item.desc}
+                      </p>
                     </div>
                     <Switch
                       checked={form[item.key] ?? false}
+                      disabled={writeDisabled}
                       onCheckedChange={(v) => {
                         setForm((f) => ({ ...f, [item.key]: v }));
                       }}
                       aria-label={item.title}
                     />
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div className="space-y-3 rounded-lg border p-4">
+              {form.syncProducts ? (
+                <div className="space-y-4 rounded-lg border bg-card p-4 shadow-sm">
+                  <div>
+                    <p className="font-medium">Ürün içe aktarma kapsamı</p>
+                    <p className="text-xs text-muted-foreground">
+                      BizimHesap&apos;tan hangi ürünlerin Senkronize&apos;ye alınacağını belirler.
+                      Tüm stok kartları değil, yalnızca seçtiğiniz kapsam senkronize edilir.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product-import-mode">Filtre modu</Label>
+                    <Select
+                      value={normalizeProductImportMode(form.productImportMode)}
+                      onValueChange={(value) => {
+                        const mode = normalizeProductImportMode(value);
+                        setForm((f) => ({
+                          ...f,
+                          productImportMode: mode,
+                          ...(mode !== 'CATEGORY' ? { erpCategoryIds: [] } : {}),
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="product-import-mode">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ECOMMERCE_ONLY">
+                          E-ticaret ürünleri (isEcommerce)
+                        </SelectItem>
+                        <SelectItem value="CATEGORY">Kategori filtresi</SelectItem>
+                        <SelectItem value="ALL">Tüm ürünler</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {form.productImportMode === 'CATEGORY' ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="erp-category-ids">BizimHesap kategori ID veya adları</Label>
+                      <Input
+                        id="erp-category-ids"
+                        placeholder="Örn: E-Ticaret, Elektrik, 12"
+                        value={(form.erpCategoryIds ?? []).join(', ')}
+                        onChange={(event) => {
+                          const ids = event.target.value
+                            .split(',')
+                            .map((part) => part.trim())
+                            .filter(Boolean);
+                          setForm((f) => ({ ...f, erpCategoryIds: ids }));
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Virgülle ayırın. BizimHesap&apos;taki kategori adı veya ID ile eşleşir
+                        (E-Ticaret / E-TİCARET gibi yazım farkları otomatik normalize edilir).
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Otomatik fatura oluşturma</p>
@@ -984,7 +1285,7 @@ export function ErpConnectionDetailPage(): ReactElement {
               {integrationLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Henüz log kaydı yok.</p>
               ) : (
-                <ul className="divide-y rounded-lg border">
+                <ul className="divide-y rounded-lg border bg-card shadow-sm">
                   {integrationLogs.map((entry) => (
                     <li
                       key={entry.id}

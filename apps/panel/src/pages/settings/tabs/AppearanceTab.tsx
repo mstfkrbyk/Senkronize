@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Monitor, Moon, Sun } from 'lucide-react';
 
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import { SearchableCombobox } from '@/components/SearchableCombobox';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -13,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -100,29 +103,40 @@ export function AppearanceTab(): ReactElement {
 
   if (prefsQuery.isLoading) {
     return (
-      <div className="max-w-2xl space-y-4">
+      <SettingsPageShell
+        title={t('settings.appearanceTitle')}
+        description={t('settings.appearanceHint')}
+      >
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-10 w-full" />
-      </div>
+      </SettingsPageShell>
     );
   }
 
   if (prefsQuery.isError) {
     return (
-      <p className="text-sm text-destructive">
-        Görünüm ayarları yüklenemedi. Sayfayı yenileyip tekrar deneyin.
-      </p>
+      <SettingsPageShell
+        title={t('settings.appearanceTitle')}
+        description={t('settings.appearanceHint')}
+      >
+        <QueryErrorAlert
+          error={prefsQuery.error}
+          onRetry={() => {
+            void prefsQuery.refetch();
+          }}
+        />
+      </SettingsPageShell>
     );
   }
 
   return (
-    <div className="max-w-2xl space-y-8">
-      <div>
-        <h2 className="text-lg font-semibold">{t('settings.appearanceTitle')}</h2>
-        <p className="text-sm text-muted-foreground">{t('settings.appearanceHint')}</p>
-      </div>
-
+    <SettingsPageShell
+      title={t('settings.appearanceTitle')}
+      description={t('settings.appearanceHint')}
+    >
+    <Card className="border-border bg-card shadow-sm">
+      <CardContent className="space-y-8 pt-6">
       <div className="space-y-3">
         <Label>Tema</Label>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -135,10 +149,10 @@ export function AppearanceTab(): ReactElement {
                 type="button"
                 onClick={() => setDraft((prev) => ({ ...prev, theme: opt.value }))}
                 className={cn(
-                  'rounded-lg border p-3 text-left transition-colors',
+                  'rounded-lg border bg-background p-3 text-left transition-colors',
                   selected
                     ? 'border-primary ring-2 ring-primary/20'
-                    : 'border-border hover:bg-muted/50',
+                    : 'border-border hover:border-primary/40',
                 )}
               >
                 <div
@@ -238,7 +252,7 @@ export function AppearanceTab(): ReactElement {
         </Select>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-4">
+      <div className="flex items-center justify-between rounded-lg border border-border bg-background p-4">
         <div className="space-y-0.5">
           <Label htmlFor="sidebar-collapsed">Sidebar daraltılmış varsayılan</Label>
           <p className="text-sm text-muted-foreground">
@@ -257,6 +271,8 @@ export function AppearanceTab(): ReactElement {
       <Button type="button" onClick={handleSave} disabled={saveMutation.isPending}>
         Ayarları kaydet
       </Button>
-    </div>
+      </CardContent>
+    </Card>
+    </SettingsPageShell>
   );
 }

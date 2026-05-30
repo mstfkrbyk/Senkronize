@@ -11,16 +11,21 @@ import {
   ChevronRight,
   ExternalLink,
   FileText,
+  Link2,
   Loader2,
   Package,
   Percent,
   Sparkles,
   Store,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { AccountingModeCards } from '@/components/AccountingModeCards';
+import { PageHeader } from '@/components/PageHeader';
 import { ProductSelectionCards } from '@/components/ProductSelectionCards';
+import { ProductSelectionPreview } from '@/components/ProductSelectionPreview';
 import { SearchableCombobox } from '@/components/SearchableCombobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,7 +36,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { ErpConnectionDto } from '@/hooks/useErpConnections';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
-import { resolveOrgHomePath } from '@/lib/org-products';
+import { resolveAppHomePath } from '@/lib/app-home';
 import {
   PRODUCT_SELECTION_OPTIONS,
   productSelectionFromOrgProducts,
@@ -40,13 +45,27 @@ import {
   writeStoredProductSelection,
   type ProductSelection,
 } from '@/lib/product-selection';
+import {
+  PRODUCT_MATCH_KEY_OPTIONS,
+  type OrganizationSettingsMatchKey,
+  type ProductMatchKey,
+} from '@/lib/product-match-key';
 import { cn } from '@/lib/utils';
-import { completeOnboarding } from '@/pages/onboarding/onboarding.api';
+import {
+  completeOnboarding,
+  patchOrganizationAccountingMode,
+} from '@/pages/onboarding/onboarding.api';
 import {
   buildOnboardingSteps,
   quickStartItemsForSelection,
+  type OnboardingStepMeta,
   type OnboardingWizardStepId,
 } from '@/pages/onboarding/onboarding-flow';
+import {
+  formatOnboardingNavContext,
+  ONBOARDING_PAGE_LABEL,
+  resolveProductPlanStepLabel,
+} from '@/pages/onboarding/onboarding-nav-context';
 import { ERP_OPTIONS, MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import {
   ONBOARDING_MARKETPLACE_IDS,
@@ -59,7 +78,7 @@ import {
   type StockManagementMethod,
 } from '@/pages/onboarding/onboarding-wizard.utils';
 import { useAuthStore } from '@/store/auth.store';
-import type { MeResponse } from '@/types/auth';
+import type { AccountingMode, MeResponse } from '@/types/auth';
 import type { OrganizationDetail } from '@/types/organization';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 import type { PlanTier } from '@/types/subscription';
@@ -91,6 +110,7 @@ const ACCOUNTING_HIGHLIGHTS: readonly {
 export function OnboardingWizardPage(): ReactElement {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { t } = useTranslation();
   const { data: me } = useAuth();
   const setOrg = useAuthStore((s) => s.setOrg);
 
@@ -106,6 +126,10 @@ export function OnboardingWizardPage(): ReactElement {
     () => readStoredProductSelection(),
   );
   const [accountingErpType, setAccountingErpType] = useState<string | null>(null);
+  const [accountingModeChoice, setAccountingModeChoice] = useState<AccountingMode | null>(
+    null,
+  );
+  const [productMatchKey, setProductMatchKey] = useState<ProductMatchKey | null>(null);
   const confettiFired = useRef(false);
 
   const orgQuery = useQuery({
@@ -116,6 +140,21 @@ export function OnboardingWizardPage(): ReactElement {
     },
     enabled: Boolean(me),
   });
+
+  const orgSettingsQuery = useQuery({
+    queryKey: ['organizations', 'settings'],
+    queryFn: async (): Promise<OrganizationSettingsMatchKey> => {
+      const { data } = await api.get<OrganizationSettingsMatchKey>('/organizations/settings');
+      return data;
+    },
+    enabled: Boolean(me),
+  });
+
+  useEffect(() => {
+    if (orgSettingsQuery.data?.productMatchKey) {
+      setProductMatchKey(orgSettingsQuery.data.productMatchKey);
+    }
+  }, [orgSettingsQuery.data?.productMatchKey]);
 
   const orgProducts = me?.organization.orgProducts;
   const selectionFromOrg = useMemo(
@@ -139,17 +178,44 @@ export function OnboardingWizardPage(): ReactElement {
     writeStoredProductSelection(resolved);
   }, [me]);
 
+  useEffect(() => {
+    if (accountingModeChoice !== null) {
+      return;
+    }
+    const stored = orgQuery.data?.accountingMode;
+    if (stored === 'NATIVE' || stored === 'EXTERNAL_ERP') {
+      setAccountingModeChoice(stored);
+      return;
+    }
+    if (productSelection === 'ACCOUNTING') {
+      setAccountingModeChoice('NATIVE');
+    }
+  }, [accountingModeChoice, orgQuery.data?.accountingMode, productSelection]);
+
   const steps = useMemo(
     () => buildOnboardingSteps(productSelection),
     [productSelection],
   );
-  const stepCount = steps.length;
-  const currentStepId: OnboardingWizardStepId | undefined = steps[stepIndex]?.id;
-  const currentStepLabel = steps[stepIndex]?.label ?? '';
+  const displaySteps = useMemo((): OnboardingStepMeta[] => {
+    return steps.map((step) =>
+      step.id === 'product-plan'
+        ? { ...step, label: resolveProductPlanStepLabel(selectionLocked) }
+        : step,
+    );
+  }, [steps, selectionLocked]);
+  const stepCount = displaySteps.length;
+  const currentStepId: OnboardingWizardStepId | undefined =
+    displaySteps[stepIndex]?.id;
+  const currentStepLabel = displaySteps[stepIndex]?.label ?? '';
+  const navContextLine = formatOnboardingNavContext(
+    currentStepLabel || ONBOARDING_PAGE_LABEL,
+  );
 
   useEffect(() => {
-    document.title = 'Kurulum — Senkronize';
-  }, []);
+    document.title = currentStepLabel
+      ? `${currentStepLabel} | ${ONBOARDING_PAGE_LABEL} | Senkronize`
+      : `${ONBOARDING_PAGE_LABEL} | Senkronize`;
+  }, [currentStepLabel]);
 
   useEffect(() => {
     track('onboarding_started');
@@ -225,6 +291,20 @@ export function OnboardingWizardPage(): ReactElement {
     [productSelection],
   );
 
+  const patchAccountingModeMutation = useMutation({
+    mutationFn: patchOrganizationAccountingMode,
+    onSuccess: async (_data, mode) => {
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      const currentOrg = useAuthStore.getState().currentOrg;
+      if (currentOrg) {
+        setOrg({ ...currentOrg, accountingMode: mode });
+      }
+    },
+    onError: (error: unknown) => {
+      toast.error(getApiErrorMessage(error));
+    },
+  });
+
   const planMutation = useMutation({
     mutationFn: async (plan: PlanTier): Promise<void> => {
       const current = me?.organization.plan;
@@ -292,10 +372,16 @@ export function OnboardingWizardPage(): ReactElement {
         erpType,
         stockMgmt,
         accountingErpType,
+        accountingMode: accountingModeChoice ?? undefined,
       });
       toast.success('Kurulum tamamlandı.');
       const freshMe = queryClient.getQueryData<MeResponse>(['auth', 'me']);
-      const home = resolveOrgHomePath(freshMe?.organization.orgProducts);
+      const home = resolveAppHomePath({
+        type: freshMe?.organization.type,
+        orgProducts: freshMe?.organization.orgProducts,
+        isImpersonating: freshMe?.isImpersonating ?? false,
+        accountingMode: freshMe?.organization.accountingMode,
+      });
       navigate(home, { replace: true });
     },
     onError: (error: unknown) => {
@@ -344,8 +430,10 @@ export function OnboardingWizardPage(): ReactElement {
     switch (currentStepId) {
       case 'company':
         return Boolean(orgQuery.data?.name?.trim());
+      case 'product-match':
+        return productMatchKey !== null;
       case 'accounting':
-        return true;
+        return accountingModeChoice !== null;
       case 'erp':
         return hasErp ? erpType !== null : stockMgmt !== null;
       case 'marketplace':
@@ -361,9 +449,25 @@ export function OnboardingWizardPage(): ReactElement {
     }
   }
 
-  function goNext(): void {
+  async function goNext(): Promise<void> {
     if (!canProceed()) {
       return;
+    }
+    if (currentStepId === 'product-match' && productMatchKey) {
+      try {
+        await api.patch('/organizations/settings', { productMatchKey });
+        await queryClient.invalidateQueries({ queryKey: ['organizations', 'settings'] });
+      } catch (error) {
+        toast.error(getApiErrorMessage(error));
+        return;
+      }
+    }
+    if (currentStepId === 'accounting' && accountingModeChoice) {
+      try {
+        await patchAccountingModeMutation.mutateAsync(accountingModeChoice);
+      } catch {
+        return;
+      }
     }
     setStepIndex((s) => Math.min(stepCount - 1, s + 1));
   }
@@ -448,56 +552,116 @@ export function OnboardingWizardPage(): ReactElement {
             </CardContent>
           </Card>
         );
-      case 'accounting':
+      case 'product-match':
         return (
           <Card className="border-0 shadow-none md:border md:shadow-sm">
             <CardHeader className="space-y-1 px-0 md:px-6">
-              <CardTitle className="text-2xl">Ön muhasebe özeti</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-2xl">
+                <Link2 className="h-7 w-7 text-sky-500" aria-hidden />
+                {t('productMatching.matchKey.onboardingTitle')}
+              </CardTitle>
               <CardDescription className="text-base">
-                Fatura, cari ve KDV işlemlerinizi pazaryeri kurmadan yönetebilirsiniz.
-                Bağlantıları istediğiniz zaman ekleyebilirsiniz.
+                {t('productMatching.matchKey.onboardingDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 px-0 md:px-6">
               <div className="grid gap-3 sm:grid-cols-3">
-                {ACCOUNTING_HIGHLIGHTS.map((item) => {
-                  const Icon = item.icon;
+                {PRODUCT_MATCH_KEY_OPTIONS.map((option) => {
+                  const selected = productMatchKey === option;
                   return (
-                    <div
-                      key={item.title}
-                      className="rounded-lg border bg-sky-50/40 p-4 dark:bg-sky-950/20"
+                    <button
+                      key={option}
+                      type="button"
+                      className={cn(
+                        'rounded-lg border px-4 py-4 text-left transition-colors',
+                        selected
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:border-primary/40',
+                      )}
+                      onClick={() => {
+                        setProductMatchKey(option);
+                      }}
                     >
-                      <Icon className="mb-2 h-6 w-6 text-sky-500" aria-hidden />
-                      <p className="font-medium text-foreground">{item.title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{item.description}</p>
-                    </div>
+                      <p className="font-medium">
+                        {t(`productMatching.matchKey.options.${option}`)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {t(`productMatching.matchKey.hint.${option}`)}
+                      </p>
+                    </button>
                   );
                 })}
               </div>
-              <div className="space-y-2 rounded-lg border px-4 py-4">
-                <Label htmlFor="accounting-erp" className="font-medium">
-                  Muhasebe programı (isteğe bağlı)
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Paraşüt veya Bizim Hesap bağlantısını kurulumdan sonra da
-                  ekleyebilirsiniz.
-                </p>
-                <SearchableCombobox
-                  id="accounting-erp"
-                  options={accountingErpOptions}
-                  value={accountingErpType}
-                  onChange={setAccountingErpType}
-                  placeholder="Şimdilik atla veya seçin…"
-                  searchPlaceholder="Program ara…"
-                  emptyLabel="Program bulunamadı."
-                />
-              </div>
-              <Button variant="outline" asChild>
-                <Link to="/accounting">
-                  Ön muhasebe panelini önizle
-                  <ExternalLink className="ml-2 h-4 w-4" aria-hidden />
-                </Link>
-              </Button>
+              <p className="text-muted-foreground text-sm">
+                {t('productMatching.matchKey.hierarchy')}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      case 'accounting':
+        return (
+          <Card className="border-0 shadow-none md:border md:shadow-sm">
+            <CardHeader className="space-y-1 px-0 md:px-6">
+              <CardTitle className="text-2xl">Muhasebeyi nerede yönetiyorsunuz?</CardTitle>
+              <CardDescription className="text-base">
+                Kayıtta Ön Muhasebe seçtiyseniz varsayılan Senkronize ön muhasebedir; Paket
+                kullanıcıları tercihlerini burada belirler. Seçiminiz menü yapısını ve
+                bağlantı ekranlarını şekillendirir.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6 px-0 md:px-6">
+              <AccountingModeCards
+                value={accountingModeChoice}
+                onChange={setAccountingModeChoice}
+              />
+              {productSelection && accountingModeChoice === 'NATIVE' ? (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {ACCOUNTING_HIGHLIGHTS.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.title}
+                          className="rounded-lg border bg-sky-50/40 p-4 dark:bg-sky-950/20"
+                        >
+                          <Icon className="mb-2 h-6 w-6 text-sky-500" aria-hidden />
+                          <p className="font-medium text-foreground">{item.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {item.description}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <ProductSelectionPreview selection={productSelection} />
+                  <Button variant="outline" asChild>
+                    <Link to="/accounting">
+                      Ön muhasebe panelini önizle
+                      <ExternalLink className="ml-2 h-4 w-4" aria-hidden />
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+              {accountingModeChoice === 'EXTERNAL_ERP' ? (
+                <div className="space-y-2 rounded-lg border px-4 py-4">
+                  <Label htmlFor="accounting-erp" className="font-medium">
+                    Muhasebe programı (isteğe bağlı)
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Paraşüt veya Bizim Hesap bağlantısını kurulumdan sonra Bağlantılar
+                    ekranından ekleyebilirsiniz.
+                  </p>
+                  <SearchableCombobox
+                    id="accounting-erp"
+                    options={accountingErpOptions}
+                    value={accountingErpType}
+                    onChange={setAccountingErpType}
+                    placeholder="Şimdilik atla veya seçin…"
+                    searchPlaceholder="Program ara…"
+                    emptyLabel="Program bulunamadı."
+                  />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         );
@@ -768,7 +932,11 @@ export function OnboardingWizardPage(): ReactElement {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <Label className="text-base">Ne için kullanacaksınız?</Label>
+                  <Label className="text-base">Ürün hattı</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Entegrasyon, Ön Muhasebe veya Paket — fiyatlandırma sayfasındaki ürün
+                    hatlarıyla aynıdır. Yerel modda stok menüsü seçim sonrası önizlenir.
+                  </p>
                   <ProductSelectionCards
                     value={productSelection}
                     onChange={(id) => {
@@ -896,19 +1064,21 @@ export function OnboardingWizardPage(): ReactElement {
   const isLastContentStep = currentStepId === 'complete';
   const showNavNext = !isLastContentStep;
 
+  const wizardTitle =
+    productSelection === 'ACCOUNTING'
+      ? 'Ön muhasebe kurulumunuzu tamamlayın'
+      : productSelection === 'INTEGRATION'
+        ? 'Entegrasyon kurulumunuzu tamamlayın'
+        : 'Hesabınızı birkaç adımda hazırlayın';
+
   return (
     <div className="min-h-screen bg-background px-4 py-8 md:py-12">
-      <div className="mx-auto flex max-w-4xl flex-col gap-8">
-        <header className="space-y-2 text-center md:text-left">
-          <p className="text-sm font-medium text-muted-foreground">İlk kurulum</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            {productSelection === 'ACCOUNTING'
-              ? 'Ön muhasebe kurulumunuzu tamamlayın'
-              : productSelection === 'INTEGRATION'
-                ? 'Entegrasyon kurulumunuzu tamamlayın'
-                : 'Hesabınızı birkaç adımda hazırlayın'}
-          </h1>
-        </header>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <PageHeader
+          title={wizardTitle}
+          description={`Adım ${stepIndex + 1} / ${stepCount} — ${currentStepLabel}`}
+          context={navContextLine}
+        />
 
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-muted-foreground">
@@ -932,7 +1102,7 @@ export function OnboardingWizardPage(): ReactElement {
         </div>
 
         <ol className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-          {steps.map((step, i) => {
+          {displaySteps.map((step, i) => {
             const done = stepIndex > i;
             const active = stepIndex === i;
             return (
@@ -968,8 +1138,17 @@ export function OnboardingWizardPage(): ReactElement {
             <span />
           )}
           {showNavNext ? (
-            <Button type="button" onClick={goNext} disabled={!canProceed()}>
-              İleri
+            <Button
+              type="button"
+              onClick={() => void goNext()}
+              disabled={
+                !canProceed() ||
+                (currentStepId === 'accounting' && patchAccountingModeMutation.isPending)
+              }
+            >
+              {currentStepId === 'accounting' && patchAccountingModeMutation.isPending
+                ? 'Kaydediliyor…'
+                : 'İleri'}
               <ChevronRight className="ml-1 h-4 w-4" aria-hidden />
             </Button>
           ) : null}

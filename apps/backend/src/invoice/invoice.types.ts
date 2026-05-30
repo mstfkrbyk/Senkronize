@@ -41,6 +41,15 @@ export type InvoiceStats = {
   totalCount: number;
   monthRevenue: string;
   monthCount: number;
+  overdueCount: number;
+};
+
+/** GET /invoices — liste filtreleri (status hariç) ile org bazlı durum sayıları */
+export type InvoiceListMeta = {
+  DRAFT: number;
+  SENT: number;
+  PAID: number;
+  OVERDUE: number;
 };
 
 export type AccountingOverviewKpiAmount = {

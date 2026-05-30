@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AccountingModule } from '../accounting/accounting.module';
 import { AdapterModule } from '../adapters/adapter.module';
 import { CustomerModule } from '../customer/customer.module';
 import { ErpModule } from '../erp/erp.module';
@@ -22,6 +23,7 @@ import { ShippingLabelService } from './shipping-label.service';
     StockModule,
     OutboundWebhookModule,
     InvoiceModule,
+    AccountingModule,
     ReturnModule,
     ErpModule,
     AdapterModule,

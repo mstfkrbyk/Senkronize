@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
+import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,6 +42,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { StockMovementDto, WarehouseDto } from '@/types/stock';
@@ -110,10 +113,17 @@ function WarehouseStockCount({
 }: WarehouseStockCountProps): ReactElement {
   const q = useWarehouseStock(warehouseId);
   if (q.isLoading) {
-    return <span className="text-muted-foreground text-sm">…</span>;
+    return <Skeleton className="inline-block h-4 w-20" aria-hidden />;
   }
   if (q.isError) {
-    return <span className="text-destructive text-sm">Hata</span>;
+    return (
+      <span
+        className="text-destructive text-sm"
+        title={getApiErrorMessage(q.error)}
+      >
+        Yüklenemedi
+      </span>
+    );
   }
   return (
     <span className="text-muted-foreground text-sm">
@@ -246,15 +256,10 @@ export function StockManagementPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Stok yönetimi
-          </h1>
-          <p className="text-muted-foreground">
-            Stok durumu, depolar ve hareket geçmişi tek ekranda.
-          </p>
-        </div>
+      <StockPageHeader
+        title="Stok yönetimi"
+        description="Stok durumu, depolar ve hareket geçmişi tek ekranda."
+        actions={
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link to="/stock/warehouses">Depolar</Link>
@@ -269,7 +274,8 @@ export function StockManagementPage(): ReactElement {
             Stok transfer et
           </Button>
         </div>
-      </div>
+        }
+      />
 
       <Tabs defaultValue="status" className="space-y-4">
         <TabsList>
@@ -280,7 +286,7 @@ export function StockManagementPage(): ReactElement {
         </TabsList>
 
         <TabsContent value="status" className="space-y-4">
-          <StockStatusPage />
+          <StockStatusPage embedded />
         </TabsContent>
 
         <TabsContent value="distribution">

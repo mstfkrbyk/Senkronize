@@ -27,6 +27,15 @@ import type {
 } from '@/types/report';
 
 import { useCreateReportSchedule } from './hooks/useReportScheduleMutations';
+import {
+  INTEGRATION_SCHEDULE_REPORT_TYPES,
+  type IntegrationScheduleReportType,
+} from './reports-tabs.config';
+
+const SCHEDULE_TYPE_LABELS: Record<IntegrationScheduleReportType, string> = {
+  SALES: 'Satış',
+  PROFIT: 'Kâr-Zarar',
+};
 
 interface Props {
   open: boolean;
@@ -41,14 +50,23 @@ export function ReportScheduleModal({
 }: Props): ReactElement {
   const createMutation = useCreateReportSchedule();
   const [frequency, setFrequency] = useState<ReportScheduleFrequencyUi>('WEEKLY');
-  const [reportType, setReportType] = useState<ReportScheduleType>(defaultReportType);
+  const initialType = INTEGRATION_SCHEDULE_REPORT_TYPES.includes(
+    defaultReportType as IntegrationScheduleReportType,
+  )
+    ? defaultReportType
+    : 'SALES';
+  const [reportType, setReportType] = useState<ReportScheduleType>(initialType);
   const [format, setFormat] = useState<ReportScheduleFormat>('PDF');
   const [emailsText, setEmailsText] = useState('');
-  const [name, setName] = useState('');
-
   useEffect(() => {
     if (open) {
-      setReportType(defaultReportType);
+      setReportType(
+        INTEGRATION_SCHEDULE_REPORT_TYPES.includes(
+          defaultReportType as IntegrationScheduleReportType,
+        )
+          ? defaultReportType
+          : 'SALES',
+      );
     }
   }, [open, defaultReportType]);
 
@@ -63,13 +81,12 @@ export function ReportScheduleModal({
         frequency,
         format,
         emails,
-        name: reportType === 'CUSTOM' || reportType === 'VAT' ? name : undefined,
+        name: undefined,
       },
       {
         onSuccess: () => {
           onOpenChange(false);
           setEmailsText('');
-          setName('');
         },
       },
     );
@@ -95,26 +112,14 @@ export function ReportScheduleModal({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="SALES">Satış</SelectItem>
-                <SelectItem value="VAT">KDV</SelectItem>
-                <SelectItem value="PROFIT">Kâr-Zarar</SelectItem>
-                <SelectItem value="CUSTOM">Özel</SelectItem>
+                {INTEGRATION_SCHEDULE_REPORT_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {SCHEDULE_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          {(reportType === 'CUSTOM' || reportType === 'VAT') && (
-            <div className="space-y-2">
-              <Label htmlFor="schedule-name">Rapor adı</Label>
-              <Input
-                id="schedule-name"
-                placeholder={
-                  reportType === 'VAT' ? 'Aylık KDV raporu' : 'Özel rapor adı'
-                }
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-          )}
           <div className="space-y-2">
             <Label htmlFor="schedule-frequency">Sıklık</Label>
             <Select

@@ -296,7 +296,7 @@ export class ProductImportService {
       if (
         parentSku?.trim() &&
         parentSku.trim() !== (product.sku ?? '').trim() &&
-        parentSku.trim() !== product.barcode.trim()
+        parentSku.trim() !== (product.barcode ?? '').trim()
       ) {
         result.errors.push(
           `Satır ${lineNo}: parentSku ürün ile eşleşmiyor (${parentSku.trim()}).`,
@@ -473,7 +473,7 @@ export class ProductImportService {
         const listing = p.listings[0];
         const stock = p.variants.reduce((sum, v) => sum + v.stock, 0);
         const rowMap: Record<string, string> = {
-          barcode: p.barcode,
+          barcode: p.barcode ?? '',
           sku: p.sku ?? '',
           name: p.name,
           category: p.category ?? '',
@@ -520,7 +520,7 @@ export class ProductImportService {
 
     for (const p of products) {
       productRows.push(this.productToCsvRow(p, productHeader));
-      const parentSku = (p.sku ?? p.barcode).trim();
+      const parentSku = (p.sku ?? p.barcode ?? '').trim();
       for (const v of p.variants) {
         variantRows.push(this.variantToCsvRow(p, v, parentSku, variantHeader));
       }
@@ -554,7 +554,7 @@ export class ProductImportService {
   private productToCsvRow(p: Product, header: string[]): string[] {
     const map: Record<string, string> = {
       sku: p.sku ?? '',
-      barcode: p.barcode,
+      barcode: p.barcode ?? '',
       title: p.name,
       description: p.description ?? '',
       brand: p.brand ?? '',

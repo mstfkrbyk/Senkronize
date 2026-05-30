@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getApiErrorMessage } from '@/lib/api';
 import type { PricingRule } from '@/types/pricing';
 
 import { ScheduleRuleDialog } from './ScheduleRuleDialog';
@@ -81,7 +81,12 @@ export function ScheduledRulesTab({ proAccess }: Props): ReactElement {
         <CardContent className="space-y-3">
           {scheduledQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
           {scheduledQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(scheduledQuery.error)}</p>
+            <QueryErrorAlert
+              error={scheduledQuery.error}
+              onRetry={() => {
+                void scheduledQuery.refetch();
+              }}
+            />
           ) : null}
           {!scheduledQuery.isLoading &&
           !scheduledQuery.isError &&

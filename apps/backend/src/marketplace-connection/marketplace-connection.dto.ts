@@ -8,6 +8,8 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+import type { ProductMatchKey } from '../common/product-match-key';
+
 export class CreateConnectionDto {
   @IsEnum(Marketplace)
   platform!: Marketplace;
@@ -38,4 +40,22 @@ export class UpdateConnectionDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  /** null = organizasyon varsayılanını kullan */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsEnum(['BARCODE', 'SKU', 'MANUAL'], {
+    message: 'productMatchKey BARCODE, SKU, MANUAL veya null olmalıdır.',
+  })
+  productMatchKey?: ProductMatchKey | null;
+
+  /** Platforma stok push */
+  @IsOptional()
+  @IsBoolean()
+  pushStock?: boolean;
+
+  /** Platforma fiyat push */
+  @IsOptional()
+  @IsBoolean()
+  pushPrice?: boolean;
 }

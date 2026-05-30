@@ -19,6 +19,7 @@ import type {
   AccountingOverview,
   AccountingOverviewKpiAmount,
   InvoiceItem,
+  InvoiceListMeta,
   InvoicePdfContext,
   InvoiceStats,
   OrganizationForInvoicePdf,
@@ -33,6 +34,17 @@ function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function parseItemsJson(raw: Prisma.JsonValue): InvoiceItem[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -43,20 +55,31 @@ function parseItemsJson(raw: Prisma.JsonValue): InvoiceItem[] {
       continue;
     }
     const r = row as Record<string, unknown>;
-    if (
-      typeof r.name !== 'string' ||
-      typeof r.quantity !== 'number' ||
-      typeof r.unitPrice !== 'number'
-    ) {
+    if (typeof r.name !== 'string') {
       continue;
+    }
+    const quantity = toFiniteNumber(r.quantity);
+    const unitPrice = toFiniteNumber(r.unitPrice);
+    if (quantity === null || unitPrice === null) {
+      continue;
+    }
+    const taxRate = toFiniteNumber(r.taxRate) ?? DEFAULT_TAX_RATE;
+    const lineSubtotal = roundMoney(quantity * unitPrice);
+    let taxAmount = toFiniteNumber(r.taxAmount) ?? 0;
+    let total = toFiniteNumber(r.total) ?? 0;
+    if (taxAmount === 0 && taxRate > 0) {
+      taxAmount = roundMoney((lineSubtotal * taxRate) / 100);
+    }
+    if (total === 0) {
+      total = roundMoney(lineSubtotal + taxAmount);
     }
     items.push({
       name: r.name,
-      quantity: r.quantity,
-      unitPrice: r.unitPrice,
-      taxRate: typeof r.taxRate === 'number' ? r.taxRate : DEFAULT_TAX_RATE,
-      taxAmount: typeof r.taxAmount === 'number' ? r.taxAmount : 0,
-      total: typeof r.total === 'number' ? r.total : 0,
+      quantity,
+      unitPrice,
+      taxRate,
+      taxAmount,
+      total,
     });
   }
   return items;
@@ -116,6 +139,67 @@ async function zipPdfBuffers(files: { name: string; buffer: Buffer }[]): Promise
 function safePdfFileName(invoiceNumber: string): string {
   const slug = invoiceNumber.replace(/[^a-zA-Z0-9._-]+/g, '_');
   return `Fatura-${slug}.pdf`;
+}
+
+const INVOICE_LIST_META_STATUSES: readonly InvoiceStatus[] = [
+  InvoiceStatus.DRAFT,
+  InvoiceStatus.SENT,
+  InvoiceStatus.PAID,
+  InvoiceStatus.OVERDUE,
+];
+
+function buildInvoiceListWhere(
+  organizationId: string,
+  query: InvoiceQueryDto,
+  options?: { includeStatus?: boolean },
+): Prisma.InvoiceWhereInput {
+  const createdAt: Prisma.DateTimeFilter = {};
+  if (query.startDate) {
+    createdAt.gte = new Date(query.startDate);
+  }
+  if (query.endDate) {
+    const end = new Date(query.endDate);
+    end.setHours(23, 59, 59, 999);
+    createdAt.lte = end;
+  }
+
+  const orderIdFilter =
+    query.orderIds && query.orderIds.length > 0
+      ? { orderId: { in: query.orderIds } }
+      : query.orderId
+        ? { orderId: query.orderId }
+        : {};
+
+  return {
+    organizationId,
+    deletedAt: null,
+    ...orderIdFilter,
+    ...(options?.includeStatus !== false && query.status && { status: query.status }),
+    ...(Object.keys(createdAt).length > 0 && { createdAt }),
+    ...(query.search && {
+      OR: [
+        {
+          customerName: {
+            contains: query.search,
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+        { invoiceNumber: { contains: query.search } },
+      ],
+    }),
+  };
+}
+
+async function countInvoiceListMeta(
+  prisma: PrismaService,
+  metaWhere: Prisma.InvoiceWhereInput,
+): Promise<InvoiceListMeta> {
+  const [DRAFT, SENT, PAID, OVERDUE] = await Promise.all(
+    INVOICE_LIST_META_STATUSES.map((status) =>
+      prisma.invoice.count({ where: { ...metaWhere, status } }),
+    ),
+  );
+  return { DRAFT, SENT, PAID, OVERDUE };
 }
 
 @Injectable()
@@ -290,40 +374,20 @@ export class InvoiceService {
   async findAll(
     organizationId: string,
     query: InvoiceQueryDto,
-  ): Promise<{ items: SerializedInvoice[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    items: SerializedInvoice[];
+    total: number;
+    page: number;
+    limit: number;
+    meta: InvoiceListMeta;
+  }> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
-    const createdAt: Prisma.DateTimeFilter = {};
-    if (query.startDate) {
-      createdAt.gte = new Date(query.startDate);
-    }
-    if (query.endDate) {
-      const end = new Date(query.endDate);
-      end.setHours(23, 59, 59, 999);
-      createdAt.lte = end;
-    }
+    const where = buildInvoiceListWhere(organizationId, query, { includeStatus: true });
+    const metaWhere = buildInvoiceListWhere(organizationId, query, { includeStatus: false });
 
-    const where: Prisma.InvoiceWhereInput = {
-      organizationId,
-      deletedAt: null,
-      ...(query.orderId && { orderId: query.orderId }),
-      ...(query.status && { status: query.status }),
-      ...(Object.keys(createdAt).length > 0 && { createdAt }),
-      ...(query.search && {
-        OR: [
-          {
-            customerName: {
-              contains: query.search,
-              mode: Prisma.QueryMode.insensitive,
-            },
-          },
-          { invoiceNumber: { contains: query.search } },
-        ],
-      }),
-    };
-
-    const [rows, total] = await this.prisma.$transaction([
+    const [rows, total, meta] = await Promise.all([
       this.prisma.invoice.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -331,6 +395,7 @@ export class InvoiceService {
         take: limit,
       }),
       this.prisma.invoice.count({ where }),
+      countInvoiceListMeta(this.prisma, metaWhere),
     ]);
 
     return {
@@ -338,6 +403,7 @@ export class InvoiceService {
       total,
       page,
       limit,
+      meta,
     };
   }
 
@@ -458,7 +524,7 @@ export class InvoiceService {
       status: { not: InvoiceStatus.CANCELLED },
     };
 
-    const [totalCount, monthAgg, monthCount] = await Promise.all([
+    const [totalCount, monthAgg, monthCount, overdueCount] = await Promise.all([
       this.prisma.invoice.count({ where: baseWhere }),
       this.prisma.invoice.aggregate({
         where: {
@@ -471,12 +537,16 @@ export class InvoiceService {
       this.prisma.invoice.count({
         where: { ...baseWhere, createdAt: { gte: startOfMonth } },
       }),
+      this.prisma.invoice.count({
+        where: { ...baseWhere, status: InvoiceStatus.OVERDUE },
+      }),
     ]);
 
     return {
       totalCount,
       monthRevenue: monthAgg._sum.totalAmount?.toString() ?? '0',
       monthCount,
+      overdueCount,
     };
   }
 

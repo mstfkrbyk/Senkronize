@@ -18,6 +18,10 @@ import { Cacheable } from '../common/cache/cache.decorator';
 import { CacheKeys } from '../common/cache/cache-keys';
 import { CACHE_TTL } from '../common/cache/cache-ttl';
 import { CacheService } from '../common/cache/cache.service';
+import {
+  collectProductStockKeys,
+  resolveProductStockKey,
+} from '../common/product-match-key';
 import { PrismaService } from '../prisma/prisma.service';
 import { JOB_DEFAULT_OPTIONS, QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
@@ -97,9 +101,17 @@ const productListWithCountsSelect = {
   },
 } satisfies Prisma.ProductSelect;
 
-export type ProductListItem = Prisma.ProductGetPayload<{
-  select: typeof productListWithCountsSelect;
-}> & {
+export type SerializedProduct = Omit<Product, 'costPrice'> & {
+  costPrice: string | null;
+};
+
+export type ProductListItem = Omit<
+  Prisma.ProductGetPayload<{
+    select: typeof productListWithCountsSelect;
+  }>,
+  'costPrice'
+> & {
+  costPrice: string | null;
   imageCount: number;
   totalStock: number;
   salePrice: number | null;
@@ -129,7 +141,7 @@ export interface ProductDetailStock {
 }
 
 export interface ProductDetailPayload {
-  product: Product;
+  product: SerializedProduct;
   variants: ProductVariant[];
   listings: ProductDetailListing[];
   stockMovements: ProductDetailStock[];
@@ -137,7 +149,7 @@ export interface ProductDetailPayload {
 
 export interface ReorderAlertRow {
   productId: string;
-  barcode: string;
+  barcode: string | null;
   name: string;
   sku: string | null;
   currentStock: number;
@@ -202,8 +214,9 @@ export class ProductService {
       case 'updatedAt':
         return { updatedAt: order };
       case 'price':
+        return { costPrice: order };
       case 'stock':
-        return { updatedAt: order };
+        return { name: order };
       case 'createdAt':
       default:
         return { createdAt: order };
@@ -217,6 +230,11 @@ export class ProductService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const where = this.buildProductWhere(organizationId, query);
+
+    if (query.sortBy === 'stock') {
+      return this.findAllSortedByStock(organizationId, query, where, page, limit);
+    }
+
     const orderBy = this.buildProductOrderBy(query);
 
     const [rows, total] = await Promise.all([
@@ -230,7 +248,70 @@ export class ProductService {
       this.prisma.product.count({ where }),
     ]);
 
-    const barcodes = [...new Set(rows.map((r) => r.barcode))];
+    return this.buildProductListItems(organizationId, rows, total);
+  }
+
+  private async findAllSortedByStock(
+    organizationId: string,
+    query: ProductQueryDto,
+    where: Prisma.ProductWhereInput,
+    page: number,
+    limit: number,
+  ): Promise<{ items: ProductListItem[]; total: number }> {
+    const order = query.sortOrder ?? 'desc';
+    const candidates = await this.prisma.product.findMany({
+      where,
+      select: { id: true, barcode: true, sku: true },
+    });
+    const total = candidates.length;
+    if (total === 0) {
+      return { items: [], total: 0 };
+    }
+
+    const barcodes = collectProductStockKeys(candidates);
+    const stockByBarcode = await this.aggregateAvailableStockByBarcode(
+      organizationId,
+      barcodes,
+    );
+    const sortedIds = candidates
+      .slice()
+      .sort((a, b) => {
+        const stockA = stockByBarcode.get(resolveProductStockKey(a) ?? '') ?? 0;
+        const stockB = stockByBarcode.get(resolveProductStockKey(b) ?? '') ?? 0;
+        if (stockA !== stockB) {
+          return order === 'asc' ? stockA - stockB : stockB - stockA;
+        }
+        return a.id.localeCompare(b.id);
+      })
+      .slice((page - 1) * limit, page * limit)
+      .map((row) => row.id);
+
+    if (sortedIds.length === 0) {
+      return { items: [], total };
+    }
+
+    const rows = await this.prisma.product.findMany({
+      where: { id: { in: sortedIds }, organizationId, deletedAt: null },
+      select: productListWithCountsSelect,
+    });
+    const rowById = new Map(rows.map((row) => [row.id, row]));
+    const orderedRows = sortedIds
+      .map((id) => rowById.get(id))
+      .filter((row): row is (typeof rows)[number] => row !== undefined);
+
+    return this.buildProductListItems(organizationId, orderedRows, total);
+  }
+
+  private async buildProductListItems(
+    organizationId: string,
+    rows: Array<
+      Prisma.ProductGetPayload<{
+        select: typeof productListWithCountsSelect;
+      }>
+    >,
+    total: number,
+  ): Promise<{ items: ProductListItem[]; total: number }> {
+    const barcodes = collectProductStockKeys(rows);
     const stockByBarcode =
       barcodes.length > 0
         ? await this.aggregateAvailableStockByBarcode(organizationId, barcodes)
@@ -282,12 +363,13 @@ export class ProductService {
     }
 
     const items: ProductListItem[] = rows.map((row) => {
-      const { _count, imageUrls, ...rest } = row;
+      const { _count, imageUrls, costPrice, ...rest } = row;
       return {
         ...rest,
+        costPrice: this.serializeProductCostPrice(costPrice),
         imageUrls,
         imageCount: imageUrls.length,
-        totalStock: stockByBarcode.get(row.barcode) ?? 0,
+        totalStock: stockByBarcode.get(resolveProductStockKey(row) ?? '') ?? 0,
         salePrice: salePriceByProductId.get(row.id) ?? null,
         _count,
       };
@@ -296,14 +378,14 @@ export class ProductService {
     return { items, total };
   }
 
-  async findOne(organizationId: string, id: string): Promise<Product> {
+  async findOne(organizationId: string, id: string): Promise<SerializedProduct> {
     const row = await this.prisma.product.findFirst({
       where: { id, organizationId, deletedAt: null },
     });
     if (!row) {
       throw new NotFoundException('Ürün bulunamadı');
     }
-    return row;
+    return this.serializeProduct(row);
   }
 
   async getProductDetail(
@@ -364,10 +446,20 @@ export class ProductService {
       reservedQty: r.reservedQty,
       updatedAt: r.updatedAt,
     }));
-    return { product: product as Product, variants, listings, stockMovements };
+    return {
+      product: this.serializeProduct(product as Product),
+      variants,
+      listings,
+      stockMovements,
+    };
   }
 
-  async create(organizationId: string, dto: CreateProductDto): Promise<Product> {
+  async create(organizationId: string, dto: CreateProductDto): Promise<SerializedProduct> {
+    const barcode = dto.barcode?.trim() ?? '';
+    const sku = dto.sku?.trim() ?? '';
+    if (barcode.length === 0 && sku.length === 0) {
+      throw new BadRequestException('Barkod veya SKU zorunludur.');
+    }
     const categoryId =
       dto.categoryId === undefined
         ? undefined
@@ -377,8 +469,8 @@ export class ProductService {
         data: {
           organizationId,
           name: dto.name,
-          barcode: dto.barcode,
-          sku: dto.sku,
+          barcode: barcode.length > 0 ? barcode : null,
+          sku: sku.length > 0 ? sku : null,
           brand: dto.brand,
           category: dto.category,
           ...(categoryId !== undefined && { categoryId }),
@@ -392,7 +484,7 @@ export class ProductService {
         },
       });
       await this.cache.invalidateProductsForOrg(organizationId);
-      return created;
+      return this.serializeProduct(created);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -410,37 +502,54 @@ export class ProductService {
     organizationId: string,
     id: string,
     dto: UpdateProductDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     await this.findOne(organizationId, id);
     let categoryId: string | undefined;
     if (dto.categoryId !== undefined) {
       categoryId = await this.resolveCategoryId(organizationId, dto.categoryId);
     }
+    const data: Prisma.ProductUpdateManyMutationInput = {
+      ...(dto.name !== undefined && { name: dto.name }),
+      ...(dto.barcode !== undefined && {
+        barcode: dto.barcode?.trim() ? dto.barcode.trim() : null,
+      }),
+      ...(dto.sku !== undefined && { sku: dto.sku }),
+      ...(dto.brand !== undefined && { brand: dto.brand }),
+      ...(dto.category !== undefined && { category: dto.category }),
+      ...(categoryId !== undefined && { categoryId }),
+      ...(dto.description !== undefined && { description: dto.description }),
+      ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      ...(dto.productMatchKey !== undefined && { productMatchKey: dto.productMatchKey }),
+      ...(dto.pushStockEnabled !== undefined && {
+        pushStockEnabled: dto.pushStockEnabled,
+      }),
+      ...(dto.pushPriceEnabled !== undefined && {
+        pushPriceEnabled: dto.pushPriceEnabled,
+      }),
+      ...(dto.costPrice !== undefined && {
+        costPrice: new Prisma.Decimal(dto.costPrice),
+      }),
+      ...(dto.tags !== undefined && { tags: dto.tags }),
+      ...(dto.reorderPoint !== undefined && {
+        reorderPoint: dto.reorderPoint,
+      }),
+      ...(dto.reorderQty !== undefined && { reorderQty: dto.reorderQty }),
+      ...(dto.leadTimeDays !== undefined && {
+        leadTimeDays: dto.leadTimeDays,
+      }),
+    };
+    if (Object.keys(data).length === 0) {
+      return this.findOne(organizationId, id);
+    }
     try {
-      const updated = await this.prisma.product.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined && { name: dto.name }),
-          ...(dto.barcode !== undefined && { barcode: dto.barcode }),
-          ...(dto.sku !== undefined && { sku: dto.sku }),
-          ...(dto.brand !== undefined && { brand: dto.brand }),
-          ...(dto.category !== undefined && { category: dto.category }),
-          ...(categoryId !== undefined && { categoryId }),
-          ...(dto.description !== undefined && { description: dto.description }),
-          ...(dto.isActive !== undefined && { isActive: dto.isActive }),
-          ...(dto.costPrice !== undefined && {
-            costPrice: new Prisma.Decimal(dto.costPrice),
-          }),
-          ...(dto.tags !== undefined && { tags: dto.tags }),
-          ...(dto.reorderPoint !== undefined && {
-            reorderPoint: dto.reorderPoint,
-          }),
-          ...(dto.reorderQty !== undefined && { reorderQty: dto.reorderQty }),
-          ...(dto.leadTimeDays !== undefined && {
-            leadTimeDays: dto.leadTimeDays,
-          }),
-        },
+      const result = await this.prisma.product.updateMany({
+        where: { id, organizationId, deletedAt: null },
+        data,
       });
+      if (result.count === 0) {
+        throw new NotFoundException('Ürün bulunamadı');
+      }
+      const updated = await this.findOne(organizationId, id);
       await this.cache.invalidateProductsForOrg(organizationId);
       void this.outboundWebhookService.dispatch(organizationId, WebhookEvent.PRODUCT_UPDATED, {
         productId: id,
@@ -452,6 +561,9 @@ export class ProductService {
         });
       return updated;
     } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -512,7 +624,9 @@ export class ProductService {
       select: { barcode: true },
       orderBy: { barcode: 'asc' },
     });
-    return rows.map((r) => r.barcode);
+    return rows
+      .map((r) => r.barcode)
+      .filter((b): b is string => b != null && b.length > 0);
   }
 
   async syncToPlatforms(
@@ -639,8 +753,12 @@ export class ProductService {
     const stockMap = await this.aggregateAvailableStockByBarcode(organizationId);
     const out: ReorderAlertRow[] = [];
     for (const p of products) {
+      const stockKey = resolveProductStockKey(p);
+      if (!stockKey) {
+        continue;
+      }
       const min = p.reorderPoint ?? 0;
-      const stock = stockMap.get(p.barcode) ?? 0;
+      const stock = stockMap.get(stockKey) ?? 0;
       if (stock >= min) {
         continue;
       }
@@ -664,7 +782,7 @@ export class ProductService {
     organizationId: string,
     productId: string,
     dto: UpdateProductReorderDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     await this.findOne(organizationId, productId);
     const data: Prisma.ProductUpdateInput = {};
     if (dto.reorderPoint !== undefined) {
@@ -684,14 +802,14 @@ export class ProductService {
       data,
     });
     await this.cache.invalidateProductsForOrg(organizationId);
-    return updated;
+    return this.serializeProduct(updated);
   }
 
   async reorderImages(
     organizationId: string,
     productId: string,
     imageUrls: string[],
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     const product = await this.findOne(organizationId, productId);
     const existing = new Set(product.imageUrls ?? []);
     for (const url of imageUrls) {
@@ -704,14 +822,14 @@ export class ProductService {
       data: { imageUrls },
     });
     await this.cache.invalidateProductsForOrg(organizationId);
-    return updated;
+    return this.serializeProduct(updated);
   }
 
   async removeImageAtIndex(
     organizationId: string,
     productId: string,
     imageIndex: number,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     const product = await this.findOne(organizationId, productId);
     const urls = [...(product.imageUrls ?? [])];
     if (imageIndex < 0 || imageIndex >= urls.length) {
@@ -723,7 +841,7 @@ export class ProductService {
       data: { imageUrls: urls },
     });
     await this.cache.invalidateProductsForOrg(organizationId);
-    return updated;
+    return this.serializeProduct(updated);
   }
 
   async getProductAnalytics(
@@ -737,11 +855,11 @@ export class ProductService {
       select: { barcode: true },
     });
     const barcodes = [
-      product.barcode,
+      resolveProductStockKey(product),
       ...variants
         .map((v) => v.barcode)
         .filter((b): b is string => typeof b === 'string' && b.length > 0),
-    ];
+    ].filter((b): b is string => b != null && b.length > 0);
     const uniqueBarcodes = [...new Set(barcodes)];
 
     const since = new Date();
@@ -760,28 +878,31 @@ export class ProductService {
     weekStart.setUTCDate(weekStart.getUTCDate() - 7);
     weekStart.setUTCHours(0, 0, 0, 0);
 
-    const orderItems = await this.prisma.orderItem.findMany({
-      where: {
-        organizationId,
-        barcode: { in: uniqueBarcodes },
-        order: {
-          deletedAt: null,
-          createdAt: { gte: since },
-        },
-      },
-      select: {
-        quantity: true,
-        unitPrice: true,
-        order: {
-          select: {
-            id: true,
-            platform: true,
-            createdAt: true,
-            status: true,
-          },
-        },
-      },
-    });
+    const orderItems =
+      uniqueBarcodes.length > 0
+        ? await this.prisma.orderItem.findMany({
+            where: {
+              organizationId,
+              barcode: { in: uniqueBarcodes },
+              order: {
+                deletedAt: null,
+                createdAt: { gte: since },
+              },
+            },
+            select: {
+              quantity: true,
+              unitPrice: true,
+              order: {
+                select: {
+                  id: true,
+                  platform: true,
+                  createdAt: true,
+                  status: true,
+                },
+              },
+            },
+          })
+        : [];
 
     const dailyMap = new Map<string, { quantity: number; revenue: number }>();
     const platformMap = new Map<
@@ -876,15 +997,18 @@ export class ProductService {
       }
     }
 
-    const priceRows = await this.prisma.priceHistory.findMany({
-      where: {
-        organizationId,
-        barcode: product.barcode,
-        appliedAt: { gte: since },
-      },
-      orderBy: { appliedAt: 'asc' },
-      select: { appliedAt: true, newPrice: true, platform: true },
-    });
+    const priceHistoryBarcode = resolveProductStockKey(product);
+    const priceRows = priceHistoryBarcode
+      ? await this.prisma.priceHistory.findMany({
+          where: {
+            organizationId,
+            barcode: priceHistoryBarcode,
+            appliedAt: { gte: since },
+          },
+          orderBy: { appliedAt: 'asc' },
+          select: { appliedAt: true, newPrice: true, platform: true },
+        })
+      : [];
 
     const priceHistory = priceRows.map((r) => ({
       date: r.appliedAt.toISOString(),
@@ -953,7 +1077,7 @@ export class ProductService {
     reorderPoint: number | null,
     reorderQty: number | null,
     leadTimeDays: number | null,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     const row = await this.prisma.product.findFirst({
       where: { organizationId, barcode, deletedAt: null },
     });
@@ -969,7 +1093,21 @@ export class ProductService {
       },
     });
     await this.cache.invalidateProductsForOrg(organizationId);
-    return updated;
+    return this.serializeProduct(updated);
+  }
+
+  private serializeProductCostPrice(
+    costPrice: Prisma.Decimal | null | undefined,
+  ): string | null {
+    return costPrice == null ? null : costPrice.toString();
+  }
+
+  private serializeProduct(row: Product): SerializedProduct {
+    const { costPrice, ...rest } = row;
+    return {
+      ...rest,
+      costPrice: this.serializeProductCostPrice(costPrice),
+    };
   }
 
   async bulkDelete(
@@ -1073,11 +1211,11 @@ export class ProductService {
       select: { barcode: true, stock: true },
     });
     const barcodes = [
-      product.barcode,
+      resolveProductStockKey(product),
       ...variants
         .map((v) => v.barcode)
         .filter((b): b is string => typeof b === 'string' && b.length > 0),
-    ];
+    ].filter((b): b is string => b != null && b.length > 0);
     const uniqueBarcodes = [...new Set(barcodes)];
     const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
 
@@ -1085,22 +1223,25 @@ export class ProductService {
     since.setDate(since.getDate() - periodDays);
     since.setHours(0, 0, 0, 0);
 
-    const orderItems = await this.prisma.orderItem.findMany({
-      where: {
-        organizationId,
-        barcode: { in: uniqueBarcodes },
-        order: {
-          deletedAt: null,
-          createdAt: { gte: since },
-          status: { not: OrderStatus.RETURNED },
-        },
-      },
-      select: {
-        quantity: true,
-        unitPrice: true,
-        order: { select: { platform: true } },
-      },
-    });
+    const orderItems =
+      uniqueBarcodes.length > 0
+        ? await this.prisma.orderItem.findMany({
+            where: {
+              organizationId,
+              barcode: { in: uniqueBarcodes },
+              order: {
+                deletedAt: null,
+                createdAt: { gte: since },
+                status: { not: OrderStatus.RETURNED },
+              },
+            },
+            select: {
+              quantity: true,
+              unitPrice: true,
+              order: { select: { platform: true } },
+            },
+          })
+        : [];
 
     let totalSales = 0;
     let totalRevenue = 0;

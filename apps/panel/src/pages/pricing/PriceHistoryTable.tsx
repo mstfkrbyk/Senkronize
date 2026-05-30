@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import {
   Table,
@@ -11,7 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
 import type { PriceHistoryEntry } from '@/types/pricing';
 
 interface Props {
@@ -20,6 +20,7 @@ interface Props {
     isLoading: boolean;
     isError: boolean;
     error: Error | null;
+    refetch?: () => Promise<unknown>;
   };
 }
 
@@ -45,7 +46,7 @@ function pctChange(oldPrice: string, newPrice: string): number {
 }
 
 export function PriceHistoryTable({ query }: Props): ReactElement {
-  const { data, isLoading, isError, error } = query;
+  const { data, isLoading, isError, error, refetch } = query;
 
   if (isLoading) {
     return (
@@ -57,9 +58,16 @@ export function PriceHistoryTable({ query }: Props): ReactElement {
 
   if (isError) {
     return (
-      <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {getApiErrorMessage(error)}
-      </div>
+      <QueryErrorAlert
+        error={error}
+        onRetry={
+          refetch
+            ? () => {
+                void refetch();
+              }
+            : undefined
+        }
+      />
     );
   }
 

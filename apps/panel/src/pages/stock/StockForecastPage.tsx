@@ -39,6 +39,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type {
   SeasonalityDataDto,
@@ -120,7 +122,7 @@ export function StockForecastPage(): ReactElement {
     },
   });
 
-  const rows = forecastQuery.data ?? [];
+  const rows = useMemo(() => forecastQuery.data ?? [], [forecastQuery.data]);
 
   useEffect(() => {
     if (rows.length === 0) {
@@ -245,15 +247,11 @@ export function StockForecastPage(): ReactElement {
   const isError = summaryQuery.isError || forecastQuery.isError;
 
   return (
-    <div className="flex flex-1 flex-col gap-6 overflow-auto p-4 md:p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          Stok tahmini
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Satış hızına göre tükenme tarihi, önerilen sipariş ve min stok eşiği.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <StockPageHeader
+        title="Stok Tahmini"
+        description="Satış hızına göre tükenme tarihi, önerilen sipariş ve min stok eşiği."
+      />
 
       {isError ? (
         <Card className="border-destructive/40">

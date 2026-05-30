@@ -52,6 +52,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { api } from '@/lib/api';
 import { getApiErrorMessage } from '@/lib/api';
 import type { ProductListItem } from '@/types/product';
@@ -249,10 +251,15 @@ function TransferDetailModal({
                   variant="outline"
                   disabled={cancelMut.isPending}
                   onClick={() => {
-                    void cancelMut.mutateAsync(id).then(() => {
-                      toast.success('Transfer reddedildi / iptal edildi');
-                      void transferQ.refetch();
-                    });
+                    void cancelMut
+                      .mutateAsync(id)
+                      .then(() => {
+                        toast.success('Transfer reddedildi / iptal edildi');
+                        void transferQ.refetch();
+                      })
+                      .catch((e: unknown) => {
+                        toast.error(getApiErrorMessage(e));
+                      });
                   }}
                 >
                   Reddet
@@ -261,10 +268,15 @@ function TransferDetailModal({
                   type="button"
                   disabled={confirmMut.isPending}
                   onClick={() => {
-                    void confirmMut.mutateAsync(id).then(() => {
-                      toast.success('Transfer onaylandı');
-                      void transferQ.refetch();
-                    });
+                    void confirmMut
+                      .mutateAsync(id)
+                      .then(() => {
+                        toast.success('Transfer onaylandı');
+                        void transferQ.refetch();
+                      })
+                      .catch((e: unknown) => {
+                        toast.error(getApiErrorMessage(e));
+                      });
                   }}
                 >
                   Onayla
@@ -272,7 +284,7 @@ function TransferDetailModal({
               </div>
             ) : null}
             <Button type="button" variant="link" className="h-auto px-0" asChild>
-              <Link to={`/stock/transfers/${id}`}>Tam detay sayfası</Link>
+              <Link to={`/products/transfers/${id}`}>Tam detay sayfası</Link>
             </Button>
           </div>
         )}
@@ -282,7 +294,6 @@ function TransferDetailModal({
 }
 
 function TransferDetailView({ id }: { id: string }): ReactElement {
-  usePageTitle('Transfer detayı');
   const navigate = useNavigate();
   const transferQ = useStockTransfer(id);
   const confirmMut = useConfirmStockTransfer();
@@ -290,6 +301,10 @@ function TransferDetailView({ id }: { id: string }): ReactElement {
   const { data: me } = useAuth();
 
   const transfer = transferQ.data;
+  const transferLeafLabel = transfer
+    ? `Transfer #${transfer.id.slice(0, 8)}`
+    : undefined;
+  usePageTitle(transferLeafLabel ?? 'Transfer detayı');
   const canApprove = canApproveTransfers(me?.user.role);
   const canAct =
     canApprove &&
@@ -325,27 +340,25 @@ function TransferDetailView({ id }: { id: string }): ReactElement {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" size="icon" asChild>
-            <Link to="/stock/transfers" aria-label="Listeye dön">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Transfer #{transfer.id.slice(0, 8)}
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              {transfer.fromWarehouseName} → {transfer.toWarehouseName}
-            </p>
+    <div className="space-y-6">
+      <StockPageHeader
+        title={`Transfer #${transfer.id.slice(0, 8)}`}
+        description={`${transfer.fromWarehouseName} → ${transfer.toWarehouseName}`}
+        leafLabel={transferLeafLabel}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/products?tab=transfers">
+                <ArrowLeft className="mr-2 size-4" />
+                Transfer listesine dön
+              </Link>
+            </Button>
+            <Badge variant={STATUS_VARIANT[transfer.status]}>
+              {STATUS_LABEL[transfer.status]}
+            </Badge>
           </div>
-        </div>
-        <Badge variant={STATUS_VARIANT[transfer.status]}>
-          {STATUS_LABEL[transfer.status]}
-        </Badge>
-      </div>
+        }
+      />
 
       <Card>
         <CardHeader>
@@ -422,7 +435,7 @@ function TransferDetailView({ id }: { id: string }): ReactElement {
         type="button"
         variant="link"
         className="w-fit px-0"
-        onClick={() => navigate('/stock/transfers')}
+        onClick={() => navigate('/products?tab=transfers')}
       >
         Tüm transferlere dön
       </Button>
@@ -601,7 +614,7 @@ export function StockTransfersTab({ embedded = false }: TransferListProps): Reac
       setModalOpen(false);
       resetModal();
       toast.success('Transfer oluşturuldu');
-      navigate(`/stock/transfers/${created.id}`);
+      navigate(`/products/transfers/${created.id}`);
     } catch (e) {
       toast.error(getApiErrorMessage(e));
     }
@@ -621,19 +634,15 @@ export function StockTransfersTab({ embedded = false }: TransferListProps): Reac
       className={
         embedded
           ? 'flex flex-col gap-4'
-          : 'mx-auto flex w-full max-w-6xl flex-col gap-6'
+          : 'space-y-6'
       }
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         {!embedded ? (
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Stok transferi
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Depolar arası çoklu ürün transferi ve onay akışı.
-            </p>
-          </div>
+          <StockPageHeader
+            title="Transfer"
+            description="Depolar arası çoklu ürün transferi ve onay akışı."
+          />
         ) : (
           <p className="text-muted-foreground text-sm">
             Depolar arası çoklu ürün transferi ve onay akışı.
@@ -642,7 +651,7 @@ export function StockTransfersTab({ embedded = false }: TransferListProps): Reac
         <div className="flex flex-wrap gap-2">
           {!embedded ? (
             <Button type="button" variant="outline" asChild>
-              <Link to="/stock">Stok yönetimine dön</Link>
+              <Link to="/products?tab=status">Stok yönetimine dön</Link>
             </Button>
           ) : null}
           <Button type="button" onClick={() => setModalOpen(true)}>
@@ -730,7 +739,7 @@ export function StockTransfersTab({ embedded = false }: TransferListProps): Reac
                             Detay
                           </Button>
                           <Button type="button" variant="outline" size="sm" asChild>
-                            <Link to={`/stock/transfers/${row.id}`}>Aç</Link>
+                            <Link to={`/products/transfers/${row.id}`}>Aç</Link>
                           </Button>
                         </div>
                       </TableCell>

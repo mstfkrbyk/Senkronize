@@ -4,6 +4,7 @@ import { Marketplace } from '@prisma/client';
 import type { Queue } from 'bull';
 
 import { PostHogService } from '../analytics/posthog.service';
+import { buildListingOrForProduct, resolveProductStockKey } from '../common/product-match-key';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   LISTING_SYNC_JOB_OPTIONS,
@@ -47,7 +48,7 @@ export class ListingSyncService {
   ): Promise<SyncResult[]> {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { id: true, barcode: true },
+      select: { id: true, barcode: true, sku: true },
     });
     if (!product) {
       throw new NotFoundException('Ürün bulunamadı');
@@ -58,7 +59,7 @@ export class ListingSyncService {
       where: {
         organizationId: orgId,
         deletedAt: null,
-        OR: [{ productId }, { barcode: product.barcode }],
+        OR: buildListingOrForProduct(productId, product),
       },
       select: { platform: true },
       distinct: ['platform'],
@@ -157,13 +158,18 @@ export class ListingSyncService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { barcode: true },
+      select: { barcode: true, sku: true },
     });
     if (!product) {
       return;
     }
 
-    const stockQty = await this.resolveCentralStock(orgId, product.barcode);
+    const stockKey = resolveProductStockKey(product);
+    if (!stockKey) {
+      return;
+    }
+
+    const stockQty = await this.resolveCentralStock(orgId, stockKey);
     await this.enqueuePlatformBatchSync(orgId, listings, {
       stock: stockQty,
     });
@@ -185,13 +191,18 @@ export class ListingSyncService {
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { barcode: true },
+      select: { barcode: true, sku: true },
     });
     if (!product) {
       return;
     }
 
-    const stockQty = await this.resolveCentralStock(orgId, product.barcode);
+    const stockKey = resolveProductStockKey(product);
+    if (!stockKey) {
+      return;
+    }
+
+    const stockQty = await this.resolveCentralStock(orgId, stockKey);
     await this.enqueuePlatformBatchSync(orgId, listings, { stock: stockQty });
   }
 
@@ -210,7 +221,7 @@ export class ListingSyncService {
   > {
     const product = await this.prisma.product.findFirst({
       where: { id: productId, organizationId: orgId, deletedAt: null },
-      select: { barcode: true },
+      select: { barcode: true, sku: true },
     });
     if (!product) {
       return [];
@@ -221,7 +232,7 @@ export class ListingSyncService {
         organizationId: orgId,
         deletedAt: null,
         isActive: true,
-        OR: [{ productId }, { barcode: product.barcode }],
+        OR: buildListingOrForProduct(productId, product),
       },
       select: {
         id: true,

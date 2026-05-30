@@ -24,6 +24,7 @@ import { EmailService } from '../notifications/email/email.service';
 import type { InvoiceEmailData } from '../notifications/email/email-template.types';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PartnerService } from '../partner/partner.service';
+import { isBillingExempt } from '../organization/organization-internal';
 import { CacheKeys } from '../common/cache/cache-keys';
 import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -32,8 +33,11 @@ import {
   normalizeIyzicoEventType,
   type IyzicoWebhookPayload,
 } from '../payment/iyzico.types';
+import { resolveEffectivePlanTier } from './subscription-effective-plan';
 import { PaytrService } from './paytr.service';
 import type { PaytrWebhookPayload } from './paytr.types';
+import { isInternalAccount } from '../organization/organization-internal';
+import { effectiveErpSlotLimit } from '../erp-connection/erp-slot-limit.util';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { WebhookEvent } from '../webhook/webhook-event.enum';
 import { InvoiceService } from '../invoice/invoice.service';
@@ -504,15 +508,27 @@ export class SubscriptionService {
   }
 
   async getUsageOverview(organizationId: string): Promise<UsageOverview> {
-    const sub = await this.prisma.subscription.findUnique({
-      where: { organizationId },
-    });
+    const [sub, org] = await Promise.all([
+      this.prisma.subscription.findUnique({
+        where: { organizationId },
+      }),
+      this.prisma.organization.findFirst({
+        where: { id: organizationId, deletedAt: null },
+        select: { metadata: true, slug: true },
+      }),
+    ]);
     if (!sub) {
       throw new NotFoundException('Abonelik bulunamadı.');
     }
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
 
-    const effectivePlan =
-      sub.status === SubStatus.TRIAL ? PlanTier.BASLANGIC : sub.plan;
+    const effectivePlan = resolveEffectivePlanTier(sub);
+    const erpConnectionLimit = effectiveErpSlotLimit({
+      subscription: sub,
+      isInternalAccount: isInternalAccount(org),
+    });
 
     const marketplaceLimit = toUsageLimit(
       effectiveLimit(sub.marketplaceLimit, effectivePlan, 'marketplaces'),
@@ -543,6 +559,7 @@ export class SubscriptionService {
       productCount,
       userCount,
       warehouseCount,
+      erpConnectionCount,
       apiCallsToday,
     ] = await Promise.all([
       this.prisma.order.count({
@@ -563,6 +580,9 @@ export class SubscriptionService {
       }),
       this.prisma.warehouse.count({
         where: { organizationId, isActive: true },
+      }),
+      this.prisma.erpConnection.count({
+        where: { organizationId, isActive: true, deletedAt: null },
       }),
       this.getApiCallsToday(organizationId, dateKey),
     ]);
@@ -598,6 +618,10 @@ export class SubscriptionService {
         orders: { used: ordersThisMonth, limit: orderLimit },
         users: { used: userCount, limit: userLimit },
         warehouses: { used: warehouseCount, limit: warehouseLimit },
+        erpConnections: {
+          used: erpConnectionCount,
+          limit: erpConnectionLimit,
+        },
         apiCallsToday: { used: apiCallsToday, limit: apiCallsLimit },
       },
       renewsAt,
@@ -616,7 +640,7 @@ export class SubscriptionService {
       apiKeys: overview.usage.apiCallsToday,
       marketplaces: overview.usage.marketplaces,
       ecommerce: overview.usage.marketplaces,
-      erp: overview.usage.warehouses,
+      erp: overview.usage.erpConnections,
       users: overview.usage.users,
       warehouses: overview.usage.warehouses,
       apiCallsToday: overview.usage.apiCallsToday,
@@ -1271,6 +1295,10 @@ export class SubscriptionService {
     const organization = await this.prisma.organization.findFirst({
       where: { id: organizationId, deletedAt: null },
     });
+
+    if (!organization || isBillingExempt(organization)) {
+      return;
+    }
 
     try {
       const invoice = await this.invoiceService.createFromSubscriptionPayment(

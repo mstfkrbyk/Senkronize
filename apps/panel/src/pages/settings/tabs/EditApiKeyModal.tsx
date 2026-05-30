@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 
 import {
   API_KEY_PERMISSIONS,
+  apiKeyPermissionLabel,
   type ApiKeyPermission,
   type ApiKeyRow,
   readStoredApiKeyPermissions,
@@ -130,7 +131,7 @@ export function EditApiKeyModal({
                         }
                       />
                       <span className={isReports ? 'text-muted-foreground' : undefined}>
-                        {t(perm.labelKey)}
+                        {apiKeyPermissionLabel(perm.value, t)}
                         {isReports ? ` (${t('settings.apiKeys.comingSoon')})` : null}
                       </span>
                     </label>

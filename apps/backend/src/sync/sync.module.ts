@@ -17,6 +17,7 @@ import { StockModule } from '../stock/stock.module';
 import { SyncStatusModule } from '../sync-status/sync-status.module';
 
 import { ConflictService } from './conflict.service';
+import { ListingPushModule } from './listing-push.module';
 import { ListingSyncService } from './listing-sync.service';
 import { SyncController } from './sync.controller';
 import { SyncGateway } from './sync-gateway';
@@ -43,6 +44,7 @@ import { SyncLogService } from './sync-log.service';
     AdaptersCommonModule,
     MarketplaceConnectionModule,
     SyncStatusModule,
+    ListingPushModule,
     BullModule.registerQueue(
       { name: QUEUE_MARKETPLACE_PUSH },
       { name: QUEUE_LISTING_SYNC },
@@ -55,6 +57,6 @@ import { SyncLogService } from './sync-log.service';
     ListingSyncService,
     SyncGateway,
   ],
-  exports: [ConflictService, SyncLogService, ListingSyncService, SyncGateway],
+  exports: [ConflictService, SyncLogService, ListingPushModule, ListingSyncService, SyncGateway],
 })
 export class SyncModule {}

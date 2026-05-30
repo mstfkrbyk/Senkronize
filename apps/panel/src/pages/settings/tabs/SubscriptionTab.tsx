@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Check, FileDown, Loader2 } from 'lucide-react';
@@ -36,8 +36,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Table,
   TableBody,
@@ -51,8 +58,10 @@ import { useSubscriptionUsage } from '@/hooks/useSubscriptionUsage';
 import { track } from '@/lib/analytics';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/store/auth.store';
 import type {
   BillingPeriod,
+  Payment,
   PaymentStatus,
   PlanTier,
   PlanUpgradeResult,
@@ -174,16 +183,17 @@ function isHigherPlan(target: PlanTier, current: PlanTier | null): boolean {
 function statusBadgeVariant(
   status: SubscriptionStatus,
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (status === 'ACTIVE') {
-    return 'default';
-  }
-  if (status === 'TRIAL') {
-    return 'secondary';
-  }
-  if (status === 'CANCELLED' || status === 'CANCELING') {
-    return 'destructive';
-  }
+  if (status === 'ACTIVE') return 'default';
+  if (status === 'TRIAL') return 'secondary';
+  if (status === 'CANCELLED' || status === 'CANCELING') return 'destructive';
   return 'outline';
+}
+
+function statusBadgeClass(status: SubscriptionStatus): string {
+  if (status === 'ACTIVE') {
+    return 'border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100';
+  }
+  return '';
 }
 
 function statusLabel(status: SubscriptionStatus): string {
@@ -206,6 +216,14 @@ function invoiceStatusLabel(s: PaymentStatus): string {
     REFUNDED: 'İade',
   };
   return map[s] ?? s;
+}
+
+function paymentReceiptUrl(p: Payment): string | null {
+  const url = p.receiptUrl?.trim();
+  if (!url || !/^https?:\/\//i.test(url)) {
+    return null;
+  }
+  return url;
 }
 
 function PaymentStatusBadge({ status }: { status: string }): ReactElement {
@@ -290,12 +308,12 @@ function UsageMetricRow({
           role="alert"
         >
           <span>Limit doldu.</span>
-          <a
-            href="/settings/subscription"
+          <Link
+            to="/settings/subscription"
             className="inline-flex h-7 items-center justify-center rounded-md bg-destructive px-3 text-xs font-medium text-destructive-foreground hover:bg-destructive/90"
           >
             Paketini yükselt
-          </a>
+          </Link>
         </div>
       ) : null}
       {warn && !over ? (
@@ -307,10 +325,15 @@ function UsageMetricRow({
   );
 }
 
-export function SubscriptionTab(): ReactElement {
+interface SubscriptionTabProps {
+  showHeader?: boolean;
+}
+
+export function SubscriptionTab({ showHeader = true }: SubscriptionTabProps): ReactElement {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const billingExempt = useAuthStore((s) => s.organization?.billingExempt === true);
   const planComparisonRef = useRef<HTMLDivElement>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -470,28 +493,58 @@ export function SubscriptionTab(): ReactElement {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h3 className="text-lg font-medium text-primary">
-          {t('settings.subscriptionTab.title')}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {t('settings.subscriptionTab.subtitle')}
-        </p>
-      </div>
-
-      <SubscriptionProductLines />
-
-      {subQuery.isLoading ? <Skeleton className="h-16 w-full" /> : null}
-
-      {subQuery.isError ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          {isAxiosError(subQuery.error) && subQuery.error.response?.status === 404
-            ? 'Abonelik kaydı bulunamadı. Aşağıdan bir paket seçerek başlayabilirsiniz.'
-            : getApiErrorMessage(subQuery.error)}
+      {showHeader ? (
+        <div>
+          <h3 className="text-lg font-medium text-primary">
+            {t('settings.subscriptionTab.title')}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {t('settings.subscriptionTab.subtitle')}
+          </p>
         </div>
       ) : null}
 
-      {subQuery.isSuccess && subQuery.data?.status === 'TRIAL' && daysLeft != null ? (
+      <SubscriptionProductLines />
+
+      {billingExempt ? (
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+          <AlertDescription>{t('settings.subscriptionTab.billingExempt')}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {subQuery.isLoading ? (
+        <Card>
+          <CardHeader className="space-y-2">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-full max-w-md" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-24" />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {subQuery.isError ? (
+        isAxiosError(subQuery.error) && subQuery.error.response?.status === 404 ? (
+          <Alert>
+            <AlertDescription>
+              Abonelik kaydı bulunamadı. Aşağıdan bir paket seçerek başlayabilirsiniz.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <QueryErrorAlert
+            error={subQuery.error}
+            onRetry={() => {
+              void subQuery.refetch();
+            }}
+          />
+        )
+      ) : null}
+
+      {!billingExempt &&
+      subQuery.isSuccess &&
+      subQuery.data?.status === 'TRIAL' &&
+      daysLeft != null ? (
         <Alert className="border-yellow-400 bg-yellow-50 dark:bg-yellow-950">
           <AlertDescription>
             Deneme süreniz <strong>{daysLeft} gün</strong> içinde bitiyor. Hizmet kesintisi
@@ -527,27 +580,28 @@ export function SubscriptionTab(): ReactElement {
                 {new Date(subQuery.data.currentPeriodEnd).toLocaleDateString('tr-TR')}
               </p>
             </div>
-            <Badge variant={statusBadgeVariant(subQuery.data.status)}>
+            <Badge
+              variant={statusBadgeVariant(subQuery.data.status)}
+              className={statusBadgeClass(subQuery.data.status)}
+            >
               {statusLabel(subQuery.data.status)}
             </Badge>
           </CardHeader>
           {subQuery.data.status === 'CANCELLED' ||
           subQuery.data.status === 'CANCELING' ? (
             <CardContent>
-              <div
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
-                role="status"
-              >
-                <p className="font-medium">İptal talebiniz kayıtlı.</p>
-                <p className="mt-1">
-                  <span className="font-semibold">
-                    {new Date(
-                      subQuery.data.subscriptionEndsAt ??
-                        subQuery.data.currentPeriodEnd,
-                    ).toLocaleDateString('tr-TR')}
-                  </span>{' '}
-                  tarihine kadar erişiminiz devam eder.
-                </p>
+              <Alert variant="destructive" className="bg-red-50/60" role="status">
+                <AlertDescription className="space-y-2">
+                  <p className="font-medium">İptal talebiniz kayıtlı.</p>
+                  <p>
+                    <span className="font-semibold">
+                      {new Date(
+                        subQuery.data.subscriptionEndsAt ??
+                          subQuery.data.currentPeriodEnd,
+                      ).toLocaleDateString('tr-TR')}
+                    </span>{' '}
+                    tarihine kadar erişiminiz devam eder.
+                  </p>
                 <Button
                   type="button"
                   variant="secondary"
@@ -563,7 +617,8 @@ export function SubscriptionTab(): ReactElement {
                   ) : null}
                   Yeniden aktifleştir
                 </Button>
-              </div>
+                </AlertDescription>
+              </Alert>
             </CardContent>
           ) : null}
         </Card>
@@ -571,45 +626,57 @@ export function SubscriptionTab(): ReactElement {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Kullanım metrikleri</CardTitle>
+          <CardTitle className="text-base">
+            {t('settings.subscriptionTab.usageMetrics.title')}
+          </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Mevcut paketinizdeki kaynak kullanımı
+            {t('settings.subscriptionTab.usageMetrics.subtitle')}
           </p>
         </CardHeader>
         <CardContent className="space-y-5">
           {usageQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
           {usageQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(usageQuery.error)}</p>
+            <QueryErrorAlert
+              error={usageQuery.error}
+              onRetry={() => {
+                void usageQuery.refetch();
+              }}
+            />
           ) : null}
           {usage ? (
             <>
               <UsageMetricRow
-                label="Pazaryerleri"
+                label={t('settings.subscriptionTab.usageMetrics.marketplaces')}
                 used={usage.usage.marketplaces.used}
                 limit={usage.usage.marketplaces.limit}
               />
               <UsageMetricRow
-                label="Ürünler"
+                label={t('settings.subscriptionTab.usageMetrics.products')}
                 used={usage.usage.products.used}
                 limit={usage.usage.products.limit}
               />
               <UsageMetricRow
-                label="Siparişler (aylık)"
+                label={t('settings.subscriptionTab.usageMetrics.orders')}
                 used={usage.usage.orders.used}
                 limit={usage.usage.orders.limit}
               />
               <UsageMetricRow
-                label="Kullanıcılar"
+                label={t('settings.subscriptionTab.usageMetrics.users')}
                 used={usage.usage.users.used}
                 limit={usage.usage.users.limit}
               />
               <UsageMetricRow
-                label="Depolar"
+                label={t('settings.subscriptionTab.usageMetrics.warehouses')}
                 used={usage.usage.warehouses.used}
                 limit={usage.usage.warehouses.limit}
               />
               <UsageMetricRow
-                label="API çağrıları (bugün)"
+                label={t('settings.subscriptionTab.usageMetrics.erpConnections')}
+                used={usage.usage.erpConnections?.used ?? 0}
+                limit={usage.usage.erpConnections?.limit ?? null}
+              />
+              <UsageMetricRow
+                label={t('settings.subscriptionTab.usageMetrics.apiCallsToday')}
                 used={usage.usage.apiCallsToday.used}
                 limit={usage.usage.apiCallsToday.limit}
               />
@@ -618,6 +685,7 @@ export function SubscriptionTab(): ReactElement {
         </CardContent>
       </Card>
 
+      {!billingExempt ? (
       <div
         id="subscription-plan-comparison"
         ref={planComparisonRef}
@@ -643,7 +711,9 @@ export function SubscriptionTab(): ReactElement {
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="text-lg">{plan.name}</CardTitle>
                     {isCurrent ? (
-                      <Badge variant="secondary">Aktif Plan</Badge>
+                      <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                        ✓ Aktif Plan
+                      </Badge>
                     ) : null}
                     {plan.highlight && !isCurrent ? (
                       <Badge className="border-0 bg-sky-500 text-white hover:bg-sky-500">
@@ -694,20 +764,29 @@ export function SubscriptionTab(): ReactElement {
           })}
         </div>
       </div>
+      ) : null}
 
+      {!billingExempt ? (
       <div className="space-y-4">
         <h4 className="text-base font-medium text-primary">Fatura geçmişi</h4>
         <p className="text-sm text-muted-foreground">
-          Ödeme kayıtlarınız listelenir; resmi fatura PDF&apos;si yakında eklenecektir.
+          Ödeme kayıtlarınız listelenir. Resmi fatura PDF indirme henüz kullanılamıyor; ödeme
+          makbuzu varsa İndir üzerinden açılır.
         </p>
         {invoicesQuery.isLoading ? <Skeleton className="h-24 w-full" /> : null}
         {invoicesQuery.isError ? (
-          <p className="text-sm text-destructive">{getApiErrorMessage(invoicesQuery.error)}</p>
+          <QueryErrorAlert
+            error={invoicesQuery.error}
+            onRetry={() => {
+              void invoicesQuery.refetch();
+            }}
+          />
         ) : null}
         {invoicesQuery.isSuccess && invoicesQuery.data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Henüz fatura kaydı yok.</p>
         ) : null}
         {invoicesQuery.isSuccess && invoicesQuery.data.items.length > 0 ? (
+          <TooltipProvider delayDuration={200}>
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -740,28 +819,60 @@ export function SubscriptionTab(): ReactElement {
                       <PaymentStatusBadge status={p.status} />
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => {
-                          toast.message('Fatura indirme yakında eklenecek.');
-                        }}
-                      >
-                        <FileDown className="h-4 w-4" aria-hidden />
-                        İndir
-                      </Button>
+                      {(() => {
+                        const receiptUrl = paymentReceiptUrl(p);
+                        const downloadBtn = (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            disabled={!receiptUrl}
+                            asChild={Boolean(receiptUrl)}
+                          >
+                            {receiptUrl ? (
+                              <a
+                                href={receiptUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <FileDown className="h-4 w-4" aria-hidden />
+                                İndir
+                              </a>
+                            ) : (
+                              <>
+                                <FileDown className="h-4 w-4" aria-hidden />
+                                İndir
+                              </>
+                            )}
+                          </Button>
+                        );
+                        if (receiptUrl) {
+                          return downloadBtn;
+                        }
+                        return (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex">{downloadBtn}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Resmi fatura PDF henüz hazır değil
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      })()}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
+          </TooltipProvider>
         ) : null}
       </div>
+      ) : null}
 
-      {subQuery.isError || subQuery.data?.status === 'TRIAL' ? (
+      {!billingExempt && (subQuery.isError || subQuery.data?.status === 'TRIAL') ? (
         <div className="flex flex-wrap gap-3">
           <Button type="button" onClick={() => setStartDialogOpen(true)}>
             Yeni abonelik başlat
@@ -769,7 +880,8 @@ export function SubscriptionTab(): ReactElement {
         </div>
       ) : null}
 
-      {subQuery.isSuccess &&
+      {!billingExempt &&
+      subQuery.isSuccess &&
       subQuery.data?.status !== 'CANCELLED' &&
       subQuery.data?.status !== 'CANCELING' ? (
         <div className="flex flex-wrap gap-3 border-t pt-4">

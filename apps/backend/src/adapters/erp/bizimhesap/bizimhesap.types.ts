@@ -1,90 +1,77 @@
+/** BizimHesap B2B API — /products yanıt formatı */
 export interface BizimHesapProductRow {
-  id: string;
+  Id?: string;
+  id?: string;
+  productId?: string | number;
+  ProductId?: string | number;
+  Code?: string;
   code?: string;
+  productCode?: string;
+  Name?: string;
+  name?: string;
+  productName?: string;
+  ProductName?: string;
+  Title?: string;
+  title?: string;
+  StockName?: string;
+  stockName?: string;
+  StokAdi?: string;
+  stokAdi?: string;
+  UrunAdi?: string;
+  urunAdi?: string;
+  ProductTitle?: string;
+  productTitle?: string;
+  Description?: string;
+  description?: string;
+  Aciklama?: string;
+  aciklama?: string;
+  Barcode?: string;
   barcode?: string;
-  name: string;
-  unit?: string;
+  StockQuantity?: number;
   stock_quantity?: number;
+  stockQuantity?: number;
+  quantity?: number;
+  PurchasePrice?: number;
   purchase_price?: number;
+  purchasePrice?: number;
+  SalePrice?: number;
   sale_price?: number;
+  salePrice?: number;
+  IsEcommerce?: boolean | number | string;
+  isEcommerce?: boolean | number | string;
+  is_ecommerce?: boolean | number | string;
+  CategoryId?: string | number;
+  categoryId?: string | number;
+  category_id?: string | number;
+  CategoryName?: string;
+  categoryName?: string;
+  category_name?: string;
+  Category?: string;
+  category?: string;
+  KategoriAdi?: string;
+  kategoriAdi?: string;
 }
 
 export interface BizimHesapProductsResponse {
-  data: BizimHesapProductRow[];
+  data?: BizimHesapProductRow[] | Record<string, BizimHesapProductRow>;
+  Data?: BizimHesapProductRow[] | Record<string, BizimHesapProductRow>;
+  products?: BizimHesapProductRow[];
+  Products?: BizimHesapProductRow[];
+  items?: BizimHesapProductRow[];
+  Items?: BizimHesapProductRow[];
   meta?: { total?: number; page?: number; per_page?: number };
-}
-
-export interface BizimHesapStockItemRow {
-  id: string;
-  quantity?: number;
-  warehouse_name?: string;
-}
-
-export interface BizimHesapStockItemsResponse {
-  data: BizimHesapStockItemRow[];
-}
-
-export interface BizimHesapContactRow {
-  id: string;
-  name?: string;
-  email?: string;
-  type?: string;
-}
-
-export interface BizimHesapContactsResponse {
-  data: BizimHesapContactRow[];
-  meta?: { total?: number; page?: number; per_page?: number };
-}
-
-export interface BizimHesapInvoiceLineRow {
-  product_id?: string;
-  product_code?: string;
-  quantity: number;
-  unit_price: number;
-  vat_rate?: number;
-  tax_rate?: number;
   total?: number;
-  description?: string;
 }
 
-export interface BizimHesapInvoiceRow {
-  id: string;
-  invoice_no?: string;
-  issue_date?: string;
-  contact_id?: string;
-  total_amount?: number;
-  currency?: string;
-  lines?: BizimHesapInvoiceLineRow[];
+/** /addinvoice yanıt formatı */
+export interface BizimHesapAddInvoiceResponse {
+  error: string;
+  guid: string;
+  url: string;
 }
 
-export interface BizimHesapInvoicesResponse {
-  data: BizimHesapInvoiceRow[];
-  meta?: { total?: number; page?: number; per_page?: number };
-}
-
-export interface BizimHesapCategoryRow {
-  id: string;
-  name: string;
-}
-
-export interface BizimHesapCategoriesResponse {
-  data: BizimHesapCategoryRow[];
-}
-
-export interface BizimHesapAccountEntry {
-  id: string;
-  date?: string;
-  description?: string;
-  debit?: number;
-  credit?: number;
-  balance?: number;
-}
-
-export interface BizimHesapAccountEntriesResponse {
-  data: BizimHesapAccountEntry[];
-}
-
-export interface BizimHesapStockUpdateItem {
-  barcode: string;
-  quantity: number;
+/** /warehouses yanıt satırı */
+export interface BizimHesapWarehouseRow {
+  Id: string;
+  Name: string;
 }

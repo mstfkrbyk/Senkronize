@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { toast } from 'sonner';
@@ -54,6 +55,8 @@ import {
   useBarcodeInputClaim,
 } from '@/hooks/useBarcodeInput';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { StockCountModeApi } from '@/types/stock-count';
@@ -91,7 +94,8 @@ function diffClass(d: number): string {
 }
 
 export function StockCountPage(): ReactElement {
-  usePageTitle('Stok sayımı');
+  const { t } = useTranslation();
+  usePageTitle(t('nav.stockCountBarcode'));
   const [params, setParams] = useSearchParams();
   const sessionId = params.get('session');
 
@@ -238,26 +242,23 @@ export function StockCountPage(): ReactElement {
   }, [session?.items, session?.varianceSummary]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Stok sayımı</h1>
-          <p className="text-muted-foreground text-sm">
-            Depo bazlı sayım, barkod ile giriş ve farkların merkezi stoğa
-            uygulanması.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" asChild>
-            <Link to="/stock">Stok yönetimine dön</Link>
-          </Button>
-          {!sessionId || session?.status !== 'IN_PROGRESS' ? (
-            <Button type="button" onClick={() => setWizardOpen(true)}>
-              Yeni sayım başlat
+    <div className="space-y-6">
+      <StockPageHeader
+        title="Sayım"
+        description="Depo sayımını yönetin."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" asChild>
+              <Link to="/products?tab=status">Stok yönetimine dön</Link>
             </Button>
-          ) : null}
-        </div>
-      </div>
+            {!sessionId || session?.status !== 'IN_PROGRESS' ? (
+              <Button type="button" onClick={() => setWizardOpen(true)}>
+                Yeni sayım başlat
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
 
       {sessionQ.isLoading ? (
         <p className="text-muted-foreground text-sm">Yükleniyor…</p>
@@ -342,7 +343,7 @@ export function StockCountPage(): ReactElement {
                   />
                 </div>
 
-                <div className="flex flex-col gap-3 rounded-lg border p-4">
+                <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 shadow-sm">
                   <p className="text-sm font-medium">Sayım girişi</p>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                     <div className="grid flex-1 gap-2">

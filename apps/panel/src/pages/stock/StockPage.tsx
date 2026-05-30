@@ -1,9 +1,10 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
+import { PageHeader } from '@/components/PageHeader';
 import { QuickStockSearch } from '@/components/QuickStockSearch';
 import {
   Card,
@@ -13,8 +14,12 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { useAuthStore } from '@/store/auth.store';
 
+import { formatStockNavContext } from './stock-nav-context';
 import { StockForecastTab } from './components/StockForecastTab';
 import { StockKpiRow } from './components/StockKpiRow';
 import { StockQuickActions } from './components/StockQuickActions';
@@ -23,41 +28,63 @@ import { WarehousesTab } from './components/WarehousesTab';
 import { useStockKpis } from './hooks/useStockKpis';
 import { StockMovementsTab } from './StockMovementPage';
 import { StockTransfersTab } from './StockTransferPage';
+import {
+  defaultStockTab,
+  getStockTabDefinition,
+  isStockTabId,
+  resolveStockSubtitleKey,
+  STOCK_TABS,
+  type StockTabId,
+} from './stock-tabs.config';
 
-const TAB_VALUES = [
-  'status',
-  'warehouses',
-  'movements',
-  'transfers',
-  'forecast',
-] as const;
-
-type StockTab = (typeof TAB_VALUES)[number];
-
-function isStockTab(value: string | null): value is StockTab {
-  return value !== null && TAB_VALUES.includes(value as StockTab);
+function StockTabCardDescription({
+  tabId,
+}: {
+  tabId: StockTabId;
+}): ReactElement | null {
+  const { t } = useTranslation();
+  const cardDescKey = getStockTabDefinition(tabId).cardDescKey;
+  if (!cardDescKey) {
+    return null;
+  }
+  return <CardDescription>{t(cardDescKey)}</CardDescription>;
 }
 
 export function StockPage(): ReactElement {
   const { t } = useTranslation();
+  const { groupLabel, pageLabel } = useActiveNav();
   usePageTitle(t('stock.title'));
+
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
+  const navContext = formatStockNavContext(
+    groupLabel,
+    pageLabel ?? t('nav.stock'),
+    orgProducts,
+    accountingMode,
+    t,
+  );
+  const subtitleKey = useMemo(
+    () => resolveStockSubtitleKey(orgProducts, accountingMode),
+    [orgProducts, accountingMode],
+  );
 
   const [params, setParams] = useSearchParams();
   const tabParam = params.get('tab');
-  const [tab, setTab] = useState<StockTab>(
-    isStockTab(tabParam) ? tabParam : 'status',
+  const [tab, setTab] = useState<StockTabId>(
+    isStockTabId(tabParam) ? tabParam : defaultStockTab(),
   );
 
-  const { metrics, loading } = useStockKpis();
+  const { metrics, loading, errorMessage } = useStockKpis();
 
   useEffect(() => {
-    if (isStockTab(tabParam) && tabParam !== tab) {
+    if (isStockTabId(tabParam) && tabParam !== tab) {
       setTab(tabParam);
     }
   }, [tabParam, tab]);
 
   const onTabChange = (value: string): void => {
-    if (!isStockTab(value)) {
+    if (!isStockTabId(value)) {
       return;
     }
     setTab(value);
@@ -68,14 +95,17 @@ export function StockPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-primary">
-          {t('stock.title')}
-        </h1>
-        <p className="text-muted-foreground">{t('stock.subtitle')}</p>
-      </div>
+      <PageHeader
+        title={t('stock.title')}
+        description={t(subtitleKey)}
+        context={navContext}
+      />
 
-      <StockKpiRow metrics={metrics} loading={loading} />
+      <StockKpiRow
+        metrics={metrics}
+        loading={loading}
+        errorMessage={errorMessage}
+      />
 
       <QuickStockSearch
         variant="inline"
@@ -86,18 +116,18 @@ export function StockPage(): ReactElement {
 
       <Tabs value={tab} onValueChange={onTabChange} className="space-y-4">
         <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="status">{t('stock.tabs.status')}</TabsTrigger>
-          <TabsTrigger value="warehouses">{t('stock.tabs.warehouses')}</TabsTrigger>
-          <TabsTrigger value="movements">{t('stock.tabs.movements')}</TabsTrigger>
-          <TabsTrigger value="transfers">{t('stock.tabs.transfers')}</TabsTrigger>
-          <TabsTrigger value="forecast">{t('stock.tabs.forecast')}</TabsTrigger>
+          {STOCK_TABS.map(({ id, labelKey }) => (
+            <TabsTrigger key={id} value={id}>
+              {t(labelKey)}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <TabsContent value="status">
           <Card>
             <CardHeader>
-              <CardTitle>{t('stock.tabs.status')}</CardTitle>
-              <CardDescription>{t('stock.status.cardDesc')}</CardDescription>
+              <CardTitle>{t(getStockTabDefinition('status').labelKey)}</CardTitle>
+              <StockTabCardDescription tabId="status" />
             </CardHeader>
             <CardContent>
               <StockStatusTab />
@@ -108,8 +138,8 @@ export function StockPage(): ReactElement {
         <TabsContent value="warehouses">
           <Card>
             <CardHeader>
-              <CardTitle>{t('stock.tabs.warehouses')}</CardTitle>
-              <CardDescription>{t('stock.warehouses.cardDesc')}</CardDescription>
+              <CardTitle>{t(getStockTabDefinition('warehouses').labelKey)}</CardTitle>
+              <StockTabCardDescription tabId="warehouses" />
             </CardHeader>
             <CardContent>
               <WarehousesTab />
@@ -124,8 +154,8 @@ export function StockPage(): ReactElement {
         <TabsContent value="transfers">
           <Card>
             <CardHeader>
-              <CardTitle>{t('stock.tabs.transfers')}</CardTitle>
-              <CardDescription>{t('stock.transfers.cardDesc')}</CardDescription>
+              <CardTitle>{t(getStockTabDefinition('transfers').labelKey)}</CardTitle>
+              <StockTabCardDescription tabId="transfers" />
             </CardHeader>
             <CardContent className="p-0 pt-2">
               <StockTransfersTab embedded />
@@ -136,8 +166,8 @@ export function StockPage(): ReactElement {
         <TabsContent value="forecast">
           <Card>
             <CardHeader>
-              <CardTitle>{t('stock.tabs.forecast')}</CardTitle>
-              <CardDescription>{t('stock.forecast.cardDesc')}</CardDescription>
+              <CardTitle>{t(getStockTabDefinition('forecast').labelKey)}</CardTitle>
+              <StockTabCardDescription tabId="forecast" />
             </CardHeader>
             <CardContent>
               <StockForecastTab />

@@ -39,6 +39,8 @@ import { SyncSchedulerTask } from './sync-scheduler.task';
 import { InAppNotificationModule } from '../notifications/in-app/in-app-notification.module';
 import { DashboardModule } from '../dashboard/dashboard.module';
 import { MigrationModule } from '../migration/migration.module';
+import { IntegrationPolicyModule } from '../integration-policy/integration-policy.module';
+import { ProductMatchModule } from '../product-match/product-match.module';
 
 import { DataImportProcessor } from './data-import.processor';
 
@@ -62,6 +64,8 @@ import { DataImportProcessor } from './data-import.processor';
     ReturnModule,
     DashboardModule,
     MigrationModule,
+    IntegrationPolicyModule,
+    ProductMatchModule,
   ],
   providers: [
     MarketplaceJobFailureHandler,

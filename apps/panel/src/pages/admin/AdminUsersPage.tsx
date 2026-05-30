@@ -1,17 +1,31 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Loader2, MoreHorizontal } from 'lucide-react';
+import { Download, Loader2, MoreHorizontal } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -32,7 +46,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { DataTablePagination } from '@/components/DataTablePagination';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { TableSkeleton } from '@/components/TableSkeleton';
 import {
   Table,
   TableBody,
@@ -41,25 +57,26 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  normalizeAdminOrgListResponse,
+  normalizeAdminUsersListResponse,
+} from '@/lib/admin-api-normalize';
+import { adminAccountStatusLabel, adminUserRoleLabel } from '@/lib/admin-i18n-labels';
+import { useAdminUserMutations } from '@/hooks/useAdminUserMutations';
 import { api, getApiErrorMessage } from '@/lib/api';
+import {
+  readAdminOrgProductFilterParam,
+  type AdminOrgProductFilterValue,
+} from '@/lib/admin-org-product-filter';
+import { downloadAdminUsersCsvFromServer } from '@/pages/admin/admin-users-csv';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
+import { AdminListEmptyState } from '@/pages/admin/AdminListEmptyState';
+import { ADMIN_USER_FILTER_DEFAULTS } from '@/pages/admin/admin-users-filters.config';
+import { AdminOrgProductFilterSelect } from '@/pages/admin/AdminOrgProductFilterSelect';
+import { AdminPageHeader } from '@/pages/admin/AdminPageHeader';
 import type { AdminOrgListResponse, AdminUsersListResponse } from '@/types/admin';
 
-const PAGE_SIZE = 20;
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: 'Super Admin',
-  OWNER: 'Sahip',
-  ADMIN: 'Yönetici',
-  MANAGER: 'Müdür',
-  VIEWER: 'Görüntüleyici',
-};
-
-const ROLE_OPTIONS = [
-  { value: 'OWNER', label: 'Sahip' },
-  { value: 'ADMIN', label: 'Yönetici' },
-  { value: 'MANAGER', label: 'Müdür' },
-  { value: 'VIEWER', label: 'Görüntüleyici' },
-] as const;
+const ROLE_OPTIONS = ['OWNER', 'ADMIN', 'MANAGER', 'VIEWER'] as const;
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -73,13 +90,19 @@ function initials(name: string): string {
 }
 
 export function AdminUsersPage(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const productFilter = readAdminOrgProductFilterParam(searchParams.get('product'));
 
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-  const [searchDraft, setSearchDraft] = useState('');
-  const [orgFilter, setOrgFilter] = useState<string>('all');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [urlFilters, setUrlFilters] = useUrlFilters(ADMIN_USER_FILTER_DEFAULTS);
+  const { page, limit, search, orgId: orgFilter, role: roleFilter } = urlFilters;
+  const [searchDraft, setSearchDraft] = useState(search);
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  useEffect(() => {
+    setSearchDraft(search);
+  }, [search]);
 
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleTarget, setRoleTarget] = useState<{
@@ -89,6 +112,20 @@ export function AdminUsersPage(): ReactElement {
   } | null>(null);
   const [newRole, setNewRole] = useState<string>('ADMIN');
 
+  const [suspendOpen, setSuspendOpen] = useState(false);
+  const [suspendTarget, setSuspendTarget] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
+
+  const [editNameOpen, setEditNameOpen] = useState(false);
+  const [editNameTarget, setEditNameTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [editNameDraft, setEditNameDraft] = useState('');
+
   const { data: orgOptions } = useQuery({
     queryKey: ['admin', 'organizations', 'options'],
     queryFn: async (): Promise<AdminOrgListResponse> => {
@@ -96,131 +133,173 @@ export function AdminUsersPage(): ReactElement {
         '/admin/organizations',
         { params: { page: 1, limit: 100 } },
       );
-      return res;
+      return normalizeAdminOrgListResponse(res);
     },
   });
 
+  function setProductFilter(value: AdminOrgProductFilterValue): void {
+    setUrlFilters({ page: 1 });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (value === 'all') {
+          next.delete('product');
+        } else {
+          next.set('product', value);
+        }
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['admin', 'users', page, search, orgFilter, roleFilter],
+    queryKey: ['admin', 'users', page, limit, search, orgFilter, roleFilter, productFilter],
     queryFn: async (): Promise<AdminUsersListResponse> => {
       const { data: res } = await api.get<AdminUsersListResponse>('/admin/users', {
         params: {
           page,
-          limit: PAGE_SIZE,
+          limit,
           search: search || undefined,
           orgId: orgFilter === 'all' ? undefined : orgFilter,
           role: roleFilter === 'all' ? undefined : roleFilter,
+          product: productFilter === 'all' ? undefined : productFilter,
         },
       });
-      return res;
+      return normalizeAdminUsersListResponse(res);
     },
   });
 
-  const invalidate = (): void => {
-    void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-  };
-
-  const suspendMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      await api.patch(`/admin/users/${userId}/suspend`);
+  const {
+    suspendMutation,
+    unsuspendMutation,
+    roleMutation,
+    sessionsMutation,
+    resetPasswordMutation,
+  } = useAdminUserMutations({
+    onSuspendSuccess: () => {
+      setSuspendOpen(false);
+      setSuspendTarget(null);
     },
-    onSuccess: () => {
-      invalidate();
-      toast.success('Kullanıcı askıya alındı.');
-    },
-    onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
-  });
-
-  const unsuspendMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      await api.patch(`/admin/users/${userId}/unsuspend`);
-    },
-    onSuccess: () => {
-      invalidate();
-      toast.success('Askı kaldırıldı.');
-    },
-    onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
-  });
-
-  const roleMutation = useMutation({
-    mutationFn: async (payload: { id: string; role: string }) => {
-      await api.patch(`/admin/users/${payload.id}/role`, { role: payload.role });
-    },
-    onSuccess: () => {
-      invalidate();
-      toast.success('Rol güncellendi.');
+    onRoleSuccess: () => {
       setRoleOpen(false);
       setRoleTarget(null);
     },
-    onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
   });
 
-  const sessionsMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      await api.delete(`/admin/users/${userId}/sessions`);
-    },
-    onSuccess: () => {
-      toast.success('Oturumlar sonlandırıldı.');
-    },
-    onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
-  });
+  const invalidateUsers = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+  };
 
-  const resetPasswordMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      await api.post(`/admin/users/${userId}/reset-password`);
+  const editNameMutation = useMutation({
+    mutationFn: async (payload: { id: string; name: string }) => {
+      await api.patch(`/admin/users/${payload.id}`, { name: payload.name });
     },
     onSuccess: () => {
-      toast.success('Şifre sıfırlama e-postası gönderildi.');
+      invalidateUsers();
+      setEditNameOpen(false);
+      setEditNameTarget(null);
+      toast.success(t('admin.users.editNameDialog.saved'));
     },
     onError: (e: unknown) => toast.error(getApiErrorMessage(e)),
   });
 
   const total = data?.total ?? 0;
-  const limit = data?.limit ?? PAGE_SIZE;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const effectiveLimit = data?.limit ?? limit;
+  const totalPages = Math.max(1, Math.ceil(total / effectiveLimit));
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    orgFilter !== 'all' ||
+    roleFilter !== 'all' ||
+    productFilter !== 'all';
+
+  async function handleExportCsv(): Promise<void> {
+    setExportingCsv(true);
+    try {
+      await downloadAdminUsersCsvFromServer(
+        {
+          search: search || undefined,
+          orgId: orgFilter === 'all' ? undefined : orgFilter,
+          role: roleFilter === 'all' ? undefined : roleFilter,
+          product: productFilter,
+        },
+        undefined,
+        t,
+      );
+      toast.success(t('admin.users.toast.csvDownloaded'));
+    } catch (e: unknown) {
+      if (total === 0) {
+        toast.error(t('admin.users.toast.exportEmpty'));
+      } else {
+        toast.error(getApiErrorMessage(e));
+      }
+    } finally {
+      setExportingCsv(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-primary">Kullanıcılar</h2>
-          <p className="text-sm text-muted-foreground">
-            İsim veya e-posta ile arayın; organizasyon ve rol filtreleyin.
-          </p>
-        </div>
-        <form
-          className="flex w-full max-w-xl flex-col gap-2 sm:flex-row sm:items-center"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setPage(1);
-            setSearch(searchDraft.trim());
-          }}
-        >
-          <Input
-            placeholder="İsim veya e-posta…"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            className="sm:flex-1"
-          />
-          <Button type="submit">Ara</Button>
-        </form>
-      </div>
+      <AdminPageHeader
+        title={t('admin.pages.users.title')}
+        description={t('admin.pages.users.description')}
+        actions={
+          <div className="flex w-full max-w-xl flex-col gap-2 sm:flex-row sm:items-center">
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0"
+              disabled={exportingCsv}
+              onClick={() => {
+                void handleExportCsv();
+              }}
+            >
+              {exportingCsv ? (
+                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+              ) : (
+                <Download className="mr-2 size-4" aria-hidden />
+              )}
+              {t('admin.pages.users.exportCsv')}
+            </Button>
+            <form
+              className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setUrlFilters({ page: 1, search: searchDraft.trim() });
+              }}
+            >
+              <Input
+                placeholder={t('admin.users.searchPlaceholder')}
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                className="sm:flex-1"
+              />
+              <Button type="submit">{t('admin.common.search')}</Button>
+            </form>
+          </div>
+        }
+      />
 
+      <Card>
+        <CardContent className="space-y-4 pt-6">
       <div className="flex flex-wrap gap-3">
+        <AdminOrgProductFilterSelect
+          value={productFilter}
+          onValueChange={setProductFilter}
+        />
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Organizasyon</Label>
+          <Label className="text-xs text-muted-foreground">{t('admin.common.organization')}</Label>
           <Select
             value={orgFilter}
             onValueChange={(v) => {
-              setPage(1);
-              setOrgFilter(v);
+              setUrlFilters({ page: 1, orgId: v });
             }}
           >
             <SelectTrigger className="w-[220px] bg-background">
-              <SelectValue placeholder="Organizasyon" />
+              <SelectValue placeholder={t('admin.common.organization')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tümü</SelectItem>
+              <SelectItem value="all">{t('admin.common.all')}</SelectItem>
               {(orgOptions?.orgs ?? []).map((o) => (
                 <SelectItem key={o.id} value={o.id}>
                   {o.name}
@@ -230,22 +309,21 @@ export function AdminUsersPage(): ReactElement {
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Rol</Label>
+          <Label className="text-xs text-muted-foreground">{t('admin.common.role')}</Label>
           <Select
             value={roleFilter}
             onValueChange={(v) => {
-              setPage(1);
-              setRoleFilter(v);
+              setUrlFilters({ page: 1, role: v });
             }}
           >
             <SelectTrigger className="w-[180px] bg-background">
-              <SelectValue placeholder="Rol" />
+              <SelectValue placeholder={t('admin.common.role')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Tümü</SelectItem>
-              {Object.entries(ROLE_LABEL).map(([value, label]) => (
+              <SelectItem value="all">{t('admin.common.all')}</SelectItem>
+              {(['SUPER_ADMIN', ...ROLE_OPTIONS] as const).map((value) => (
                 <SelectItem key={value} value={value}>
-                  {label}
+                  {adminUserRoleLabel(value, t)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -253,50 +331,39 @@ export function AdminUsersPage(): ReactElement {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-3">
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
-      ) : null}
+      {isLoading ? <TableSkeleton rows={8} cols={5} /> : null}
 
       {isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(error)}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3"
-            onClick={() => void refetch()}
-          >
-            Tekrar dene
-          </Button>
-        </div>
+        <QueryErrorAlert
+          error={error}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
       ) : null}
 
-      {!isLoading && !isError && data ? (
+      {!isLoading && !isError && data && data.users.length === 0 ? (
+        <AdminListEmptyState
+          hasActiveFilters={hasActiveFilters}
+          emptyTitle={t('admin.common.listEmpty.users')}
+        />
+      ) : null}
+
+      {!isLoading && !isError && data && data.users.length > 0 ? (
         <>
-          <div className="overflow-hidden rounded-md border border-border bg-card">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Kullanıcı</TableHead>
-                  <TableHead>Organizasyon</TableHead>
-                  <TableHead>Rol</TableHead>
-                  <TableHead>Son giriş</TableHead>
-                  <TableHead className="w-[1%] text-right">İşlemler</TableHead>
+                  <TableHead>{t('admin.users.table.user')}</TableHead>
+                  <TableHead>{t('admin.users.table.organization')}</TableHead>
+                  <TableHead>{t('admin.users.table.role')}</TableHead>
+                  <TableHead>{t('admin.users.table.lastLogin')}</TableHead>
+                  <TableHead className="w-[1%] text-right">{t('admin.users.table.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Kullanıcı bulunamadı.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.users.map((u) => (
+                {data.users.map((u) => (
                     <TableRow key={u.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -306,11 +373,16 @@ export function AdminUsersPage(): ReactElement {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{u.name}</p>
+                            <Link
+                              to={`/admin/users/${u.id}`}
+                              className="font-medium text-sky-700 underline-offset-2 hover:underline"
+                            >
+                              {u.name}
+                            </Link>
                             <p className="text-sm text-muted-foreground">{u.email}</p>
                             {u.suspended ? (
                               <Badge variant="destructive" className="mt-1">
-                                Askıda
+                                {adminAccountStatusLabel(true, t)}
                               </Badge>
                             ) : null}
                           </div>
@@ -319,16 +391,21 @@ export function AdminUsersPage(): ReactElement {
                       <TableCell className="text-sm">
                         {u.organization ? (
                           <>
-                            <p className="font-medium">{u.organization.name}</p>
+                            <Link
+                              to={`/admin/organizations/${u.organization.id}`}
+                              className="font-medium text-sky-700 underline-offset-2 hover:underline"
+                            >
+                              {u.organization.name}
+                            </Link>
                             <p className="text-muted-foreground">{u.organization.slug}</p>
                           </>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">{t('admin.common.emDash')}</span>
                         )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">
-                          {ROLE_LABEL[u.role] ?? u.role}
+                          {adminUserRoleLabel(u.role, t)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -336,14 +413,14 @@ export function AdminUsersPage(): ReactElement {
                           ? format(new Date(u.lastLoginAt), 'd MMM yyyy HH:mm', {
                               locale: tr,
                             })
-                          : '—'}
+                          : t('admin.common.emDash')}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button type="button" variant="ghost" size="icon">
                               <MoreHorizontal className="size-4" aria-hidden />
-                              <span className="sr-only">Menü</span>
+                              <span className="sr-only">{t('admin.common.menuAria')}</span>
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
@@ -361,21 +438,30 @@ export function AdminUsersPage(): ReactElement {
                                 setRoleOpen(true);
                               }}
                             >
-                              Rol değiştir
+                              {t('admin.users.actions.changeRole')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditNameTarget({ id: u.id, name: u.name });
+                                setEditNameDraft(u.name);
+                                setEditNameOpen(true);
+                              }}
+                            >
+                              {t('admin.users.actions.editName')}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
                                 void sessionsMutation.mutate(u.id)
                               }
                             >
-                              Oturumları sonlandır
+                              {t('admin.users.actions.endSessions')}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() =>
                                 void resetPasswordMutation.mutate(u.id)
                               }
                             >
-                              Şifreyi sıfırla
+                              {t('admin.users.actions.resetPassword')}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {u.suspended ? (
@@ -384,75 +470,183 @@ export function AdminUsersPage(): ReactElement {
                                   void unsuspendMutation.mutate(u.id)
                                 }
                               >
-                                Askıyı kaldır
+                                {t('admin.users.actions.unsuspend')}
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 disabled={u.role === 'SUPER_ADMIN'}
-                                onClick={() => void suspendMutation.mutate(u.id)}
+                                onClick={() => {
+                                  setSuspendTarget({
+                                    id: u.id,
+                                    name: u.name,
+                                    email: u.email,
+                                  });
+                                  setSuspendOpen(true);
+                                }}
                               >
-                                Askıya al
+                                {t('admin.users.actions.suspend')}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ))}
               </TableBody>
             </Table>
           </div>
 
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>
-              Toplam {total} kullanıcı · Sayfa {data.page} / {totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Önceki
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Sonraki
-              </Button>
-            </div>
-          </div>
+          <DataTablePagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            limit={effectiveLimit}
+            onPageChange={(p) => {
+              setUrlFilters({ page: p });
+            }}
+            onLimitChange={(nextLimit) => {
+              setUrlFilters({ limit: nextLimit, page: 1 });
+            }}
+          />
         </>
       ) : null}
+        </CardContent>
+      </Card>
 
-      <Dialog open={roleOpen} onOpenChange={setRoleOpen}>
+      <AlertDialog
+        open={suspendOpen}
+        onOpenChange={(open) => {
+          setSuspendOpen(open);
+          if (!open) {
+            setSuspendTarget(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin.users.dialogs.suspendTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {suspendTarget
+                ? t('admin.users.dialogs.suspendDescription', {
+                    name: suspendTarget.name,
+                    email: suspendTarget.email,
+                  })
+                : t('admin.users.dialogs.suspendDescriptionGeneric')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('admin.common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!suspendTarget || suspendMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!suspendTarget) {
+                  return;
+                }
+                suspendMutation.mutate(suspendTarget.id);
+              }}
+            >
+              {suspendMutation.isPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                t('admin.users.dialogs.suspendConfirm')
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog
+        open={editNameOpen}
+        onOpenChange={(open) => {
+          setEditNameOpen(open);
+          if (!open) {
+            setEditNameTarget(null);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rol değiştir</DialogTitle>
+            <DialogTitle>{t('admin.users.editNameDialog.title')}</DialogTitle>
+            {editNameTarget ? (
+              <DialogDescription>{editNameTarget.name}</DialogDescription>
+            ) : null}
           </DialogHeader>
-          {roleTarget ? (
-            <p className="text-sm text-muted-foreground">
-              {roleTarget.name} — mevcut: {ROLE_LABEL[roleTarget.current] ?? roleTarget.current}
-            </p>
-          ) : null}
           <div className="space-y-2">
-            <Label>Yeni rol</Label>
+            <Label htmlFor="admin-edit-user-name">
+              {t('admin.users.editNameDialog.label')}
+            </Label>
+            <Input
+              id="admin-edit-user-name"
+              value={editNameDraft}
+              maxLength={200}
+              onChange={(e) => setEditNameDraft(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setEditNameOpen(false)}>
+              {t('admin.common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !editNameTarget ||
+                editNameMutation.isPending ||
+                editNameDraft.trim().length === 0 ||
+                editNameDraft.trim() === editNameTarget?.name
+              }
+              onClick={() => {
+                if (!editNameTarget) {
+                  return;
+                }
+                editNameMutation.mutate({
+                  id: editNameTarget.id,
+                  name: editNameDraft.trim(),
+                });
+              }}
+            >
+              {editNameMutation.isPending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+              ) : null}
+              {t('admin.common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={roleOpen}
+        onOpenChange={(open) => {
+          setRoleOpen(open);
+          if (!open) {
+            setRoleTarget(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('admin.users.dialogs.changeRoleTitle')}</DialogTitle>
+            {roleTarget ? (
+              <DialogDescription>
+                {t('admin.users.dialogs.changeRoleDescription', {
+                  name: roleTarget.name,
+                  role: adminUserRoleLabel(roleTarget.current, t),
+                })}
+              </DialogDescription>
+            ) : null}
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>{t('admin.users.dialogs.newRole')}</Label>
             <Select value={newRole} onValueChange={setNewRole}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {ROLE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
+                {ROLE_OPTIONS.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {adminUserRoleLabel(role, t)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -460,14 +654,20 @@ export function AdminUsersPage(): ReactElement {
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setRoleOpen(false)}>
-              İptal
+              {t('admin.common.cancel')}
             </Button>
             <Button
               type="button"
-              disabled={!roleTarget || roleMutation.isPending}
+              disabled={
+                !roleTarget ||
+                roleMutation.isPending ||
+                newRole === roleTarget?.current
+              }
               onClick={() => {
-                if (!roleTarget) return;
-                void roleMutation.mutateAsync({
+                if (!roleTarget) {
+                  return;
+                }
+                roleMutation.mutate({
                   id: roleTarget.id,
                   role: newRole,
                 });
@@ -476,7 +676,7 @@ export function AdminUsersPage(): ReactElement {
               {roleMutation.isPending ? (
                 <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
               ) : null}
-              Kaydet
+              {t('admin.common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

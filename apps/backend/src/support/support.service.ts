@@ -713,35 +713,6 @@ export class SupportService {
     const countByStatus = (status: TicketStatus): number =>
       statusCounts.find((s) => s.status === status)?._count._all ?? 0;
 
-    const ticketsWithResponse = await this.prisma.supportTicket.findMany({
-      where: { firstResponseAt: { not: null } },
-      select: { createdAt: true, firstResponseAt: true },
-    });
-
-    const avgFirstResponseHours =
-      ticketsWithResponse.length > 0
-        ? ticketsWithResponse.reduce((sum, t) => {
-            const hours =
-              (t.firstResponseAt!.getTime() - t.createdAt.getTime()) /
-              MS_PER_HOUR;
-            return sum + hours;
-          }, 0) / ticketsWithResponse.length
-        : null;
-
-    const resolvedTickets = await this.prisma.supportTicket.findMany({
-      where: { resolvedAt: { not: null } },
-      select: { createdAt: true, resolvedAt: true },
-    });
-
-    const avgResolutionHours =
-      resolvedTickets.length > 0
-        ? resolvedTickets.reduce((sum, t) => {
-            const hours =
-              (t.resolvedAt!.getTime() - t.createdAt.getTime()) / MS_PER_HOUR;
-            return sum + hours;
-          }, 0) / resolvedTickets.length
-        : null;
-
     const open = countByStatus(TicketStatus.OPEN);
     const inProgress = countByStatus(TicketStatus.IN_PROGRESS);
     const waitingCustomer = countByStatus(TicketStatus.WAITING_CUSTOMER);
@@ -754,14 +725,6 @@ export class SupportService {
         resolved: countByStatus(TicketStatus.RESOLVED),
         closed: countByStatus(TicketStatus.CLOSED),
         totalOpen: open + inProgress + waitingCustomer,
-        avgFirstResponseHours:
-          avgFirstResponseHours !== null
-            ? Math.round(avgFirstResponseHours * 10) / 10
-            : null,
-        avgResolutionHours:
-          avgResolutionHours !== null
-            ? Math.round(avgResolutionHours * 10) / 10
-            : null,
       },
     };
   }

@@ -18,6 +18,8 @@ export const ALL_WIDGET_TYPES: WidgetType[] = [
   'top-products',
   'sync-status',
   'buybox-rate',
+  'accounting-kpi',
+  'accounting-recent-invoices',
 ];
 
 export const WIDGET_LABELS: Record<WidgetType, string> = {
@@ -39,6 +41,8 @@ export const WIDGET_LABELS: Record<WidgetType, string> = {
   'top-products': 'En çok satan ürünler',
   'recent-orders': 'Son siparişler',
   'buybox-rate': 'BuyBox özeti',
+  'accounting-kpi': 'Ön muhasebe özeti',
+  'accounting-recent-invoices': 'Son faturalar',
 };
 
 export const WIDGET_DEFAULT_SIZE: Record<WidgetType, WidgetSize> = {
@@ -60,6 +64,8 @@ export const WIDGET_DEFAULT_SIZE: Record<WidgetType, WidgetSize> = {
   'top-products': '2x1',
   'recent-orders': '2x1',
   'buybox-rate': '1x1',
+  'accounting-kpi': '2x1',
+  'accounting-recent-invoices': '2x1',
 };
 
 export function widgetGridClass(size: WidgetSize): string {

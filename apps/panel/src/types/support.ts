@@ -53,8 +53,6 @@ export interface SupportStats {
   resolved: number;
   closed: number;
   totalOpen: number;
-  avgFirstResponseHours: number | null;
-  avgResolutionHours: number | null;
 }
 
 export interface SupportSlaReport {

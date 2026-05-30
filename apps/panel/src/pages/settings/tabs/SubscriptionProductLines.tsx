@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Loader2, Package, Plug, Receipt } from 'lucide-react';
+import { Check, CheckCircle2, Loader2, Package, Plug, Receipt } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ export function SubscriptionProductLines({
   const storeOrgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const orgProducts = orgProductsProp ?? storeOrgProducts;
   const addProductLineMutation = useAddProductLineMutation(orgProducts);
+  const isUpgrading = addProductLineMutation.isPending;
+  const upgradingCardId = addProductLineMutation.variables;
 
   return (
     <div className={cn('space-y-4', className)}>
@@ -57,41 +59,57 @@ export function SubscriptionProductLines({
           const active = isProductLineCardActive(card.id, orgProducts);
           const primary = isProductLineCardPrimary(card.id, orgProducts);
           const showUpgrade = canUpgradeToProductLineCard(card.id, orgProducts);
+          const isThisCardUpgrading = isUpgrading && upgradingCardId === card.id;
 
           return (
             <Card
               key={card.id}
+              aria-busy={isThisCardUpgrading}
               className={cn(
-                'flex flex-col border transition-colors',
-                primary && 'border-primary/70 bg-primary/5 ring-1 ring-primary/25',
-                active && !primary && 'border-sky-300/80 bg-sky-50/40',
-                card.recommended && !primary && !active && 'border-sky-200/60',
+                'relative flex flex-col border bg-background transition-[opacity,box-shadow,border-color]',
+                primary && 'border-2 border-primary bg-primary/5 shadow-sm',
+                active && !primary && 'border-sky-400 bg-sky-50/50',
+                card.recommended && !primary && !active && 'border-border',
+                isThisCardUpgrading && 'ring-2 ring-primary/30',
+                isUpgrading && !isThisCardUpgrading && 'opacity-60',
               )}
             >
-              <CardHeader className="space-y-2 pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border',
-                        primary
-                          ? 'border-primary/40 bg-primary/10 text-primary'
-                          : 'border-border bg-muted/50 text-muted-foreground',
-                      )}
-                    >
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </div>
-                    <CardTitle className="text-base">{t(card.titleKey)}</CardTitle>
+              {primary ? (
+                <Badge
+                  className="absolute right-3 top-3 border-emerald-200 bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                >
+                  {t('settings.subscriptionTab.productLines.activePrimaryBadge')}
+                </Badge>
+              ) : active ? (
+                <Badge
+                  variant="outline"
+                  className="absolute right-3 top-3 border-sky-400 text-sky-700"
+                >
+                  {t('settings.subscriptionTab.productLines.activeOnAccountBadge')}
+                </Badge>
+              ) : null}
+              <CardHeader className="space-y-2 pb-3 pr-24">
+                <div className="flex items-start gap-2">
+                  <div
+                    className={cn(
+                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+                      primary
+                        ? 'bg-primary text-primary-foreground'
+                        : active
+                          ? 'border border-sky-300 bg-sky-100 text-sky-700'
+                          : 'border border-border bg-muted/50 text-muted-foreground',
+                    )}
+                  >
+                    <Icon className="h-5 w-5" aria-hidden />
                   </div>
-                  {primary ? (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t('settings.subscriptionTab.productLines.activeBadge')}
-                    </Badge>
-                  ) : card.recommended && showUpgrade ? (
-                    <Badge className="shrink-0 border-0 bg-sky-500 text-white hover:bg-sky-500">
-                      {t('settings.subscriptionTab.productLines.recommendedBadge')}
-                    </Badge>
-                  ) : null}
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <CardTitle className="text-base leading-tight">{t(card.titleKey)}</CardTitle>
+                    {card.recommended && showUpgrade ? (
+                      <Badge className="border-amber-200 bg-amber-100 text-amber-800 hover:bg-amber-100">
+                        {t('settings.subscriptionTab.productLines.recommendedBadge')}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">{t(card.descriptionKey)}</p>
               </CardHeader>
@@ -102,7 +120,7 @@ export function SubscriptionProductLines({
                       <Check
                         className={cn(
                           'mt-0.5 h-4 w-4 shrink-0',
-                          active ? 'text-primary' : 'text-sky-500',
+                          primary ? 'text-primary' : active ? 'text-sky-600' : 'text-sky-500',
                         )}
                         aria-hidden
                       />
@@ -118,24 +136,28 @@ export function SubscriptionProductLines({
                     variant={card.id === 'BUNDLE' ? 'default' : 'outline'}
                     size="sm"
                     className="w-full"
-                    disabled={addProductLineMutation.isPending}
+                    disabled={isUpgrading}
+                    aria-busy={isThisCardUpgrading}
                     onClick={() => {
                       addProductLineMutation.mutate(card.id);
                     }}
                   >
-                    {addProductLineMutation.isPending &&
-                    addProductLineMutation.variables === card.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      t('settings.subscriptionTab.productLines.upgradeCta')
-                    )}
+                    <span className="inline-flex items-center justify-center gap-2">
+                      {isThisCardUpgrading ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                      ) : null}
+                      {isThisCardUpgrading
+                        ? t('settings.subscriptionTab.productLines.upgradingCta')
+                        : t('settings.subscriptionTab.productLines.upgradeCta')}
+                    </span>
                   </Button>
                 </CardFooter>
               ) : active ? (
                 <CardFooter className="pt-0">
-                  <p className="w-full text-center text-xs font-medium text-primary">
-                    {t('settings.subscriptionTab.productLines.included')}
-                  </p>
+                  <div className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-emerald-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                    <span>{t('settings.subscriptionTab.productLines.included')}</span>
+                  </div>
                 </CardFooter>
               ) : null}
             </Card>

@@ -30,7 +30,7 @@ export function ForecastCriticalWidget(): ReactElement {
     <Card
       className="h-full cursor-pointer transition-colors hover:border-accent/50"
       onClick={() => {
-        navigate('/stock/forecast');
+        navigate('/products?tab=forecast');
       }}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

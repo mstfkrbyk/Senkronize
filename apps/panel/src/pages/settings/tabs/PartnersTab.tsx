@@ -1,8 +1,11 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Loader2, Mail, Phone } from 'lucide-react';
 
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { getApiErrorMessage } from '@/lib/api';
 import type { PartnerStatus } from '@/types/partner';
 
 import {
@@ -38,6 +40,7 @@ const statusLabels: Record<PartnerStatus, string> = {
 };
 
 export function PartnersTab(): ReactElement {
+  const { t } = useTranslation();
   const { data, isLoading, isError, error, refetch } = useMyPartners();
   const leave = useLeavePartnerRelationship();
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -48,21 +51,37 @@ export function PartnersTab(): ReactElement {
     activePartner?.partnerOrg?.whiteLabelSettings?.brandName ??
     activePartner?.partnerOrg?.name ??
     selected?.partnerOrg?.name ??
-    'Partner';
+    t('settings.partnersTab.defaultPartnerName');
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
-      </div>
+      <SettingsPageShell
+        title="Partner Programı"
+        description="Partner ağına katılın veya mevcut bağlantılarınızı yönetin."
+      >
+        <div className="flex justify-center py-16">
+          <Loader2
+            className="size-8 animate-spin text-muted-foreground"
+            aria-label={t('common.loading')}
+          />
+        </div>
+      </SettingsPageShell>
     );
   }
 
   if (isError) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {getApiErrorMessage(error)}
-      </div>
+      <SettingsPageShell
+        title="Partner Programı"
+        description="Partner ağına katılın veya mevcut bağlantılarınızı yönetin."
+      >
+        <QueryErrorAlert
+          error={error}
+          onRetry={() => {
+            void refetch();
+          }}
+        />
+      </SettingsPageShell>
     );
   }
 
@@ -70,18 +89,14 @@ export function PartnersTab(): ReactElement {
 
   if (!activePartner && rows.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold">Partnerler</h2>
-          <p className="text-sm text-muted-foreground">
-            Henüz bir partner ile bağlı değilsiniz. Partner ağımızdan bir ajans seçerek
-            bağlantı talebi gönderebilirsiniz.
-          </p>
-        </div>
+      <SettingsPageShell
+        title="Partner Programı"
+        description="Partner ağına katılın veya mevcut bağlantılarınızı yönetin."
+      >
         <Button asChild>
-          <Link to="/settings/partners">Partnerlerimizi Keşfet</Link>
+          <Link to="/settings/partners">{t('settings.partnersTab.discoverCta')}</Link>
         </Button>
-      </div>
+      </SettingsPageShell>
     );
   }
 
@@ -91,14 +106,10 @@ export function PartnersTab(): ReactElement {
   const contactPhone = wl?.supportPhone ?? null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-semibold">Partnerler</h2>
-        <p className="text-sm text-muted-foreground">
-          Bağlı olduğunuz ajans partner bilgileri ve ilişki yönetimi.
-        </p>
-      </div>
-
+    <SettingsPageShell
+      title="Partner Programı"
+      description="Partner ağına katılın veya mevcut bağlantılarınızı yönetin."
+    >
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
           <div>
@@ -131,7 +142,9 @@ export function PartnersTab(): ReactElement {
           <div className="flex flex-wrap gap-2">
             {!activePartner ? (
               <Button asChild variant="outline" size="sm">
-                <Link to="/settings/partners">Partnerlerimizi Keşfet</Link>
+                <Link to="/settings/partners">
+                  {t('settings.partnersTab.discoverCta')}
+                </Link>
               </Button>
             ) : null}
             <Button
@@ -141,7 +154,7 @@ export function PartnersTab(): ReactElement {
               disabled={leave.isPending || display.status === 'TERMINATED'}
               onClick={() => setConfirmId(display.id)}
             >
-              Bağlantıyı Sonlandır
+              {t('settings.partnersTab.terminate')}
             </Button>
           </div>
         </CardContent>
@@ -149,7 +162,9 @@ export function PartnersTab(): ReactElement {
 
       {rows.length > 1 ? (
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">Diğer kayıtlar</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            {t('settings.partnersTab.otherRecords')}
+          </p>
           <div className="grid gap-3 md:grid-cols-2">
             {rows
               .filter((r) => r.id !== display.id)
@@ -157,7 +172,7 @@ export function PartnersTab(): ReactElement {
                 <Card key={rel.id}>
                   <CardHeader className="py-3">
                     <CardTitle className="text-sm">
-                      {rel.partnerOrg?.name ?? 'Partner'}
+                      {rel.partnerOrg?.name ?? t('settings.partnersTab.defaultPartnerName')}
                     </CardTitle>
                     <Badge variant="secondary" className="w-fit">
                       {statusLabels[rel.status]}
@@ -170,19 +185,19 @@ export function PartnersTab(): ReactElement {
       ) : null}
 
       <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-        Yenile
+        {t('settings.partnersTab.refresh')}
       </Button>
 
       <AlertDialog open={confirmId != null} onOpenChange={() => setConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Partner bağlantısını sonlandır</AlertDialogTitle>
+            <AlertDialogTitle>{t('settings.partnersTab.terminateTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {partnerName} ile bağlantınızı sonlandırmak istediğinize emin misiniz?
+              {t('settings.partnersTab.terminateConfirm', { name: partnerName })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
+            <AlertDialogCancel type="button">{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               type="button"
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -195,11 +210,11 @@ export function PartnersTab(): ReactElement {
                 }
               }}
             >
-              Sonlandır
+              {t('settings.partnersTab.terminateAction')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </SettingsPageShell>
   );
 }

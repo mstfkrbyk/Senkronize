@@ -84,8 +84,14 @@ export function StockOverviewTable({
     page: 1,
   });
 
-  const warehouses: WarehouseDto[] = warehousesQuery.data ?? [];
-  const metaMap = metaMapQuery.data ?? new Map();
+  const warehouses: WarehouseDto[] = useMemo(
+    () => warehousesQuery.data ?? [],
+    [warehousesQuery.data],
+  );
+  const metaMap = useMemo(
+    () => metaMapQuery.data ?? new Map(),
+    [metaMapQuery.data],
+  );
 
   const lastMovementByBarcode = useMemo(() => {
     const map = new Map<string, string>();
@@ -310,7 +316,7 @@ export function StockOverviewTable({
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              to={`/stock/transfers?barcode=${encodeURIComponent(row.barcode)}`}
+                              to={`/products?tab=transfers&barcode=${encodeURIComponent(row.barcode)}`}
                             >
                               <ArrowRightLeft className="mr-2 size-4" />
                               Transfer oluştur
@@ -318,7 +324,7 @@ export function StockOverviewTable({
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <Link
-                              to={`/stock/movements?barcode=${encodeURIComponent(row.barcode)}`}
+                              to={`/products?tab=movements&barcode=${encodeURIComponent(row.barcode)}`}
                             >
                               <History className="mr-2 size-4" />
                               Geçmiş görüntüle

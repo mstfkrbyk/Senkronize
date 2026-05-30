@@ -6,6 +6,7 @@ import {
 import { StockMovementType, TransferStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveProductStockKey } from '../common/product-match-key';
 
 import type {
   CreateStockTransferDto,
@@ -16,7 +17,7 @@ export interface StockTransferItemDto {
   id: string;
   productId: string;
   productName: string;
-  productBarcode: string;
+  productBarcode: string | null;
   quantity: number;
 }
 
@@ -137,7 +138,7 @@ export class StockTransferService {
         toWarehouse: { select: { name: true, code: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, barcode: true } },
+            product: { select: { id: true, name: true, barcode: true, sku: true } },
           },
         },
       },
@@ -168,7 +169,7 @@ export class StockTransferService {
         toWarehouse: { select: { name: true, code: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, barcode: true } },
+            product: { select: { id: true, name: true, barcode: true, sku: true } },
           },
         },
       },
@@ -239,7 +240,7 @@ export class StockTransferService {
         toWarehouse: { select: { name: true, code: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, barcode: true } },
+            product: { select: { id: true, name: true, barcode: true, sku: true } },
           },
         },
       },
@@ -259,7 +260,12 @@ export class StockTransferService {
 
     await this.prisma.$transaction(async (tx) => {
       for (const item of transfer.items) {
-        const barcode = item.product.barcode.trim();
+        const barcode = resolveProductStockKey(item.product);
+        if (!barcode) {
+          throw new BadRequestException(
+            `${item.product.name} için barkod veya SKU tanımlı değil.`,
+          );
+        }
         const source = await tx.stockEntry.findFirst({
           where: {
             organizationId,

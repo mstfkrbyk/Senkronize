@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -26,13 +27,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { getApiErrorMessage } from '@/lib/api';
-import { FORM_MESSAGES } from '@/lib/form-messages';
+import { firstFormFieldErrorMessage, FORM_MESSAGES } from '@/lib/form-messages';
 
 import { useCreateOnboardingInvite } from './hooks/usePartner';
 
 const inviteSchema = z.object({
   email: z.string().min(1, FORM_MESSAGES.required).email(FORM_MESSAGES.email),
-  message: z.string().max(2000).optional().or(z.literal('')),
+  message: z
+    .string()
+    .max(2000, FORM_MESSAGES.maxLength(2000))
+    .optional()
+    .or(z.literal('')),
 });
 
 type InviteFormValues = z.infer<typeof inviteSchema>;
@@ -42,6 +47,7 @@ interface Props {
 }
 
 export function InviteClientDialog({ trigger }: Props): ReactElement {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState<string | null>(null);
   const invite = useCreateOnboardingInvite();
@@ -66,7 +72,7 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
           const url =
             typeof data.inviteUrl === 'string' ? data.inviteUrl : null;
           setLastInviteUrl(url);
-          toast.success('Davet gönderildi.');
+          toast.success(t('partner.invite.sent'));
           form.reset({ email: '', message: '' });
         },
         onError: (error: unknown) => {
@@ -107,11 +113,17 @@ export function InviteClientDialog({ trigger }: Props): ReactElement {
           <DialogTitle>Müşteri davet et</DialogTitle>
           <DialogDescription>
             Müşterinize kayıt bağlantısı içeren bir e-posta gönderilir. İsterseniz kısa bir mesaj
-            ekleyebilirsiniz.
+            ekleyebilirsiniz. Müşterinin sizinle bağlantı talebi göndermesi durumunda süreç admin
+            onayından geçer (Beklemede → Onaylandı veya Reddedildi); bu davet akışından bağımsızdır.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              toast.error(firstFormFieldErrorMessage(errors));
+            })}
+            className="space-y-4"
+          >
             <FormField
               control={form.control}
               name="email"

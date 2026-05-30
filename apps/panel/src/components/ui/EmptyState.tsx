@@ -39,7 +39,7 @@ export function EmptyState({
           focusable={false}
         />
       )}
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+      <p className="text-lg font-semibold text-foreground">{title}</p>
       <p className="max-w-md text-sm text-muted-foreground">{description}</p>
       {actionSlot ??
         (action || secondaryAction ? (

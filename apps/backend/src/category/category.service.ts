@@ -459,7 +459,7 @@ export class CategoryService {
   async searchProductsByBarcode(
     organizationId: string,
     barcode: string,
-  ): Promise<{ id: string; barcode: string; name: string; sku: string | null }[]> {
+  ): Promise<{ id: string; barcode: string | null; name: string; sku: string | null }[]> {
     const b = barcode.trim();
     if (b.length === 0) {
       return [];

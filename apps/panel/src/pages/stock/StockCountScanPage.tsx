@@ -33,6 +33,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockNavContextLine } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 
 import {
@@ -169,7 +171,7 @@ export function StockCountScanPage(): ReactElement {
       }
       toast.success(t('stock.countScan.saved'));
     },
-    [rows, sessionId, upsertItem, productQ.data, t],
+    [rows, sessionId, upsertItem, productQ.data, t, warehouseId],
   );
 
   const confirmCurrent = (): void => {
@@ -204,6 +206,7 @@ export function StockCountScanPage(): ReactElement {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-1 pb-8 sm:gap-6 sm:px-0">
       <div className="flex flex-col gap-2">
+        <StockNavContextLine />
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight sm:text-2xl">
           <ScanLine className="size-6 text-sky-500 dark:text-sky-400" aria-hidden />
           {t('stock.countScan.title')}
@@ -212,7 +215,7 @@ export function StockCountScanPage(): ReactElement {
           {t('stock.countScan.subtitle')}
         </p>
         <Button variant="outline" size="sm" className="w-fit" asChild>
-          <Link to="/stock/count">{t('stock.countScan.classic')}</Link>
+          <Link to="/products/count">{t('stock.countScan.classic')}</Link>
         </Button>
       </div>
 
@@ -395,7 +398,7 @@ export function StockCountScanPage(): ReactElement {
 
           {sessionId && rows.length > 0 ? (
             <Button type="button" className="mt-4 h-11 w-full" size="lg" asChild>
-              <Link to={`/stock/count?session=${sessionId}`}>
+              <Link to={`/products/count?session=${sessionId}`}>
                 <Check className="mr-2 size-5" aria-hidden />
                 {t('stock.countScan.finish')}
               </Link>

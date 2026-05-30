@@ -1,6 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 
+import { mockOrgContextLineFromEnv } from '@/lib/mock-org-config';
 import { runFullPlatformSync } from '@/lib/run-platform-sync';
 import { tauriApi, type SyncStatusResponse } from '@/lib/tauri';
 
@@ -16,6 +17,8 @@ function formatLastSync(iso: string | null | undefined): string {
   }
   return d.toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' });
 }
+
+const orgContextPreview = mockOrgContextLineFromEnv();
 
 export function TraySettings(): ReactElement {
   const [intervalMinutes, setIntervalMinutes] = useState<number>(15);
@@ -111,6 +114,15 @@ export function TraySettings(): ReactElement {
       <p className="muted" style={{ marginTop: 8 }}>
         Arka planda periyodik senkron ve hızlı tetikleme.
       </p>
+
+      {orgContextPreview ? (
+        <div style={{ marginTop: 12 }}>
+          <p style={{ margin: 0, fontWeight: 650 }}>Org özeti (geliştirme)</p>
+          <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
+            {orgContextPreview}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flexBetween" style={{ marginTop: 16 }}>
         <div>

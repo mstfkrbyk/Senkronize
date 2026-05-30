@@ -145,6 +145,14 @@ describe('Auth E2E', () => {
     expect(res.body.user.email).toBe(email.toLowerCase());
     expect(res.body.user.name).toBe('E2E Kullanıcı');
     expect(res.body.organization).toBeDefined();
+    expect(res.body.organization.accountingMode).toMatch(
+      /^(NATIVE|EXTERNAL_ERP)$/,
+    );
+    expect(Array.isArray(res.body.organization.productLines)).toBe(true);
+    expect(res.body.organization.productLines.length).toBeGreaterThan(0);
+    expect(res.body.organization.orgProducts).toEqual(
+      res.body.organization.productLines,
+    );
   });
 
   it('POST /auth/refresh — token yenileme', async () => {

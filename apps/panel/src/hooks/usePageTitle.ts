@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
 
+import { useActiveNav } from '@/hooks/useActiveNav';
+
 const APP_NAME = 'Senkronize';
 
 export interface UsePageTitleOptions {
@@ -7,13 +9,21 @@ export interface UsePageTitleOptions {
   badgeCount?: number;
 }
 
-function formatTitle(pageTitle: string, badgeCount?: number): string {
+function formatTitle(
+  pageTitle: string,
+  groupLabel: string | undefined,
+  badgeCount?: number,
+): string {
   if (!pageTitle) {
     return APP_NAME;
   }
   const count =
     badgeCount !== undefined && badgeCount > 0 ? `(${badgeCount}) ` : '';
-  return `${count}${pageTitle} | ${APP_NAME}`;
+  const page = `${count}${pageTitle}`;
+  if (groupLabel) {
+    return `${page} | ${groupLabel} | ${APP_NAME}`;
+  }
+  return `${page} | ${APP_NAME}`;
 }
 
 export function usePageTitle(
@@ -21,11 +31,12 @@ export function usePageTitle(
   options?: UsePageTitleOptions,
 ): void {
   const badgeCount = options?.badgeCount;
+  const { groupLabel } = useActiveNav();
 
   useEffect(() => {
-    document.title = formatTitle(title, badgeCount);
+    document.title = formatTitle(title, groupLabel, badgeCount);
     return (): void => {
       document.title = APP_NAME;
     };
-  }, [title, badgeCount]);
+  }, [title, groupLabel, badgeCount]);
 }

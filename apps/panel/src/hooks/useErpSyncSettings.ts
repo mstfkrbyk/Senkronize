@@ -19,6 +19,8 @@ export type ErpSyncFrequency =
   | 'EVERY_4_HOURS'
   | 'DAILY';
 
+export type ErpProductImportMode = 'ECOMMERCE_ONLY' | 'CATEGORY' | 'ALL';
+
 export type ErpSyncScope = 'all' | 'products' | 'stock' | 'invoices';
 
 export interface ErpSyncSettingsDto {
@@ -33,6 +35,8 @@ export interface ErpSyncSettingsDto {
   syncOrders?: boolean;
   syncCustomers?: boolean;
   autoInvoiceOnDelivered?: boolean;
+  productImportMode?: ErpProductImportMode;
+  erpCategoryIds?: string[];
   lastSyncAt: string | null;
   nextSyncAt: string | null;
   createdAt: string;
@@ -40,7 +44,7 @@ export interface ErpSyncSettingsDto {
 }
 
 export interface UpsertErpSyncSettingsInput {
-  syncFrequency: ErpSyncFrequency;
+  syncFrequency?: ErpSyncFrequency;
   syncStock: boolean;
   syncProducts: boolean;
   syncInvoices: boolean;
@@ -48,6 +52,8 @@ export interface UpsertErpSyncSettingsInput {
   syncOrders?: boolean;
   syncCustomers?: boolean;
   autoInvoiceOnDelivered?: boolean;
+  productImportMode?: ErpProductImportMode;
+  erpCategoryIds?: string[];
 }
 
 const API_FREQUENCY_MAP: Record<ErpSyncFrequency, string> = {
@@ -80,10 +86,16 @@ export function fromApiSyncFrequency(apiValue: string): ErpSyncFrequency {
 
 function toApiPayload(body: UpsertErpSyncSettingsInput): Record<string, unknown> {
   return {
-    syncFrequency: toApiSyncFrequency(body.syncFrequency),
+    ...(body.syncFrequency
+      ? { syncFrequency: toApiSyncFrequency(body.syncFrequency) }
+      : {}),
     syncStock: body.syncStock,
     syncProducts: body.syncProducts,
     syncInvoices: body.syncOrders ?? body.syncInvoices,
+    syncCustomers: body.syncCustomers,
+    autoCreateInvoice: body.autoInvoiceOnDelivered,
+    ...(body.productImportMode ? { productImportMode: body.productImportMode } : {}),
+    ...(body.erpCategoryIds ? { erpCategoryIds: body.erpCategoryIds } : {}),
   };
 }
 
@@ -94,7 +106,15 @@ function normalizeSettingsDto(raw: ErpSyncSettingsDto): ErpSyncSettingsDto {
     syncOrders: raw.syncOrders ?? raw.syncInvoices,
     syncPrices: raw.syncPrices ?? raw.syncProducts,
     syncCustomers: raw.syncCustomers ?? false,
-    autoInvoiceOnDelivered: raw.autoInvoiceOnDelivered ?? false,
+    autoInvoiceOnDelivered:
+      raw.autoInvoiceOnDelivered ?? (raw as { autoCreateInvoice?: boolean }).autoCreateInvoice ?? false,
+    productImportMode:
+      raw.productImportMode === 'ECOMMERCE_ONLY' ||
+      raw.productImportMode === 'CATEGORY' ||
+      raw.productImportMode === 'ALL'
+        ? raw.productImportMode
+        : 'ECOMMERCE_ONLY',
+    erpCategoryIds: raw.erpCategoryIds ?? [],
   };
 }
 

@@ -1,39 +1,77 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
+import {
+  normalizeClientOnboardingInvites,
+  normalizeCommissionReport,
+  normalizeCommissionSummary,
+  normalizePartnerCommissionsPage,
+  normalizePartnerDashboard,
+  normalizePartnerPayoutRequest,
+  normalizePartnerPayoutRequests,
+  normalizePartnerPerformance,
+  normalizePartnerRelationships,
+} from '@/lib/partner-api-normalize';
 import { useAuthStore } from '@/store/auth.store';
+import { useImpersonationStore } from '@/store/impersonation.store';
 import type {
   ClientOnboardingRow,
   CommissionReport,
   CommissionSummary,
   PartnerCommissionsPage,
   PartnerDashboard,
+  PartnerPayoutRequest,
   PartnerPerformance,
   PartnerRelationship,
 } from '@/types/partner';
 
+import {
+  isClientPartnerQueriesEnabled,
+  isPartnerQueriesEnabled,
+} from './partner-query-enabled';
+
+/**
+ * Partner API query `enabled` — bkz. `isPartnerQueriesEnabled`.
+ *
+ * Manuel regresyon (panel'de vitest yok):
+ * 1. PARTNER org ile giriş → partner sayfaları veri yükler (/partner/* istekleri gider).
+ * 2. Sayfa yenile (F5) → store `currentOrg.type` DIRECT kalsa bile /me PARTNER ise sorgular enabled kalır.
+ * 3. /me yüklenirken (`isPending`) → partner API isteği atılmaz.
+ * 4. DIRECT org → partner hook'ları disabled; ağda /partner/* yok.
+ */
+export function usePartnerQueriesEnabled(): boolean {
+  const { data: me, isPending } = useAuth();
+  const storeType = useAuthStore((s) => s.currentOrg?.type);
+  return isPartnerQueriesEnabled({
+    isMePending: isPending,
+    meOrgType: me?.organization?.type,
+    storeOrgType: storeType,
+  });
+}
+
 export function useMyClients() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'clients'],
     queryFn: async (): Promise<PartnerRelationship[]> => {
       const { data } = await api.get<PartnerRelationship[]>('/partner/clients');
-      return data;
+      return normalizePartnerRelationships(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
 export function useCommissionSummary() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'commission'],
     queryFn: async (): Promise<CommissionSummary> => {
       const { data } = await api.get<CommissionSummary>('/partner/commission');
-      return data;
+      return normalizeCommissionSummary(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
@@ -60,14 +98,14 @@ export function useInviteClient() {
 }
 
 export function usePartnerOnboardingInvites() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'invites'],
     queryFn: async (): Promise<ClientOnboardingRow[]> => {
       const { data } = await api.get<ClientOnboardingRow[]>('/partner/invites');
-      return data;
+      return normalizeClientOnboardingInvites(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
@@ -104,40 +142,61 @@ export function useResendOnboardingInvite() {
 }
 
 export function useCommissionReport(year: number, month: number) {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'commission-report', year, month],
     queryFn: async (): Promise<CommissionReport> => {
       const { data } = await api.get<CommissionReport>('/partner/commission-report', {
         params: { year, month },
       });
-      return data;
+      return normalizeCommissionReport(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
 export function usePartnerPerformance() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'performance'],
     queryFn: async (): Promise<PartnerPerformance> => {
       const { data } = await api.get<PartnerPerformance>('/partner/performance');
-      return data;
+      return normalizePartnerPerformance(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
+  });
+}
+
+export function usePartnerPayoutRequests() {
+  const enabled = usePartnerQueriesEnabled();
+  return useQuery({
+    queryKey: ['partner', 'payout-requests'],
+    queryFn: async (): Promise<PartnerPayoutRequest[]> => {
+      const { data } = await api.get<PartnerPayoutRequest[]>('/partner/payout-requests');
+      return normalizePartnerPayoutRequests(data);
+    },
+    enabled,
   });
 }
 
 export function usePayoutRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (amount: number): Promise<void> => {
-      await api.post('/partner/payout-request', { amount });
+    mutationFn: async (amount: number): Promise<PartnerPayoutRequest> => {
+      const { data } = await api.post<PartnerPayoutRequest>('/partner/payout-request', {
+        amount,
+      });
+      const row = normalizePartnerPayoutRequest(data);
+      if (!row) {
+        throw new Error('Geçersiz ödeme talebi yanıtı');
+      }
+      return row;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['partner', 'commission'] });
       void qc.invalidateQueries({ queryKey: ['partner', 'commission-report'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'payout-requests'] });
+      void qc.invalidateQueries({ queryKey: ['partner', 'commissions'] });
     },
   });
 }
@@ -162,19 +221,19 @@ export function useValidatePartnerInvite(token: string | null) {
 }
 
 export function usePartnerDashboard() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'dashboard'],
     queryFn: async (): Promise<PartnerDashboard> => {
       const { data } = await api.get<PartnerDashboard>('/partner/dashboard');
-      return data;
+      return normalizePartnerDashboard(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
 export function usePartnerCommissions(page: number, limit: number) {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = usePartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'commissions', page, limit],
     queryFn: async (): Promise<PartnerCommissionsPage> => {
@@ -182,9 +241,9 @@ export function usePartnerCommissions(page: number, limit: number) {
         '/partner/commissions',
         { params: { page, limit } },
       );
-      return data;
+      return normalizePartnerCommissionsPage(data);
     },
-    enabled: orgType === 'PARTNER',
+    enabled,
   });
 }
 
@@ -219,17 +278,29 @@ export function useTerminateRelationship() {
   });
 }
 
+export function useClientPartnerQueriesEnabled(): boolean {
+  const { data: me, isPending } = useAuth();
+  const storeType = useAuthStore((s) => s.currentOrg?.type);
+  const isImpersonating = useImpersonationStore((s) => s.isImpersonating);
+  return isClientPartnerQueriesEnabled({
+    isMePending: isPending,
+    meOrgType: me?.organization?.type,
+    storeOrgType: storeType,
+    isImpersonating: isImpersonating || Boolean(me?.isImpersonating),
+  });
+}
+
 export function useMyPartners() {
-  const orgType = useAuthStore((s) => s.currentOrg?.type);
+  const enabled = useClientPartnerQueriesEnabled();
   return useQuery({
     queryKey: ['partner', 'my-partners'],
     queryFn: async (): Promise<PartnerRelationship[]> => {
       const { data } = await api.get<PartnerRelationship[]>(
         '/partner/my-partners',
       );
-      return data;
+      return normalizePartnerRelationships(data);
     },
-    enabled: Boolean(orgType) && orgType !== 'PARTNER',
+    enabled,
   });
 }
 

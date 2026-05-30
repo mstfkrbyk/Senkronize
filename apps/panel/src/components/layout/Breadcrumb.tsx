@@ -8,6 +8,8 @@ import {
   BREADCRUMB_LABELS,
 } from '@/constants/breadcrumb-routes';
 import { useBreadcrumbContext } from '@/contexts/breadcrumb.context';
+import { isConnectionDetailPath } from '@/lib/connection-detail-nav';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { cn } from '@/lib/utils';
 
 export interface BreadcrumbItem {
@@ -15,66 +17,148 @@ export interface BreadcrumbItem {
   href?: string;
 }
 
-function buildItems(pathname: string, tailLabel: string | null): BreadcrumbItem[] {
-  const items: BreadcrumbItem[] = [
-    { label: 'Gösterge Paneli', href: '/dashboard' },
-  ];
+interface BuildItemsParams {
+  pathname: string;
+  tailLabel: string | null;
+  groupLabel: string | undefined;
+  pageLabel: string | undefined;
+}
+
+function buildItems({
+  pathname,
+  tailLabel,
+  groupLabel,
+  pageLabel,
+}: BuildItemsParams): BreadcrumbItem[] {
+  const withGroup = (segments: BreadcrumbItem[]): BreadcrumbItem[] => {
+    if (!groupLabel) {
+      return segments;
+    }
+    return [{ label: groupLabel }, ...segments];
+  };
 
   if (pathname === '/' || pathname === '/dashboard') {
-    return [{ label: 'Gösterge Paneli' }];
+    const label = pageLabel ?? BREADCRUMB_LABELS['/dashboard'] ?? 'Gösterge Paneli';
+    return withGroup([{ label }]);
+  }
+
+  if (pathname.startsWith('/settings/') && pathname !== '/settings') {
+    const leafLabel = tailLabel ?? BREADCRUMB_LABELS[pathname];
+    if (leafLabel) {
+      return withGroup([
+        {
+          label: BREADCRUMB_LABELS['/settings'] ?? 'Ayarlar',
+          href: '/settings',
+        },
+        { label: leafLabel },
+      ]);
+    }
+  }
+
+  if (pathname === '/products/import') {
+    return withGroup([
+      {
+        label: BREADCRUMB_LABELS['/products'] ?? 'Ürünler',
+        href: '/products',
+      },
+      { label: BREADCRUMB_LABELS['/products/import'] ?? 'İçe aktar' },
+    ]);
+  }
+
+  if (pathname === '/customers/segments') {
+    return withGroup([
+      {
+        label: BREADCRUMB_LABELS['/customers'] ?? 'Müşteriler',
+        href: '/customers',
+      },
+      { label: BREADCRUMB_LABELS['/customers/segments'] ?? 'Segmentler' },
+    ]);
   }
 
   const exact = BREADCRUMB_LABELS[pathname];
   if (exact) {
-    items.push({ label: exact });
-    return items;
+    return withGroup([{ label: tailLabel ?? pageLabel ?? exact }]);
+  }
+
+  if (isConnectionDetailPath(pathname)) {
+    const tail =
+      tailLabel ??
+      (pathname.split('/').pop()?.length
+        ? `#${pathname.split('/').pop()!.slice(0, 8)}…`
+        : pathname);
+    return withGroup([{ label: tail }]);
   }
 
   for (const dyn of BREADCRUMB_DYNAMIC_PARENTS) {
     if (dyn.pattern.test(pathname)) {
-      items.push({ label: dyn.parentLabel, href: dyn.parentPath });
-      const segment = pathname.split('/').pop() ?? '';
-      const tail =
-        tailLabel ??
-        (segment.length > 12 ? `#${segment.slice(0, 8)}…` : segment);
-      items.push({ label: tail });
-      return items;
+      return withGroup([
+        { label: dyn.parentLabel, href: dyn.parentPath },
+        {
+          label:
+            tailLabel ??
+            (pathname.split('/').pop()?.length
+              ? `#${pathname.split('/').pop()!.slice(0, 8)}…`
+              : pathname),
+        },
+      ]);
     }
   }
 
   const parts = pathname.split('/').filter(Boolean);
   let acc = '';
+  const pathSegments: BreadcrumbItem[] = [];
   for (let i = 0; i < parts.length; i++) {
     acc += `/${parts[i]}`;
     const label = BREADCRUMB_LABELS[acc];
     if (label) {
       const isLast = i === parts.length - 1;
-      items.push({
+      pathSegments.push({
         label: isLast && tailLabel ? tailLabel : label,
         href: isLast ? undefined : acc,
       });
     }
   }
 
-  if (items.length === 1 && parts.length > 0) {
-    items.push({
-      label: tailLabel ?? parts[parts.length - 1] ?? pathname,
-    });
+  if (pathSegments.length > 0) {
+    return withGroup(pathSegments);
   }
 
-  return items;
+  if (pageLabel) {
+    return withGroup([{ label: tailLabel ?? pageLabel }]);
+  }
+
+  if (parts.length > 0) {
+    return withGroup([
+      {
+        label: tailLabel ?? parts[parts.length - 1] ?? pathname,
+      },
+    ]);
+  }
+
+  return withGroup([{ label: tailLabel ?? pathname }]);
 }
 
 export function Breadcrumb({ className }: { className?: string }): ReactElement | null {
   const location = useLocation();
   const { tailLabel } = useBreadcrumbContext();
+  const { groupLabel, pageLabel } = useActiveNav();
 
   const items = useMemo(
-    () => buildItems(location.pathname, tailLabel),
-    [location.pathname, tailLabel],
+    () =>
+      buildItems({
+        pathname: location.pathname,
+        tailLabel,
+        groupLabel,
+        pageLabel,
+      }),
+    [location.pathname, tailLabel, groupLabel, pageLabel],
   );
 
-  if (items.length <= 1 && location.pathname === '/dashboard') {
+  if (
+    items.length <= 1 &&
+    !groupLabel &&
+    (location.pathname === '/' || location.pathname === '/dashboard')
+  ) {
     return null;
   }
 

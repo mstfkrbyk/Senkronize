@@ -55,15 +55,56 @@ const STATUS_LABELS: Record<string, string> = {
   OVERDUE: 'Vadesi geçti',
 };
 
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function buildSenderBlock(org: InvoicePdfContext['org']): string {
   const lines = [
-    escapeHtml(org.name),
     org.taxNumber ? `VKN/TCKN: ${escapeHtml(org.taxNumber)}` : '',
     org.taxOffice ? `Vergi dairesi: ${escapeHtml(org.taxOffice)}` : '',
     org.address ? escapeHtml(org.address) : '',
     org.city ? escapeHtml(org.city) : '',
   ].filter(Boolean);
-  return lines.join('<br/>');
+  return lines.length > 0 ? lines.join('<br/>') : '—';
+}
+
+function buildVatSummaryRows(
+  items: InvoiceItem[],
+  currency: string,
+  fallback: { taxRate: number; taxAmount: string },
+): string {
+  const byRate = new Map<number, number>();
+  for (const item of items) {
+    const prev = byRate.get(item.taxRate) ?? 0;
+    byRate.set(item.taxRate, roundMoney(prev + item.taxAmount));
+  }
+
+  const rows =
+    byRate.size > 0
+      ? [...byRate.entries()].sort(([a], [b]) => a - b)
+      : [[fallback.taxRate, Number(fallback.taxAmount)]] as [number, number][];
+
+  return rows
+    .map(
+      ([rate, amount]) => `
+      <tr>
+        <td>KDV (%${rate})</td>
+        <td>${formatMoneyTr(amount, currency)}</td>
+      </tr>`,
+    )
+    .join('');
 }
 
 function buildRecipientDetails(ctx: InvoicePdfContext): string {
@@ -109,6 +150,7 @@ export function renderInvoiceHtml(ctx: InvoicePdfContext): string {
     'Ödeme, fatura vadesinde banka havalesi veya anlaşmalı ödeme yöntemi ile yapılacaktır.';
 
   return template
+    .replace(/\{\{orgName\}\}/g, escapeHtml(ctx.org.name))
     .replace(/\{\{invoiceNumber\}\}/g, escapeHtml(ctx.invoiceNumber))
     .replace(/\{\{invoiceDate\}\}/g, escapeHtml(ctx.invoiceDate))
     .replace(/\{\{dueDate\}\}/g, escapeHtml(ctx.dueDate ?? '—'))
@@ -124,8 +166,13 @@ export function renderInvoiceHtml(ctx: InvoicePdfContext): string {
     .replace(/\{\{recipientDetails\}\}/g, buildRecipientDetails(ctx))
     .replace(/\{\{itemsRows\}\}/g, buildItemsRows(ctx.items, ctx.currency))
     .replace(/\{\{subtotal\}\}/g, formatMoneyTr(ctx.subtotal, ctx.currency))
-    .replace(/\{\{taxRate\}\}/g, String(ctx.taxRate))
-    .replace(/\{\{taxAmount\}\}/g, formatMoneyTr(ctx.taxAmount, ctx.currency))
+    .replace(
+      /\{\{vatSummaryRows\}\}/g,
+      buildVatSummaryRows(ctx.items, ctx.currency, {
+        taxRate: ctx.taxRate,
+        taxAmount: ctx.taxAmount,
+      }),
+    )
     .replace(/\{\{totalAmount\}\}/g, formatMoneyTr(ctx.totalAmount, ctx.currency))
     .replace(/\{\{paymentNote\}\}/g, escapeHtml(paymentNote));
 }

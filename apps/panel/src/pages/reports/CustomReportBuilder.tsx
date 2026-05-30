@@ -64,7 +64,7 @@ function todayIso(): string {
   return format(new Date(), 'yyyy-MM-dd');
 }
 
-const REPORT_TYPES: ReportType[] = [
+const INTEGRATION_REPORT_TYPES: ReportType[] = [
   'ORDERS',
   'PRODUCTS',
   'LISTINGS',
@@ -73,7 +73,26 @@ const REPORT_TYPES: ReportType[] = [
   'PLATFORM_COMPARISON',
 ];
 
-export function CustomReportBuilder(): ReactElement {
+const NATIVE_ACCOUNTING_REPORT_TYPES: ReportType[] = [
+  'ORDERS',
+  'PRODUCTS',
+  'STOCK',
+  'PROFIT',
+];
+
+interface Props {
+  onSaved?: () => void;
+  accountingOnly?: boolean;
+}
+
+export function CustomReportBuilder({
+  onSaved,
+  accountingOnly = false,
+}: Props): ReactElement {
+  const reportTypes = accountingOnly
+    ? NATIVE_ACCOUNTING_REPORT_TYPES
+    : INTEGRATION_REPORT_TYPES;
+  const showPlatformFilter = !accountingOnly;
   const [reportType, setReportType] = useState<ReportType>('ORDERS');
   const [startDate, setStartDate] = useState(subDaysIso(30));
   const [endDate, setEndDate] = useState(todayIso());
@@ -249,6 +268,7 @@ export function CustomReportBuilder(): ReactElement {
       setSaveOpen(false);
       setSaveName('');
       setSaveDescription('');
+      onSaved?.();
     } catch {
       toast.error('Kayıt başarısız.');
     }
@@ -274,7 +294,7 @@ export function CustomReportBuilder(): ReactElement {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {REPORT_TYPES.map((t) => (
+                  {reportTypes.map((t) => (
                     <SelectItem key={t} value={t}>
                       {REPORT_TYPE_LABELS[t]}
                     </SelectItem>
@@ -296,23 +316,25 @@ export function CustomReportBuilder(): ReactElement {
                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Platform filtresi (çoklu)</Label>
-              <div className="flex flex-wrap gap-2">
-                {PLATFORM_OPTIONS.map((p) => (
-                  <label
-                    key={p}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-sm"
-                  >
-                    <Checkbox
-                      checked={platforms.includes(p)}
-                      onCheckedChange={() => togglePlatform(p)}
-                    />
-                    {p}
-                  </label>
-                ))}
+            {showPlatformFilter ? (
+              <div className="space-y-2">
+                <Label>Platform filtresi (çoklu)</Label>
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORM_OPTIONS.map((p) => (
+                    <label
+                      key={p}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1 text-sm"
+                    >
+                      <Checkbox
+                        checked={platforms.includes(p)}
+                        onCheckedChange={() => togglePlatform(p)}
+                      />
+                      {p}
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
           </CardContent>
         </Card>
 

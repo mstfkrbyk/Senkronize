@@ -3,12 +3,15 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 
 import { PageLoader } from '@/components/PageLoader';
 import { useAuth } from '@/hooks/useAuth';
+import { resolveAppHomePath } from '@/lib/app-home';
+import { useImpersonationStore } from '@/store/impersonation.store';
 import { useAuthStore } from '@/store/auth.store';
 
 export function PrivateRoute(): ReactElement {
   const token = useAuthStore((s) => s.token);
   const location = useLocation();
   const { data: me, isPending, isError } = useAuth();
+  const isImpersonating = useImpersonationStore((s) => s.isImpersonating);
 
   if (!token) {
     return (
@@ -30,11 +33,24 @@ export function PrivateRoute(): ReactElement {
 
   const onboardingDone =
     me.organization.onboardingCompleted || me.user.role === 'SUPER_ADMIN';
-  if (!onboardingDone && location.pathname !== '/onboarding') {
+  const isOnboardingRoute =
+    location.pathname === '/onboarding' ||
+    location.pathname.startsWith('/onboarding/');
+  if (!onboardingDone && !isOnboardingRoute) {
     return <Navigate to="/onboarding" replace />;
   }
-  if (onboardingDone && location.pathname === '/onboarding') {
-    return <Navigate to="/dashboard" replace />;
+  if (onboardingDone && isOnboardingRoute) {
+    return (
+      <Navigate
+        to={resolveAppHomePath({
+          type: me.organization.type,
+          orgProducts: me.organization.orgProducts,
+          isImpersonating: isImpersonating || me.isImpersonating,
+          accountingMode: me.organization.accountingMode,
+        })}
+        replace
+      />
+    );
   }
 
   return <Outlet />;

@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -14,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { api, getApiErrorMessage } from '@/lib/api';
@@ -152,30 +154,39 @@ export function CurrencyTab(): ReactElement {
 
   if (orgQuery.isLoading) {
     return (
-      <div className="max-w-2xl space-y-4">
+      <SettingsPageShell
+        title="Para Birimi"
+        description="Varsayılan para birimi ve görüntüleme biçimini ayarlayın."
+      >
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
-      </div>
+      </SettingsPageShell>
     );
   }
 
   if (orgQuery.isError) {
     return (
-      <p className="text-sm text-destructive">{getApiErrorMessage(orgQuery.error)}</p>
+      <SettingsPageShell
+        title="Para Birimi"
+        description="Varsayılan para birimi ve görüntüleme biçimini ayarlayın."
+      >
+        <QueryErrorAlert
+          error={orgQuery.error}
+          onRetry={() => {
+            void orgQuery.refetch();
+          }}
+        />
+      </SettingsPageShell>
     );
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <SettingsPageShell
+      title="Para Birimi"
+      description="Varsayılan para birimi ve görüntüleme biçimini ayarlayın."
+    >
       <Card>
-        <CardHeader>
-          <CardTitle>Para birimi</CardTitle>
-          <CardDescription>
-            Raporlarda kullanılacak varsayılan para birimini ve kur kaynağını yönetin. TCMB kurları
-            sunucu tarafında günlük güncellenir.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 pt-6">
           <div className="space-y-2">
             <Label htmlFor="default-currency">Varsayılan para birimi</Label>
             <Select value={defaultCurrency} onValueChange={setDefaultCurrency}>
@@ -254,6 +265,6 @@ export function CurrencyTab(): ReactElement {
           </Button>
         </CardContent>
       </Card>
-    </div>
+    </SettingsPageShell>
   );
 }

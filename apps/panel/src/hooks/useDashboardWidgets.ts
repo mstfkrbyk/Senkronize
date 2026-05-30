@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
+import {
+  filterWidgets,
+  getDefaultWidgetsForOrg,
+} from '@/lib/dashboard-widget-registry';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { api } from '@/lib/api';
 import { WIDGET_DEFAULT_SIZE } from '@/pages/dashboard/widget-meta';
-import {
-  DEFAULT_WIDGETS,
-  parseStoredWidgets,
-  type Widget,
-  type WidgetType,
-} from '@/types/dashboard-widgets';
+import { useAuthStore } from '@/store/auth.store';
+import { parseStoredWidgets, type Widget, type WidgetType } from '@/types/dashboard-widgets';
 
 function sortByPosition(widgets: Widget[]): Widget[] {
   return [...widgets].sort((a, b) => a.position - b.position);
@@ -31,6 +32,8 @@ export function useDashboardWidgets(): {
   isVisible: (type: WidgetType) => boolean;
 } {
   const queryClient = useQueryClient();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
 
   const query = useQuery({
     queryKey: ['dashboard', 'widgets'],
@@ -43,8 +46,9 @@ export function useDashboardWidgets(): {
 
   const mutation = useMutation({
     mutationFn: async (draft: Widget[]): Promise<Widget[]> => {
+      const scoped = filterWidgets(draft, orgProducts, accountingMode);
       const normalized = sortByPosition(
-        draft.map((w, index) => ({
+        scoped.map((w, index) => ({
           ...w,
           position: index,
           visible: w.visible !== false,
@@ -61,7 +65,15 @@ export function useDashboardWidgets(): {
     },
   });
 
-  const widgets = query.data ?? DEFAULT_WIDGETS;
+  const widgets = useMemo(
+    () =>
+      filterWidgets(
+        query.data ?? getDefaultWidgetsForOrg(orgProducts),
+        orgProducts,
+        accountingMode,
+      ),
+    [query.data, orgProducts, accountingMode],
+  );
 
   const enabledTypes = useMemo(
     () =>
@@ -79,14 +91,14 @@ export function useDashboardWidgets(): {
   const saveWidgets = useCallback(
     (
       draft: Widget[],
-      options?: { onSuccess?: () => void; onError?: () => void },
+      options?: { onSuccess?: () => void; onError?: (error: unknown) => void },
     ): void => {
       mutation.mutate(draft, {
         onSuccess: () => {
           options?.onSuccess?.();
         },
-        onError: () => {
-          options?.onError?.();
+        onError: (error: unknown) => {
+          options?.onError?.(error);
         },
       });
     },
@@ -94,8 +106,8 @@ export function useDashboardWidgets(): {
   );
 
   const resetToDefault = useCallback((): Widget[] => {
-    return sortByPosition(DEFAULT_WIDGETS);
-  }, []);
+    return sortByPosition(getDefaultWidgetsForOrg(orgProducts));
+  }, [orgProducts]);
 
   return {
     widgets,

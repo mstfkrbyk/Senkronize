@@ -9,6 +9,7 @@ import { QuickStockSearch } from '@/components/QuickStockSearch';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { GlobalSyncMonitor } from '@/components/connections/GlobalSyncMonitor';
+import { PageTransition } from '@/components/PageTransition';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { BreadcrumbProvider } from '@/contexts/breadcrumb.context';
 import { AppSidebar } from '@/components/sidebar/AppSidebar';
@@ -87,6 +88,8 @@ export function DashboardLayout(): ReactElement {
       type: me.organization.type,
       onboardingCompleted: me.organization.onboardingCompleted,
       plan: me.organization.plan,
+      orgProducts: me.organization.orgProducts,
+      accountingMode: me.organization.accountingMode,
     });
   }, [me, setOrg, setUser]);
 
@@ -131,7 +134,9 @@ export function DashboardLayout(): ReactElement {
               >
                 <Breadcrumb />
                 <GlobalSyncMonitor />
-                <Outlet />
+                <PageTransition>
+                  <Outlet />
+                </PageTransition>
               </main>
               <MobileBottomNav />
             </SidebarInset>

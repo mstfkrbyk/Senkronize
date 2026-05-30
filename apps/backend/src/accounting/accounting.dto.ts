@@ -9,26 +9,21 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
-  MinLength,
   ValidateNested,
 } from 'class-validator';
 
-/** Yerel muhasebe tahsilat yöntemi */
-export const ACCOUNTING_PAYMENT_METHODS = [
-  'BANK_TRANSFER',
-  'CASH',
-  'CARD',
-  'CHECK',
-  'OTHER',
-] as const;
+import {
+  ACCOUNTING_PAYMENT_METHODS,
+  type AccountingPaymentMethodLabel,
+} from './accounting-payment-labels';
 
-export type AccountingPaymentMethod = (typeof ACCOUNTING_PAYMENT_METHODS)[number];
+export { ACCOUNTING_PAYMENT_METHODS };
+export type AccountingPaymentMethod = AccountingPaymentMethodLabel;
 
 import { InvoiceItemDto } from '../invoice/invoice.dto';
 

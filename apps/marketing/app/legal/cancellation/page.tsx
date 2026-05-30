@@ -4,7 +4,7 @@ import type { ReactElement } from 'react';
 export const metadata: Metadata = {
   title: 'İptal ve İade',
   description:
-    'Senkronize abonelik iptali, cayma hakkı ve iade politikası hakkında bilgilendirme (placeholder metin).',
+    'Senkronize abonelik iptali, cayma hakkı ve iade politikası hakkında bilgilendirme.',
 };
 
 export default function CancellationPage(): ReactElement {
@@ -14,8 +14,8 @@ export default function CancellationPage(): ReactElement {
         <article className="prose prose-slate max-w-none prose-headings:font-semibold prose-a:text-primary">
           <h1>İptal ve İade</h1>
           <p className="text-sm text-muted-foreground not-prose">
-            Son güncelleme: Mayıs 2026 — Bu metin yer tutucudur; kesin hukuki metin
-            avukat onayıyla güncellenecektir.
+            Son güncelleme: Mayıs 2026 — Özet bilgilendirme metnidir; kesin hukuki
+            metin avukat onayıyla güncellenecektir.
           </p>
 
           <h2>14 gün cayma hakkı ve ücretsiz deneme</h2>
@@ -28,9 +28,8 @@ export default function CancellationPage(): ReactElement {
 
           <h2>Ödeme sonrası iade</h2>
           <p>
-            Yer tutucu açıklama: ödeme sonrası iade yapılmamaktadır ifadesi iş
-            modeli gereği kullanılabilir; nihai metin ve istisnalar (varsa) ayrıca
-            yayımlanacaktır.
+            Ödeme sonrası iade koşulları iş modeline göre belirlenir; nihai metin ve
+            istisnalar (varsa) ayrıca yayımlanacaktır.
           </p>
 
           <h2>İptal</h2>
@@ -43,7 +42,7 @@ export default function CancellationPage(): ReactElement {
           <h2>Mesafeli satış sözleşmesi</h2>
           <p>
             Ön bilgilendirme ve mesafeli satış sözleşmesi metinleri; ödeme akışında
-            ve/veya ayrı sayfalarda sunulacaktır (yer tutucu). Sipariş öncesi
+            ve/veya ayrı sayfalarda sunulacaktır. Sipariş öncesi
             fiyat, süre, cayma ve destek bilgilerini kontrol etmeniz önerilir.
           </p>
 

@@ -2,9 +2,12 @@ import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { CalendarClock, Loader2, Plus } from 'lucide-react';
+import { CalendarClock, Info, Loader2, Plus } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +21,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import type { ScheduledCustomReportItem } from '@/types/custom-report';
 import type { ReportScheduleItem, UnifiedReportSchedule } from '@/types/report';
 
@@ -29,6 +34,12 @@ import {
 } from './hooks/useReportScheduleMutations';
 import { useReportSchedules } from './hooks/useReportSchedules';
 import { ReportScheduleModal } from './ReportScheduleModal';
+import {
+  isIntegrationScheduleReportType,
+  resolveReportsProductAccess,
+  resolveScheduleReportPresentation,
+  resolveScheduleTabVisible,
+} from './reports-tabs.config';
 
 const TYPE_LABELS: Record<UnifiedReportSchedule['reportType'], string> = {
   SALES: 'Satış',
@@ -43,39 +54,108 @@ const FREQ_LABELS: Record<UnifiedReportSchedule['frequency'], string> = {
   MONTHLY: 'Aylık',
 };
 
-function useScheduledCustomReports() {
+function useScheduledCustomReports(enabled: boolean) {
   return useQuery({
     queryKey: ['reports', 'scheduled'],
     queryFn: async (): Promise<ScheduledCustomReportItem[]> => {
       const { data } = await api.get<ScheduledCustomReportItem[]>('/reports/scheduled');
       return data;
     },
+    enabled,
   });
 }
 
-export function ReportSchedulePage(): ReactElement {
+function filterIntegrationScheduleItems(
+  items: UnifiedReportSchedule[],
+): UnifiedReportSchedule[] {
+  return items.filter((item) => isIntegrationScheduleReportType(item.reportType));
+}
+
+export function ReportSchedulePage(): ReactElement | null {
+  const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const productAccess = useMemo(
+    () => resolveReportsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const schedulePresentation = useMemo(
+    () => resolveScheduleReportPresentation(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const showFullSchedule = schedulePresentation === 'full';
+  const scheduleTabVisible = resolveScheduleTabVisible(productAccess);
+
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const schedulesQuery = useReportSchedules();
-  const customQuery = useScheduledCustomReports();
+  const schedulesQuery = useReportSchedules({
+    enabled: showFullSchedule && scheduleTabVisible,
+  });
+  const customQuery = useScheduledCustomReports(showFullSchedule && scheduleTabVisible);
   const toggleMutation = useToggleReportSchedule();
 
   const items = useMemo((): UnifiedReportSchedule[] => {
     const standard = mapStandardSchedules((schedulesQuery.data ?? []) as ReportScheduleItem[]);
     const custom = mapCustomSchedules(customQuery.data ?? []);
-    return [...standard, ...custom].sort((a, b) => {
-      const aTime = a.lastRunAt ? new Date(a.lastRunAt).getTime() : 0;
-      const bTime = b.lastRunAt ? new Date(b.lastRunAt).getTime() : 0;
-      return bTime - aTime;
-    });
+    return filterIntegrationScheduleItems(
+      [...standard, ...custom].sort((a, b) => {
+        const aTime = a.lastRunAt ? new Date(a.lastRunAt).getTime() : 0;
+        const bTime = b.lastRunAt ? new Date(b.lastRunAt).getTime() : 0;
+        return bTime - aTime;
+      }),
+    );
   }, [schedulesQuery.data, customQuery.data]);
 
-  const isLoading = schedulesQuery.isLoading || customQuery.isLoading;
+  const isLoading =
+    showFullSchedule &&
+    scheduleTabVisible &&
+    (schedulesQuery.isLoading || customQuery.isLoading);
+
+  if (accountingModeLoading && productAccess.hasAccounting) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    );
+  }
+
+  if (!scheduleTabVisible) {
+    return null;
+  }
+
+  if (!showFullSchedule) {
+    return (
+      <div id="report-schedule" className="space-y-6">
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950">
+          <Info className="h-4 w-4 text-sky-600" aria-hidden />
+          <AlertTitle className="text-sky-950">
+            {t('reports.schedule.externalErpTitle')}
+          </AlertTitle>
+          <AlertDescription className="text-sky-900/90">
+            <p>{t('reports.schedule.externalErpDescription')}</p>
+            <p className="mt-3 flex flex-wrap gap-3">
+              <Link
+                to="/reports?tab=erp-transfer"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.schedule.openErpTransfer')}
+              </Link>
+              <Link
+                to="/connections?tab=erp"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.schedule.openConnections')}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
+    <div id="report-schedule" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Otomatik rapor gönderimlerini yönetin.
+          {t('reports.schedule.subtitle')}
         </p>
         <Button type="button" variant="outline" size="sm" onClick={() => setScheduleOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />

@@ -33,13 +33,13 @@ export function StockQuickActions(): ReactElement {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
           <Button type="button" variant="secondary" asChild>
-            <Link to="/stock/count">
+            <Link to="/products/count">
               <ClipboardList className="mr-2 size-4" aria-hidden />
               Stok sayımı başlat
             </Link>
           </Button>
           <Button type="button" variant="secondary" asChild>
-            <Link to="/stock/transfers">
+            <Link to="/products?tab=transfers">
               <ArrowRightLeft className="mr-2 size-4" aria-hidden />
               Stok transferi oluştur
             </Link>

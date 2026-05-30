@@ -5,6 +5,10 @@ import {
   buildHourlyStatsFromLogs,
   deriveHealthFromConnection,
 } from '@/pages/connections/connection-utils';
+import {
+  normalizeConnectionHealthApiResponse,
+  type ConnectionHealthApiResponse,
+} from '@/lib/connection-health-mapper';
 import { api } from '@/lib/api';
 import type { ConnectionHealthDto } from '@/types/connection-health';
 import type { MarketplaceConnectionDto } from '@/types/connection';
@@ -23,16 +27,18 @@ async function fetchConnectionHealthLogs(platform: string): Promise<SyncLogEntry
   return data.data.filter((log) => log.platform === platform);
 }
 
-async function fetchHealthFromApi(connectionId: string): Promise<ConnectionHealthDto | null> {
+async function fetchHealthFromApi(
+  connectionId: string,
+): Promise<ConnectionHealthApiResponse | null> {
   try {
-    const { data } = await api.get<{ data: ConnectionHealthDto }>(
+    const { data } = await api.get<{ data: ConnectionHealthApiResponse }>(
       `/connections/${connectionId}/health`,
     );
     return data.data;
   } catch (error) {
     if (isAxiosError(error) && error.response?.status === 404) {
       try {
-        const { data } = await api.get<{ data: ConnectionHealthDto }>(
+        const { data } = await api.get<{ data: ConnectionHealthApiResponse }>(
           `/marketplace-connections/${connectionId}/health`,
         );
         return data.data;
@@ -44,6 +50,23 @@ async function fetchHealthFromApi(connectionId: string): Promise<ConnectionHealt
       }
     }
     throw error;
+  }
+}
+
+async function resolveConnectionPlatform(
+  connectionId: string,
+  fallbackConnection?: MarketplaceConnectionDto | null,
+): Promise<string | null> {
+  if (fallbackConnection?.platform) {
+    return fallbackConnection.platform;
+  }
+  try {
+    const { data } = await api.get<MarketplaceConnectionDto>(
+      `/marketplace-connections/${connectionId}`,
+    );
+    return data.platform;
+  } catch {
+    return null;
   }
 }
 
@@ -62,7 +85,14 @@ export function useConnectionHealth(
 
       const fromApi = await fetchHealthFromApi(connectionId);
       if (fromApi) {
-        return fromApi;
+        const platform = await resolveConnectionPlatform(
+          connectionId,
+          fallbackConnection,
+        );
+        const logs = platform
+          ? await fetchConnectionHealthLogs(platform)
+          : [];
+        return normalizeConnectionHealthApiResponse(fromApi, logs);
       }
 
       let connection = fallbackConnection ?? null;

@@ -1,12 +1,19 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import {
+  CategoryIcon,
+  categoryStyles,
+  visualCategoryForType,
+} from '@/components/notifications/notification-utils';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -26,6 +33,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  buildNotificationFilterOptions,
+  NOTIFICATION_PRODUCT_CATEGORY_OPTIONS,
+  notificationsPageSubtitle,
+  resolveNotificationListScope,
+  showNotificationProductCategoryChips,
+  type InAppNotificationProductCategory,
+} from '@/lib/in-app-notification-categories';
+import {
   deleteAllNotifications,
   deleteNotification,
   fetchNotificationsPage,
@@ -36,45 +51,29 @@ import { getApiErrorMessage } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   type InAppNotification,
-  type InAppNotificationType,
   useNotificationsStore,
 } from '@/store/notifications.store';
+import { useAuthStore } from '@/store/auth.store';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { toast } from 'sonner';
 
-function typeEmoji(type: InAppNotificationType): string {
-  switch (type) {
-    case 'ORDER_NEW':
-    case 'ORDER_STATUS_CHANGED':
-      return '🛒';
-    case 'STOCK_LOW':
-    case 'STOCK_OUT':
-      return '📦';
-    case 'SYNC_ERROR':
-    case 'PAYMENT_FAILED':
-      return '⚠️';
-    case 'SYNC_SUCCESS':
-      return '✅';
-    case 'PRICE_UPDATED':
-    case 'BUYBOX_WON':
-    case 'BUYBOX_LOST':
-      return '💰';
-    default:
-      return '🔔';
-  }
-}
-
-const FILTER_OPTIONS: { value: InAppNotificationListFilter; label: string }[] = [
-  { value: 'all', label: 'Tümü' },
-  { value: 'unread', label: 'Okunmamış' },
-  { value: 'order', label: 'Sipariş' },
-  { value: 'stock', label: 'Stok' },
-  { value: 'error', label: 'Hata' },
-];
-
 export function NotificationsPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.notifications'));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const showProductChips = showNotificationProductCategoryChips(orgProducts);
+  const filterOptions = useMemo(
+    () => buildNotificationFilterOptions(orgProducts),
+    [orgProducts],
+  );
+
+  const [productCategory, setProductCategory] =
+    useState<InAppNotificationProductCategory>('all');
   const [filter, setFilter] = useState<InAppNotificationListFilter>('all');
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -82,11 +81,34 @@ export function NotificationsPage(): ReactElement {
   const removeNotificationLocal = useNotificationsStore((s) => s.removeNotification);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
 
-  usePageTitle('Bildirimler', { badgeCount: unreadCount });
+  const listScope = useMemo(
+    () => resolveNotificationListScope(orgProducts, productCategory),
+    [orgProducts, productCategory],
+  );
+
+  const subtitle = useMemo(
+    () => notificationsPageSubtitle(orgProducts),
+    [orgProducts],
+  );
+
+  useEffect(() => {
+    if (!filterOptions.some((o) => o.value === filter)) {
+      setFilter('all');
+      setPage(1);
+    }
+  }, [filter, filterOptions]);
+
+  usePageTitle(t('nav.notifications'), { badgeCount: unreadCount });
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['notifications-page', page, filter],
-    queryFn: () => fetchNotificationsPage({ page, limit, filter }),
+    queryKey: ['notifications-page', page, filter, listScope],
+    queryFn: () =>
+      fetchNotificationsPage({
+        page,
+        limit,
+        filter,
+        scope: listScope,
+      }),
   });
 
   const totalPages = useMemo(() => {
@@ -142,67 +164,89 @@ export function NotificationsPage(): ReactElement {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            Bildirimler
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Sipariş, stok ve senkronizasyon bildirimlerinizi yönetin.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select
-            value={filter}
-            onValueChange={(v) => {
-              setFilter(v as InAppNotificationListFilter);
-              setPage(1);
-            }}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filtre" />
-            </SelectTrigger>
-            <SelectContent>
-              {FILTER_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={clearAllMutation.isPending || !data?.total}
+      <PageHeader
+        title={t('nav.notifications')}
+        description={subtitle}
+        context={navContextLine}
+        actions={
+          <div className="flex flex-col gap-2 sm:items-end">
+            {showProductChips ? (
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Bildirim kategorisi"
               >
-                Tümünü temizle
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Tüm bildirimleri sil?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Bu işlem geri alınamaz. Organizasyonunuz için size görünen tüm bildirimler
-                  silinecektir.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
+                {NOTIFICATION_PRODUCT_CATEGORY_OPTIONS.map((o) => (
+                  <Button
+                    key={o.value}
+                    type="button"
+                    size="sm"
+                    variant={productCategory === o.value ? 'default' : 'outline'}
+                    className="rounded-full"
+                    onClick={() => {
+                      setProductCategory(o.value);
+                      setPage(1);
+                    }}
+                  >
+                    {o.label}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={filter}
+              onValueChange={(v) => {
+                setFilter(v as InAppNotificationListFilter);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filtre" />
+              </SelectTrigger>
+              <SelectContent>
+                {filterOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
                 <Button
                   type="button"
-                  variant="destructive"
-                  disabled={clearAllMutation.isPending}
-                  onClick={() => clearAllMutation.mutate()}
+                  variant="outline"
+                  disabled={clearAllMutation.isPending || !data?.total}
                 >
-                  Sil
+                  Tümünü temizle
                 </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Tüm bildirimleri sil?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Bu işlem geri alınamaz. Organizasyonunuz için size görünen tüm
+                    bildirimler silinecektir.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button">Vazgeç</AlertDialogCancel>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={clearAllMutation.isPending}
+                    onClick={() => clearAllMutation.mutate()}
+                  >
+                    Sil
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            </div>
+          </div>
+        }
+      />
 
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Yükleniyor…</p>
@@ -217,59 +261,74 @@ export function NotificationsPage(): ReactElement {
       ) : !data?.data.length ? (
         <EmptyState
           icon={Bell}
-          title="Tüm bildirimler okundu"
-          description="Yeni sipariş, stok veya senkronizasyon uyarıları burada görünecek."
+          title="Bildirim yok"
+          description={
+            filter === 'unread'
+              ? 'Okunmamış bildiriminiz bulunmuyor.'
+              : 'Yeni bildirimler burada görünecek.'
+          }
         />
       ) : (
         <>
           <ul className="divide-y rounded-lg border bg-card">
-            {data.data.map((n) => (
-              <li
-                key={n.id}
-                className={cn(
-                  'flex gap-3 p-4 transition-colors',
-                  !n.isRead && 'border-l-4 border-l-sky-500 bg-sky-50/40 dark:bg-sky-950/25',
-                )}
-              >
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 gap-3 text-left"
-                  onClick={() => handleRowActivate(n)}
+            {data.data.map((n) => {
+              const visualCategory = visualCategoryForType(n.type);
+              const styles = categoryStyles(visualCategory);
+              return (
+                <li
+                  key={n.id}
+                  className={cn(
+                    'flex gap-3 p-4 transition-colors',
+                    !n.isRead && `border-l-4 ${styles.unreadBorder}`,
+                  )}
                 >
-                  <span className="text-xl leading-none" aria-hidden>
-                    {typeEmoji(n.type)}
-                  </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 gap-3 text-left"
+                    onClick={() => handleRowActivate(n)}
+                  >
+                    <span
                       className={cn(
-                        'text-sm text-foreground',
-                        !n.isRead ? 'font-semibold' : 'font-medium',
+                        'flex size-9 shrink-0 items-center justify-center rounded-lg',
+                        styles.iconBg,
+                        styles.iconText,
                       )}
+                      aria-hidden
                     >
-                      {n.title}
-                    </p>
-                    <p className="text-sm text-muted-foreground">{n.message}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(n.createdAt), {
-                        addSuffix: true,
-                        locale: tr,
-                      })}
-                    </p>
-                  </div>
-                </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label="Bildirimi sil"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => deleteMutation.mutate(n.id)}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </li>
-            ))}
+                      <CategoryIcon category={visualCategory} />
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p
+                        className={cn(
+                          'text-sm text-foreground',
+                          !n.isRead ? 'font-semibold' : 'font-medium',
+                        )}
+                      >
+                        {n.title}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{n.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(n.createdAt), {
+                          addSuffix: true,
+                          locale: tr,
+                        })}
+                      </p>
+                    </div>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-destructive"
+                    aria-label="Bildirimi sil"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => deleteMutation.mutate(n.id)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs text-muted-foreground">

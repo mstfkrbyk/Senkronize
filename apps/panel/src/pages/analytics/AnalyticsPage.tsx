@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Area,
   AreaChart,
@@ -23,7 +24,8 @@ import {
   YAxis,
 } from 'recharts';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -35,10 +37,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
-import { getApiErrorMessage } from '@/lib/api';
+import { useAuthStore } from '@/store/auth.store';
 import type { PlatformComparisonRow } from '@/types/analytics';
 
+import { formatAnalyticsNavContext } from './analytics-nav-context';
 import {
   useAovTrend,
   useCustomerInsights,
@@ -52,6 +56,8 @@ import {
 const PERIOD = '30d';
 const CHART_COLORS = ['#0ea5e9', '#0f172a', '#22c55e', '#f97316', '#a855f7'];
 const PIE_COLORS = ['#0ea5e9', '#94a3b8'];
+const CHART_EMPTY_CLASS =
+  'flex h-full min-h-48 items-center justify-center py-8 text-center text-sm text-muted-foreground';
 
 function formatTry(n: number): string {
   return new Intl.NumberFormat('tr-TR', {
@@ -121,17 +127,19 @@ function ChartSkeleton(): ReactElement {
   return <Skeleton className="h-64 w-full" />;
 }
 
-function ErrorAlert({ message }: { message: string }): ReactElement {
-  return (
-    <Alert variant="destructive">
-      <AlertTitle>Veri yüklenemedi</AlertTitle>
-      <AlertDescription>{message}</AlertDescription>
-    </Alert>
-  );
-}
-
 export function AnalyticsPage(): ReactElement {
-  usePageTitle('Analitik');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const pageTitle = t('nav.analytics');
+  const navContextLine = formatAnalyticsNavContext(
+    groupLabel,
+    pageTitle,
+    orgProducts,
+    t,
+  );
+
+  usePageTitle(pageTitle);
   const [tab, setTab] = useState('platform');
 
   const platformQuery = usePlatformComparison(PERIOD);
@@ -142,7 +150,10 @@ export function AnalyticsPage(): ReactElement {
   const hourlyQuery = useRevenueByHour(30);
   const dailyQuery = useDailyRevenueTrend(30);
 
-  const platforms = platformQuery.data?.platforms ?? [];
+  const platforms = useMemo(
+    () => platformQuery.data?.platforms ?? [],
+    [platformQuery.data?.platforms],
+  );
   const revenueChartData = useMemo(
     () =>
       platforms.map((p) => ({
@@ -198,15 +209,12 @@ export function AnalyticsPage(): ReactElement {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Sipariş Analitiği
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Platform, müşteri, ürün ve gelir performansını tek ekranda inceleyin.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={pageTitle}
+        description="Platform, müşteri, ürün ve gelir performansını tek ekranda inceleyin."
+        context={navContextLine}
+      />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex h-auto flex-wrap gap-1">
@@ -218,7 +226,7 @@ export function AnalyticsPage(): ReactElement {
 
         <TabsContent value="platform" className="mt-4 space-y-4">
           {platformQuery.isError ? (
-            <ErrorAlert message={getApiErrorMessage(platformQuery.error)} />
+            <QueryErrorAlert error={platformQuery.error} />
           ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -231,9 +239,7 @@ export function AnalyticsPage(): ReactElement {
                 {platformQuery.isPending ? (
                   <ChartSkeleton />
                 ) : revenueChartData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Henüz sipariş verisi yok.
-                  </p>
+                  <div className={CHART_EMPTY_CLASS}>Henüz sipariş verisi yok.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={revenueChartData} margin={{ left: 8, right: 8 }}>
@@ -264,7 +270,7 @@ export function AnalyticsPage(): ReactElement {
                 {platformQuery.isPending ? (
                   <ChartSkeleton />
                 ) : radarSeries.data.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Karşılaştırma verisi yok.</p>
+                  <div className={CHART_EMPTY_CLASS}>Karşılaştırma verisi yok.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={radarSeries.data}>
@@ -299,7 +305,9 @@ export function AnalyticsPage(): ReactElement {
               {platformQuery.isPending ? (
                 <ChartSkeleton />
               ) : platforms.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Henüz veri yok.</p>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Henüz veri yok.
+                </div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -340,7 +348,7 @@ export function AnalyticsPage(): ReactElement {
 
         <TabsContent value="customer" className="mt-4 space-y-4">
           {customerQuery.isError ? (
-            <ErrorAlert message={getApiErrorMessage(customerQuery.error)} />
+            <QueryErrorAlert error={customerQuery.error} />
           ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -405,7 +413,9 @@ export function AnalyticsPage(): ReactElement {
               {customerQuery.isPending ? (
                 <ChartSkeleton />
               ) : (customerQuery.data?.topCities.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">Şehir verisi bulunamadı.</p>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  Şehir verisi bulunamadı.
+                </div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -436,11 +446,11 @@ export function AnalyticsPage(): ReactElement {
             </CardHeader>
             <CardContent className="h-72">
               {aovQuery.isError ? (
-                <ErrorAlert message={getApiErrorMessage(aovQuery.error)} />
+                <QueryErrorAlert error={aovQuery.error} />
               ) : aovQuery.isPending ? (
                 <ChartSkeleton />
               ) : aovChart.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Trend verisi yok.</p>
+                <div className={CHART_EMPTY_CLASS}>Trend verisi yok.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={aovChart}>
@@ -471,11 +481,11 @@ export function AnalyticsPage(): ReactElement {
             </CardHeader>
             <CardContent className="h-80">
               {topProductsQuery.isError ? (
-                <ErrorAlert message={getApiErrorMessage(topProductsQuery.error)} />
+                <QueryErrorAlert error={topProductsQuery.error} />
               ) : topProductsQuery.isPending ? (
                 <ChartSkeleton />
               ) : topProductChart.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Ürün verisi yok.</p>
+                <div className={CHART_EMPTY_CLASS}>Ürün verisi yok.</div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={topProductChart} layout="vertical" margin={{ left: 24 }}>
@@ -497,11 +507,13 @@ export function AnalyticsPage(): ReactElement {
             </CardHeader>
             <CardContent>
               {topReturnedQuery.isError ? (
-                <ErrorAlert message={getApiErrorMessage(topReturnedQuery.error)} />
+                <QueryErrorAlert error={topReturnedQuery.error} />
               ) : topReturnedQuery.isPending ? (
                 <ChartSkeleton />
               ) : (topReturnedQuery.data?.products.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground">İade kaydı bulunamadı.</p>
+                <div className="py-12 text-center text-sm text-muted-foreground">
+                  İade kaydı bulunamadı.
+                </div>
               ) : (
                 <Table>
                   <TableHeader>
@@ -535,11 +547,11 @@ export function AnalyticsPage(): ReactElement {
               </CardHeader>
               <CardContent className="h-72">
                 {hourlyQuery.isError ? (
-                  <ErrorAlert message={getApiErrorMessage(hourlyQuery.error)} />
+                  <QueryErrorAlert error={hourlyQuery.error} />
                 ) : hourlyQuery.isPending ? (
                   <ChartSkeleton />
                 ) : hourlyChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Saatlik veri yok.</p>
+                  <div className={CHART_EMPTY_CLASS}>Saatlik veri yok.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={hourlyChart}>
@@ -561,11 +573,11 @@ export function AnalyticsPage(): ReactElement {
               </CardHeader>
               <CardContent className="h-72">
                 {dailyQuery.isError ? (
-                  <ErrorAlert message={getApiErrorMessage(dailyQuery.error)} />
+                  <QueryErrorAlert error={dailyQuery.error} />
                 ) : dailyQuery.isPending ? (
                   <ChartSkeleton />
                 ) : dailyChart.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Günlük veri yok.</p>
+                  <div className={CHART_EMPTY_CLASS}>Günlük veri yok.</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={dailyChart}>

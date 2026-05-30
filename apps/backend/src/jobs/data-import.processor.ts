@@ -50,6 +50,7 @@ export class DataImportProcessor {
         finalSession.progress,
       );
     } catch (error) {
+      await this.migrationService.markImportFailed(sessionId, organizationId);
       this.logger.error('Veri taşıma işi başarısız', {
         sessionId,
         organizationId,

@@ -31,17 +31,23 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
 import { useDashboardWidgets } from '@/hooks/useDashboardWidgets';
+import { getApiErrorMessage } from '@/lib/api';
+import { getWidgetCustomizerHint } from '@/lib/dashboard-widget-registry';
 import { WIDGET_LABELS } from '@/pages/dashboard/widget-meta';
+import { useAuthStore } from '@/store/auth.store';
 import type { Widget } from '@/types/dashboard-widgets';
 
 interface SortableWidgetRowProps {
   widget: Widget;
+  hint?: string;
   onToggleVisible: (id: string, visible: boolean) => void;
 }
 
 function SortableWidgetRow({
   widget,
+  hint,
   onToggleVisible,
 }: SortableWidgetRowProps): ReactElement {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -75,7 +81,7 @@ function SortableWidgetRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{label}</p>
         <p className="text-xs text-muted-foreground">
-          {visible ? 'Görünür' : 'Gizli'}
+          {hint ?? (visible ? 'Görünür' : 'Gizli')}
         </p>
       </div>
       <Switch
@@ -91,6 +97,8 @@ function SortableWidgetRow({
 
 export function WidgetCustomizer(): ReactElement {
   const [open, setOpen] = useState(false);
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const { mode: accountingMode } = useAccountingMode();
   const { widgets, saveWidgets, resetToDefault, isSaving } = useDashboardWidgets();
   const [draft, setDraft] = useState<Widget[]>(widgets);
 
@@ -135,8 +143,8 @@ export function WidgetCustomizer(): ReactElement {
         toast.success('Dashboard düzeni kaydedildi.');
         setOpen(false);
       },
-      onError: () => {
-        toast.error('Kaydetme başarısız. Tekrar deneyin.');
+      onError: (error: unknown) => {
+        toast.error(getApiErrorMessage(error));
       },
     });
   };
@@ -177,6 +185,11 @@ export function WidgetCustomizer(): ReactElement {
                   <SortableWidgetRow
                     key={widget.id}
                     widget={widget}
+                    hint={getWidgetCustomizerHint(
+                      widget.type,
+                      orgProducts,
+                      accountingMode,
+                    )}
                     onToggleVisible={handleToggleVisible}
                   />
                 ))}

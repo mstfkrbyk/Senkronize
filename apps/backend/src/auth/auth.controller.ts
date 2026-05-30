@@ -24,6 +24,7 @@ import {
   AcceptInviteDto,
   ChangePasswordDto,
   ForgotPasswordDto,
+  ResetPasswordDto,
   LoginDto,
   RecommendPlanDto,
   RefreshTokenDto,
@@ -259,6 +260,17 @@ export class AuthController {
     @Body() dto: ForgotPasswordDto,
   ): Promise<{ ok: true }> {
     return this.authService.requestPasswordReset(dto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Şifre sıfırlama tokenini kullanarak şifreyi güncelle' })
+  @ApiResponse({ status: 200, description: 'Şifre güncellendi' })
+  @ApiResponse({ status: 400, description: 'Geçersiz veya süresi dolmuş token' })
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<{ ok: true }> {
+    return this.authService.resetPassword(dto);
   }
 
   @Post('refresh')

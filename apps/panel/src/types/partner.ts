@@ -1,4 +1,32 @@
+import type { AccountingMode, OrgProductLine } from '@/types/auth';
+
 export type PartnerStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'TERMINATED';
+
+export type PartnerLinkRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+/** Müşterinin gönderdiği partner bağlantı talebi */
+export interface ClientPartnerLinkRequest {
+  id: string;
+  partnerOrgId: string;
+  status: PartnerLinkRequestStatus;
+  adminNote: string | null;
+  requestedAt: string;
+  reviewedAt: string | null;
+  partnerOrg: { id: string; name: string; slug: string };
+}
+
+/** Partnera gelen müşteri bağlantı talebi (admin onayı) */
+export interface PartnerIncomingLinkRequest {
+  id: string;
+  clientOrgId: string;
+  partnerOrgId: string;
+  status: PartnerLinkRequestStatus;
+  message: string | null;
+  adminNote: string | null;
+  requestedAt: string;
+  reviewedAt: string | null;
+  clientOrg: { id: string; name: string; slug: string };
+}
 
 export interface ClientOnboardingRow {
   id: string;
@@ -35,9 +63,18 @@ export interface PartnerRelationship {
   canImpersonate: boolean;
   acceptedAt: string | null;
   createdAt: string;
+  /** Son 30 gündeki sipariş sayısı (`GET /partner/clients`) */
+  orders30d?: number;
   /** Bekleyen davetlerde kopyalanabilir bağlantı (API destekliyorsa) */
   inviteUrl?: string | null;
-  clientOrg?: { id: string; name: string; slug: string; createdAt?: string };
+  clientOrg?: {
+    id: string;
+    name: string;
+    slug: string;
+    createdAt?: string;
+    orgProducts?: OrgProductLine[];
+    accountingMode?: AccountingMode;
+  };
   partnerOrg?: {
     id: string;
     name: string;
@@ -48,6 +85,18 @@ export interface PartnerRelationship {
       supportPhone: string | null;
     } | null;
   };
+}
+
+export type PartnerPayoutRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface PartnerPayoutRequest {
+  id: string;
+  partnerOrgId: string;
+  partnerName?: string;
+  amountTRY: number;
+  status: PartnerPayoutRequestStatus;
+  createdAt: string;
+  reviewedAt?: string | null;
 }
 
 export interface CommissionEntry {
@@ -74,6 +123,7 @@ export interface PartnerDashboard {
   monthlyCommission: number;
   totalCommission: number;
   commissionPctSummary: { min: number; max: number; unique: number[] };
+  commissionNote: string | null;
   recentActivities: Array<{
     happenedAt: string;
     title: string;
@@ -89,6 +139,8 @@ export interface PartnerDashboard {
     canImpersonate: boolean;
     connectionCount: number;
     orders30d: number;
+    orgProducts: OrgProductLine[];
+    accountingMode: AccountingMode;
   }>;
 }
 

@@ -4,6 +4,7 @@ import posthog from 'posthog-js';
 import { QueryClientProvider } from '@tanstack/react-query';
 import {
   BrowserRouter,
+  Navigate,
   Route,
   Routes,
 } from 'react-router-dom';
@@ -16,6 +17,15 @@ import {
   ProductAwareDashboardGate,
   ProductAwareHomeRedirect,
 } from '@/components/ProductAwareHomeRedirect';
+import {
+  accountingRoute,
+  integrationRoute,
+  productsHubRoute,
+  stockRoute,
+} from '@/components/ProductLineRoute';
+import { IntegrationOpsRoute } from '@/components/IntegrationOpsRoute';
+import { CustomerAppGuard } from '@/components/CustomerAppGuard';
+import { PartnerRoute } from '@/components/PartnerRoute';
 import { PrivateRoute } from '@/components/PrivateRoute';
 import { SuperAdminRoute } from '@/components/SuperAdminRoute';
 import { Toaster } from '@/components/ui/sonner';
@@ -46,6 +56,16 @@ const RegisterPage = lazy(() =>
     default: m.RegisterPage,
   })),
 );
+const ForgotPasswordPage = lazy(() =>
+  import('@/pages/auth/ForgotPasswordPage').then((m) => ({
+    default: m.ForgotPasswordPage,
+  })),
+);
+const ResetPasswordPage = lazy(() =>
+  import('@/pages/auth/ResetPasswordPage').then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
+);
 
 const InviteAcceptPage = lazy(() =>
   import('@/pages/InviteAcceptPage').then((m) => ({ default: m.InviteAcceptPage })),
@@ -64,6 +84,11 @@ const OfflinePage = lazy(() =>
 const OnboardingPage = lazy(() =>
   import('@/pages/onboarding/OnboardingPage').then((m) => ({
     default: m.OnboardingPage,
+  })),
+);
+const OnboardingWizardPage = lazy(() =>
+  import('@/pages/onboarding/OnboardingWizardPage').then((m) => ({
+    default: m.OnboardingWizardPage,
   })),
 );
 const AdminLayout = lazy(() =>
@@ -87,9 +112,9 @@ const AdminSubscriptionsPage = lazy(() =>
     default: m.AdminSubscriptionsPage,
   })),
 );
-const AdminSupportPage = lazy(() =>
-  import('@/pages/admin/AdminSupportPage').then((m) => ({
-    default: m.AdminSupportPage,
+const AdminTicketsPage = lazy(() =>
+  import('@/pages/admin/AdminTicketsPage').then((m) => ({
+    default: m.AdminTicketsPage,
   })),
 );
 const AdminPartnersPage = lazy(() =>
@@ -105,6 +130,29 @@ const AdminPartnerLinksPage = lazy(() =>
 const AdminUsersPage = lazy(() =>
   import('@/pages/admin/AdminUsersPage').then((m) => ({
     default: m.AdminUsersPage,
+  })),
+);
+const AdminUserDetailPage = lazy(() =>
+  import('@/pages/admin/AdminUserDetailPage').then((m) => ({
+    default: m.AdminUserDetailPage,
+  })),
+);
+const AdminPlatformAuditPage = lazy(() =>
+  import('@/pages/admin/AdminPlatformAuditPage').then((m) => ({
+    default: m.AdminPlatformAuditPage,
+  })),
+);
+const AdminSecurityPage = lazy(() =>
+  import('@/pages/admin/AdminSecurityPage').then((m) => ({ default: m.AdminSecurityPage })),
+);
+const AdminIntegrationsPage = lazy(() =>
+  import('@/pages/admin/AdminIntegrationsPage').then((m) => ({
+    default: m.AdminIntegrationsPage,
+  })),
+);
+const AdminIntegrationDetailPage = lazy(() =>
+  import('@/pages/admin/AdminIntegrationDetailPage').then((m) => ({
+    default: m.AdminIntegrationDetailPage,
   })),
 );
 const PartnersDiscoveryPage = lazy(() =>
@@ -123,6 +171,11 @@ const TicketDetailPage = lazy(() =>
 const HelpArticlePage = lazy(() =>
   import('@/pages/support/HelpArticlePage').then((m) => ({
     default: m.HelpArticlePage,
+  })),
+);
+const SupportTicketPage = lazy(() =>
+  import('@/pages/support/SupportTicketPage').then((m) => ({
+    default: m.SupportTicketPage,
   })),
 );
 const AuditLogPage = lazy(() =>
@@ -217,8 +270,40 @@ const CustomerSegmentsPage = lazy(() =>
     default: m.CustomerSegmentsPage,
   })),
 );
-const PartnerPage = lazy(() =>
-  import('@/pages/partner/PartnerPage').then((m) => ({ default: m.PartnerPage })),
+const PartnerLayout = lazy(() =>
+  import('@/pages/partner/PartnerLayout').then((m) => ({
+    default: m.PartnerLayout,
+  })),
+);
+const PartnerDashboardPage = lazy(() =>
+  import('@/pages/partner/PartnerDashboardPage').then((m) => ({
+    default: m.PartnerDashboardPage,
+  })),
+);
+const PartnerClientsPage = lazy(() =>
+  import('@/pages/partner/PartnerClientsPage').then((m) => ({
+    default: m.PartnerClientsPage,
+  })),
+);
+const CommissionPage = lazy(() =>
+  import('@/pages/partner/CommissionPage').then((m) => ({
+    default: m.CommissionPage,
+  })),
+);
+const PartnerOnboardingTab = lazy(() =>
+  import('@/pages/partner/PartnerOnboardingTab').then((m) => ({
+    default: m.PartnerOnboardingTab,
+  })),
+);
+const PartnerWhiteLabelTab = lazy(() =>
+  import('@/pages/partner/PartnerWhiteLabelTab').then((m) => ({
+    default: m.PartnerWhiteLabelTab,
+  })),
+);
+const PartnerPerformanceTab = lazy(() =>
+  import('@/pages/partner/PartnerPerformanceTab').then((m) => ({
+    default: m.PartnerPerformanceTab,
+  })),
 );
 const CampaignsPage = lazy(() =>
   import('@/pages/campaigns/CampaignsPage').then((m) => ({
@@ -227,6 +312,11 @@ const CampaignsPage = lazy(() =>
 );
 const PricingPage = lazy(() =>
   import('@/pages/pricing/PricingPage').then((m) => ({ default: m.PricingPage })),
+);
+const PriceAnalysisPage = lazy(() =>
+  import('@/pages/pricing/PriceAnalysisPage').then((m) => ({
+    default: m.PriceAnalysisPage,
+  })),
 );
 const ProductDetailPage = lazy(() =>
   import('@/pages/products/ProductDetailPage').then((m) => ({
@@ -254,8 +344,56 @@ const AnalyticsPage = lazy(() =>
 const ReportsPage = lazy(() =>
   import('@/pages/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })),
 );
-const SettingsPage = lazy(() =>
-  import('@/pages/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+const SettingsLayout = lazy(() =>
+  import('@/layouts/SettingsLayout').then((m) => ({ default: m.SettingsLayout })),
+);
+const OrganizationSettingsPage = lazy(() =>
+  import('@/pages/settings/OrganizationSettingsPage').then((m) => ({
+    default: m.OrganizationSettingsPage,
+  })),
+);
+const AppearanceSettingsPage = lazy(() =>
+  import('@/pages/settings/AppearanceSettingsPage').then((m) => ({
+    default: m.AppearanceSettingsPage,
+  })),
+);
+const ApiKeysSettingsPage = lazy(() =>
+  import('@/pages/settings/ApiKeysSettingsPage').then((m) => ({
+    default: m.ApiKeysSettingsPage,
+  })),
+);
+const AccountingModeSettingsPage = lazy(() =>
+  import('@/pages/settings/AccountingModeSettingsPage').then((m) => ({
+    default: m.AccountingModeSettingsPage,
+  })),
+);
+const CurrencySettingsPage = lazy(() =>
+  import('@/pages/settings/CurrencySettingsPage').then((m) => ({
+    default: m.CurrencySettingsPage,
+  })),
+);
+const InvoiceNumberingSettingsPage = lazy(() =>
+  import('@/pages/settings/InvoiceNumberingSettingsPage').then((m) => ({
+    default: m.InvoiceNumberingSettingsPage,
+  })),
+);
+const ErpSyncSettingsPage = lazy(() =>
+  import('@/pages/settings/ErpSyncSettingsPage').then((m) => ({
+    default: m.ErpSyncSettingsPage,
+  })),
+);
+const ProductMatchingSettingsPage = lazy(() =>
+  import('@/pages/settings/ProductMatchingSettingsPage').then((m) => ({
+    default: m.ProductMatchingSettingsPage,
+  })),
+);
+const SecurityPage = lazy(() =>
+  import('@/pages/settings/SecurityPage').then((m) => ({ default: m.SecurityPage })),
+);
+const SubscriptionPage = lazy(() =>
+  import('@/pages/settings/SubscriptionPage').then((m) => ({
+    default: m.SubscriptionPage,
+  })),
 );
 const PaymentPage = lazy(() =>
   import('@/pages/payment/PaymentPage').then((m) => ({
@@ -288,6 +426,9 @@ const NotificationPreferencesPage = lazy(() =>
     default: m.NotificationPreferencesPage,
   })),
 );
+const UsersPage = lazy(() =>
+  import('@/pages/settings/UsersPage').then((m) => ({ default: m.UsersPage })),
+);
 const WebhookDetailPage = lazy(() =>
   import('@/pages/settings/WebhookDetailPage').then((m) => ({
     default: m.WebhookDetailPage,
@@ -303,34 +444,14 @@ const StockTransferPage = lazy(() =>
     default: m.StockTransferPage,
   })),
 );
-const StockPage = lazy(() =>
-  import('@/pages/stock/StockPage').then((m) => ({
-    default: m.StockPage,
-  })),
-);
-const WarehousesPage = lazy(() =>
-  import('@/pages/stock/WarehousesPage').then((m) => ({
-    default: m.WarehousesPage,
-  })),
-);
-const StockMovementsPage = lazy(() =>
-  import('@/pages/stock/StockMovementsPage').then((m) => ({
-    default: m.StockMovementsPage,
-  })),
-);
-const StockDistributionPage = lazy(() =>
-  import('@/pages/stock/StockDistributionPage').then((m) => ({
-    default: m.StockDistributionPage,
+const StockLegacyRedirect = lazy(() =>
+  import('@/pages/products/StockLegacyRedirect').then((m) => ({
+    default: m.StockLegacyRedirect,
   })),
 );
 const StockCountScanPage = lazy(() =>
   import('@/pages/stock/StockCountScanPage').then((m) => ({
     default: m.StockCountScanPage,
-  })),
-);
-const StockForecastPage = lazy(() =>
-  import('@/pages/stock/StockForecastPage').then((m) => ({
-    default: m.StockForecastPage,
   })),
 );
 const SyncLogsPage = lazy(() =>
@@ -419,6 +540,9 @@ export default function App(): ReactElement {
             >
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
             </Route>
             <Route
               element={
@@ -427,7 +551,9 @@ export default function App(): ReactElement {
                 </ErrorBoundary>
               }
             >
-              <Route path="/onboarding" element={<OnboardingPage />} />
+              <Route path="/onboarding" element={<OnboardingPage />}>
+                <Route path="wizard" element={<OnboardingWizardPage />} />
+              </Route>
               <Route path="/payment" element={<PaymentPage />} />
               <Route path="/payment/callback" element={<PaymentCallbackPage />} />
               <Route path="/payment/success" element={<PaymentSuccessPage />} />
@@ -441,24 +567,177 @@ export default function App(): ReactElement {
                   </SuperAdminRoute>
                 }
               >
-                <Route index element={<AdminDashboardPage />} />
-                <Route path="organizations" element={<AdminOrgsPage />} />
+                <Route
+                  index
+                  element={
+                    <ErrorBoundary>
+                      <AdminDashboardPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="organizations"
+                  element={
+                    <ErrorBoundary>
+                      <AdminOrgsPage />
+                    </ErrorBoundary>
+                  }
+                />
                 <Route
                   path="organizations/:orgId"
-                  element={<AdminOrgDetailPage />}
+                  element={
+                    <ErrorBoundary>
+                      <AdminOrgDetailPage />
+                    </ErrorBoundary>
+                  }
                 />
-                <Route path="users" element={<AdminUsersPage />} />
+                <Route
+                  path="users/:id"
+                  element={
+                    <ErrorBoundary>
+                      <AdminUserDetailPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="users"
+                  element={
+                    <ErrorBoundary>
+                      <AdminUsersPage />
+                    </ErrorBoundary>
+                  }
+                />
                 <Route
                   path="subscriptions"
-                  element={<AdminSubscriptionsPage />}
+                  element={
+                    <ErrorBoundary>
+                      <AdminSubscriptionsPage />
+                    </ErrorBoundary>
+                  }
                 />
-                <Route path="tickets" element={<AdminSupportPage />} />
-                <Route path="partners" element={<AdminPartnersPage />} />
+                <Route
+                  path="tickets"
+                  element={
+                    <ErrorBoundary>
+                      <AdminTicketsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="partners"
+                  element={
+                    <ErrorBoundary>
+                      <AdminPartnersPage />
+                    </ErrorBoundary>
+                  }
+                />
                 <Route
                   path="partner-link-requests"
-                  element={<AdminPartnerLinksPage />}
+                  element={
+                    <ErrorBoundary>
+                      <AdminPartnerLinksPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="audit-logs"
+                  element={
+                    <ErrorBoundary>
+                      <AdminPlatformAuditPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="integrations"
+                  element={
+                    <ErrorBoundary>
+                      <AdminIntegrationsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="integrations/:platformKey"
+                  element={
+                    <ErrorBoundary>
+                      <AdminIntegrationDetailPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="security"
+                  element={
+                    <ErrorBoundary>
+                      <AdminSecurityPage />
+                    </ErrorBoundary>
+                  }
                 />
               </Route>
+              <Route
+                path="/partner"
+                element={
+                  <PartnerRoute>
+                    <PartnerLayout />
+                  </PartnerRoute>
+                }
+              >
+                <Route
+                  index
+                  element={
+                    <ErrorBoundary>
+                      <PartnerDashboardPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="clients"
+                  element={
+                    <ErrorBoundary>
+                      <PartnerClientsPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="commission"
+                  element={
+                    <ErrorBoundary>
+                      <CommissionPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="commission-report"
+                  element={
+                    <ErrorBoundary>
+                      <CommissionPage initialTab="rapor" />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="performance"
+                  element={
+                    <ErrorBoundary>
+                      <PartnerPerformanceTab />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="onboarding"
+                  element={
+                    <ErrorBoundary>
+                      <PartnerOnboardingTab />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="white-label"
+                  element={
+                    <ErrorBoundary>
+                      <PartnerWhiteLabelTab />
+                    </ErrorBoundary>
+                  }
+                />
+              </Route>
+              <Route element={<CustomerAppGuard />}>
               <Route element={<DashboardLayout />}>
                 <Route index element={<ProductAwareHomeRedirect />} />
                 <Route
@@ -469,39 +748,125 @@ export default function App(): ReactElement {
                     </ProductAwareDashboardGate>
                   }
                 />
-                <Route path="/orders/:id" element={<OrderDetailPage />} />
-                <Route path="/orders" element={<OrdersPage />} />
-                <Route path="/shipping/:id" element={<ShipmentDetailPage />} />
-                <Route path="/shipping" element={<ShippingPage />} />
+                <Route
+                  path="/orders/:id"
+                  element={integrationRoute(<OrderDetailPage />)}
+                />
+                <Route
+                  path="/orders"
+                  element={integrationRoute(<OrdersPage />)}
+                />
+                <Route
+                  path="/shipping/:id"
+                  element={integrationRoute(<ShipmentDetailPage />, {
+                    fallback: 'redirect',
+                  })}
+                />
+                <Route
+                  path="/shipping"
+                  element={integrationRoute(<ShippingPage />, {
+                    fallback: 'redirect',
+                  })}
+                />
                 <Route path="/customers/segments" element={<CustomerSegmentsPage />} />
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/customers" element={<CustomersPage />} />
-                <Route path="/returns" element={<ReturnsPage />} />
-                <Route path="/accounting/overview" element={<AccountingOverviewPage />} />
-                <Route path="/accounting" element={<AccountingOverviewPage />} />
-                <Route path="/invoices" element={<InvoicesPage />} />
-                <Route path="/listings/:id" element={<ListingDetailPage />} />
-                <Route path="/listings" element={<ListingsPage />} />
-                <Route path="/products/import" element={<ProductImportPage />} />
-                <Route path="/product-matching" element={<ProductMatchingPage />} />
-                <Route path="/products/:id" element={<ProductDetailPage />} />
-                <Route path="/products" element={<ProductsPage />} />
-                <Route path="/categories" element={<CategoriesPage />} />
-                <Route path="/stock/count/scan" element={<StockCountScanPage />} />
-                <Route path="/stock/count" element={<StockCountPage />} />
-                <Route path="/stock/warehouses" element={<WarehousesPage />} />
-                <Route path="/stock/movements" element={<StockMovementsPage />} />
-                <Route path="/stock/distribution" element={<StockDistributionPage />} />
-                <Route path="/stock/transfers/:id" element={<StockTransferPage />} />
-                <Route path="/stock/transfers" element={<StockTransferPage />} />
-                <Route path="/stock/forecast" element={<StockForecastPage />} />
-                <Route path="/stock" element={<StockPage />} />
-                <Route path="/suppliers/:id" element={<SupplierDetailPage />} />
-                <Route path="/suppliers" element={<SuppliersPage />} />
-                <Route path="/purchase-orders/:id" element={<PurchaseOrderDetailPage />} />
-                <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-                <Route path="/campaigns" element={<CampaignsPage />} />
+                <Route
+                  path="/returns"
+                  element={integrationRoute(<ReturnsPage />)}
+                />
+                <Route
+                  path="/accounting/overview"
+                  element={accountingRoute(<AccountingOverviewPage />)}
+                />
+                <Route
+                  path="/accounting"
+                  element={accountingRoute(<AccountingOverviewPage />)}
+                />
+                <Route
+                  path="/invoices"
+                  element={accountingRoute(<InvoicesPage />)}
+                />
+                <Route
+                  path="/listings/:id"
+                  element={integrationRoute(<ListingDetailPage />)}
+                />
+                <Route
+                  path="/listings"
+                  element={integrationRoute(<ListingsPage />)}
+                />
+                <Route
+                  path="/products/import"
+                  element={integrationRoute(<ProductImportPage />)}
+                />
+                <Route
+                  path="/product-matching"
+                  element={integrationRoute(<ProductMatchingPage />)}
+                />
+                <Route
+                  path="/products/:id"
+                  element={integrationRoute(<ProductDetailPage />)}
+                />
+                <Route
+                  path="/products"
+                  element={productsHubRoute(<ProductsPage />)}
+                />
+                <Route
+                  path="/products/count/scan"
+                  element={stockRoute(<StockCountScanPage />)}
+                />
+                <Route
+                  path="/products/count"
+                  element={stockRoute(<StockCountPage />)}
+                />
+                <Route
+                  path="/products/transfers/:id"
+                  element={stockRoute(<StockTransferPage />)}
+                />
+                <Route
+                  path="/products/transfers"
+                  element={stockRoute(<StockTransferPage />)}
+                />
+                <Route
+                  path="/stock/*"
+                  element={stockRoute(<StockLegacyRedirect />)}
+                />
+                <Route
+                  path="/categories"
+                  element={integrationRoute(<CategoriesPage />)}
+                />
+                <Route
+                  path="/suppliers/:id"
+                  element={accountingRoute(<SupplierDetailPage />)}
+                />
+                <Route
+                  path="/suppliers"
+                  element={accountingRoute(<SuppliersPage />)}
+                />
+                <Route
+                  path="/purchase-orders/:id"
+                  element={accountingRoute(<PurchaseOrderDetailPage />)}
+                />
+                <Route
+                  path="/purchase-orders"
+                  element={accountingRoute(<PurchaseOrdersPage />)}
+                />
+                <Route
+                  path="/pricing/analysis"
+                  element={integrationRoute(<PriceAnalysisPage />, {
+                    fallback: 'redirect',
+                  })}
+                />
+                <Route
+                  path="/pricing"
+                  element={integrationRoute(<PricingPage />, {
+                    fallback: 'redirect',
+                  })}
+                />
+                <Route
+                  path="/campaigns"
+                  element={integrationRoute(<CampaignsPage />)}
+                />
                 <Route path="/connections" element={<ConnectionsPage />} />
                 <Route
                   path="/connections/erp/setup"
@@ -509,35 +874,117 @@ export default function App(): ReactElement {
                 />
                 <Route
                   path="/connections/erp/:id"
-                  element={<ErpConnectionDetailPage />}
+                  element={
+                    <ErrorBoundary>
+                      <ErpConnectionDetailPage />
+                    </ErrorBoundary>
+                  }
                 />
-                <Route path="/connections/:id" element={<ConnectionDetailPage />} />
-                <Route path="/sync-logs" element={<SyncLogsPage />} />
-                <Route path="/sync/history" element={<SyncHistoryPage />} />
-                <Route path="/sync/conflicts" element={<ConflictsPage />} />
+                <Route
+                  path="/connections/:id"
+                  element={
+                    <ErrorBoundary>
+                      <ConnectionDetailPage />
+                    </ErrorBoundary>
+                  }
+                />
+                <Route
+                  path="/sync-logs"
+                  element={integrationRoute(
+                    <IntegrationOpsRoute>
+                      <SyncLogsPage />
+                    </IntegrationOpsRoute>,
+                  )}
+                />
+                <Route
+                  path="/sync/history"
+                  element={integrationRoute(
+                    <IntegrationOpsRoute>
+                      <SyncHistoryPage />
+                    </IntegrationOpsRoute>,
+                  )}
+                />
+                <Route
+                  path="/sync/conflicts"
+                  element={integrationRoute(
+                    <IntegrationOpsRoute>
+                      <ConflictsPage />
+                    </IntegrationOpsRoute>,
+                  )}
+                />
                 <Route path="/notifications" element={<NotificationsPage />} />
                 <Route path="/support/help/:slug" element={<HelpArticlePage />} />
+                <Route path="/support/new" element={<SupportTicketPage />} />
                 <Route path="/support/:id" element={<TicketDetailPage />} />
                 <Route path="/support" element={<SupportPage />} />
+                <Route
+                  path="/audit"
+                  element={<Navigate to="/audit-logs" replace />}
+                />
                 <Route path="/audit-logs" element={<AuditLogPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
+                <Route
+                  path="/analytics"
+                  element={integrationRoute(<AnalyticsPage />)}
+                />
                 <Route path="/reports" element={<ReportsPage />} />
-                <Route path="/migration/history" element={<MigrationHistoryPage />} />
-                <Route path="/migration" element={<MigrationPage />} />
-                <Route path="/partner/*" element={<PartnerPage />} />
                 <Route
-                  path="/settings/subscription"
-                  element={<SettingsPage />}
+                  path="/migration/history"
+                  element={integrationRoute(<MigrationHistoryPage />)}
                 />
-                <Route path="/settings/profile" element={<ProfilePage />} />
-                <Route path="/settings/partners" element={<PartnersDiscoveryPage />} />
-                <Route path="/settings/webhooks/:id" element={<WebhookDetailPage />} />
-                <Route path="/settings/webhooks" element={<WebhooksPage />} />
                 <Route
-                  path="/settings/notifications"
-                  element={<NotificationPreferencesPage />}
+                  path="/migration"
+                  element={integrationRoute(<MigrationPage />)}
                 />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route element={<SettingsLayout />}>
+                  <Route
+                    path="/settings"
+                    element={<Navigate to="/settings/organization" replace />}
+                  />
+                  <Route path="/settings/profile" element={<ProfilePage />} />
+                  <Route
+                    path="/settings/organization"
+                    element={<OrganizationSettingsPage />}
+                  />
+                  <Route path="/settings/security" element={<SecurityPage />} />
+                  <Route
+                    path="/settings/notifications"
+                    element={<NotificationPreferencesPage />}
+                  />
+                  <Route
+                    path="/settings/appearance"
+                    element={<AppearanceSettingsPage />}
+                  />
+                  <Route path="/settings/team" element={<UsersPage />} />
+                  <Route
+                    path="/settings/subscription"
+                    element={<SubscriptionPage />}
+                  />
+                  <Route
+                    path="/settings/partners"
+                    element={<PartnersDiscoveryPage />}
+                  />
+                  <Route path="/settings/api-keys" element={<ApiKeysSettingsPage />} />
+                  <Route
+                    path="/settings/webhooks/:id"
+                    element={<WebhookDetailPage />}
+                  />
+                  <Route path="/settings/webhooks" element={<WebhooksPage />} />
+                  <Route
+                    path="/settings/accounting-mode"
+                    element={<AccountingModeSettingsPage />}
+                  />
+                  <Route path="/settings/currency" element={<CurrencySettingsPage />} />
+                  <Route
+                    path="/settings/invoice-numbering"
+                    element={<InvoiceNumberingSettingsPage />}
+                  />
+                  <Route path="/settings/erp-sync" element={<ErpSyncSettingsPage />} />
+                  <Route
+                    path="/settings/product-matching"
+                    element={<ProductMatchingSettingsPage />}
+                  />
+                </Route>
+              </Route>
               </Route>
             </Route>
             <Route

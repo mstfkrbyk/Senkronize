@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +17,7 @@ import {
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,9 +38,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { resolveInvoicesNavGroupLabel } from '@/pages/invoices/invoices-nav-context';
+import { useAuthStore } from '@/store/auth.store';
 import { PO_STATUS_LABEL_TR, poStatusBadgeClass } from '@/lib/po-status';
 import { cn } from '@/lib/utils';
 import { formatSupplierDate, formatTryAmount } from '@/pages/suppliers/supplier-utils';
@@ -73,6 +80,9 @@ async function downloadPoPdf(poId: string, orderNumber: string): Promise<void> {
 }
 
 export function PurchaseOrderDetailPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const poId = id ?? '';
@@ -103,6 +113,12 @@ export function PurchaseOrderDetailPage(): ReactElement {
   }, [detailQuery.data, notesDirty]);
 
   usePageTitle(po?.orderNumber ?? 'Sipariş');
+
+  const navContextLine = formatNavPageContext(
+    resolveInvoicesNavGroupLabel(groupLabel, orgProducts, t),
+    t('nav.purchaseOrders'),
+    po?.orderNumber,
+  );
 
   const sendMutation = useMutation({
     mutationFn: async (): Promise<void> => {
@@ -219,34 +235,62 @@ export function PurchaseOrderDetailPage(): ReactElement {
 
   if (!poId) {
     return (
-      <div className="p-6">
-        <EmptyState title="Geçersiz bağlantı" description="Sipariş bulunamadı." />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <EmptyState title="Geçersiz bağlantı" description="Sipariş bulunamadı." />
+        </CardContent>
+      </Card>
     );
   }
 
   if (detailQuery.isLoading) {
     return (
-      <div className="flex flex-1 items-center justify-center p-12">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-9 w-40" />
+        </div>
+        <Card>
+          <CardContent className="space-y-6 pt-6">
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-9 w-24" />
+              ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full rounded-lg" />
+              ))}
+            </div>
+            <Skeleton className="h-32 w-full rounded-lg" />
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (detailQuery.isError || !po) {
     return (
-      <div className="p-6">
-        <EmptyState
-          title="Sipariş yüklenemedi"
-          description={getApiErrorMessage(detailQuery.error)}
-          action={{
-            label: 'Listeye dön',
+      <Card>
+        <CardContent className="pt-6">
+          <EmptyState
+            title="Sipariş yüklenemedi"
+            description={getApiErrorMessage(detailQuery.error)}
+            action={{
+              label: 'Listeye dön',
             onClick: () => {
               void navigate('/purchase-orders');
             },
           }}
         />
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -262,31 +306,25 @@ export function PurchaseOrderDetailPage(): ReactElement {
     po.status === 'PARTIALLY_RECEIVED';
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" asChild>
-          <Link to="/purchase-orders">
-            <ArrowLeft className="mr-1 size-4" />
-            Listeye dön
-          </Link>
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="font-mono text-xl font-semibold">{po.orderNumber}</h1>
-          <p className="text-sm text-muted-foreground">
-            <Link to={`/suppliers/${po.supplierId}`} className="text-sky-600 hover:underline">
-              {po.supplier.name}
-            </Link>
-            {' · '}
-            {formatSupplierDate(po.createdAt)}
-          </p>
-        </div>
-        <Badge variant="outline" className={poStatusBadgeClass(po.status)}>
-          {PO_STATUS_LABEL_TR[po.status]}
-        </Badge>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title={po.orderNumber}
+        description={`${po.supplier.name} · ${formatSupplierDate(po.createdAt)}`}
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/purchase-orders">
+                <ArrowLeft className="mr-2 size-4" />
+                Sipariş listesine dön
+              </Link>
+            </Button>
+            <Badge variant="outline" className={poStatusBadgeClass(po.status)}>
+              {PO_STATUS_LABEL_TR[po.status]}
+            </Badge>
+          </div>
+        }
+      />
 
       <Card>
         <CardHeader className="pb-2">
@@ -454,9 +492,11 @@ export function PurchaseOrderDetailPage(): ReactElement {
         </CardContent>
       </Card>
 
-      <div>
-        <h2 className="mb-2 text-lg font-semibold">Ürün listesi</h2>
-        <div className="rounded-lg border bg-card">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Ürün listesi</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto p-0 pt-0 sm:p-6 sm:pt-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -481,8 +521,8 @@ export function PurchaseOrderDetailPage(): ReactElement {
               ))}
             </TableBody>
           </Table>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">

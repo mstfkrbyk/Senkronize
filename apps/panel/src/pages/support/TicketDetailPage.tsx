@@ -3,11 +3,13 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Circle, Paperclip, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, Check, Circle, Send, XCircle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
+import { TicketFileAttachmentHint } from '@/components/support/TicketFileAttachmentHint';
 import {
   TICKET_CATEGORY_OPTIONS,
   TicketPriorityBadge,
@@ -19,12 +21,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveNav } from '@/hooks/useActiveNav';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { getApiErrorMessage } from '@/lib/api';
 import {
   addSupportTicketMessage,
   closeSupportTicket,
   fetchSupportTicket,
 } from '@/lib/support-api';
+import { formatSupportNavContext } from '@/lib/support-nav-context';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
 import type { TicketStatus } from '@/types/support';
@@ -56,6 +61,7 @@ function statusIndex(status: TicketStatus): number {
 
 export function TicketDetailPage(): ReactElement {
   const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -67,6 +73,13 @@ export function TicketDetailPage(): ReactElement {
     queryFn: () => fetchSupportTicket(id!),
     enabled: Boolean(id),
   });
+
+  const navContextLine = formatSupportNavContext(
+    groupLabel,
+    t('nav.support'),
+    ticket?.ticketNumber,
+  );
+  usePageTitle(ticket?.subject ?? t('nav.support'));
 
   const messageMutation = useMutation({
     mutationFn: () => addSupportTicketMessage(id!, message),
@@ -90,21 +103,35 @@ export function TicketDetailPage(): ReactElement {
   });
 
   if (!id) {
-    return <p className="p-6 text-sm text-muted-foreground">Geçersiz talep.</p>;
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-sm text-muted-foreground">Geçersiz talep.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (isLoading) {
-    return <Skeleton className="m-6 h-96 w-full" />;
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <Skeleton className="h-96 w-full" />
+        </CardContent>
+      </Card>
+    );
   }
 
   if (isError || !ticket) {
     return (
-      <div className="p-6">
-        <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
-        <Button type="button" variant="link" className="mt-2 px-0" onClick={() => navigate('/support')}>
-          ← Destek listesine dön
-        </Button>
-      </div>
+      <Card>
+        <CardContent className="space-y-2 pt-6">
+          <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
+          <Button type="button" variant="link" className="px-0" onClick={() => navigate('/support')}>
+            ← Destek listesine dön
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -112,16 +139,18 @@ export function TicketDetailPage(): ReactElement {
   const currentStep = statusIndex(ticket.status);
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-6">
-      <Button
-        type="button"
-        variant="ghost"
-        className="w-fit px-0"
-        onClick={() => navigate('/support')}
-      >
-        <ArrowLeft className="mr-2 size-4" aria-hidden />
-        {t('support.backToList')}
-      </Button>
+    <div className="space-y-6">
+      <PageHeader
+        title={ticket.subject}
+        description={ticket.ticketNumber}
+        context={navContextLine}
+        actions={
+          <Button type="button" variant="outline" size="sm" onClick={() => navigate('/support')}>
+            <ArrowLeft className="mr-2 size-4" aria-hidden />
+            Destek taleplerine dön
+          </Button>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4">
@@ -192,15 +221,12 @@ export function TicketDetailPage(): ReactElement {
           </Card>
         </aside>
 
-        <div className="flex min-h-[480px] flex-col rounded-lg border bg-card">
-          <div className="border-b px-4 py-3">
-            <h1 className="text-lg font-semibold">{ticket.subject}</h1>
-            <div className="mt-1">
-              <TicketStatusBadge status={ticket.status} />
-            </div>
-          </div>
+        <Card className="flex min-h-[480px] flex-col">
+          <CardHeader className="border-b py-3">
+            <TicketStatusBadge status={ticket.status} />
+          </CardHeader>
 
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <CardContent className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
             {ticket.messages
               .filter((msg) => !msg.isInternal)
               .map((msg) => {
@@ -239,7 +265,7 @@ export function TicketDetailPage(): ReactElement {
                   </div>
                 );
               })}
-          </div>
+          </CardContent>
 
           {!isClosed ? (
             <form
@@ -257,10 +283,7 @@ export function TicketDetailPage(): ReactElement {
                 placeholder="Mesajınızı yazın…"
               />
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Paperclip className="size-4" aria-hidden />
-                  Dosya ekleme yakında
-                </div>
+                <TicketFileAttachmentHint />
                 <Button
                   type="submit"
                   disabled={!message.trim() || messageMutation.isPending}
@@ -275,7 +298,7 @@ export function TicketDetailPage(): ReactElement {
               Bu talep kapatılmıştır.
             </p>
           )}
-        </div>
+        </Card>
       </div>
     </div>
   );

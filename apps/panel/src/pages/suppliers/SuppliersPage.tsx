@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 
 import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -223,21 +224,17 @@ export function SuppliersPage(): ReactElement {
   const monthSpend = currentMonthSpend(poAnalyticsQuery.data?.monthlySpend);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-auto p-4 md:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
-            Tedarikçiler
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Tedarikçi kayıtları, performans ve satın alma özeti
-          </p>
-        </div>
-        <Button type="button" onClick={openCreate}>
-          <Plus className="mr-2 size-4" />
-          Tedarikçi ekle
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Tedarikçiler"
+        description="Tedarikçi firmaları ve iletişim bilgilerini yönetin."
+        actions={
+          <Button type="button" onClick={openCreate}>
+            <Plus className="mr-2 size-4" />
+            Tedarikçi ekle
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard
@@ -279,7 +276,9 @@ export function SuppliersPage(): ReactElement {
         />
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:flex-wrap sm:items-end">
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
         <div className="min-w-[200px] flex-1 space-y-1">
           <Label htmlFor="supplier-search">Ara</Label>
           <Input
@@ -353,7 +352,7 @@ export function SuppliersPage(): ReactElement {
         />
       ) : (
         <>
-          <div className="rounded-lg border bg-card">
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -460,6 +459,8 @@ export function SuppliersPage(): ReactElement {
           </div>
         </>
       )}
+        </CardContent>
+      </Card>
 
       <SupplierFormDialog
         open={dialogOpen}

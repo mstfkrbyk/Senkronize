@@ -92,6 +92,9 @@ export interface MarketplaceOrder {
   platformOrderId: string;
   status: string;
   customerName: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  shippingAddress?: string;
   items: Array<{
     sku: string;
     barcode: string;
@@ -131,6 +134,8 @@ export interface MarketplaceReturn {
 export interface MarketplaceListing {
   platformProductId: string;
   barcode: string;
+  /** Platform stok kodu (Ticimax StokKodu vb.) — SKU eşleştirmede barkoddan farklıysa kullanılır */
+  platformSku?: string;
   title: string;
   quantity: number;
   salePrice: number;
@@ -142,6 +147,8 @@ export interface MarketplaceListing {
 export interface StockUpdatePayload {
   barcode: string;
   quantity: number;
+  /** Ticimax vb. platformlarda varyasyon/ürün kartı kimliği */
+  platformProductId?: string;
 }
 
 export interface PriceUpdatePayload {
@@ -219,9 +226,20 @@ export interface ErpInvoice {
 export interface ErpProduct {
   erpProductId: string;
   barcode: string;
+  /** Stok / ürün kodu (SKU); yoksa barkod ile aynı olabilir */
+  sku?: string;
   name: string;
   stockQuantity: number;
   purchasePrice?: number;
+}
+
+/** ERP ürün içe aktarma kapsamı */
+export type ErpProductImportMode = 'ECOMMERCE_ONLY' | 'CATEGORY' | 'ALL';
+
+export interface ErpProductImportOptions {
+  mode: ErpProductImportMode;
+  /** CATEGORY modunda ERP kategori ID veya adları */
+  categoryIds?: string[];
 }
 
 /** ERP bağlantı testi sonucu */

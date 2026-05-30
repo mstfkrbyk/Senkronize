@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   NotificationType,
   PartnerLinkStatus,
@@ -13,6 +14,8 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { ensureArray, ensureFiniteNumber } from '../common/ensure-array.util';
+import { NotificationService } from '../notification/notification.service';
 import { InAppNotificationService } from '../notifications/in-app/in-app-notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -27,6 +30,8 @@ export class PartnerLinkService {
     private readonly prisma: PrismaService,
     private readonly partnerService: PartnerService,
     private readonly inAppNotificationService: InAppNotificationService,
+    private readonly notificationService: NotificationService,
+    private readonly config: ConfigService,
   ) {}
 
   async getAvailablePartners(clientOrgId: string): Promise<PartnerListItem[]> {
@@ -70,7 +75,7 @@ export class PartnerLinkService {
     const excluded = new Set(activeRels.map((r) => r.partnerOrgId));
     const pendingSet = new Set(pendingLinkRequests.map((r) => r.partnerOrgId));
 
-    return partners
+    return ensureArray(partners)
       .filter((p) => !excluded.has(p.id))
       .map((p) => ({
         id: p.id,
@@ -80,26 +85,58 @@ export class PartnerLinkService {
           p.whiteLabelSettings?.brandName != null
             ? `${p.name} — beyaz etiket partner`
             : 'Senkronize partner ağı üyesi',
-        activeClientCount: p._count.partnerRelationships,
+        activeClientCount: ensureFiniteNumber(
+          p._count.partnerRelationships,
+          0,
+        ),
         supportEmail: p.whiteLabelSettings?.supportEmail ?? null,
         supportPhone: p.whiteLabelSettings?.supportPhone ?? null,
         hasPendingRequest: pendingSet.has(p.id),
       }));
   }
 
-  async getClientLinkRequests(
-    clientOrgId: string,
-  ): Promise<Pick<PartnerLinkRequest, 'id' | 'partnerOrgId' | 'status' | 'requestedAt'>[]> {
-    return this.prisma.partnerLinkRequest.findMany({
+  async getClientLinkRequests(clientOrgId: string): Promise<
+    Array<
+      Pick<
+        PartnerLinkRequest,
+        'id' | 'partnerOrgId' | 'status' | 'adminNote' | 'requestedAt' | 'reviewedAt'
+      > & {
+        partnerOrg: { id: string; name: string; slug: string };
+      }
+    >
+  > {
+    const rows = await this.prisma.partnerLinkRequest.findMany({
       where: { clientOrgId },
       select: {
         id: true,
         partnerOrgId: true,
         status: true,
+        adminNote: true,
         requestedAt: true,
+        reviewedAt: true,
+        partnerOrg: { select: { id: true, name: true, slug: true } },
       },
       orderBy: { requestedAt: 'desc' },
     });
+    return ensureArray(rows);
+  }
+
+  async getPartnerIncomingLinkRequests(partnerOrgId: string): Promise<
+    Array<
+      PartnerLinkRequest & {
+        clientOrg: { id: string; name: string; slug: string };
+      }
+    >
+  > {
+    const rows = await this.prisma.partnerLinkRequest.findMany({
+      where: { partnerOrgId },
+      include: {
+        clientOrg: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { requestedAt: 'desc' },
+      take: 100,
+    });
+    return ensureArray(rows);
   }
 
   async requestPartnerLink(
@@ -187,7 +224,7 @@ export class PartnerLinkService {
       }
     >
   > {
-    return this.prisma.partnerLinkRequest.findMany({
+    const rows = await this.prisma.partnerLinkRequest.findMany({
       where: status ? { status } : undefined,
       include: {
         clientOrg: { select: { id: true, name: true, slug: true } },
@@ -195,6 +232,7 @@ export class PartnerLinkService {
       },
       orderBy: { requestedAt: 'desc' },
     });
+    return ensureArray(rows);
   }
 
   async countPendingLinkRequests(): Promise<number> {
@@ -271,6 +309,8 @@ export class PartnerLinkService {
       });
     });
 
+    const panelUrl = this.panelBaseUrl();
+
     await Promise.all([
       this.inAppNotificationService.create({
         organizationId: request.clientOrgId,
@@ -285,6 +325,18 @@ export class PartnerLinkService {
         title: 'Yeni müşteri bağlandı',
         message: `${request.clientOrg.name} hesabı partner ağınıza eklendi.`,
         link: '/partner',
+      }),
+      this.notifyOrgOwnersByEmail({
+        organizationId: request.clientOrgId,
+        template: 'partner_link_approved',
+        subject: 'Partner bağlantınız onaylandı',
+        message: `<p><strong>${this.escapeHtml(request.partnerOrg.name)}</strong> ile bağlantı talebiniz onaylandı.</p><p><a href="${panelUrl}/settings?tab=partners">Ayarlarda görüntüle</a></p>`,
+      }),
+      this.notifyOrgOwnersByEmail({
+        organizationId: request.partnerOrgId,
+        template: 'partner_link_client_connected',
+        subject: 'Yeni müşteri bağlantısı',
+        message: `<p><strong>${this.escapeHtml(request.clientOrg.name)}</strong> hesabı partner ağınıza eklendi (admin onayı).</p><p><a href="${panelUrl}/partner">Partner paneli</a></p>`,
       }),
     ]);
   }
@@ -315,15 +367,84 @@ export class PartnerLinkService {
       },
     });
 
-    await this.inAppNotificationService.create({
-      organizationId: request.clientOrgId,
-      type: NotificationType.SYSTEM,
-      title: 'Partner bağlantı talebi reddedildi',
-      message: note?.trim()
-        ? `Talebiniz reddedildi: ${note.trim()}`
-        : 'Partner bağlantı talebiniz admin tarafından reddedildi.',
-      link: '/settings/partners',
+    const trimmedNote = note?.trim() ?? '';
+    const panelUrl = this.panelBaseUrl();
+
+    await Promise.all([
+      this.inAppNotificationService.create({
+        organizationId: request.clientOrgId,
+        type: NotificationType.SYSTEM,
+        title: 'Partner bağlantı talebi reddedildi',
+        message: trimmedNote
+          ? `Talebiniz reddedildi: ${trimmedNote}`
+          : 'Partner bağlantı talebiniz admin tarafından reddedildi.',
+        link: '/settings/partners',
+      }),
+      this.notifyOrgOwnersByEmail({
+        organizationId: request.clientOrgId,
+        template: 'partner_link_rejected',
+        subject: 'Partner bağlantı talebi reddedildi',
+        message: trimmedNote
+          ? `<p>Partner bağlantı talebiniz reddedildi.</p><p><strong>Gerekçe:</strong> ${this.escapeHtml(trimmedNote)}</p><p><a href="${panelUrl}/settings/partners">Yeni talep gönder</a></p>`
+          : `<p>Partner bağlantı talebiniz admin tarafından reddedildi.</p><p><a href="${panelUrl}/settings/partners">Partner keşfet</a></p>`,
+      }),
+    ]);
+  }
+
+  private panelBaseUrl(): string {
+    const base =
+      this.config.get<string>('PANEL_URL')?.trim() ||
+      this.config.get<string>('APP_URL')?.trim() ||
+      'http://localhost:5173';
+    return base.replace(/\/$/, '');
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  private async notifyOrgOwnersByEmail(params: {
+    organizationId: string;
+    template: string;
+    subject: string;
+    message: string;
+  }): Promise<void> {
+    const owners = await this.prisma.user.findMany({
+      where: {
+        organizationId: params.organizationId,
+        role: UserRole.OWNER,
+        deletedAt: null,
+      },
+      select: { id: true, email: true },
     });
+
+    await Promise.all(
+      owners.map((owner) =>
+        this.notificationService
+          .dispatch({
+            organizationId: params.organizationId,
+            userId: owner.id,
+            channel: 'email',
+            template: params.template,
+            payload: {
+              email: owner.email,
+              message: params.message,
+              subject: params.subject,
+            },
+          })
+          .catch((error) => {
+            this.logger.warn('Partner bağlantı e-postası kuyruğa eklenemedi', {
+              organizationId: params.organizationId,
+              userId: owner.id,
+              error,
+            });
+          }),
+      ),
+    );
   }
 
   private async notifySuperAdmins(params: {

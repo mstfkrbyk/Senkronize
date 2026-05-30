@@ -1,12 +1,21 @@
 import type { ReactElement } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { preferenceCategoryIcon } from '@/components/notifications/notification-utils';
 import { Badge } from '@/components/ui/badge';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -31,6 +40,9 @@ import { useAuthStore } from '@/store/auth.store';
 import type { OrgPlanTier } from '@/types/auth';
 
 const SMS_PREMIUM_PLANS: OrgPlanTier[] = ['PRO', 'KURUMSAL'];
+
+const PREFERENCE_TABLE_HEADER_CLASS =
+  'hidden grid-cols-[1fr_repeat(4,minmax(4.5rem,1fr))] gap-2 border-b px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70 sm:grid';
 
 function hasSmsPremium(plan: OrgPlanTier | undefined): boolean {
   return plan !== undefined && SMS_PREMIUM_PLANS.includes(plan);
@@ -86,7 +98,8 @@ function readToggleValue(
 }
 
 export function NotificationPreferencesPage(): ReactElement {
-  usePageTitle('Bildirim tercihleri');
+  const { t } = useTranslation();
+  usePageTitle(t('settings.notificationsPage.title'));
   const queryClient = useQueryClient();
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const smsPremium = hasSmsPremium(plan);
@@ -160,20 +173,23 @@ export function NotificationPreferencesPage(): ReactElement {
 
   if (prefsQuery.isError) {
     return (
-      <p className="text-sm text-destructive">
-        Bildirim tercihleri yüklenemedi. Sayfayı yenileyin.
-      </p>
+      <QueryErrorAlert
+        error={prefsQuery.error}
+        onRetry={() => {
+          void prefsQuery.refetch();
+        }}
+      />
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Bildirim tercihleri
+    <div className="mx-auto w-full max-w-2xl space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold text-foreground">
+          {t('settings.notificationsPage.title')}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Olay ve kanal bazında bildirim alımını yapılandırın. Değişiklikler anında kaydedilir.
+          {t('settings.notificationsPage.subtitle')}
         </p>
       </div>
 
@@ -187,142 +203,150 @@ export function NotificationPreferencesPage(): ReactElement {
 
       {prefs ? (
         <>
-          <section className="rounded-lg border p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">Tarayıcı push bildirimleri</p>
-                <p className="text-xs text-muted-foreground">
-                  HTTPS veya localhost üzerinde tarayıcı izni gerekir.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={pushStatusQuery.data?.subscribed ? 'default' : 'secondary'}>
-                  {pushStatusQuery.data?.subscribed ? 'Aktif' : 'Kapalı'}
-                </Badge>
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b bg-muted/30 px-4 py-3">
+              <CardTitle className="text-sm font-semibold">
+                Tarayıcı push bildirimleri
+              </CardTitle>
+              <CardDescription className="text-xs">
+                HTTPS veya localhost üzerinde tarayıcı izni gerekir.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant={pushStatusQuery.data?.subscribed ? 'default' : 'secondary'}>
+                    {pushStatusQuery.data?.subscribed ? 'Aktif' : 'Kapalı'}
+                  </Badge>
+                  <p className="text-sm text-muted-foreground">
+                    Tarayıcıda anlık bildirim almak için etkinleştirin.
+                  </p>
+                </div>
                 <Switch
                   checked={pushStatusQuery.data?.subscribed ?? false}
                   disabled={busy || !isSupported || !prefs.pushEnabled}
                   onCheckedChange={(v) => browserPushMutation.mutate(v)}
                 />
               </div>
-            </div>
-            {!isSupported ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Bu tarayıcı web push desteklemiyor.
-              </p>
-            ) : null}
-          </section>
+              {!isSupported ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Bu tarayıcı web push desteklemiyor.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
 
           {NOTIFICATION_PREFERENCE_CATEGORIES.map((category) => (
-            <section key={category.id} className="rounded-lg border">
-              <div className="flex items-start gap-3 border-b px-4 py-3">
-                {preferenceCategoryIcon(category.id)}
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">{category.title}</h2>
-                  <p className="text-xs text-muted-foreground">{category.description}</p>
+            <Card key={category.id} className="overflow-hidden">
+              <CardHeader className="border-b bg-muted/30 px-4 py-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                  {preferenceCategoryIcon(category.id)}
+                  {category.title}
+                </CardTitle>
+                <CardDescription className="text-xs">{category.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className={PREFERENCE_TABLE_HEADER_CLASS}>
+                  <span>Olay</span>
+                  {CHANNEL_ORDER.map((ch) => (
+                    <span key={ch} className="text-center">
+                      {channelLabel(ch)}
+                    </span>
+                  ))}
                 </div>
-              </div>
 
-              <div className="hidden grid-cols-[1fr_repeat(4,minmax(4.5rem,1fr))] gap-2 border-b bg-muted/30 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid">
-                <span>Olay</span>
-                {CHANNEL_ORDER.map((ch) => (
-                  <span key={ch} className="text-center">
-                    {channelLabel(ch)}
-                  </span>
-                ))}
-              </div>
+                <ul className="divide-y">
+                  {category.events.map((event) => (
+                    <li
+                      key={event.id}
+                      className="flex flex-col gap-3 px-4 py-3 sm:grid sm:grid-cols-[1fr_repeat(4,minmax(4.5rem,1fr))] sm:items-center sm:gap-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{event.label}</p>
+                        {event.description ? (
+                          <p className="text-xs text-muted-foreground">{event.description}</p>
+                        ) : null}
+                      </div>
+                      {CHANNEL_ORDER.map((channel) => {
+                        const key = event.channels[channel];
 
-              <ul className="divide-y">
-                {category.events.map((event) => (
-                  <li
-                    key={event.id}
-                    className="flex flex-col gap-3 px-4 py-3 sm:grid sm:grid-cols-[1fr_repeat(4,minmax(4.5rem,1fr))] sm:items-center sm:gap-2"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{event.label}</p>
-                      {event.description ? (
-                        <p className="text-xs text-muted-foreground">{event.description}</p>
-                      ) : null}
-                    </div>
-                    {CHANNEL_ORDER.map((channel) => {
-                      const key = event.channels[channel];
+                        if (!key) {
+                          return (
+                            <span
+                              key={channel}
+                              className="hidden text-center text-xs text-muted-foreground sm:block"
+                            >
+                              —
+                            </span>
+                          );
+                        }
 
-                      if (!key) {
+                        const channelDisabled =
+                          busy ||
+                          (channel === 'email' &&
+                            !prefs.emailEnabled &&
+                            key !== 'emailEnabled' &&
+                            event.id !== 'daily_digest') ||
+                          (channel === 'push' &&
+                            !prefs.pushEnabled &&
+                            key !== 'pushEnabled') ||
+                          (channel === 'sms' && !smsPremium);
+
+                        const checked = readToggleValue(prefs, channel, key, event.id);
+
                         return (
-                          <span
+                          <div
                             key={channel}
-                            className="hidden text-center text-xs text-muted-foreground sm:block"
+                            className="flex items-center justify-between gap-2 sm:flex-col sm:justify-center"
                           >
-                            —
-                          </span>
-                        );
-                      }
-
-                      const channelDisabled =
-                        busy ||
-                        (channel === 'email' &&
-                          !prefs.emailEnabled &&
-                          key !== 'emailEnabled' &&
-                          event.id !== 'daily_digest') ||
-                        (channel === 'push' &&
-                          !prefs.pushEnabled &&
-                          key !== 'pushEnabled') ||
-                        (channel === 'sms' && !smsPremium);
-
-                      const checked = readToggleValue(prefs, channel, key, event.id);
-
-                      return (
-                        <div
-                          key={channel}
-                          className="flex items-center justify-between gap-2 sm:flex-col sm:justify-center"
-                        >
-                          <Label
-                            htmlFor={`${event.id}-${channel}`}
-                            className="text-xs text-muted-foreground sm:sr-only"
-                          >
-                            {event.label} — {channelLabel(channel)}
-                          </Label>
-                          <div className="flex items-center gap-1.5">
-                            {channel === 'sms' && !smsPremium ? (
-                              <Badge variant="outline" className="text-[10px]">
-                                Premium
-                              </Badge>
-                            ) : null}
-                            <Switch
-                              id={`${event.id}-${channel}`}
-                              checked={checked}
-                              disabled={channelDisabled}
-                              onCheckedChange={(v) => setPref(key, v, event.id)}
-                            />
+                            <Label
+                              htmlFor={`${event.id}-${channel}`}
+                              className="text-xs text-muted-foreground sm:sr-only"
+                            >
+                              {event.label} — {channelLabel(channel)}
+                            </Label>
+                            <div className="flex items-center gap-1.5">
+                              {channel === 'sms' && !smsPremium ? (
+                                <Badge variant="outline" className="text-[10px]">
+                                  Premium
+                                </Badge>
+                              ) : null}
+                              <Switch
+                                id={`${event.id}-${channel}`}
+                                checked={checked}
+                                disabled={channelDisabled}
+                                onCheckedChange={(v) => setPref(key, v, event.id)}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </li>
-                ))}
-              </ul>
+                        );
+                      })}
+                    </li>
+                  ))}
+                </ul>
 
-              <div className="flex flex-wrap gap-4 border-t bg-muted/20 px-4 py-2">
-                {CHANNEL_ORDER.map((channel) => {
-                  const master = masterChannelKey(channel);
-                  if (!master) {
-                    return null;
-                  }
-                  const disabled =
-                    busy || (channel === 'sms' && !smsPremium);
-                  return (
-                    <div key={channel} className="flex items-center gap-2 text-xs">
-                      <span className="text-muted-foreground">{channelLabel(channel)} ana</span>
-                      <Switch
-                        checked={prefs[master] as boolean}
-                        disabled={disabled}
-                        onCheckedChange={(v) => setPref(master, v, `${category.id}-master`)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+                <div className="flex flex-wrap gap-4 border-t px-4 py-2">
+                  {CHANNEL_ORDER.map((channel) => {
+                    const master = masterChannelKey(channel);
+                    if (!master) {
+                      return null;
+                    }
+                    const disabled =
+                      busy || (channel === 'sms' && !smsPremium);
+                    return (
+                      <div key={channel} className="flex items-center gap-2 text-xs">
+                        <span className="text-muted-foreground">{channelLabel(channel)} ana</span>
+                        <Switch
+                          checked={prefs[master] as boolean}
+                          disabled={disabled}
+                          onCheckedChange={(v) => setPref(master, v, `${category.id}-master`)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
           ))}
 
           <Separator />
@@ -332,11 +356,11 @@ export function NotificationPreferencesPage(): ReactElement {
               to="/settings?tab=notifications"
               className="font-medium text-primary underline-offset-4 hover:underline"
             >
-              Genel ayarlardaki bildirim sekmesi
+              {t('settings.notificationsSettingsTabLink')}
             </Link>
             <span className="text-muted-foreground">·</span>
             <span className="text-muted-foreground">
-              Bildirim sesi ve test mesajları için ayarlar sekmesini kullanın.
+              {t('settings.notificationsSettingsTabHint')}
             </span>
           </div>
 

@@ -2,8 +2,11 @@ import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link2, RefreshCw, Search } from 'lucide-react';
+import { Link2, RefreshCw, Search, Settings2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -32,8 +35,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/EmptyState';
 import { TableSkeleton } from '@/components/TableSkeleton';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import { toast } from 'sonner';
 
@@ -82,13 +87,31 @@ interface ProductHit {
   sku: string | null;
 }
 
+type ProductMatchKey = 'BARCODE' | 'SKU' | 'MANUAL';
+
+interface OrganizationSettings {
+  productMatchKey: ProductMatchKey | null;
+}
+
+
 export function ProductMatchingPage(): ReactElement {
-  usePageTitle('Ürün Eşleştirme');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.productMatching'));
+  usePageTitle(t('nav.productMatching'));
   const qc = useQueryClient();
   const [manualListing, setManualListing] = useState<UnmatchedRow | null>(null);
   const [barcodeSearch, setBarcodeSearch] = useState('');
   const [hits, setHits] = useState<ProductHit[]>([]);
   const [hitsLoading, setHitsLoading] = useState(false);
+
+  const settingsQuery = useQuery({
+    queryKey: ['organizations', 'settings'],
+    queryFn: async (): Promise<OrganizationSettings> => {
+      const { data } = await api.get<OrganizationSettings>('/organizations/settings');
+      return data;
+    },
+  });
 
   const unmatchedQuery = useQuery({
     queryKey: ['product-matches', 'unmatched'] as const,
@@ -172,38 +195,72 @@ export function ProductMatchingPage(): ReactElement {
   const unmatched = unmatchedQuery.data ?? [];
   const conflicts = conflictsQuery.data ?? [];
 
-  const tabHint = useMemo(
-    () => (
+  const tabHint = useMemo(() => {
+    const key = settingsQuery.data?.productMatchKey;
+    if (!key) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          {t('productMatching.matchKey.hint.notConfigured')}
+        </p>
+      );
+    }
+    return (
       <p className="text-muted-foreground text-sm">
-        Otomatik eşleştirme listeleme barkodunu merkez ürünle eşler; gerekirse yeni ürün oluşturur.
+        {t(`productMatching.matchKey.hint.${key}`)}
       </p>
-    ),
-    [],
-  );
+    );
+  }, [settingsQuery.data?.productMatchKey, t]);
+
+  const orgMatchKey = settingsQuery.data?.productMatchKey ?? null;
+  const autoMatchDisabled =
+    autoMut.isPending || orgMatchKey === null || orgMatchKey === 'MANUAL';
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Ürün Eşleştirme</h1>
+    <div className="space-y-6">
+      <PageHeader
+        title={t('nav.productMatching')}
+        description={t('productMatching.description')}
+        context={navContextLine}
+        actions={
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => autoMut.mutate()}
+            disabled={autoMatchDisabled}
+          >
+            {autoMut.isPending ? (
+              <RefreshCw className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Link2 className="mr-2 size-4" />
+            )}
+            {t('productMatching.autoMatch')}
+          </Button>
+        }
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Settings2 className="size-4" />
+            {t('productMatching.matchKey.title')}
+          </CardTitle>
+          <CardDescription>
+            {orgMatchKey
+              ? t(`productMatching.matchKey.hint.${orgMatchKey}`)
+              : t('productMatching.matchKey.hint.notConfigured')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-3">
           <p className="text-muted-foreground text-sm">
-            Listelemeleri katalog ürünleriyle barkod ve benzerlik ile eşleyin
+            {t('productMatching.matchKey.hierarchy')}
           </p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={() => autoMut.mutate()}
-          disabled={autoMut.isPending}
-        >
-          {autoMut.isPending ? (
-            <RefreshCw className="mr-2 size-4 animate-spin" />
-          ) : (
-            <Link2 className="mr-2 size-4" />
-          )}
-          Otomatik Eşleştir
-        </Button>
-      </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/settings/product-matching">
+              {t('settings.productMatching.openSettings')}
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       {tabHint}
 

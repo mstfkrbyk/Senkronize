@@ -44,6 +44,37 @@ export function resolveOrganizationAccountingMode(
   return activeErpCount > 0 ? AccountingMode.EXTERNAL_ERP : AccountingMode.NATIVE;
 }
 
+const ACTIVE_ERP_CONNECTION_WHERE = {
+  deletedAt: null,
+  isActive: true,
+} as const;
+
+/** Admin org listesi — çözümlenen muhasebe moduna göre Prisma where */
+export function organizationWhereResolvedAccountingMode(
+  mode: AccountingMode,
+): Prisma.OrganizationWhereInput {
+  if (mode === AccountingMode.NATIVE) {
+    return {
+      OR: [
+        { accountingMode: AccountingMode.NATIVE },
+        {
+          accountingMode: null,
+          erpConnections: { none: ACTIVE_ERP_CONNECTION_WHERE },
+        },
+      ],
+    };
+  }
+  return {
+    OR: [
+      { accountingMode: AccountingMode.EXTERNAL_ERP },
+      {
+        accountingMode: null,
+        erpConnections: { some: ACTIVE_ERP_CONNECTION_WHERE },
+      },
+    ],
+  };
+}
+
 /** Aktif ERP bağlantısı varken EXTERNAL_ERP, yoksa NATIVE yazar */
 export async function syncOrganizationAccountingModeFromErp(
   prisma: PrismaOrgClient,
@@ -59,6 +90,21 @@ export async function syncOrganizationAccountingModeFromErp(
         activeCount > 0 ? AccountingMode.EXTERNAL_ERP : AccountingMode.NATIVE,
     },
   });
+}
+
+/** NATIVE moda geçişte aktif ERP varken dönen Türkçe mesaj */
+export const ACCOUNTING_MODE_NATIVE_BLOCKED_MESSAGE =
+  'Aktif harici ERP bağlantısı varken yerel ön muhasebe moduna geçilemez. Önce tüm ERP bağlantılarını devre dışı bırakın veya kaldırın.';
+
+/** Organizasyon PATCH ile mod değişiminin izinli olup olmadığı */
+export function getAccountingModeChangeBlockReason(
+  target: AccountingMode,
+  activeErpCount: number,
+): string | null {
+  if (target === AccountingMode.NATIVE && activeErpCount > 0) {
+    return ACCOUNTING_MODE_NATIVE_BLOCKED_MESSAGE;
+  }
+  return null;
 }
 
 /** Yeni veya yeniden etkinleştirilen ERP bağlantısı sonrası */

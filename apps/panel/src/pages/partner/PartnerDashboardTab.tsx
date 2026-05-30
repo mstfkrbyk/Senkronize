@@ -1,14 +1,18 @@
 import type { ReactElement } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { Loader2, LogIn } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { TableSkeleton } from '@/components/TableSkeleton';
+import { PartnerClientBadges } from '@/components/PartnerClientBadges';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+
 import {
   Table,
   TableBody,
@@ -17,11 +21,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
-import { useImpersonationStore } from '@/store/impersonation.store';
-import type { PartnerStatus } from '@/types/partner';
+import { partnerStatusLabel } from '@/lib/partner-i18n-labels';
 
-import { usePartnerClientAccess, usePartnerDashboard } from './hooks/usePartner';
+import { usePartnerDashboard } from './hooks/usePartner';
+import { useEnterPartnerClient } from './useEnterPartnerClient';
+import { PartnerCommissionNoteAlert } from './PartnerCommissionNoteAlert';
 
 const tryFormatter = new Intl.NumberFormat('tr-TR', {
   style: 'currency',
@@ -33,51 +37,70 @@ function formatTry(value: number): string {
   return tryFormatter.format(value);
 }
 
-const statusLabels: Record<PartnerStatus, string> = {
-  PENDING: 'Beklemede',
-  ACTIVE: 'Aktif',
-  SUSPENDED: 'Askıda',
-  TERMINATED: 'Sonlandı',
-};
-
 export function PartnerDashboardTab(): ReactElement {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const startImpersonation = useImpersonationStore((s) => s.startImpersonation);
-  const accessClient = usePartnerClientAccess();
-  const { data, isLoading, isError, error } = usePartnerDashboard();
-
-  async function handleAccess(
-    clientOrgId: string,
-    clientName: string,
-  ): Promise<void> {
-    try {
-      const { impersonationToken } = await accessClient.mutateAsync(clientOrgId);
-      startImpersonation({ id: clientOrgId, name: clientName }, impersonationToken);
-      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      navigate('/dashboard');
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err));
-    }
-  }
+  const { enterClient, isEnteringClient } = useEnterPartnerClient();
+  const { data, isLoading, isError, error, refetch } = usePartnerDashboard();
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-label="Yükleniyor" />
+      <div
+        className="space-y-6"
+        aria-busy="true"
+        aria-label={t('partner.pages.dashboard.loadingAria')}
+      >
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
+        </div>
+        <Skeleton className="h-28 w-full rounded-lg" />
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-24" />
+          </CardHeader>
+          <CardContent className="p-4 sm:px-6">
+            <TableSkeleton rows={5} cols={5} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-32" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-3/4" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        {isError ? getApiErrorMessage(error) : 'Özet yüklenemedi.'}
-      </div>
+      <QueryErrorAlert
+        error={error ?? new Error(t('partner.pages.dashboard.loadFailed'))}
+        onRetry={
+          isError
+            ? () => {
+                void refetch();
+              }
+            : undefined
+        }
+      />
     );
   }
 
-  const { unique, min, max } = data.commissionPctSummary;
+  const clients = data.clients ?? [];
+  const recentActivities = data.recentActivities ?? [];
+  const { unique = [], min = 0, max = 0 } = data.commissionPctSummary ?? {
+    unique: [],
+    min: 0,
+    max: 0,
+  };
   const commissionText =
     unique.length === 1
       ? `Müşteri abonelik ödemeleri üzerinden %${unique[0]} komisyon kazanıyorsunuz.`
@@ -87,6 +110,8 @@ export function PartnerDashboardTab(): ReactElement {
 
   return (
     <div className="space-y-6">
+      <PartnerCommissionNoteAlert note={data.commissionNote} />
+
       <div>
         <h2 className="text-lg font-semibold">Özet</h2>
         <p className="text-sm text-muted-foreground">
@@ -152,7 +177,7 @@ export function PartnerDashboardTab(): ReactElement {
             <CardTitle className="text-base">Müşteriler</CardTitle>
           </CardHeader>
           <CardContent className="p-0 sm:px-6">
-            {data.clients.length === 0 ? (
+            {clients.length === 0 ? (
               <p className="px-6 py-8 text-center text-sm text-muted-foreground">
                 Henüz aktif müşteri yok. Müşteri Davet sekmesinden davet gönderebilirsiniz.
               </p>
@@ -168,25 +193,68 @@ export function PartnerDashboardTab(): ReactElement {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.clients.map((row) => (
-                    <TableRow key={row.clientOrgId}>
-                      <TableCell className="font-medium">{row.name}</TableCell>
+                  {clients.map((row) => (
+                    <TableRow
+                      key={row.clientOrgId}
+                      className="cursor-pointer hover:bg-muted/50"
+                      tabIndex={0}
+                      onClick={() => {
+                        if (row.canImpersonate) {
+                          void enterClient(row.clientOrgId, row.name);
+                          return;
+                        }
+                        navigate('/partner/clients');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' && e.key !== ' ') {
+                          return;
+                        }
+                        e.preventDefault();
+                        if (row.canImpersonate) {
+                          void enterClient(row.clientOrgId, row.name);
+                          return;
+                        }
+                        navigate('/partner/clients');
+                      }}
+                    >
                       <TableCell>
-                        <Badge variant="secondary">{statusLabels[row.status]}</Badge>
+                        <div className="font-medium">{row.name}</div>
+                        <PartnerClientBadges
+                          orgProducts={row.orgProducts}
+                          accountingMode={row.accountingMode}
+                          className="mt-1"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {partnerStatusLabel(row.status, t)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">{row.connectionCount}</TableCell>
-                      <TableCell className="text-right">{row.orders30d}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.orders30d}</TableCell>
                       <TableCell className="text-right">
                         {row.canImpersonate ? (
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            disabled={accessClient.isPending}
-                            onClick={() => void handleAccess(row.clientOrgId, row.name)}
+                            disabled={isEnteringClient(row.clientOrgId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void enterClient(row.clientOrgId, row.name);
+                            }}
                           >
-                            <LogIn className="mr-1 size-4" />
-                            Erişim
+                            {isEnteringClient(row.clientOrgId) ? (
+                              <Loader2
+                                className="mr-1 size-4 animate-spin"
+                                aria-hidden
+                              />
+                            ) : (
+                              <LogIn className="mr-1 size-4" aria-hidden />
+                            )}
+                            {isEnteringClient(row.clientOrgId)
+                              ? t('partner.pages.clients.enteringClient')
+                              : t('partner.pages.clients.enterClient')}
                           </Button>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -205,11 +273,11 @@ export function PartnerDashboardTab(): ReactElement {
             <CardTitle className="text-base">Son aktiviteler</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.recentActivities.length === 0 ? (
+            {recentActivities.length === 0 ? (
               <p className="text-sm text-muted-foreground">Henüz kayıtlı aktivite yok.</p>
             ) : (
               <ul className="space-y-3">
-                {data.recentActivities.map((a, i) => (
+                {recentActivities.map((a, i) => (
                   <li key={`${a.happenedAt}-${i}`} className="text-sm">
                     <p className="font-medium">{a.title}</p>
                     <p className="text-xs text-muted-foreground">

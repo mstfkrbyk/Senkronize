@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -13,6 +14,7 @@ import {
 import Papa from 'papaparse';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,8 +32,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { api, getApiErrorMessage } from '@/lib/api';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import type { ImportPreviewRow, ImportResult } from '@/types/product';
 
 function downloadBlob(blob: Blob, filename: string): void {
@@ -94,7 +98,14 @@ const STEPS = [
 ] as const;
 
 export function ProductImportPage(): ReactElement {
-  usePageTitle('Ürün İçe Aktarma');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(
+    groupLabel,
+    t('nav.products'),
+    t('products.importAction'),
+  );
+  usePageTitle(t('products.import'));
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [file, setFile] = useState<File | null>(null);
@@ -167,15 +178,15 @@ export function ProductImportPage(): ReactElement {
       : [];
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">CSV ile ürün içe aktar</h1>
-        <p className="text-muted-foreground text-sm">
-          Şablonu indirin, doldurun, önizleyin ve onaylayın.
-        </p>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        title="Ürün İçe Aktar"
+        description="CSV veya pazaryeri API'si ile ürünleri içe aktarın."
+        context={navContextLine}
+      />
 
-      <div className="grid grid-cols-4 gap-2">
+      <Card>
+        <CardContent className="grid grid-cols-4 gap-2 pt-6">
         {STEPS.map((label, idx) => {
           const n = (idx + 1) as 1 | 2 | 3 | 4;
           return (
@@ -193,7 +204,8 @@ export function ProductImportPage(): ReactElement {
             </div>
           );
         })}
-      </div>
+        </CardContent>
+      </Card>
 
       {step === 1 ? (
         <Card>

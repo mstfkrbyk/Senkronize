@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { AlertTriangle, Bell, Plus, Search } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
   CartesianGrid,
   Legend,
@@ -14,6 +15,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import { PageHeader } from '@/components/PageHeader';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,8 +46,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { TableSkeleton } from '@/components/TableSkeleton';
-import { getApiErrorMessage } from '@/lib/api';
+import { useActiveNav } from '@/hooks/useActiveNav';
+import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
+import { useAuthStore } from '@/store/auth.store';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import type { CompetitorMatrixPlatformCell } from '@/types/pricing';
 
@@ -76,11 +82,17 @@ const SOURCE_LABELS: Record<string, string> = {
   sync: 'Senkronizasyon',
 };
 
-interface Props {
-  proAccess: boolean;
+function hasProAccess(plan: string | undefined): boolean {
+  return plan === 'PRO' || plan === 'KURUMSAL';
 }
 
-export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
+export function PriceAnalysisPage(): ReactElement {
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.priceAnalysis'));
+  usePageTitle(t('pricing.analysis.pageTitle'));
+  const plan = useAuthStore((s) => s.currentOrg?.plan);
+  const proAccess = hasProAccess(plan);
   const [search, setSearch] = useState('');
   const [selectedListingId, setSelectedListingId] = useState<string>('');
   const [historyDays, setHistoryDays] = useState('30');
@@ -170,21 +182,30 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
 
   if (!proAccess) {
     return (
-      <p className="rounded-lg border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-        Fiyat analizi PRO ve Kurumsal paketlerde kullanılabilir.
-      </p>
+      <div className="space-y-6">
+        <PageHeader
+          title={t('pricing.analysis.title')}
+          context={navContextLine}
+        />
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">
+            {t('pricing.analysis.upgrade')}
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-medium text-primary">Fiyat analizi</h2>
-        <p className="text-sm text-muted-foreground">
-          Fiyat geçmişi, rakip matrisi ve eşik uyarılarını tek ekranda yönetin.
-        </p>
-      </div>
+      <PageHeader
+        title={t('pricing.analysis.title')}
+        description={t('pricing.analysis.subtitle')}
+        context={navContextLine}
+      />
 
+      <Card>
+        <CardContent className="pt-6">
       <Tabs defaultValue="history" className="space-y-6">
         <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="history">Fiyat geçmişi</TabsTrigger>
@@ -264,9 +285,12 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
               ) : historyQuery.isLoading ? (
                 <Skeleton className="h-72 w-full rounded-lg" />
               ) : historyQuery.isError ? (
-                <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-                  {getApiErrorMessage(historyQuery.error)}
-                </div>
+                <QueryErrorAlert
+                  error={historyQuery.error}
+                  onRetry={() => {
+                    void historyQuery.refetch();
+                  }}
+                />
               ) : historyQuery.data ? (
                 <>
                   <Card>
@@ -406,9 +430,12 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
           {matrixQuery.isLoading ? (
             <TableSkeleton rows={8} cols={5} />
           ) : matrixQuery.isError ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-              {getApiErrorMessage(matrixQuery.error)}
-            </div>
+            <QueryErrorAlert
+              error={matrixQuery.error}
+              onRetry={() => {
+                void matrixQuery.refetch();
+              }}
+            />
           ) : (matrixQuery.data?.length ?? 0) === 0 ? (
             <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
               Rakip fiyat verisi henüz yok.
@@ -503,9 +530,12 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
           {alertsQuery.isLoading ? (
             <TableSkeleton rows={4} cols={5} />
           ) : alertsQuery.isError ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-              {getApiErrorMessage(alertsQuery.error)}
-            </div>
+            <QueryErrorAlert
+              error={alertsQuery.error}
+              onRetry={() => {
+                void alertsQuery.refetch();
+              }}
+            />
           ) : (
             <>
               {(alertsQuery.data?.triggered.length ?? 0) > 0 ? (
@@ -605,6 +635,8 @@ export function PriceAnalysisPage({ proAccess }: Props): ReactElement {
           )}
         </TabsContent>
       </Tabs>
+        </CardContent>
+      </Card>
 
       <Dialog open={alertOpen} onOpenChange={setAlertOpen}>
         <DialogContent>

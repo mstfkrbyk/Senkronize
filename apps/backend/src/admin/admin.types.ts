@@ -1,4 +1,10 @@
-import type { Marketplace, PlanTier, SubStatus } from '@prisma/client';
+import type {
+  AccountingMode,
+  Marketplace,
+  OrgProductLine,
+  PlanTier,
+  SubStatus,
+} from '@prisma/client';
 
 export interface DailySignupPoint {
   date: string;
@@ -10,12 +16,26 @@ export interface PlanCountEntry {
   count: number;
 }
 
+export type AdminProductLineBucket = 'INTEGRATION' | 'ACCOUNTING' | 'BUNDLE';
+
+export interface ProductLineCountEntry {
+  bucket: AdminProductLineBucket;
+  count: number;
+}
+
+export interface AccountingModeCountEntry {
+  mode: AccountingMode;
+  count: number;
+}
+
 export interface PlatformStats {
   totalOrganizations: number;
   activeOrganizations: number;
   inactiveOrganizations: number;
   totalUsers: number;
   planDistribution: PlanCountEntry[];
+  productLineDistribution: ProductLineCountEntry[];
+  accountingModeDistribution: AccountingModeCountEntry[];
   trialActiveOrganizations: number;
   newRegistrationsLast30Days: number;
   ordersThisMonthCount: number;
@@ -44,6 +64,12 @@ export interface RevenueStats {
   last12MonthsRevenue: RevenueMonthPoint[];
 }
 
+export interface AdminOrgListPartner {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface AdminOrgListItem {
   id: string;
   name: string;
@@ -62,6 +88,28 @@ export interface AdminOrgListItem {
     orders: number;
   };
   lastActivityAt: string | null;
+  orgProducts: OrgProductLine[];
+  /** DB değeri veya aktif ERP sayısına göre çözümlenen mod */
+  accountingMode: AccountingMode;
+  activePartners: AdminOrgListPartner[];
+}
+
+export interface AdminSubscriptionListItem {
+  id: string;
+  organizationId: string;
+  plan: PlanTier;
+  status: SubStatus;
+  trialEndsAt: Date | null;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  createdAt: Date;
+  organization: {
+    id: string;
+    name: string;
+    suspended: boolean;
+    orgProducts: OrgProductLine[];
+    accountingMode: AccountingMode;
+  };
 }
 
 export interface PaginatedOrganizations {
@@ -87,6 +135,19 @@ export interface OrgDetailConnection {
   lastSyncAt: Date | null;
   syncErrorCount: number;
   lastErrorAt: Date | null;
+}
+
+export interface OrgDetailErpConnection {
+  id: string;
+  erpType: string;
+  displayName: string | null;
+  role: 'PRIMARY' | 'SECONDARY';
+  isActive: boolean;
+  lastSyncAt: Date | null;
+  syncErrorCount: number;
+  lastErrorAt: Date | null;
+  lastErrorMessage: string | null;
+  createdAt: Date;
 }
 
 export interface OrgDetailOrder {
@@ -120,6 +181,16 @@ export interface OrgDetailPayment {
   createdAt: Date;
 }
 
+export interface OrgDetailPartnerLink {
+  relationshipId: string;
+  partnerOrgId: string;
+  name: string;
+  slug: string;
+  commissionPct: number;
+  canImpersonate: boolean;
+  acceptedAt: Date | null;
+}
+
 export interface OrganizationDetail {
   organization: {
     id: string;
@@ -145,9 +216,19 @@ export interface OrganizationDetail {
   } | null;
   users: OrgDetailUser[];
   marketplaceConnections: OrgDetailConnection[];
+  erpConnections: OrgDetailErpConnection[];
+  /** null = sınırsız (iç hesap) */
+  erpSlotLimit: number | null;
+  extraErpSlotCount: number;
   recentOrders: OrgDetailOrder[];
   recentAuditLogs: OrgDetailAuditEntry[];
   payments: OrgDetailPayment[];
+  orgProducts: OrgProductLine[];
+  accountingMode: string | null;
+  activeErpConnectionCount: number;
+  activePartners: OrgDetailPartnerLink[];
+  internalAccount: boolean;
+  billingExempt: boolean;
 }
 
 export interface ActivityItem {
@@ -157,7 +238,9 @@ export interface ActivityItem {
   resourceId: string | null;
   actorUserId: string;
   actorOrgId: string;
+  actorOrgName: string | null;
   impersonatedOrgId: string | null;
+  impersonatedOrgName: string | null;
   createdAt: Date;
 }
 
@@ -222,7 +305,7 @@ export interface AdminUserListItem {
   suspended: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
-  organization: { name: string; slug: string } | null;
+  organization: { id: string; name: string; slug: string } | null;
 }
 
 export interface PaginatedUsers {

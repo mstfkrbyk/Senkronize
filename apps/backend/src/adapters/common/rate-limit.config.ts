@@ -16,6 +16,7 @@ export const PLATFORM_RATE_LIMIT_BUCKETS: Record<string, PlatformRateLimit> = {
   PTTAVM: { rpm: 30, burst: 45 },
   SHOPIFY: { rpm: 40, burst: 80 },
   WOOCOMMERCE: { rpm: 120, burst: 150 },
+  TICIMAX: { rpm: 20, burst: 30 },
   ETSY: { rpm: 10, burst: 15 },
   OZON: { rpm: 60, burst: 90 },
   WILDBERRIES: { rpm: 300, burst: 350 },

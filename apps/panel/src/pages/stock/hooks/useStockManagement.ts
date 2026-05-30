@@ -38,9 +38,10 @@ export interface MovementSummaryResponse {
   byType: Record<string, number>;
 }
 
-export function useStockOverview() {
+export function useStockOverview(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['stock', 'overview'],
+    enabled: options?.enabled !== false,
     queryFn: async (): Promise<StockOverviewRow[]> => {
       const { data } = await api.get<{ rows: StockOverviewRow[] }>(
         '/stock/overview',

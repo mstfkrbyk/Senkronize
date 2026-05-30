@@ -2,10 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, RefreshCw, Undo2 } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
 import { ProductImage } from '@/components/ProductImage';
 import { EmptyState } from '@/components/EmptyState';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { PageHeader } from '@/components/PageHeader';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Card,
+  CardContent,
+} from '@/components/ui/card';
 import {
   Sheet,
   SheetContent,
@@ -35,9 +42,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useMarketplaceConnections } from '@/hooks/useConnections';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
 import type { ReturnDetail, ReturnListItem, ReturnStatus } from '@/types/return';
 
@@ -90,7 +99,10 @@ function formatDateTime(iso: string): string {
 }
 
 export function ReturnsPage(): ReactElement {
-  usePageTitle('İadeler');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.returns'));
+  usePageTitle(t('nav.returns'));
   const queryClient = useQueryClient();
   const connectionsQuery = useMarketplaceConnections();
 
@@ -201,53 +213,54 @@ export function ReturnsPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">İade yönetimi</h1>
-          <p className="text-muted-foreground">
-            Pazaryeri iadelerini görüntüleyin, onaylayın veya reddedin.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-[200px] space-y-1">
-            <Label htmlFor="sync-conn">Bağlantı</Label>
-            <Select
-              value={syncConnectionId}
-              onValueChange={setSyncConnectionId}
+      <PageHeader
+        title="İadeler"
+        description="Müşteri iadelerini yönetin."
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-[200px] space-y-1">
+              <Label htmlFor="sync-conn">Bağlantı</Label>
+              <Select
+                value={syncConnectionId}
+                onValueChange={setSyncConnectionId}
+              >
+                <SelectTrigger id="sync-conn">
+                  <SelectValue placeholder="Senkron için bağlantı" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activeConnections.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {getMarketplaceBranding(c.platform).label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!syncConnectionId || syncMutation.isPending}
+              onClick={() => {
+                if (syncConnectionId) {
+                  syncMutation.mutate(syncConnectionId);
+                }
+              }}
             >
-              <SelectTrigger id="sync-conn">
-                <SelectValue placeholder="Senkron için bağlantı" />
-              </SelectTrigger>
-              <SelectContent>
-                {activeConnections.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {getMarketplaceBranding(c.platform).label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {syncMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" aria-hidden />
+              )}
+              Platformdan çek
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={!syncConnectionId || syncMutation.isPending}
-            onClick={() => {
-              if (syncConnectionId) {
-                syncMutation.mutate(syncConnectionId);
-              }
-            }}
-          >
-            {syncMutation.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCw className="mr-2 h-4 w-4" aria-hidden />
-            )}
-            Platformdan çek
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className="flex flex-wrap gap-3 rounded-lg border bg-card p-4">
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+      <div className="flex flex-wrap gap-3">
         <div className="space-y-1">
           <Label>Platform</Label>
           <Select
@@ -323,9 +336,12 @@ export function ReturnsPage(): ReactElement {
       {listQuery.isPending ? (
         <TableSkeleton rows={8} cols={7} />
       ) : listQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(listQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={listQuery.error}
+          onRetry={() => {
+            void listQuery.refetch();
+          }}
+        />
       ) : (listQuery.data?.items.length ?? 0) === 0 ? (
         <EmptyState
           iconNode={<Undo2 className="h-12 w-12 text-muted-foreground" aria-hidden />}
@@ -452,6 +468,8 @@ export function ReturnsPage(): ReactElement {
           </div>
         </div>
       ) : null}
+        </CardContent>
+      </Card>
 
       <Sheet
         open={sheetOpen}

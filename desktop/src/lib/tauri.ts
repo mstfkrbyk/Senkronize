@@ -193,4 +193,7 @@ export const tauriApi = {
 
   setTrayErpName: (name: string): Promise<void> =>
     invoke<void>('set_tray_erp_name', { name }),
+
+  setTrayOrgContext: (line: string): Promise<void> =>
+    invoke<void>('set_tray_org_context', { line }),
 };

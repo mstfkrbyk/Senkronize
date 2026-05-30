@@ -1,8 +1,11 @@
+import type { AccountingMode } from '@/types/auth';
+
 export interface OrganizationDetail {
   id: string;
   slug: string;
   name: string;
   type: string;
+  accountingMode: AccountingMode | null;
   logoUrl: string | null;
   taxNumber: string | null;
   taxOffice: string | null;

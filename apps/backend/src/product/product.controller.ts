@@ -25,7 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Product, ProductVariant } from '@prisma/client';
+import type { ProductVariant } from '@prisma/client';
 
 import { CurrentOrg, CurrentOrgPayload } from '../auth/current-org.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -74,12 +74,14 @@ import {
   UpdateProductStockDto,
 } from './product.dto';
 import { StockMovementService } from '../stock/stock-movement.service';
+import { resolveProductStockKey } from '../common/product-match-key';
 import { ListingSyncService } from '../sync/listing-sync.service';
 import type { SyncResult } from '../sync/listing-sync.types';
 import {
   type ProductDetailPayload,
   type ProductListItem,
   type ReorderAlertRow,
+  type SerializedProduct,
   ProductService,
 } from './product.service';
 
@@ -555,7 +557,7 @@ export class ProductController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: ReorderProductImagesDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.reorderImages(org.id, id, dto.imageUrls);
   }
 
@@ -566,7 +568,7 @@ export class ProductController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Param('imageIndex', ParseIntPipe) imageIndex: number,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.removeImageAtIndex(org.id, id, imageIndex);
   }
 
@@ -802,7 +804,7 @@ export class ProductController {
   async findOne(
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.findOne(org.id, id);
   }
 
@@ -814,7 +816,7 @@ export class ProductController {
   async create(
     @CurrentOrg() org: CurrentOrgPayload,
     @Body() dto: CreateProductDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.create(org.id, dto);
   }
 
@@ -826,7 +828,7 @@ export class ProductController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: UpdateProductReorderDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.patchReorderSettings(org.id, id, dto);
   }
 
@@ -840,6 +842,10 @@ export class ProductController {
     @Body() dto: UpdateProductStockDto,
   ): Promise<{ success: true }> {
     const product = await this.productService.findOne(org.id, id);
+    const stockKey = resolveProductStockKey(product);
+    if (!stockKey) {
+      throw new BadRequestException('Ürün barkod veya SKU içermiyor');
+    }
     const reasonLabels: Record<UpdateProductStockDto['reason'], string> = {
       COUNT: 'Sayım',
       IN: 'Giriş',
@@ -853,7 +859,7 @@ export class ProductController {
     });
     await this.stockMovementService.adjustStock(
       org.id,
-      product.barcode,
+      stockKey,
       dto.quantity,
       note,
     );
@@ -869,7 +875,7 @@ export class ProductController {
     @CurrentOrg() org: CurrentOrgPayload,
     @Param('id') id: string,
     @Body() dto: UpdateProductDto,
-  ): Promise<Product> {
+  ): Promise<SerializedProduct> {
     return this.productService.update(org.id, id, dto);
   }
 

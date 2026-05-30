@@ -20,7 +20,7 @@ export const FEATURES: {
   {
     icon: Zap,
     title: 'Anlık Senkronizasyon',
-    desc: 'WebSocket ve webhook ile stok, fiyat ve sipariş güncellemeleri sıfır gecikmeyle tüm kanallara yansır.',
+    desc: 'Webhook ve anlık bildirimlerle stok, fiyat ve sipariş güncellemeleri tüm kanallara hızla yansır.',
   },
   {
     icon: Sparkles,
@@ -49,6 +49,31 @@ export const FEATURES: {
   },
 ];
 
+/** Yıllık faturalama alt notu (ürün hatları + abonelik planları) */
+export const PRICING_BILLING_NOTE = 'Yıllık faturalama (KDV hariç)';
+
+/** Abonelik planı — limit fiyatları henüz yayınlanmadı */
+export const PRICING_PLAN_STATUS_SOON = 'Erken erişim';
+export const PRICING_PLAN_PRICE_SOON = 'Yıllık fiyat duyurulacak';
+export const PRICING_PLAN_CTA_SOON = 'Erken kayıt';
+
+/** Ürün hattı — kayıtta seçilebilir */
+export const PRICING_PRODUCT_LINE_ON_SALE = 'Satışta';
+
+export const PRICING_ENTERPRISE_STATUS = 'Bize Ulaşın';
+export const PRICING_ENTERPRISE_PRICE = 'Özel';
+
+/** Fiyatlandırma sayfası ve teaser — kısa UI metinleri */
+export const PRICING_PAGE_COPY = {
+  homepageTeaserLead:
+    'Abonelik plan fiyatları duyurulmadan önce erken erişim listesine katılın.',
+  earlyAccessTitle: 'Erken erişim listesi',
+  earlyAccessBody: 'Kayıt olun; plan fiyatları ve lansman haberi size iletilsin.',
+  productLinesLead:
+    'Entegrasyon, Ön Muhasebe veya Paket. Limitler alttaki abonelik planlarında.',
+  bundleRecommended: 'Önerilen',
+} as const;
+
 /** Ana sayfa teaser fiyatlandırma kartları */
 export const HOMEPAGE_PRICING_TEASER: {
   name: string;
@@ -60,14 +85,14 @@ export const HOMEPAGE_PRICING_TEASER: {
 }[] = [
   {
     name: 'Başlangıç',
-    status: 'Yakında',
+    status: PRICING_PLAN_STATUS_SOON,
     description: '500 sipariş/ay, 1 pazaryeri, 1 ERP, 2 kullanıcı.',
     cta: 'Erken Kayıt',
     href: '/pricing',
   },
   {
     name: 'Gelişim',
-    status: 'Yakında',
+    status: PRICING_PLAN_STATUS_SOON,
     description: '2.000 sipariş/ay, 3 pazaryeri, 2 ERP, 5 kullanıcı.',
     cta: 'Erken Kayıt',
     href: '/pricing',
@@ -75,16 +100,16 @@ export const HOMEPAGE_PRICING_TEASER: {
   },
   {
     name: 'Pro',
-    status: 'Yakında',
+    status: PRICING_PLAN_STATUS_SOON,
     description: '10.000 sipariş/ay, BuyBox AI ve partner araçları.',
     cta: 'Erken Kayıt',
     href: '/pricing',
   },
   {
     name: 'Kurumsal',
-    status: 'Bize Ulaşın',
+    status: PRICING_ENTERPRISE_STATUS,
     description: 'Sınırsız kapasite, özel entegrasyon ve SLA.',
-    cta: 'Bize Ulaşın',
+    cta: PRICING_ENTERPRISE_STATUS,
     href: '/contact',
   },
 ];
@@ -129,15 +154,106 @@ export const FEATURE_PAGE_SECTIONS: {
     icon: Laptop,
     title: 'Masaüstü Uygulaması',
     description:
-      'Tauri ile geliştirilen masaüstü uygulama, şirket içi ERP ve kapalı ağ senaryolarında güvenli köprü sağlar; bulut paneli ile birlikte çalışır.',
+      'Masaüstü uygulama, şirket içi ERP ve kapalı ağ senaryolarında güvenli köprü sağlar; bulut paneli ile birlikte çalışır.',
   },
 ];
+
+/** Fiyatlandırma sayfası — ürün hattı kartları (panel `product-selection` ile uyumlu) */
+export interface PricingProductLine {
+  id: 'integration' | 'accounting';
+  name: string;
+  description: string;
+  features: readonly string[];
+  /** Kart fiyat satırı (ör. Satışta) */
+  priceLabel: string;
+  billingNote: string;
+  /** Stok menü konumu — panel kayıt önizlemesi (`product-selection-preview`) */
+  stockNote?: string;
+}
+
+export const PRICING_PRODUCT_LINES: readonly PricingProductLine[] = [
+  {
+    id: 'integration',
+    name: 'Entegrasyon',
+    description: 'Pazaryeri, e-ticaret ve sipariş–stok senkronizasyonu.',
+    features: [
+      'Pazaryeri bağlantıları',
+      'Sipariş ve iade akışı',
+      'Gerçek zamanlı stok senkronu',
+      'ERP köprüsü ve masaüstü ajan',
+    ],
+    priceLabel: PRICING_PRODUCT_LINE_ON_SALE,
+    billingNote: PRICING_BILLING_NOTE,
+    stockNote:
+      'Stok menüsünde E-Ticaret bölümünden pazaryeri senkronu ve depo yönetimini yaparsınız.',
+  },
+  {
+    id: 'accounting',
+    name: 'Ön Muhasebe',
+    description: 'Yerel fatura, cari hesap ve KDV yönetimi — harici ERP zorunlu değil.',
+    features: [
+      'Fatura oluşturma ve numaralandırma',
+      'Cari hesap ve ekstre',
+      'KDV özeti ve raporlama',
+      'BizimHesap, Paraşüt köprüsü',
+    ],
+    priceLabel: PRICING_PRODUCT_LINE_ON_SALE,
+    billingNote: PRICING_BILLING_NOTE,
+    stockNote:
+      'Yerleşik ön muhasebe modunda stok, Ön Muhasebe menüsünde listelenir; depo ve envanter buradan yönetilir.',
+  },
+] as const;
+
+export const PRICING_BUNDLE_OFFER = {
+  name: 'Paket',
+  description:
+    'Ön Muhasebe ve Entegrasyon tek panelde; yıllık faturalamada iki hat birlikte alındığında indirim uygulanır.',
+  discountLabel: '%20 indirimli',
+  features: ['Fatura ve cari', 'Pazaryeri ve sipariş', 'Tek panel ve raporlama'],
+  priceLabel: PRICING_PRODUCT_LINE_ON_SALE,
+  billingNote: PRICING_BILLING_NOTE,
+  stockNote:
+    'Pakette stok Ön Muhasebe menüsünde; sipariş ve pazaryeri işlemleri E-Ticaret menüsündedir.',
+} as const;
+
+/** Ana sayfa hero altı — kısa ürün hattı kartları */
+export type HomepageProductLineId = 'integration' | 'accounting' | 'bundle';
+
+export interface HomepageProductLineCard {
+  id: HomepageProductLineId;
+  name: string;
+  description: string;
+  badge?: string;
+  href: string;
+}
+
+export const HOMEPAGE_PRODUCT_LINE_CARDS: readonly HomepageProductLineCard[] = [
+  {
+    id: 'integration',
+    name: PRICING_PRODUCT_LINES[0].name,
+    description: 'Pazaryeri, sipariş ve stok senkronu tek panelde.',
+    href: '/pricing',
+  },
+  {
+    id: 'accounting',
+    name: PRICING_PRODUCT_LINES[1].name,
+    description: 'Fatura, cari ve KDV — harici ERP zorunlu değil.',
+    href: '/pricing',
+  },
+  {
+    id: 'bundle',
+    name: PRICING_BUNDLE_OFFER.name,
+    description: 'Entegrasyon ve Ön Muhasebe birlikte; yıllık faturalamada indirim.',
+    badge: PRICING_BUNDLE_OFFER.discountLabel,
+    href: '/pricing',
+  },
+] as const;
 
 export interface Plan {
   name: string;
   /** Kart üstü durum etiketi */
   status: string;
-  /** Fiyat satırı (yakında: ₺X/ay veya Özel) */
+  /** Fiyat satırı (erken erişim veya Özel) */
   priceLabel: string;
   /** Yıllık faturalama notu */
   billingNote: string;
@@ -153,9 +269,9 @@ export interface Plan {
 export const PLANS: Plan[] = [
   {
     name: 'Başlangıç',
-    status: 'Yakında',
-    priceLabel: '₺X/ay',
-    billingNote: 'Yıllık faturalama (KDV hariç)',
+    status: PRICING_PLAN_STATUS_SOON,
+    priceLabel: PRICING_PLAN_PRICE_SOON,
+    billingNote: PRICING_BILLING_NOTE,
     features: [
       '500 sipariş / ay',
       '1 pazaryeri bağlantısı',
@@ -164,14 +280,14 @@ export const PLANS: Plan[] = [
       'Temel stok senkronizasyonu',
       'E-posta desteği',
     ],
-    cta: 'Yakında',
+    cta: PRICING_PLAN_CTA_SOON,
     highlighted: false,
   },
   {
     name: 'Gelişim',
-    status: 'Yakında',
-    priceLabel: '₺X/ay',
-    billingNote: 'Yıllık faturalama (KDV hariç)',
+    status: PRICING_PLAN_STATUS_SOON,
+    priceLabel: PRICING_PLAN_PRICE_SOON,
+    billingNote: PRICING_BILLING_NOTE,
     features: [
       '2.000 sipariş / ay',
       '3 pazaryeri bağlantısı',
@@ -180,15 +296,15 @@ export const PLANS: Plan[] = [
       'Gerçek zamanlı webhook senkronizasyonu',
       'Öncelikli destek ve raporlama',
     ],
-    cta: 'Yakında',
+    cta: PRICING_PLAN_CTA_SOON,
     highlighted: true,
     badge: 'En Popüler',
   },
   {
     name: 'Pro',
-    status: 'Yakında',
-    priceLabel: '₺X/ay',
-    billingNote: 'Yıllık faturalama (KDV hariç)',
+    status: PRICING_PLAN_STATUS_SOON,
+    priceLabel: PRICING_PLAN_PRICE_SOON,
+    billingNote: PRICING_BILLING_NOTE,
     features: [
       '10.000 sipariş / ay',
       '10 pazaryeri bağlantısı',
@@ -197,13 +313,13 @@ export const PLANS: Plan[] = [
       'BuyBox AI optimizasyonu',
       'Partner / bayi sistemi ve API erişimi',
     ],
-    cta: 'Yakında',
+    cta: PRICING_PLAN_CTA_SOON,
     highlighted: false,
   },
   {
     name: 'Kurumsal',
-    status: 'Bize Ulaşın',
-    priceLabel: 'Özel',
+    status: PRICING_ENTERPRISE_STATUS,
+    priceLabel: PRICING_ENTERPRISE_PRICE,
     billingNote: 'Sözleşmeli kurulum ve SLA',
     features: [
       'Sınırsız sipariş ve kanal',
@@ -212,7 +328,7 @@ export const PLANS: Plan[] = [
       'Gelişmiş güvenlik ve denetim',
       'E-fatura ve kurumsal faturalama',
     ],
-    cta: 'Bize Ulaşın',
+    cta: PRICING_ENTERPRISE_STATUS,
     ctaHref: '/contact',
     highlighted: false,
     isEnterprise: true,
@@ -347,12 +463,16 @@ export const TESTIMONIALS: {
 
 export const PRICING_FAQ: { q: string; a: string }[] = [
   {
+    q: 'Ürün hattı ile abonelik planı arasındaki fark nedir?',
+    a: 'Entegrasyon ve Ön Muhasebe ürün hatlarını ayrı ayrı veya indirimli Paket olarak seçersiniz. Başlangıç, Gelişim, Pro ve Kurumsal abonelik planları ise sipariş, pazaryeri bağlantısı ve kullanıcı limitlerini belirler.',
+  },
+  {
     q: '14 gün ücretsiz deneme nasıl çalışır?',
-    a: 'Kayıt sonrası 14 gün boyunca seçtiğiniz planın özelliklerini deneyebilirsiniz. Kredi kartı gerekmez; süre bitiminde ücretlendirme için sizden onay alınır.',
+    a: 'Kayıt sonrası 14 gün boyunca seçtiğiniz abonelik planının özelliklerini deneyebilirsiniz. Kredi kartı gerekmez; süre bitiminde ücretlendirme için sizden onay alınır.',
   },
   {
     q: 'Fiyatlar nasıl faturalanıyor?',
-    a: 'Tüm paketler yıllık faturalama ile sunulur; gösterilen tutar yıllık ücrettir (KDV hariç). Aylık eşdeğer tutarlar yalnızca karşılaştırma amaçlıdır.',
+    a: 'Tüm abonelik planları yıllık faturalama ile sunulur; gösterilen tutar yıllık ücrettir (KDV hariç). Aylık eşdeğer tutarlar yalnızca karşılaştırma amaçlıdır.',
   },
   {
     q: 'Hangi pazaryeri ve ERP’ler destekleniyor?',

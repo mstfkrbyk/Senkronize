@@ -5,7 +5,7 @@ export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
   SENT: 'Gönderildi',
   PAID: 'Ödendi',
   CANCELLED: 'İptal',
-  OVERDUE: 'Vadesi geçti',
+  OVERDUE: 'Vadesi geçmiş',
 };
 
 export const INVOICE_STATUS_BADGE: Record<InvoiceStatus, string> = {

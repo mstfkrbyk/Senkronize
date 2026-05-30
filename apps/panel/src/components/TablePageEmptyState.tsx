@@ -2,9 +2,13 @@ import { Link } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ShoppingCart } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { EmptyState } from '@/components/EmptyState';
+import { IntegrationTableAccountingEmptyState } from '@/components/IntegrationTableAccountingEmptyState';
 import { Button } from '@/components/ui/button';
+import { resolvePageEmptyProductVariant } from '@/lib/page-empty-state';
+import { useAuthStore } from '@/store/auth.store';
 
 interface Props {
   /** Pazaryeri bağlantısı yok (yüklenene kadar null). */
@@ -28,18 +32,26 @@ export function TablePageEmptyState({
   hasActiveFilters = false,
   onStartSync,
   syncDisabled = false,
-  syncLabel = 'Senkronizasyonu başlat',
+  syncLabel,
   icon = ShoppingCart,
   emptyTitle,
   emptyDescription,
-  noConnectionTitle = 'Bağlantı yok',
-  noConnectionDescription = 'Sipariş ve listelerinizi görmek için önce pazaryeri bağlantınızı ekleyin.',
+  noConnectionTitle,
+  noConnectionDescription,
 }: Props): ReactElement {
+  const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
+  const variant = resolvePageEmptyProductVariant(orgProducts);
+
+  if (variant === 'accounting') {
+    return <IntegrationTableAccountingEmptyState />;
+  }
+
   if (connectionsLoading || hasMarketplaceConnections === null) {
     return (
       <EmptyState
-        title="Yükleniyor…"
-        description="Bağlantı durumu kontrol ediliyor."
+        title={t('emptyState.loading.title')}
+        description={t('emptyState.loading.description')}
       />
     );
   }
@@ -48,11 +60,13 @@ export function TablePageEmptyState({
     return (
       <EmptyState
         icon={icon}
-        title={noConnectionTitle}
-        description={noConnectionDescription}
+        title={noConnectionTitle ?? t('emptyState.integration.noConnectionTitle')}
+        description={
+          noConnectionDescription ?? t('emptyState.integration.noConnectionDescription')
+        }
         actionSlot={
           <Button type="button" variant="default" asChild>
-            <Link to="/connections">İlk bağlantınızı ekleyin</Link>
+            <Link to="/connections">{t('emptyState.integration.addFirstConnection')}</Link>
           </Button>
         }
       />
@@ -64,13 +78,15 @@ export function TablePageEmptyState({
       icon={icon}
       title={
         emptyTitle ??
-        (hasActiveFilters ? 'Filtrelere uygun kayıt yok' : 'Henüz kayıt yok')
+        (hasActiveFilters
+          ? t('emptyState.integration.filteredTitle')
+          : t('emptyState.integration.emptyRecordsTitle'))
       }
       description={
         emptyDescription ??
         (hasActiveFilters
-          ? 'Filtreleri gevşeterek veya temizleyerek tekrar deneyin.'
-          : 'Aktif bağlantılarınızdan veri geldikten sonra kayıtlar burada görünür. Senkronizasyonu başlatabilir veya bağlantılarınızı yönetebilirsiniz.')
+          ? t('emptyState.integration.filteredDescription')
+          : t('emptyState.integration.emptyRecordsDescription'))
       }
       actionSlot={
         !hasActiveFilters ? (
@@ -84,11 +100,11 @@ export function TablePageEmptyState({
                   onStartSync();
                 }}
               >
-                {syncLabel}
+                {syncLabel ?? t('emptyState.integration.startSync')}
               </Button>
             ) : null}
             <Button type="button" variant="outline" asChild>
-              <Link to="/connections">Bağlantılara git</Link>
+              <Link to="/connections">{t('emptyState.integration.goToConnections')}</Link>
             </Button>
           </div>
         ) : null

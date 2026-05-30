@@ -14,6 +14,10 @@ import { AdapterRegistry } from '../adapters/adapter.registry';
 import { EventService } from '../event/event.service';
 import { WS_EVENTS } from '../event/event.types';
 import { ListingService } from '../listing/listing.service';
+import {
+  fetchAllPlatformListings,
+  ListingPullFailedError,
+} from '../listing/listing-pull.util';
 import { MarketplaceConnectionService } from '../marketplace-connection/marketplace-connection.service';
 import { OrderPullService } from '../order/order-pull.service';
 import { OrderService } from '../order/order.service';
@@ -30,6 +34,7 @@ import type {
 import { DashboardGateway } from '../dashboard/dashboard.gateway';
 import { SyncLogService } from '../sync/sync-log.service';
 import { SyncStatusService } from '../sync-status/sync-status.service';
+import { ProductMatchService } from '../product-match/product-match.service';
 
 @Processor(QUEUE_MARKETPLACE_PULL)
 export class MarketplacePullProcessor {
@@ -55,6 +60,7 @@ export class MarketplacePullProcessor {
     private readonly redisRateLimiter: RedisRateLimiter,
     private readonly platformHealth: PlatformHealthService,
     private readonly rateLimitMonitor: RateLimitMonitorService,
+    private readonly productMatchService: ProductMatchService,
   ) {}
 
   private async guardPlatformApi(
@@ -304,22 +310,19 @@ export class MarketplacePullProcessor {
         return;
       }
       const adapter = this.adapterRegistry.get(platform);
-      const all: MarketplaceListing[] = [];
-      let page = 0;
-      let continuePaging = true;
-      while (continuePaging) {
-        const batch = await adapter.getListings(credentials, page);
-        all.push(...batch.items);
-        if (
-          batch.items.length === 0 ||
-          batch.items.length < batch.pageSize ||
-          all.length >= batch.total
-        ) {
-          continuePaging = false;
-        } else {
-          page += 1;
+      let all: MarketplaceListing[];
+      try {
+        const snapshot = await fetchAllPlatformListings(adapter, credentials);
+        all = snapshot.listings;
+      } catch (error) {
+        if (error instanceof ListingPullFailedError) {
+          throw error;
         }
+        throw new ListingPullFailedError(
+          error instanceof Error ? error.message : 'Platform ilan listesi alınamadı',
+        );
       }
+
       const platformProductIds = all.map((l) => l.platformProductId);
       const existingRows =
         platformProductIds.length > 0
@@ -349,6 +352,39 @@ export class MarketplacePullProcessor {
         platform as Marketplace,
         all,
       );
+      try {
+        const matchResult = await this.productMatchService.autoMatchListings(
+          organizationId,
+          marketplace,
+          all,
+        );
+        if (matchResult.listingsLinked > 0) {
+          this.logger.log('Listeleme ürün eşleştirmesi tamamlandı', {
+            organizationId,
+            platform,
+            ...matchResult,
+          });
+        }
+      } catch (matchError) {
+        this.logger.warn('Listeleme ürün eşleştirmesi başarısız', {
+          organizationId,
+          platform,
+          error:
+            matchError instanceof Error ? matchError.message : 'Bilinmeyen hata',
+        });
+      }
+      const removed = await this.listingService.reconcileRemovedFromPlatformSnapshot(
+        organizationId,
+        marketplace,
+        platformProductIds,
+      );
+      if (removed > 0) {
+        this.logger.log('Platform snapshot dışında kalan ilanlar kaldırıldı', {
+          organizationId,
+          platform,
+          removed,
+        });
+      }
       const listingIdByPlatformProductId =
         platformProductIds.length > 0
           ? new Map(

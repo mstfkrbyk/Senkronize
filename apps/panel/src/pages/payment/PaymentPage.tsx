@@ -3,9 +3,12 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PageHeader } from '@/components/PageHeader';
+import { Card, CardContent } from '@/components/ui/card';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
 import type { BillingPeriod, PlanTier } from '@/types/subscription';
 
@@ -16,13 +19,6 @@ interface CheckoutResponse {
   conversationId: string;
   tokenExpireTime?: number;
 }
-
-const PLAN_LABELS: Record<PlanTier, string> = {
-  BASLANGIC: 'Başlangıç',
-  GELISIM: 'Gelişim',
-  PRO: 'Pro',
-  KURUMSAL: 'Kurumsal',
-};
 
 function isPlanTier(value: string | null): value is PlanTier {
   return (
@@ -50,6 +46,9 @@ function mountCheckoutScripts(container: HTMLElement): void {
 }
 
 export function PaymentPage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('payment.pageTitle'));
+
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const formRef = useRef<HTMLDivElement>(null);
@@ -61,10 +60,15 @@ export function PaymentPage(): ReactElement {
   const plan = isPlanTier(planParam) ? planParam : null;
   const billingPeriod = isBillingPeriod(billingParam) ? billingParam : 'YEARLY';
 
+  const billingLabel =
+    billingPeriod === 'YEARLY'
+      ? t('payment.billing.yearly')
+      : t('payment.billing.monthly');
+
   const checkoutMutation = useMutation({
     mutationFn: async (): Promise<CheckoutResponse> => {
       if (!plan) {
-        throw new Error('Geçersiz paket seçimi');
+        throw new Error(t('payment.checkout.invalidPlan'));
       }
       const { data } = await api.post<CheckoutResponse>('/subscriptions/start', {
         plan,
@@ -87,7 +91,7 @@ export function PaymentPage(): ReactElement {
         window.location.href = data.checkoutUrl;
         return;
       }
-      toast.error('Ödeme formu yüklenemedi.');
+      toast.error(t('payment.checkout.formLoadFailed'));
       navigate('/payment/failure', { replace: true });
     },
     onError: (error: unknown) => {
@@ -98,7 +102,7 @@ export function PaymentPage(): ReactElement {
 
   useEffect(() => {
     if (!plan) {
-      toast.error('Ödeme için geçerli bir paket seçilmedi.');
+      toast.error(t('payment.checkout.noPlanSelected'));
       navigate('/settings/subscription', { replace: true });
       return;
     }
@@ -126,26 +130,26 @@ export function PaymentPage(): ReactElement {
     );
   }
 
+  const planLabel = t(`payment.plans.${plan}`);
+
   return (
-    <div className="mx-auto flex min-h-[60vh] max-w-2xl flex-col gap-6 p-6">
+    <div className="mx-auto min-h-[60vh] max-w-2xl space-y-6 p-6">
+      <PageHeader
+        title={t('payment.pageTitle')}
+        description={t('payment.checkout.title', { plan: planLabel, period: billingLabel })}
+      />
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            {PLAN_LABELS[plan]} paketi —{' '}
-            {billingPeriod === 'YEARLY' ? 'Yıllık' : 'Aylık'} ödeme
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {checkoutMutation.isPending || !formHtml ? (
             <div className="flex flex-col items-center gap-4 py-12 text-sm text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
-              <p>Güvenli ödeme formu yükleniyor…</p>
+              <p>{t('payment.checkout.loadingForm')}</p>
             </div>
           ) : (
             <div
               ref={formRef}
               className="iyzico-checkout-container min-h-[420px] w-full"
-              aria-label="Iyzico ödeme formu"
+              aria-label={t('payment.checkout.formAriaLabel')}
             />
           )}
         </CardContent>

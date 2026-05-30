@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   Max,
@@ -25,4 +26,12 @@ export class NotificationsListQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   unreadOnly?: boolean;
+
+  @IsOptional()
+  @IsIn(['all', 'unread', 'order', 'stock', 'error'])
+  filter?: 'all' | 'unread' | 'order' | 'stock' | 'error';
+
+  @IsOptional()
+  @IsIn(['integration', 'accounting'])
+  scope?: 'integration' | 'accounting';
 }

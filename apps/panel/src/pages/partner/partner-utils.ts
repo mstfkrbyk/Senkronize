@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next';
+
 import type { PlanTier } from '@/types/subscription';
 import type { PartnerStatus } from '@/types/partner';
 
@@ -21,11 +23,17 @@ const tryFormatter = new Intl.NumberFormat('tr-TR', {
   maximumFractionDigits: 2,
 });
 
-export function formatTry(value: number): string {
+export function formatTry(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return '—';
+  }
   return tryFormatter.format(value);
 }
 
-export function formatTryPlain(value: number): string {
+export function formatTryPlain(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) {
+    return '—';
+  }
   return value.toLocaleString('tr-TR', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -47,12 +55,18 @@ export function partnerDisplayRating(partnerId: string, activeClientCount: numbe
   return Math.min(5, Math.round((base + boost) * 10) / 10);
 }
 
-export const EXPERTISE_FILTERS = [
-  { value: 'all', label: 'Tümü' },
-  { value: 'pazaryeri', label: 'Pazaryeri entegrasyonu' },
-  { value: 'erp', label: 'ERP köprüsü' },
-  { value: 'tam', label: 'Tam entegrasyon' },
-] as const;
+export type ExpertiseFilterValue = 'all' | 'pazaryeri' | 'erp' | 'tam';
+
+export function getExpertiseFilterOptions(
+  t: TFunction,
+): { value: ExpertiseFilterValue; label: string }[] {
+  return [
+    { value: 'all', label: t('partner.pages.discovery.expertise.all') },
+    { value: 'pazaryeri', label: t('partner.pages.discovery.expertise.marketplace') },
+    { value: 'erp', label: t('partner.pages.discovery.expertise.erp') },
+    { value: 'tam', label: t('partner.pages.discovery.expertise.full') },
+  ];
+}
 
 export function matchesExpertise(description: string, filter: string): boolean {
   if (filter === 'all') {

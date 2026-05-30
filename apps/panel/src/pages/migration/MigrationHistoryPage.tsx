@@ -1,8 +1,7 @@
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import { ArrowRightLeft, Eye, Loader2, RefreshCw } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -33,16 +32,19 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { EmptyState } from '@/components/EmptyState';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import type { MigrationHistoryItem, MigrationSessionStatus } from '@/types/migration';
 
 import {
   DATA_TYPE_LABELS,
   FIELD_LABELS,
   SESSION_STATUS_LABELS,
-  SOURCE_FORMAT_LABELS,
+  formatMigrationIssueMessage,
 } from './migration.constants';
 import { useMigrationHistory } from './hooks/useMigration';
+import { formatMigrationHistoryDate } from './migration-history-utils';
 
 function statusBadge(status: MigrationSessionStatus): ReactElement {
   const variants: Record<
@@ -65,7 +67,17 @@ function statusBadge(status: MigrationSessionStatus): ReactElement {
 }
 
 export function MigrationHistoryPage(): ReactElement {
-  usePageTitle('İçe Aktarma Geçmişi');
+  const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const pageTitle = t('migration.historyTitle');
+  const pageSubtitle = t('migration.historySubtitle');
+  const navContextLine = formatNavPageContext(
+    groupLabel,
+    t('nav.migrationShort'),
+    t('nav.migrationHistory'),
+  );
+
+  usePageTitle(pageTitle);
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch, isFetching } = useMigrationHistory();
   const [detailItem, setDetailItem] = useState<MigrationHistoryItem | null>(null);
@@ -86,10 +98,11 @@ export function MigrationHistoryPage(): ReactElement {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">İçe aktarma geçmişi</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Geçmiş veri taşıma işlemlerinizi görüntüleyin ve yönetin.
-          </p>
+          <p className="text-sm text-muted-foreground">{navContextLine}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">
+            {pageTitle}
+          </h1>
+          <p className="text-muted-foreground">{pageSubtitle}</p>
         </div>
         <div className="flex gap-2">
           <Button
@@ -159,15 +172,11 @@ export function MigrationHistoryPage(): ReactElement {
                   {data.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {format(new Date(item.createdAt), 'd MMM yyyy HH:mm', {
-                          locale: tr,
-                        })}
+                        <time dateTime={item.createdAt}>
+                          {formatMigrationHistoryDate(item.createdAt)}
+                        </time>
                       </TableCell>
-                      <TableCell>
-                        {item.sourceLabel ??
-                          SOURCE_FORMAT_LABELS[item.sourceFormat] ??
-                          item.sourceFormat}
-                      </TableCell>
+                      <TableCell>{item.sourceLabel}</TableCell>
                       <TableCell>{DATA_TYPE_LABELS[item.dataType]}</TableCell>
                       <TableCell className="text-right">{item.total}</TableCell>
                       <TableCell className="text-right text-emerald-600">
@@ -213,9 +222,20 @@ export function MigrationHistoryPage(): ReactElement {
           <DialogHeader>
             <DialogTitle>Import detayı</DialogTitle>
             <DialogDescription>
-              {detailItem
-                ? `${detailItem.fileName} — ${DATA_TYPE_LABELS[detailItem.dataType]}`
-                : ''}
+              {detailItem ? (
+                <>
+                  {detailItem.fileName} — {DATA_TYPE_LABELS[detailItem.dataType]}
+                  <span className="mt-1 block text-muted-foreground">
+                    <time dateTime={detailItem.createdAt}>
+                      {formatMigrationHistoryDate(detailItem.createdAt)}
+                    </time>
+                    {' · '}
+                    {detailItem.sourceLabel}
+                  </span>
+                </>
+              ) : (
+                ''
+              )}
             </DialogDescription>
           </DialogHeader>
           {detailItem?.errors?.length ? (
@@ -233,7 +253,9 @@ export function MigrationHistoryPage(): ReactElement {
                     <TableRow key={`${err.row}-${idx}`}>
                       <TableCell>{err.row}</TableCell>
                       <TableCell>{FIELD_LABELS[err.field] ?? err.field}</TableCell>
-                      <TableCell className="text-destructive">{err.message}</TableCell>
+                      <TableCell className="text-destructive">
+                        {formatMigrationIssueMessage(err.message)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

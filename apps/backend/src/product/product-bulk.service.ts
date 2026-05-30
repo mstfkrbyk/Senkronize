@@ -2,6 +2,10 @@ import { Injectable, BadRequestException } from '@nestjs/common';
 import { Marketplace, Prisma } from '@prisma/client';
 
 import { CacheService } from '../common/cache/cache.service';
+import {
+  collectProductStockKeys,
+  resolveProductStockKey,
+} from '../common/product-match-key';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type {
@@ -46,18 +50,21 @@ export class ProductBulkService {
         deletedAt: null,
         id: { in: dto.productIds },
       },
-      select: { id: true, barcode: true },
+      select: { id: true, barcode: true, sku: true },
     });
 
-    const barcodes = products.map((p) => p.barcode);
-    if (barcodes.length === 0) {
+    if (products.length === 0) {
       return { updated: 0, previewCount: 0 };
     }
 
+    const stockKeys = collectProductStockKeys(products);
     const listingWhere: Prisma.ListingWhereInput = {
       organizationId,
       deletedAt: null,
-      barcode: { in: barcodes },
+      OR: [
+        { productId: { in: products.map((p) => p.id) } },
+        ...(stockKeys.length > 0 ? [{ barcode: { in: stockKeys } }] : []),
+      ],
       ...(dto.platforms?.length ? { platform: { in: dto.platforms } } : {}),
     };
 
@@ -168,18 +175,21 @@ export class ProductBulkService {
         deletedAt: null,
         id: { in: dto.productIds },
       },
-      select: { barcode: true },
+      select: { id: true, barcode: true, sku: true },
     });
-    const barcodes = products.map((p) => p.barcode);
-    if (barcodes.length === 0) {
+    if (products.length === 0) {
       return { queued: 0 };
     }
 
+    const stockKeys = collectProductStockKeys(products);
     const listings = await this.prisma.listing.findMany({
       where: {
         organizationId,
         deletedAt: null,
-        barcode: { in: barcodes },
+        OR: [
+          { productId: { in: products.map((p) => p.id) } },
+          ...(stockKeys.length > 0 ? [{ barcode: { in: stockKeys } }] : []),
+        ],
         platform: { in: dto.platforms as Marketplace[] },
       },
       select: { id: true },
@@ -191,7 +201,7 @@ export class ProductBulkService {
 
     return this.productService.syncToPlatforms(organizationId, {
       listingIds: listings.map((l) => l.id),
-      barcode: barcodes[0] ?? '',
+      barcode: stockKeys[0] ?? '',
       quantity: 0,
     });
   }

@@ -1,9 +1,10 @@
-import { SyncFrequency } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import { ErpProductImportMode, SyncFrequency } from '@prisma/client';
+import { IsArray, IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 
 export class UpsertErpSyncSettingsDto {
+  @IsOptional()
   @IsEnum(SyncFrequency)
-  syncFrequency!: SyncFrequency;
+  syncFrequency?: SyncFrequency;
 
   @IsOptional()
   @IsBoolean()
@@ -28,6 +29,15 @@ export class UpsertErpSyncSettingsDto {
   @IsOptional()
   @IsBoolean()
   autoCreateInvoice?: boolean;
+
+  @IsOptional()
+  @IsEnum(ErpProductImportMode)
+  productImportMode?: ErpProductImportMode;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  erpCategoryIds?: string[];
 }
 
 export class PatchErpSyncSettingsDto {
@@ -58,4 +68,13 @@ export class PatchErpSyncSettingsDto {
   @IsOptional()
   @IsBoolean()
   autoCreateInvoice?: boolean;
+
+  @IsOptional()
+  @IsEnum(ErpProductImportMode)
+  productImportMode?: ErpProductImportMode;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  erpCategoryIds?: string[];
 }

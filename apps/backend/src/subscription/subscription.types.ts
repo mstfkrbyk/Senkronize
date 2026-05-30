@@ -14,6 +14,7 @@ export interface UsageOverview {
     orders: UsageStatBucket;
     users: UsageStatBucket;
     warehouses: UsageStatBucket;
+    erpConnections: UsageStatBucket;
     apiCallsToday: UsageStatBucket;
   };
   renewsAt: string | null;

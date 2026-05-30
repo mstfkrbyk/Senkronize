@@ -260,6 +260,25 @@ export function downloadCsv(content: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** Teknik/API kodlarını kullanıcıya göstermeden Türkçe mesaja çevirir. */
+export function formatMigrationIssueMessage(message: string): string {
+  const trimmed = message.trim();
+  if (!trimmed) {
+    return 'Doğrulama hatası';
+  }
+  if (/^[A-Z][A-Z0-9_]{2,}$/.test(trimmed)) {
+    return 'Satır doğrulanamadı. Ayrıntı için hata listesini indirin.';
+  }
+  if (
+    trimmed.startsWith('Error:') ||
+    trimmed.includes('statusCode') ||
+    trimmed.includes('ECONNREFUSED')
+  ) {
+    return 'Satır işlenirken beklenmeyen bir hata oluştu.';
+  }
+  return trimmed;
+}
+
 export function buildErrorsCsv(errors: { row: number; field: string; message: string }[]): string {
   const lines = ['satir,alan,hata'];
   for (const err of errors) {

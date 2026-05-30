@@ -1,13 +1,12 @@
 import type { ReactElement } from 'react';
-import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ExternalLink,
   FileDown,
-  FileText,
   Loader2,
   RotateCcw,
   Truck,
@@ -16,6 +15,8 @@ import {
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 
+import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { OrderReturnDialog } from '@/components/orders/OrderReturnDialog';
 import { ShipOrderModal } from '@/components/orders/ShipOrderModal';
 import {
@@ -48,14 +49,16 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { buildCargoTrackingUrl } from '@/lib/cargo-tracking';
 import { CARGO_PROVIDER_OPTIONS, normalizeCargoProviderKey } from '@/lib/cargo-providers';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
 import { orderStatusTone } from '@/lib/order-status';
 import { getMarketplaceBranding } from '@/pages/connections/marketplace-display';
-import type { InvoiceDto } from '@/types/invoice';
+import { OrderDetailInvoiceTab } from '@/pages/orders/OrderDetailInvoiceTab';
 import type { Order, OrderNote, OrderStatus } from '@/types/order';
 
 function formatTry(amount: string | number, currency: string, locale: string): string {
@@ -143,20 +146,38 @@ function buildTrackingSteps(order: Order, locale: string, t: (key: string) => st
   ];
 }
 
+const ORDER_DETAIL_TABS = ['general', 'shipping', 'notes', 'invoice', 'documents'] as const;
+
 export function OrderDetailPage(): ReactElement {
   const { id: orderId = '' } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.orders'));
   const locale = i18n.language;
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState('general');
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab =
+    tabFromUrl && ORDER_DETAIL_TABS.includes(tabFromUrl as (typeof ORDER_DETAIL_TABS)[number])
+      ? tabFromUrl
+      : 'general';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [noteText, setNoteText] = useState('');
   const [noteInternal, setNoteInternal] = useState(true);
   const [shipOpen, setShipOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [invoiceMeta, setInvoiceMeta] = useState<InvoiceDto | null>(null);
   const [labelLoading, setLabelLoading] = useState(false);
+
+  useEffect(() => {
+    if (
+      tabFromUrl &&
+      ORDER_DETAIL_TABS.includes(tabFromUrl as (typeof ORDER_DETAIL_TABS)[number])
+    ) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   const detailQuery = useQuery({
     queryKey: ['orders', 'detail', orderId],
@@ -195,55 +216,6 @@ export function OrderDetailPage(): ReactElement {
       toast.success(t('orders.detail.notes.added'));
       setNoteText('');
       void queryClient.invalidateQueries({ queryKey: ['orders', orderId, 'notes'] });
-    },
-    onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err));
-    },
-  });
-
-  const createInvoiceMutation = useMutation({
-    mutationFn: async (): Promise<InvoiceDto> => {
-      const { data } = await api.post<{ data: InvoiceDto }>(
-        `/invoices/from-order/${orderId}`,
-      );
-      return data.data;
-    },
-    onSuccess: (invoice) => {
-      setInvoiceMeta(invoice);
-      toast.success(t('orders.detail.documents.invoiceCreated'));
-      void queryClient.invalidateQueries({ queryKey: ['orders', 'detail', orderId] });
-    },
-    onError: (err: unknown) => {
-      toast.error(getApiErrorMessage(err));
-    },
-  });
-
-  const invoicePdfMutation = useMutation({
-    mutationFn: async (): Promise<void> => {
-      if (invoiceMeta?.id) {
-        const res = await api.get(`/invoices/${invoiceMeta.id}/pdf`, {
-          responseType: 'blob',
-        });
-        const blob = new Blob([res.data], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `fatura-${invoiceMeta.invoiceNumber.replace(/\//g, '-')}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        return;
-      }
-      const res = await api.get(`/invoices/order/${orderId}`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `fatura-${order?.platformOrderId ?? orderId}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    onSuccess: () => {
-      toast.success(t('orders.detail.documents.pdfDownloaded'));
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -297,9 +269,6 @@ export function OrderDetailPage(): ReactElement {
     return { subtotal, shipping, tax, total };
   }, [order]);
 
-  const hasInvoice =
-    invoiceMeta !== null || order?.status === 'INVOICED' || order?.status === 'DELIVERED';
-
   const downloadShippingLabel = async (): Promise<void> => {
     if (!order) {
       return;
@@ -326,11 +295,13 @@ export function OrderDetailPage(): ReactElement {
 
   if (detailQuery.isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-10 w-full max-w-xl" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-full max-w-xl" />
+          <Skeleton className="h-96 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -343,7 +314,16 @@ export function OrderDetailPage(): ReactElement {
             {t('orders.detail.back')}
           </Link>
         </Button>
-        <p className="text-sm text-destructive">{getApiErrorMessage(detailQuery.error)}</p>
+        <Card>
+          <CardContent className="pt-6">
+            <QueryErrorAlert
+              error={detailQuery.error}
+              onRetry={() => {
+                void detailQuery.refetch();
+              }}
+            />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -353,35 +333,27 @@ export function OrderDetailPage(): ReactElement {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" variant="ghost" size="sm" asChild>
-            <Link to="/orders">
-              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
-              {t('orders.detail.back')}
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {t('orders.detail.heading', { orderNo: order.platformOrderId })}
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              <span aria-hidden className="mr-1">
-                {branding.logo}
-              </span>
-              {branding.label} · {formatDate(order.platformCreatedAt, locale)}
-            </p>
+      <PageHeader
+        title={t('orders.detail.heading', { orderNo: order.platformOrderId })}
+        description={`${branding.label} · ${formatDate(order.platformCreatedAt, locale)}`}
+        context={navContextLine}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" asChild>
+              <Link to="/orders">
+                <ArrowLeft className="mr-2 h-4 w-4" aria-hidden />
+                {t('orders.detail.back')}
+              </Link>
+            </Button>
+            <Badge variant="outline" className={`gap-1 ${orderStatusTone(order.status)}`}>
+              {t(ORDER_STATUS_I18N_KEY[order.status])}
+            </Badge>
+            <span className="text-lg font-semibold tabular-nums">
+              {formatTry(order.totalAmount, order.currency, locale)}
+            </span>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={`gap-1 ${orderStatusTone(order.status)}`}>
-            {t(ORDER_STATUS_I18N_KEY[order.status])}
-          </Badge>
-          <span className="text-lg font-semibold tabular-nums">
-            {formatTry(order.totalAmount, order.currency, locale)}
-          </span>
-        </div>
-      </div>
+        }
+      />
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -430,6 +402,7 @@ export function OrderDetailPage(): ReactElement {
           <TabsTrigger value="general">{t('orders.detail.tabs.general')}</TabsTrigger>
           <TabsTrigger value="shipping">{t('orders.detail.tabs.shipping')}</TabsTrigger>
           <TabsTrigger value="notes">{t('orders.detail.tabs.notes')}</TabsTrigger>
+          <TabsTrigger value="invoice">{t('orders.detail.tabs.invoice')}</TabsTrigger>
           <TabsTrigger value="documents">{t('orders.detail.tabs.documents')}</TabsTrigger>
         </TabsList>
 
@@ -714,77 +687,35 @@ export function OrderDetailPage(): ReactElement {
           </Card>
         </TabsContent>
 
+        <TabsContent value="invoice" className="mt-4">
+          <OrderDetailInvoiceTab orderId={orderId} order={order} />
+        </TabsContent>
+
         <TabsContent value="documents" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('orders.detail.documents.title')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-md border bg-muted/20 p-4 text-sm dark:bg-muted/10">
-                <p className="text-muted-foreground">{t('orders.detail.documents.status')}</p>
-                <p className="mt-1 font-medium">
-                  {hasInvoice
-                    ? t('orders.detail.documents.created')
-                    : t('orders.detail.documents.notCreated')}
-                </p>
-                {invoiceMeta ? (
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {t('orders.detail.documents.invoiceNo', {
-                      no: invoiceMeta.invoiceNumber,
-                    })}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="default"
-                  className="gap-1"
-                  disabled={createInvoiceMutation.isPending}
-                  onClick={() => {
-                    createInvoiceMutation.mutate();
-                  }}
-                >
-                  {createInvoiceMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <FileText className="h-4 w-4" aria-hidden />
-                  )}
-                  {t('orders.detail.documents.createInvoice')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-1"
-                  disabled={invoicePdfMutation.isPending}
-                  onClick={() => {
-                    invoicePdfMutation.mutate();
-                  }}
-                >
-                  {invoicePdfMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <FileDown className="h-4 w-4" aria-hidden />
-                  )}
-                  {t('orders.detail.documents.downloadPdf')}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-1"
-                  disabled={labelLoading}
-                  onClick={() => {
-                    void downloadShippingLabel();
-                  }}
-                >
-                  {labelLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  ) : (
-                    <FileDown className="h-4 w-4" aria-hidden />
-                  )}
-                  {t('orders.detail.documents.downloadLabel')}
-                </Button>
-              </div>
+            <CardContent>
+              <p className="mb-4 text-sm text-muted-foreground">
+                {t('orders.detail.documents.labelHint')}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-1"
+                disabled={labelLoading}
+                onClick={() => {
+                  void downloadShippingLabel();
+                }}
+              >
+                {labelLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <FileDown className="h-4 w-4" aria-hidden />
+                )}
+                {t('orders.detail.documents.downloadLabel')}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

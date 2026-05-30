@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
-import { Download, Loader2, Printer, Share2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Download, Info, Loader2, Printer, Share2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Bar,
@@ -15,6 +16,7 @@ import {
 } from 'recharts';
 
 import { UpgradePrompt } from '@/components/UpgradePrompt';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,16 +39,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getApiErrorMessage } from '@/lib/api';
+import { useAccountingMode } from '@/hooks/useAccountingMode';
+import { useProducts } from '@/hooks/useProducts';
 import { exportToCsv } from '@/lib/csv-export';
 import { printReport } from '@/lib/pdf-export';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
-import type { ProfitPlatformRow } from '@/types/report';
 
 import { useProfitReport } from './hooks/useReports';
 import { useReportPdfDownload } from './hooks/useReportPdfDownload';
+import {
+  buildCostByBarcode,
+  computePlatformRows,
+  computeProfitBreakdown,
+  computeTopProductsChart,
+  hasAnyProductCost,
+} from './profit-loss-calculations';
 import { ShareReportModal } from './ShareReportModal';
+import {
+  resolveProfitReportPresentation,
+  resolveReportsProductAccess,
+} from './reports-tabs.config';
 import {
   formatTry,
   pdfPeriodFromDates,
@@ -54,30 +67,6 @@ import {
   platformDisplayName,
   type PeriodPreset,
 } from './report-utils';
-
-const COMMISSION_RATE = 0.12;
-
-function splitCosts(
-  revenue: number,
-  totalRevenue: number,
-  totalProfit: number,
-): {
-  productCost: number;
-  shippingCost: number;
-  platformCommission: number;
-  profit: number;
-} {
-  if (totalRevenue <= 0) {
-    return { productCost: 0, shippingCost: 0, platformCommission: 0, profit: 0 };
-  }
-  const share = revenue / totalRevenue;
-  const profit = Math.round(totalProfit * share);
-  const totalCost = revenue - profit;
-  const platformCommission = Math.round(revenue * COMMISSION_RATE * share);
-  const shippingCost = Math.round(totalCost * 0.15);
-  const productCost = Math.max(0, totalCost - platformCommission - shippingCost);
-  return { productCost, shippingCost, platformCommission, profit };
-}
 
 function monthRange(offsetMonths: number): {
   startDate: string;
@@ -94,8 +83,20 @@ function monthRange(offsetMonths: number): {
 
 export function ProfitLossTab(): ReactElement {
   const { t } = useTranslation();
+  const orgProducts = useAuthStore((s) => s.currentOrg?.orgProducts);
   const plan = useAuthStore((s) => s.currentOrg?.plan);
   const hasProfitAccess = plan === 'PRO' || plan === 'KURUMSAL';
+  const productAccess = useMemo(
+    () => resolveReportsProductAccess(orgProducts),
+    [orgProducts],
+  );
+  const { mode: accountingMode, isLoading: accountingModeLoading } =
+    useAccountingMode();
+  const profitPresentation = useMemo(
+    () => resolveProfitReportPresentation(productAccess, accountingMode),
+    [productAccess, accountingMode],
+  );
+  const showFullProfit = profitPresentation === 'full';
   const initial = useMemo(() => periodRangeFromPreset('30'), []);
   const [preset, setPreset] = useState<PeriodPreset>('30');
   const [startDate, setStartDate] = useState(initial.start);
@@ -107,12 +108,23 @@ export function ProfitLossTab(): ReactElement {
   const lastMonth = useMemo(() => monthRange(1), []);
 
   const { downloading, downloadPdf } = useReportPdfDownload();
+  const reportQueriesEnabled = hasProfitAccess && showFullProfit;
   const profitQuery = useProfitReport(
     { startDate, endDate, platform: platform === 'all' ? undefined : platform },
-    { enabled: hasProfitAccess },
+    { enabled: reportQueriesEnabled },
   );
-  const currentMonthQuery = useProfitReport(thisMonth, { enabled: hasProfitAccess });
-  const previousMonthQuery = useProfitReport(lastMonth, { enabled: hasProfitAccess });
+  const currentMonthQuery = useProfitReport(thisMonth, { enabled: reportQueriesEnabled });
+  const previousMonthQuery = useProfitReport(lastMonth, { enabled: reportQueriesEnabled });
+  const productsQuery = useProducts({ enabled: reportQueriesEnabled });
+
+  const costByBarcode = useMemo(
+    () => buildCostByBarcode(productsQuery.data ?? []),
+    [productsQuery.data],
+  );
+  const usesProductCosts = useMemo(
+    () => hasAnyProductCost(productsQuery.data ?? []),
+    [productsQuery.data],
+  );
 
   const breakdown = useMemo(() => {
     const data = profitQuery.data;
@@ -123,54 +135,63 @@ export function ProfitLossTab(): ReactElement {
         platformCommission: 0,
         shippingCost: 0,
         netProfit: 0,
+        usesProductCosts: false,
       };
     }
-    const netProfit = data.estimatedProfit;
-    const revenue = data.totalRevenue;
-    const totalCost = revenue - netProfit;
-    const platformCommission = Math.round(revenue * COMMISSION_RATE);
-    const shippingCost = Math.round(totalCost * 0.15);
-    const productCost = Math.max(0, totalCost - platformCommission - shippingCost);
-    return { revenue, productCost, platformCommission, shippingCost, netProfit };
-  }, [profitQuery.data]);
+    return computeProfitBreakdown(
+      data.totalRevenue,
+      data.topProducts,
+      costByBarcode,
+      usesProductCosts,
+      data.estimatedProfit,
+    );
+  }, [profitQuery.data, costByBarcode, usesProductCosts]);
 
-  const platformRows = useMemo((): ProfitPlatformRow[] => {
+  const platformRows = useMemo(() => {
     const data = profitQuery.data;
     if (!data) return [];
-    const totalRev = data.totalRevenue || 1;
-    const totalProfit = data.estimatedProfit;
-    return data.byPlatform.map((row) => {
-      const costs = splitCosts(row.revenue, totalRev, totalProfit);
-      const marginPct = row.revenue > 0 ? (costs.profit / row.revenue) * 100 : 0;
-      return {
-        platform: row.platform,
-        revenue: row.revenue,
-        shippingCost: costs.shippingCost,
-        vatAmount: costs.platformCommission,
-        productCost: costs.productCost,
-        profit: costs.profit,
-        marginPct,
-      };
-    });
-  }, [profitQuery.data]);
+    return computePlatformRows(data.byPlatform, data.totalRevenue, breakdown.netProfit);
+  }, [profitQuery.data, breakdown.netProfit]);
 
-  const topProductsChart = useMemo(() => {
-    const items = [...(profitQuery.data?.topProducts ?? [])]
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10);
-    return items.map((p) => ({
-      name: p.name.length > 18 ? `${p.name.slice(0, 18)}…` : p.name,
-      profit: Math.round(p.revenue * 0.25),
-      revenue: p.revenue,
-    }));
-  }, [profitQuery.data?.topProducts]);
+  const topProductsChart = useMemo(
+    () =>
+      computeTopProductsChart(
+        profitQuery.data?.topProducts ?? [],
+        costByBarcode,
+        usesProductCosts,
+      ),
+    [profitQuery.data?.topProducts, costByBarcode, usesProductCosts],
+  );
 
   const monthComparison = useMemo(() => {
-    const current = currentMonthQuery.data?.estimatedProfit ?? 0;
-    const previous = previousMonthQuery.data?.estimatedProfit ?? 0;
+    const currentData = currentMonthQuery.data;
+    const previousData = previousMonthQuery.data;
+    const current = currentData
+      ? computeProfitBreakdown(
+          currentData.totalRevenue,
+          currentData.topProducts,
+          costByBarcode,
+          usesProductCosts,
+          currentData.estimatedProfit,
+        ).netProfit
+      : 0;
+    const previous = previousData
+      ? computeProfitBreakdown(
+          previousData.totalRevenue,
+          previousData.topProducts,
+          costByBarcode,
+          usesProductCosts,
+          previousData.estimatedProfit,
+        ).netProfit
+      : 0;
     const change = previous !== 0 ? ((current - previous) / previous) * 100 : 0;
     return { current, previous, change };
-  }, [currentMonthQuery.data, previousMonthQuery.data]);
+  }, [
+    currentMonthQuery.data,
+    previousMonthQuery.data,
+    costByBarcode,
+    usesProductCosts,
+  ]);
 
   function applyPreset(p: PeriodPreset): void {
     if (p === 'custom') {
@@ -194,12 +215,51 @@ export function ProfitLossTab(): ReactElement {
     );
   }
 
+  if (accountingModeLoading && productAccess.hasAccounting) {
+    return (
+      <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+    );
+  }
+
+  if (!showFullProfit) {
+    return (
+      <div id="report-profit" className="space-y-6">
+        <Alert className="border-sky-200 bg-sky-50/80 text-sky-950">
+          <Info className="h-4 w-4 text-sky-600" aria-hidden />
+          <AlertTitle className="text-sky-950">
+            {t('reports.profit.externalErpTitle')}
+          </AlertTitle>
+          <AlertDescription className="text-sky-900/90">
+            <p>{t('reports.profit.externalErpDescription')}</p>
+            <p className="mt-3 flex flex-wrap gap-3">
+              <Link
+                to="/reports?tab=erp-transfer"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.profit.openErpTransfer')}
+              </Link>
+              <Link
+                to="/connections?tab=erp"
+                className="font-medium text-sky-700 underline-offset-2 hover:underline"
+              >
+                {t('reports.profit.openConnections')}
+              </Link>
+            </p>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   return (
     <div id="report-profit" className="space-y-6">
       {profitQuery.isError ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          {getApiErrorMessage(profitQuery.error)}
-        </div>
+        <QueryErrorAlert
+          error={profitQuery.error}
+          onRetry={() => {
+            void profitQuery.refetch();
+          }}
+        />
       ) : null}
 
       <div className="flex justify-end gap-2">
@@ -351,6 +411,13 @@ export function ProfitLossTab(): ReactElement {
           )}
         </CardContent>
       </Card>
+
+      {!productsQuery.isLoading && !usesProductCosts ? (
+        <Alert>
+          <AlertTitle>{t('reports.profit.noCostTitle')}</AlertTitle>
+          <AlertDescription>{t('reports.profit.noCostDesc')}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {(profitQuery.data?.ordersWithApproximateTryConversion ?? 0) > 0 ? (
         <Alert className="border-amber-500/50 bg-amber-500/5">

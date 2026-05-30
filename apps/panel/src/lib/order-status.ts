@@ -66,3 +66,14 @@ export function orderStatusTone(status: OrderStatus): string {
   const color = ORDER_STATUS_CONFIG[status]?.color;
   return color ? COLOR_TONE[color] : '';
 }
+
+export function isKnownOrderStatus(status: string): status is OrderStatus {
+  return status in ORDER_STATUS_CONFIG;
+}
+
+export function orderStatusLabel(status: string): string {
+  if (isKnownOrderStatus(status)) {
+    return ORDER_STATUS_CONFIG[status].label;
+  }
+  return 'Bilinmeyen durum';
+}

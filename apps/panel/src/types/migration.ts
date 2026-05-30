@@ -80,11 +80,14 @@ export interface MigrationProgressEvent {
   failed: number;
 }
 
-export interface MigrationHistoryItem {
+/**
+ * Org metadata `migrationImportHistory` kaydı (ham satır yok).
+ * API yanıtında `sourceLabel` eklenir — bkz. `MigrationHistoryItem`.
+ */
+export interface MigrationImportHistoryRecord {
   id: string;
   createdAt: string;
   sourceFormat: MigrationSourceFormat;
-  sourceLabel: string;
   dataType: MigrationDataType;
   fileName: string;
   total: number;
@@ -92,6 +95,11 @@ export interface MigrationHistoryItem {
   failed: number;
   status: MigrationSessionStatus;
   errors?: MigrationFieldIssue[];
+}
+
+/** GET `/migration/history` — backend `toMigrationHistoryItem` yanıtı. */
+export interface MigrationHistoryItem extends MigrationImportHistoryRecord {
+  sourceLabel: string;
 }
 
 export const MIGRATION_TARGET_FIELDS: Record<MigrationDataType, string[]> = {

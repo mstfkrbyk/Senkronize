@@ -913,6 +913,7 @@ model Organization {
   subscription              Subscription?
   marketplaceConnections    MarketplaceConnection[]
   erpConnections            ErpConnection[]
+  erpStockEntries           ErpStockEntry[]
   erpSyncSettings           ErpSyncSettings[]
   ecommerceConnections      EcommerceConnection[]
   cargoConnections          CargoConnection[]
@@ -1327,6 +1328,12 @@ model MarketplaceConnection {
   /// Son başarılı sync özet meta (ör. işlenen sipariş/listing sayısı)
   lastSyncMeta     Json?
   webhookSecret    String? // platform'dan gelen webhook doğrulaması için
+  /// null = organizasyon varsayılanını kullan
+  productMatchKey  ProductMatchKey?
+  /// Platforma stok push (listing-sync)
+  pushStock        Boolean      @default(true)
+  /// Platforma fiyat push (listing-sync)
+  pushPrice        Boolean      @default(false)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
@@ -1344,25 +1351,52 @@ enum SyncFrequency {
   MANUAL
 }
 
+enum ProductMatchKey {
+  BARCODE
+  SKU
+  MANUAL
+}
+
+/// ERP ürün içe aktarma kapsamı (BizimHesap isEcommerce / kategori)
+enum ErpProductImportMode {
+  ECOMMERCE_ONLY
+  CATEGORY
+  ALL
+}
+
+enum ErpConnectionRole {
+  PRIMARY
+  SECONDARY
+}
+
 model ErpConnection {
   id               String       @id @default(cuid())
   organizationId   String
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   erpType          ErpType
+  /// Panelde gösterilen bağlantı adı (ör. "Ana BizimHesap", "Stok BH")
+  displayName      String?
+  /// Org başına tek PRIMARY; fatura ve ERP'ye yazma işlemleri yalnızca birincil bağlantıda
+  role             ErpConnectionRole @default(PRIMARY)
   credentialsEnc   String // AES-256-GCM ile şifrelenmiş JSON
   isActive         Boolean      @default(true)
   lastSyncAt       DateTime?
   syncErrorCount   Int          @default(0)
   lastErrorAt      DateTime?
   lastErrorMessage String?
+  /// null = organizasyon varsayılanını kullan
+  productMatchKey  ProductMatchKey?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
 
   syncSettings ErpSyncSettings?
+  erpStockEntries ErpStockEntry[]
+  importedProducts Product[] @relation("ProductErpImportSource")
 
-  @@unique([organizationId, erpType])
   @@index([organizationId])
+  @@index([organizationId, erpType])
+  @@index([organizationId, role])
 }
 
 model ErpSyncSettings {
@@ -1378,6 +1412,10 @@ model ErpSyncSettings {
   syncInvoices      Boolean       @default(false)
   syncCustomers     Boolean       @default(false)
   autoCreateInvoice Boolean       @default(false)
+  /// ERP'den hangi ürünlerin içe alınacağı (varsayılan: e-ticaret işaretli)
+  productImportMode ErpProductImportMode @default(ECOMMERCE_ONLY)
+  /// CATEGORY modunda BizimHesap kategori ID veya adları
+  erpCategoryIds    String[]             @default([])
   lastSyncAt        DateTime?
   nextSyncAt      DateTime?
   createdAt       DateTime      @default(now())
@@ -1385,6 +1423,30 @@ model ErpSyncSettings {
 
   @@index([organizationId])
   @@index([nextSyncAt])
+}
+
+/// Entegrasyon bazlı platform politikası (super admin, entegrasyon başına)
+enum IntegrationPolicyCategory {
+  MARKETPLACE
+  ECOMMERCE
+  ERP
+}
+
+model IntegrationPlatformPolicy {
+  platformKey              String                    @id
+  category                 IntegrationPolicyCategory
+  enabled                  Boolean                   @default(true)
+  orderSyncIntervalMinutes   Int?
+  orderLookbackMinutes       Int?
+  /// @deprecated Günlük saat — listingSyncIntervalMinutes kullanın
+  listingSyncHour            Int?
+  listingSyncIntervalMinutes Int?
+  maxRequestsPerHour       Int?
+  requestsPerMinute        Int?
+  syncFrequency            SyncFrequency?
+  customSettings           Json                      @default("{}")
+  updatedAt                DateTime                  @updatedAt
+  updatedByUserId          String?
 }
 
 model EcommerceConnection {
@@ -1483,7 +1545,10 @@ model Product {
   id                   String           @id @default(cuid())
   organizationId       String
   organization         Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  barcode              String
+  /// ERP ürün sync ile oluşturulduysa kaynak bağlantı (filtre dışı temizlik için)
+  sourceErpConnectionId String?
+  sourceErpConnection   ErpConnection?   @relation("ProductErpImportSource", fields: [sourceErpConnectionId], references: [id], onDelete: SetNull)
+  barcode              String?
   sku                  String?
   name                 String
   description          String?
@@ -1497,6 +1562,12 @@ model Product {
   tags                 String[]         @default([])
   imageUrls            String[]
   isActive             Boolean          @default(true)
+  /// null = platform/org varsayılanını kullan
+  productMatchKey      ProductMatchKey?
+  /// null = bağlantı varsayılanını kullan; false = stok push kapalı
+  pushStockEnabled     Boolean?
+  /// null = bağlantı varsayılanını kullan; false = fiyat push kapalı
+  pushPriceEnabled     Boolean?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
   deletedAt            DateTime?
@@ -1504,6 +1575,7 @@ model Product {
   variants             ProductVariant[]
   listings             Listing[]
   stockEntries         StockEntry[]
+  erpStockEntries      ErpStockEntry[]
   reservations         Reservation[]
   stockCountItems      StockCountItem[]
   stockTransferItems   StockTransferItem[]
@@ -1515,6 +1587,7 @@ model Product {
   @@index([organizationId, createdAt])
   @@index([organizationId, categoryId])
   @@index([organizationId, isActive])
+  @@index([organizationId, sourceErpConnectionId])
   @@index([sku])
 }
 
@@ -1597,6 +1670,27 @@ model StockEntry {
   @@index([warehouseId])
 }
 
+/// ERP bağlantısı bazında stok (merkezi stok = aktif ERP kaynaklarının toplamı)
+model ErpStockEntry {
+  id              String        @id @default(cuid())
+  organizationId  String
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  erpConnectionId String
+  erpConnection   ErpConnection @relation(fields: [erpConnectionId], references: [id], onDelete: Cascade)
+  warehouseId     String
+  warehouse       Warehouse     @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  productId       String?
+  product         Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  barcode         String
+  quantity        Int
+  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime      @default(now())
+
+  @@unique([organizationId, erpConnectionId, barcode, warehouseId])
+  @@index([organizationId, barcode])
+  @@index([organizationId, erpConnectionId])
+}
+
 model Warehouse {
   id             String   @id @default(cuid())
   organizationId String
@@ -1610,6 +1704,7 @@ model Warehouse {
 
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   stockEntries       StockEntry[]
+  erpStockEntries    ErpStockEntry[]
   movements          StockMovement[]
   stockCountSessions StockCountSession[]
   transfersFrom      StockTransfer[]     @relation("TransferFrom")

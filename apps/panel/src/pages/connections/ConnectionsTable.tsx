@@ -1,9 +1,9 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, MouseEvent } from 'react';
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { Link } from 'react-router-dom';
-import { Loader2, MoreHorizontal } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, MoreHorizontal, Settings2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { ConnectionHealthBadge } from '@/components/connections/ConnectionHealthBadge';
@@ -45,6 +45,7 @@ import {
   type ErpConnectionDto,
 } from '@/hooks/useErpConnections';
 import { getApiErrorMessage } from '@/lib/api';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
 import {
   kindLabel,
   statusBadgeClass,
@@ -90,6 +91,10 @@ function detailHref(row: UnifiedConnectionRow): string {
   return `/connections/${row.id}`;
 }
 
+function stopRowNavigation(event: MouseEvent<HTMLElement>): void {
+  event.stopPropagation();
+}
+
 export function ConnectionsTable({
   rows,
   marketplaceConnections,
@@ -98,6 +103,7 @@ export function ConnectionsTable({
   onEditErp,
   variant = 'default',
 }: Props): ReactElement {
+  const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<UnifiedConnectionRow | null>(null);
 
   const testMp = useTestConnection();
@@ -105,6 +111,7 @@ export function ConnectionsTable({
   const triggerSync = useTriggerManualSync();
   const deleteMp = useDeleteConnection();
   const deleteErp = useDeleteErpConnection();
+  const opsAccess = useIntegrationOpsAccess();
 
   const mpById = new Map(marketplaceConnections.map((c) => [c.id, c]));
   const erpById = new Map(erpConnections.map((c) => [c.id, c]));
@@ -193,19 +200,27 @@ export function ConnectionsTable({
     });
   };
 
+  const isErpTable = variant === 'erp';
+
   if (rows.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Bu kategoride bağlantı yok.
-      </p>
+      <div
+        className="rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center"
+        role="status"
+      >
+        <p className="text-sm font-medium text-foreground">Bu sekmede bağlantı yok</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {isErpTable
+            ? 'Harici muhasebe programınızı eklemek için üstteki «Harici bağlantı ekle» veya kurulum sihirbazını kullanın.'
+            : 'Yeni kanal eklemek için sayfa başlığındaki «Bağlantı Ekle» düğmesini kullanın.'}
+        </p>
+      </div>
     );
   }
 
-  const isErpTable = variant === 'erp';
-
   return (
     <>
-      <div className="overflow-x-auto rounded-lg border">
+      <div className="overflow-x-auto rounded-lg border bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
@@ -234,13 +249,24 @@ export function ConnectionsTable({
                   : '—';
               const mpConn = mpById.get(row.id);
 
+              const href = detailHref(row);
+              const erpSettingsHref =
+                row.kind === 'erp' ? `${href}?tab=settings` : href;
+
               return (
-                <TableRow key={`${row.kind}-${row.id}`}>
+                <TableRow
+                  key={`${row.kind}-${row.id}`}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => {
+                    navigate(row.kind === 'erp' ? erpSettingsHref : href);
+                  }}
+                >
                   <TableCell>{platformCell(row)}</TableCell>
                   <TableCell>
                     <Link
-                      to={detailHref(row)}
+                      to={row.kind === 'erp' ? erpSettingsHref : href}
                       className="font-medium text-sky-600 hover:underline"
+                      onClick={stopRowNavigation}
                     >
                       {row.name}
                     </Link>
@@ -272,35 +298,78 @@ export function ConnectionsTable({
                     <TableCell>{row.syncFrequencyLabel}</TableCell>
                   )}
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button type="button" variant="ghost" size="icon" aria-label="İşlemler">
-                          <MoreHorizontal className="h-4 w-4" />
+                    <div
+                      className="flex items-center justify-end gap-1"
+                      onClick={stopRowNavigation}
+                    >
+                      {row.kind === 'erp' ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="hidden sm:inline-flex"
+                          asChild
+                        >
+                          <Link to={erpSettingsHref}>
+                            <Settings2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                            Sync ayarları
+                          </Link>
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          disabled={testMp.isPending || testErp.isPending}
-                          onClick={() => {
-                            handleTest(row);
-                          }}
-                        >
-                          {testMp.isPending || testErp.isPending ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" aria-label="İşlemler">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {row.kind === 'erp' ? (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                navigate(erpSettingsHref);
+                              }}
+                            >
+                              Sync ayarları
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                navigate(href);
+                              }}
+                            >
+                              Detay
+                            </DropdownMenuItem>
+                          )}
+                          {opsAccess ? (
+                            <>
+                              <DropdownMenuItem
+                                disabled={
+                                  testMp.isPending ||
+                                  testErp.isPending ||
+                                  (row.kind === 'erp' && row.platform === 'BIZIMHESAP')
+                                }
+                                onClick={() => {
+                                  handleTest(row);
+                                }}
+                              >
+                                {testMp.isPending || testErp.isPending ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : null}
+                                Test Et
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                disabled={
+                                  triggerSync.isPending || !row.isActive || row.kind === 'erp'
+                                }
+                                onClick={() => {
+                                  handleSync(row);
+                                }}
+                              >
+                                Sync Et
+                              </DropdownMenuItem>
+                            </>
                           ) : null}
-                          Test Et
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={
-                            triggerSync.isPending || !row.isActive || row.kind === 'erp'
-                          }
-                          onClick={() => {
-                            handleSync(row);
-                          }}
-                        >
-                          Sync Et
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
+                          <DropdownMenuItem
                           onClick={() => {
                             handleEdit(row);
                           }}
@@ -316,8 +385,9 @@ export function ConnectionsTable({
                         >
                           Sil
                         </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               );

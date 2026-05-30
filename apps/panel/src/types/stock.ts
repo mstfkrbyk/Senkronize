@@ -62,6 +62,23 @@ export interface WarehouseDto {
   updatedAt: string;
 }
 
+export interface ErpStockSourceRow {
+  erpConnectionId: string;
+  erpType: string;
+  displayName: string | null;
+  role: 'PRIMARY' | 'SECONDARY';
+  quantity: number;
+  warehouseCode: string;
+  warehouseName: string;
+  updatedAt: string;
+}
+
+export interface ErpStockBreakdown {
+  barcode: string;
+  mergedTotal: number;
+  sources: ErpStockSourceRow[];
+}
+
 export interface StockMovementDto {
   id: string;
   organizationId: string;

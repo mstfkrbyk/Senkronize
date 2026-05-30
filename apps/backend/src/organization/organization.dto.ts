@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { AccountingMode } from '@prisma/client';
 import {
   IsBoolean,
+  IsEnum,
   IsIn,
   IsInt,
   IsObject,
@@ -32,6 +34,17 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsBoolean()
   onboardingCompleted?: boolean;
+
+  @ApiPropertyOptional({
+    enum: AccountingMode,
+    description:
+      'Ön muhasebe modu: NATIVE (Senkronize) veya EXTERNAL_ERP (harici program). Aktif ERP varken NATIVE reddedilir.',
+  })
+  @IsOptional()
+  @IsEnum(AccountingMode, {
+    message: 'accountingMode NATIVE veya EXTERNAL_ERP olmalıdır.',
+  })
+  accountingMode?: AccountingMode;
 
   @ApiPropertyOptional({ description: 'Varsayılan para birimi (ISO 4217)' })
   @IsOptional()

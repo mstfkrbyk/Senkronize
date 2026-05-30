@@ -17,6 +17,9 @@ import {
   ValidateIf,
 } from 'class-validator';
 
+/** DECIMAL(12,2) üst sınırı — maliyet fiyatı */
+export const PRODUCT_COST_PRICE_MAX = 9_999_999_999.99;
+
 export type ProductSortField =
   | 'name'
   | 'price'
@@ -48,22 +51,23 @@ export class CreateProductDto {
   @MinLength(2)
   name!: string;
 
-  @ApiProperty({
-    description: 'Barkod (EAN/UPC veya dahili kod)',
+  @ApiPropertyOptional({
+    description: 'Barkod (EAN/UPC). Barkodsuz ürünlerde boş bırakın; en az barkod veya SKU gerekir.',
     example: '8680001122334',
-    required: true,
+    nullable: true,
   })
+  @ValidateIf((dto: CreateProductDto) => dto.sku === undefined || dto.sku.trim().length === 0)
   @IsString()
   @MinLength(1)
-  barcode!: string;
+  barcode?: string;
 
   @ApiPropertyOptional({
-    description: 'Stok tutma birimi SKU kodu',
+    description: 'Stok tutma birimi SKU kodu. Barkod yoksa zorunludur.',
     example: 'SKU-ORG-CAY-500',
-    required: false,
   })
-  @IsOptional()
+  @ValidateIf((dto: CreateProductDto) => dto.barcode === undefined || dto.barcode.trim().length === 0)
   @IsString()
+  @MinLength(1)
   sku?: string;
 
   @ApiPropertyOptional({
@@ -111,6 +115,7 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(PRODUCT_COST_PRICE_MAX)
   costPrice?: number;
 
   @ApiPropertyOptional({
@@ -137,14 +142,15 @@ export class UpdateProductDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description: 'Güncellenecek barkod',
+    description: 'Güncellenecek barkod. Boş/null = barkodsuz ürün.',
     example: '8680001122334',
-    required: false,
+    nullable: true,
   })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== '')
   @IsString()
   @MinLength(1)
-  barcode?: string;
+  barcode?: string | null;
 
   @ApiPropertyOptional({
     description: 'SKU kodu',
@@ -197,6 +203,32 @@ export class UpdateProductDto {
   isActive?: boolean;
 
   @ApiPropertyOptional({
+    enum: ['BARCODE', 'SKU', 'MANUAL'],
+    description: 'Ürün bazlı eşleştirme yöntemi; null = platform/org varsayılanı',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsIn(['BARCODE', 'SKU', 'MANUAL'])
+  productMatchKey?: 'BARCODE' | 'SKU' | 'MANUAL' | null;
+
+  @ApiPropertyOptional({
+    description: 'Stok push; null = platform varsayılanı, false = kapalı',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  pushStockEnabled?: boolean | null;
+
+  @ApiPropertyOptional({
+    description: 'Fiyat push; null = platform varsayılanı, false = kapalı',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  pushPriceEnabled?: boolean | null;
+
+  @ApiPropertyOptional({
     description: 'Maliyet fiyatı (TL)',
     example: 45,
     minimum: 0,
@@ -206,6 +238,7 @@ export class UpdateProductDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(PRODUCT_COST_PRICE_MAX)
   costPrice?: number;
 
   @ApiPropertyOptional({

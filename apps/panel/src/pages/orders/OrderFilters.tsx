@@ -3,6 +3,7 @@ import { tr } from 'date-fns/locale';
 import { CalendarIcon, ChevronDown, Filter } from 'lucide-react';
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,12 +17,25 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { ORDER_STATUS_LABEL_TR } from '@/lib/order-status';
+import { INVOICE_STATUS_OPTIONS } from '@/pages/invoices/invoice-utils';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
+import {
+  hasActiveOrderInvoiceFilters,
+  type OrderInvoiceLinkFilter,
+} from '@/pages/orders/order-invoice-filter';
 import type { OrderFilters as OrderFiltersState, OrderStatus } from '@/types/order';
 
 interface Props {
   filters: OrderFiltersState;
   onChange: (next: OrderFiltersState) => void;
+  /** Yerel ön muhasebe (NATIVE) dışında fatura filtreleri gösterilmez. */
+  showInvoiceFilters?: boolean;
+  invoiceLink?: string;
+  invoiceStatus?: string;
+  onInvoiceFilterChange?: (patch: {
+    invoiceLink?: string;
+    invoiceStatus?: string;
+  }) => void;
 }
 
 const DEFAULT_LIMIT = 20;
@@ -38,7 +52,12 @@ function parseCsv(csv: string | undefined): string[] {
     .filter(Boolean);
 }
 
-function countActiveOrderFilters(f: OrderFiltersState): number {
+function countActiveOrderFilters(
+  f: OrderFiltersState,
+  invoiceLink = 'all',
+  invoiceStatus = 'all',
+  includeInvoice = false,
+): number {
   let n = 0;
   if (f.platforms?.trim() || f.platform) {
     n += 1;
@@ -58,10 +77,27 @@ function countActiveOrderFilters(f: OrderFiltersState): number {
   if (f.minTotal !== undefined || f.maxTotal !== undefined) {
     n += 1;
   }
+  if (includeInvoice && hasActiveOrderInvoiceFilters(invoiceLink, invoiceStatus)) {
+    n += 1;
+  }
   return n;
 }
 
-export function OrderFilters({ filters, onChange }: Props): ReactElement {
+const INVOICE_LINK_OPTIONS: { value: OrderInvoiceLinkFilter; labelKey: string }[] = [
+  { value: 'all', labelKey: 'orders.filters.invoiceLinkAll' },
+  { value: 'linked', labelKey: 'orders.filters.invoiceLinkWith' },
+  { value: 'unlinked', labelKey: 'orders.filters.invoiceLinkWithout' },
+];
+
+export function OrderFilters({
+  filters,
+  onChange,
+  showInvoiceFilters = false,
+  invoiceLink = 'all',
+  invoiceStatus = 'all',
+  onInvoiceFilterChange,
+}: Props): ReactElement {
+  const { t } = useTranslation();
   const [startOpen, setStartOpen] = useState(false);
   const [endOpen, setEndOpen] = useState(false);
 
@@ -74,7 +110,16 @@ export function OrderFilters({ filters, onChange }: Props): ReactElement {
     [filters.statuses],
   );
 
-  const activeCount = useMemo(() => countActiveOrderFilters(filters), [filters]);
+  const activeCount = useMemo(
+    () =>
+      countActiveOrderFilters(
+        filters,
+        invoiceLink,
+        invoiceStatus,
+        showInvoiceFilters,
+      ),
+    [filters, invoiceLink, invoiceStatus, showInvoiceFilters],
+  );
 
   const setField = <K extends keyof OrderFiltersState>(
     key: K,
@@ -326,6 +371,48 @@ export function OrderFilters({ filters, onChange }: Props): ReactElement {
             }
           />
         </div>
+
+        {showInvoiceFilters ? (
+          <>
+            <div className="grid gap-2 min-w-[180px]">
+              <Label htmlFor="order-invoice-link">{t('orders.filters.invoiceLink')}</Label>
+              <select
+                id="order-invoice-link"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                value={invoiceLink}
+                onChange={(e) => {
+                  onInvoiceFilterChange?.({ invoiceLink: e.target.value });
+                }}
+              >
+                {INVOICE_LINK_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="grid gap-2 min-w-[180px]">
+              <Label htmlFor="order-invoice-status">
+                {t('orders.filters.invoiceStatus')}
+              </Label>
+              <select
+                id="order-invoice-status"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                value={invoiceStatus}
+                onChange={(e) => {
+                  onInvoiceFilterChange?.({ invoiceStatus: e.target.value });
+                }}
+              >
+                <option value="all">{t('orders.filters.invoiceStatusAll')}</option>
+                {INVOICE_STATUS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

@@ -19,8 +19,8 @@ const footerColumns: {
   {
     title: 'Şirket',
     links: [
-      { href: '#', label: 'Hakkımızda' },
-      { href: '#', label: 'Kariyer' },
+      { href: '/features', label: 'Hakkımızda' },
+      { href: '/contact', label: 'Kariyer' },
       { href: '/faq', label: 'SSS' },
       { href: '/contact', label: 'İletişim' },
     ],

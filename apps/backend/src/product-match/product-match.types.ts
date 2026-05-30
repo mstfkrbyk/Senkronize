@@ -11,7 +11,7 @@ export interface MatchResult {
 export interface SimilarProduct {
   id: string;
   name: string;
-  barcode: string;
+  barcode: string | null;
   sku: string | null;
   confidence: number;
 }

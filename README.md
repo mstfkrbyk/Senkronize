@@ -52,6 +52,48 @@ pnpm dev
 | `pnpm db:migrate` | Prisma migrasyon uygula |
 | `pnpm db:studio` | Prisma Studio aç |
 
+## Demo Hesapları (geliştirme)
+
+Yalnızca local/dev ortamı için. Üretimde kullanmayın. Kaynak: `apps/backend/prisma/seed.ts`.
+
+### Seed
+
+Örnek org'lar, ürünler, siparişler ve muhasebe verileri yüklemek için:
+
+```bash
+cd apps/backend && SEED_DEMO=true pnpm seed
+```
+
+`demo-external-erp` için Paraşüt stub bağlantısı seed sırasında oluşturulur; `.env` içinde geçerli bir `ENCRYPTION_KEY` tanımlı olmalıdır. Tanımlı değilse hesaba giriş yapılabilir, ERP bağlantısını panelden manuel eklemeniz gerekir.
+
+Panel giriş sayfasında hızlı demo hesap butonları için kök `.env` veya `apps/panel/.env` dosyasına `VITE_DEMO_MODE=true` ekleyin ve paneli yeniden başlatın.
+
+### Giriş tablosu
+
+| Org slug | productLines | accountingMode | Giriş e-postası | Şifre (dev) |
+|----------|--------------|----------------|-----------------|-------------|
+| demo-partner | BUNDLE | — | partner@partner.com | Partner2026! |
+| demo-partner-musteri | BUNDLE | NATIVE | demo-partner-musteri@senkronize.com | demo123456 |
+| demo-partner-musteri-2 | INTEGRATION | — | demo-magaza2@senkronize.com | demo123456 |
+| demo-muhasebe | ACCOUNTING | NATIVE | demo-muhasebe@senkronize.com | demo123456 |
+| demo-entegrasyon | INTEGRATION | — | demo-entegrasyon@senkronize.com | demo123456 |
+| demo-paket | BUNDLE | NATIVE | demo-paket@senkronize.com | demo123456 |
+| demo-external-erp | BUNDLE | EXTERNAL_ERP | demo-external-erp@senkronize.com | demo123456 |
+
+**productLines:** `INTEGRATION` · `ACCOUNTING` · `BUNDLE` (entegrasyon + muhasebe)  
+**accountingMode:** `NATIVE` (yerel muhasebe) · `EXTERNAL_ERP` · `—` (muhasebe hattı yok)
+
+`SEED_DEMO=true` iken örnek veri:
+
+- `demo-entegrasyon` — 30 sipariş (ENT önek)
+- `demo-paket` — 12 sipariş (PKG önek)
+- `demo-external-erp` — 12 sipariş (HEX önek); yerel fatura yok (harici ERP)
+- `demo-muhasebe` / `demo-paket` / `demo-partner-musteri` — muhasebe (fatura, cari)
+- `demo-partner-musteri` — entegrasyon + muhasebe
+- `demo-partner-musteri-2` — hafif entegrasyon
+
+Ayrı demo Docker yığını için: `make demo-up` / `scripts/setup-demo.sh` (`demo@senkronize.com` / `Demo2024!` — `seed-demo.ts`).
+
 ## Mimari
 
 ```

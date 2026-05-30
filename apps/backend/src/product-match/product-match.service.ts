@@ -1,6 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Listing, Marketplace } from '@prisma/client';
+import type { MarketplaceListing } from '@senkronize/shared';
 
+import {
+  buildProductWhereForListingMatch,
+  resolveListingMatchIdentifiers,
+} from '../common/product-match-key';
+import { ProductMatchKeyService } from '../common/product-match-key.service';
+import type { ProductMatchKey } from '../common/product-match-key';
 import { PrismaService } from '../prisma/prisma.service';
 
 import type { ManualProductMatchDto } from './product-match.dto';
@@ -72,11 +79,54 @@ function matchKey(platform: Marketplace, barcode: string): string {
 
 @Injectable()
 export class ProductMatchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly productMatchKeyService: ProductMatchKeyService,
+  ) {}
 
   async autoMatchByBarcode(organizationId: string): Promise<MatchResult> {
+    return this.autoMatchListings(organizationId, undefined, undefined, {
+      createMissing: true,
+    });
+  }
+
+  /** Platform çekimi veya ERP sync sonrası listelemeleri katalog ürünleriyle eşleştirir */
+  async autoMatchListings(
+    organizationId: string,
+    platform?: Marketplace,
+    pulledListings?: MarketplaceListing[],
+    options?: { createMissing?: boolean },
+  ): Promise<MatchResult> {
+    const createMissing = options?.createMissing ?? false;
+    const platformSkuByProductId = new Map<string, string>();
+    if (pulledListings) {
+      for (const row of pulledListings) {
+        const sku = row.platformSku?.trim();
+        if (sku && sku.length > 0) {
+          platformSkuByProductId.set(row.platformProductId, sku);
+        }
+      }
+    }
+
+    const platformKeys =
+      await this.productMatchKeyService.loadMarketplaceConnectionKeys(organizationId);
+    const orgKey = await this.productMatchKeyService.loadOrgMatchKey(organizationId);
+    if (orgKey === null) {
+      return {
+        listingsProcessed: 0,
+        listingsLinked: 0,
+        newProductsCreated: 0,
+        newMatchesCreated: 0,
+        alreadyInSync: 0,
+      };
+    }
+
     const listings = await this.prisma.listing.findMany({
-      where: { organizationId, deletedAt: null },
+      where: {
+        organizationId,
+        deletedAt: null,
+        ...(platform ? { platform } : {}),
+      },
     });
 
     let listingsLinked = 0;
@@ -85,7 +135,20 @@ export class ProductMatchService {
     let alreadyInSync = 0;
 
     for (const listing of listings) {
-      const r = await this.ensureListingMatchedTx(organizationId, listing);
+      const matchKey =
+        platformKeys.get(listing.platform) ??
+        orgKey;
+      if (matchKey === null) {
+        continue;
+      }
+      const platformSku = platformSkuByProductId.get(listing.platformProductId);
+      const r = await this.ensureListingMatchedTx(
+        organizationId,
+        listing,
+        matchKey,
+        platformSku,
+        createMissing,
+      );
       if (r === 'linked') {
         listingsLinked += 1;
         newMatchesCreated += 1;
@@ -109,10 +172,13 @@ export class ProductMatchService {
     };
   }
 
-  /** Tek listeleme için barkod eşlemesi (transaction) */
+  /** Tek listeleme için eşleme (transaction) */
   private async ensureListingMatchedTx(
     organizationId: string,
     listing: Listing,
+    matchKey: ProductMatchKey,
+    platformSku?: string,
+    createMissing = false,
   ): Promise<'noop' | 'synced' | 'linked' | 'created' | 'linked_existing_match'> {
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.productMatch.findFirst({
@@ -135,13 +201,24 @@ export class ProductMatchService {
         return 'linked_existing_match';
       }
 
-      const product = await tx.product.findFirst({
-        where: {
-          organizationId,
-          barcode: listing.barcode,
-          deletedAt: null,
-        },
-      });
+      if (matchKey === 'MANUAL') {
+        return 'noop';
+      }
+
+      const identifiers = resolveListingMatchIdentifiers(listing, platformSku);
+      const productWhere = buildProductWhereForListingMatch(
+        organizationId,
+        matchKey,
+        identifiers,
+      );
+      const product = productWhere
+        ? await tx.product.findFirst({ where: productWhere })
+        : null;
+
+      const matchedSku =
+        matchKey === 'SKU'
+          ? (platformSku?.trim() || identifiers.sku || listing.barcode)
+          : null;
 
       if (product) {
         await tx.productMatch.create({
@@ -150,7 +227,7 @@ export class ProductMatchService {
             masterProductId: product.id,
             platformBarcode: listing.barcode,
             platform: listing.platform,
-            platformSku: null,
+            platformSku: matchedSku,
             confidence: 1,
             isConfirmed: false,
           },
@@ -162,12 +239,18 @@ export class ProductMatchService {
         return 'linked';
       }
 
+      if (!createMissing) {
+        return 'noop';
+      }
+
+      const newProductSku =
+        matchKey === 'SKU' ? matchedSku : null;
       const newProduct = await tx.product.create({
         data: {
           organizationId,
-          barcode: listing.barcode,
+          barcode: matchKey === 'SKU' ? null : listing.barcode,
           name: listing.title,
-          sku: null,
+          sku: newProductSku,
           imageUrls: listing.imageUrls,
           isActive: true,
         },
@@ -179,7 +262,7 @@ export class ProductMatchService {
           masterProductId: newProduct.id,
           platformBarcode: listing.barcode,
           platform: listing.platform,
-          platformSku: null,
+          platformSku: matchedSku,
           confidence: 1,
           isConfirmed: false,
         },
@@ -420,7 +503,9 @@ export class ProductMatchService {
     );
 
     const unmatched = listings.filter(
-      (l) => !matchSet.has(matchKey(l.platform, l.barcode)),
+      (l) =>
+        !matchSet.has(matchKey(l.platform, l.barcode)) &&
+        l.productId === null,
     );
 
     return unmatched.map((l) => ({

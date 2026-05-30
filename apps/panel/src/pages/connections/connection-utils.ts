@@ -1,5 +1,6 @@
 import { ECOMMERCE_MARKETPLACE_IDS } from '@/lib/connection-form-fields';
 import type { ErpConnectionDto } from '@/hooks/useErpConnections';
+import { erpConnectionDisplayName } from '@/lib/erp-connection-display';
 import type { ConnectionHealthDto, ConnectionHealthStatus, CircuitBreakerState } from '@/types/connection-health';
 import type { MarketplaceConnectionDto } from '@/types/connection';
 import type { SyncLogEntry } from '@/types/sync-log';
@@ -158,7 +159,7 @@ export function erpToRow(
     id: c.id,
     kind: 'erp',
     platform: c.erpType,
-    name: c.accountLabel ?? c.erpType,
+    name: erpConnectionDisplayName(c),
     isActive: c.isActive,
     lastSyncAt: c.lastSyncAt,
     syncErrorCount: c.syncErrorCount,
@@ -185,6 +186,13 @@ const ERP_FREQUENCY_LABELS: Record<string, string> = {
   EVERY_4_HOURS: '4 saat',
   DAILY: 'Günlük',
 };
+
+export function erpSyncScheduleLabel(erpType: string | undefined): string {
+  if (erpType === 'BIZIMHESAP') {
+    return 'Otomatik (~6 dk, saatte 10 istek)';
+  }
+  return 'Otomatik (platform)';
+}
 
 export function erpSyncFrequencyLabel(frequency: string | undefined): string {
   if (!frequency) {

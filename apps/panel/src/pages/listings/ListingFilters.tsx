@@ -35,6 +35,7 @@ interface Props {
   onChange: (next: ListingFiltersState) => void;
   searchInput?: string;
   onSearchInputChange?: (value: string) => void;
+  showBuyBoxFilter?: boolean;
 }
 
 const DEFAULT_LIMIT = 20;
@@ -111,6 +112,7 @@ export function ListingFilters({
   onChange,
   searchInput,
   onSearchInputChange,
+  showBuyBoxFilter = false,
 }: Props): ReactElement {
   const [syncFromOpen, setSyncFromOpen] = useState(false);
   const [syncToOpen, setSyncToOpen] = useState(false);
@@ -258,29 +260,31 @@ export function ListingFilters({
           </Select>
         </div>
 
-        <div className="grid gap-2 md:min-w-[180px]">
-          <Label htmlFor="listing-buybox-status">BuyBox durumu</Label>
-          <Select
-            value={filters.buyBoxStatus ?? 'ALL'}
-            onValueChange={(v) =>
-              setField(
-                'buyBoxStatus',
-                v === 'ALL' ? undefined : (v as BuyBoxStatusFilter),
-              )
-            }
-          >
-            <SelectTrigger id="listing-buybox-status">
-              <SelectValue placeholder="Tümü" />
-            </SelectTrigger>
-            <SelectContent>
-              {BUYBOX_STATUS_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {showBuyBoxFilter ? (
+          <div className="grid gap-2 md:min-w-[180px]">
+            <Label htmlFor="listing-buybox-status">BuyBox durumu</Label>
+            <Select
+              value={filters.buyBoxStatus ?? 'ALL'}
+              onValueChange={(v) =>
+                setField(
+                  'buyBoxStatus',
+                  v === 'ALL' ? undefined : (v as BuyBoxStatusFilter),
+                )
+              }
+            >
+              <SelectTrigger id="listing-buybox-status">
+                <SelectValue placeholder="Tümü" />
+              </SelectTrigger>
+              <SelectContent>
+                {BUYBOX_STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
 
         <div className="grid gap-2 md:min-w-[180px]">
           <Label htmlFor="listing-stock-tier">Stok durumu</Label>

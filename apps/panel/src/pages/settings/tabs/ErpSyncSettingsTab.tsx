@@ -1,31 +1,30 @@
 import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useErpConnections } from '@/hooks/useErpConnections';
-import { getApiErrorMessage } from '@/lib/api';
 import { getErpBranding } from '@/pages/connections/erp-display';
+import { OrderAutoInvoiceSettingsCard } from '@/pages/settings/components/OrderAutoInvoiceSettingsCard';
 
 export function ErpSyncSettingsTab(): ReactElement {
   const { t } = useTranslation();
-  const { data: connections, isLoading, isError, error } = useErpConnections();
+  const { data: connections, isLoading, isError, error, refetch } = useErpConnections();
   const activeConnections = (connections ?? []).filter((c) => c.isActive);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <SettingsPageShell
+      title="ERP Senkronizasyon Ayarları"
+      description="Harici ERP programınızla senkronizasyon davranışını yapılandırın."
+    >
+      <OrderAutoInvoiceSettingsCard showExternalLink />
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-muted-foreground" aria-hidden />
-            {t('settings.erpSyncTitle')}
-          </CardTitle>
-          <CardDescription>{t('settings.erpSyncHint')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <Button asChild variant="default">
             <Link to="/connections?tab=erp">
               {t('settings.erpSyncOpenConnections')}
@@ -48,7 +47,12 @@ export function ErpSyncSettingsTab(): ReactElement {
             </>
           ) : null}
           {isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(error)}</p>
+            <QueryErrorAlert
+              error={error}
+              onRetry={() => {
+                void refetch();
+              }}
+            />
           ) : null}
           {!isLoading && !isError && activeConnections.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('settings.erpSyncEmpty')}</p>
@@ -86,6 +90,6 @@ export function ErpSyncSettingsTab(): ReactElement {
             : null}
         </CardContent>
       </Card>
-    </div>
+    </SettingsPageShell>
   );
 }

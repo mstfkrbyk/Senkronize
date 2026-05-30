@@ -1,5 +1,9 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { tr } from 'date-fns/locale';
+import { UserPlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { toast } from 'sonner';
@@ -19,6 +23,7 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +56,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { api, getApiErrorMessage } from '@/lib/api';
@@ -69,23 +75,28 @@ const inviteSchema = z.object({
 
 type InviteForm = z.infer<typeof inviteSchema>;
 
-function roleLabel(role: string): string {
-  const map: Record<string, string> = {
-    OWNER: 'Sahip',
-    ADMIN: 'Admin',
-    MANAGER: 'Yönetici',
-    VIEWER: 'Görüntüleyici',
-    SUPER_ADMIN: 'Sistem yöneticisi',
-  };
-  return map[role] ?? role;
-}
-
 function initials(name: string, email: string): string {
   const n = name.trim();
   if (n.length >= 2) {
     return n.slice(0, 2).toUpperCase();
   }
   return email.slice(0, 2).toUpperCase();
+}
+
+function formatLastActivity(iso: string): string {
+  return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: tr });
+}
+
+function MemberRoleBadge({ role, label }: { role: string; label: string }): ReactElement {
+  if (role === 'SUPER_ADMIN') {
+    return (
+      <Badge className="border-primary/20 bg-primary/10 text-primary">{label}</Badge>
+    );
+  }
+  if (role === 'ADMIN' || role === 'OWNER') {
+    return <Badge variant="secondary">{label}</Badge>;
+  }
+  return <Badge variant="outline">{label}</Badge>;
 }
 
 interface UserInviteRow {
@@ -99,8 +110,12 @@ interface UserInviteRow {
 type OrgMember = OrgUser & { lastActivityAt: string };
 
 export function TeamMembersTab(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { data: me } = useAuth();
+
+  const roleLabel = (role: string): string =>
+    t(`settings.roles.${role}`, { defaultValue: role });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -243,6 +258,7 @@ export function TeamMembersTab(): ReactElement {
           ) : null}
           {canManageInvites ? (
             <Button type="button" onClick={() => setInviteOpen(true)}>
+              <UserPlus className="mr-2 h-4 w-4" aria-hidden />
               Üye davet et
             </Button>
           ) : null}
@@ -250,14 +266,25 @@ export function TeamMembersTab(): ReactElement {
       </div>
 
       {usersQuery.isLoading ? (
-        <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
+        <Card>
+          <CardContent className="space-y-2 pt-6">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
       ) : null}
 
       {usersQuery.isError ? (
-        <p className="text-sm text-destructive">{getApiErrorMessage(usersQuery.error)}</p>
+        <Card>
+          <CardContent className="pt-6">
+            <QueryErrorAlert
+              error={usersQuery.error}
+              onRetry={() => {
+                void usersQuery.refetch();
+              }}
+            />
+          </CardContent>
+        </Card>
       ) : null}
 
       {!usersQuery.isLoading && !usersQuery.isError && usersQuery.data?.length === 0 ? (
@@ -302,10 +329,13 @@ export function TeamMembersTab(): ReactElement {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary">{roleLabel(u.role)}</Badge>
+                      <MemberRoleBadge role={u.role} label={roleLabel(u.role)} />
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(u.lastActivityAt).toLocaleString('tr-TR')}
+                    <TableCell
+                      className="text-sm text-muted-foreground"
+                      title={new Date(u.lastActivityAt).toLocaleString('tr-TR')}
+                    >
+                      {formatLastActivity(u.lastActivityAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
@@ -326,9 +356,9 @@ export function TeamMembersTab(): ReactElement {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="ADMIN">Admin</SelectItem>
-                              <SelectItem value="MANAGER">Yönetici</SelectItem>
-                              <SelectItem value="VIEWER">Görüntüleyici</SelectItem>
+                              <SelectItem value="ADMIN">{t('settings.roles.ADMIN')}</SelectItem>
+                              <SelectItem value="MANAGER">{t('settings.roles.MANAGER')}</SelectItem>
+                              <SelectItem value="VIEWER">{t('settings.roles.VIEWER')}</SelectItem>
                             </SelectContent>
                           </Select>
                         ) : (
@@ -362,7 +392,12 @@ export function TeamMembersTab(): ReactElement {
           </p>
           {invitesQuery.isLoading ? <Skeleton className="h-10 w-full" /> : null}
           {invitesQuery.isError ? (
-            <p className="text-sm text-destructive">{getApiErrorMessage(invitesQuery.error)}</p>
+            <QueryErrorAlert
+              error={invitesQuery.error}
+              onRetry={() => {
+                void invitesQuery.refetch();
+              }}
+            />
           ) : null}
           {!invitesQuery.isLoading &&
           !invitesQuery.isError &&
@@ -454,9 +489,9 @@ export function TeamMembersTab(): ReactElement {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="ADMIN">Admin</SelectItem>
-                        <SelectItem value="MANAGER">Yönetici</SelectItem>
-                        <SelectItem value="VIEWER">Görüntüleyici</SelectItem>
+                        <SelectItem value="ADMIN">{t('settings.roles.ADMIN')}</SelectItem>
+                        <SelectItem value="MANAGER">{t('settings.roles.MANAGER')}</SelectItem>
+                        <SelectItem value="VIEWER">{t('settings.roles.VIEWER')}</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

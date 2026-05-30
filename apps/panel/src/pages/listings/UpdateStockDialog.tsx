@@ -1,7 +1,8 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { UseMutationResult } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +15,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FORM_MESSAGES } from '@/lib/form-messages';
+import { cn } from '@/lib/utils';
 import type { Listing } from '@/types/listing';
 
 interface Props {
@@ -34,19 +37,42 @@ export function UpdateStockDialog({
   mutation,
 }: Props): ReactElement {
   const [quantity, setQuantity] = useState('');
+  const [quantityError, setQuantityError] = useState<string | null>(null);
 
   useEffect(() => {
     if (listing && open) {
       setQuantity(String(listing.quantity));
+      setQuantityError(null);
     }
   }, [listing, open]);
+
+  const parsedQuantity = useMemo(() => {
+    const raw = quantity.trim();
+    if (raw === '') {
+      return null;
+    }
+    const qty = Number(raw);
+    if (Number.isNaN(qty) || qty < 0 || !Number.isInteger(qty)) {
+      return null;
+    }
+    return qty;
+  }, [quantity]);
 
   const handleSubmit = (): void => {
     if (!listing) {
       return;
     }
-    const qty = Number(quantity);
-    if (Number.isNaN(qty) || qty < 0) {
+    setQuantityError(null);
+    const raw = quantity.trim();
+    if (raw === '') {
+      setQuantityError(FORM_MESSAGES.required);
+      toast.error(FORM_MESSAGES.required);
+      return;
+    }
+    const qty = Number(raw);
+    if (Number.isNaN(qty) || qty < 0 || !Number.isInteger(qty)) {
+      setQuantityError('Geçerli bir tam sayı girin (0 veya üzeri).');
+      toast.error('Geçerli bir tam sayı girin (0 veya üzeri).');
       return;
     }
     mutation.mutate(
@@ -76,11 +102,17 @@ export function UpdateStockDialog({
               type="number"
               min={0}
               step={1}
+              aria-invalid={Boolean(quantityError)}
+              className={cn(quantityError && 'border-destructive')}
               value={quantity}
               onChange={(e) => {
                 setQuantity(e.target.value);
+                setQuantityError(null);
               }}
             />
+            {quantityError ? (
+              <p className="text-destructive text-sm">{quantityError}</p>
+            ) : null}
           </div>
         </div>
         <DialogFooter>
@@ -95,7 +127,9 @@ export function UpdateStockDialog({
           </Button>
           <Button
             type="button"
-            disabled={mutation.isPending || !listing}
+            disabled={
+              mutation.isPending || !listing || parsedQuantity === null
+            }
             onClick={handleSubmit}
           >
             {mutation.isPending ? 'Güncelleniyor…' : 'Güncelle'}

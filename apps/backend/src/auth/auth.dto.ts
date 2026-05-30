@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OrgType, PlanTier } from '@prisma/client';
+import { AccountingMode, OrgType, PlanTier } from '@prisma/client';
 import type { ProductSelection } from '../common/product-lines';
 import { Type } from 'class-transformer';
 import {
@@ -166,6 +166,20 @@ export class RegisterDto {
   @IsOptional()
   @IsIn(['ACCOUNTING', 'INTEGRATION', 'BUNDLE'])
   productSelection?: ProductSelection;
+
+  @ApiPropertyOptional({
+    description:
+      'BUNDLE veya ACCOUNTING kayıtta muhasebe yönetim yeri: NATIVE veya EXTERNAL_ERP (ACCOUNTING seçimsiz → NATIVE)',
+    enum: AccountingMode,
+    enumName: 'AccountingMode',
+    example: AccountingMode.NATIVE,
+    required: false,
+  })
+  @IsOptional()
+  @IsEnum(AccountingMode, {
+    message: 'accountingMode NATIVE veya EXTERNAL_ERP olmalıdır.',
+  })
+  accountingMode?: AccountingMode;
 }
 
 export class RecommendPlanDto {
@@ -268,6 +282,26 @@ export class ForgotPasswordDto {
   })
   @IsEmail()
   email: string;
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({
+    description: 'E-posta ile gönderilen şifre sıfırlama tokeni',
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+
+  @ApiProperty({
+    description: 'Belirlenecek yeni şifre',
+    example: 'YeniSifre456!',
+    required: true,
+  })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  newPassword: string;
 }
 
 export class ChangePasswordDto {

@@ -1,11 +1,14 @@
 import type { ReactElement } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -15,6 +18,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,6 +34,18 @@ const profileSchema = z.object({
 
 type ProfileForm = z.infer<typeof profileSchema>;
 
+function initials(name: string, email: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+  }
+  const n = name.trim();
+  if (n.length >= 2) {
+    return n.slice(0, 2).toUpperCase();
+  }
+  return email.slice(0, 2).toUpperCase();
+}
+
 function roleLabel(role: string): string {
   const map: Record<string, string> = {
     OWNER: 'Sahip',
@@ -42,10 +58,11 @@ function roleLabel(role: string): string {
 
 export function ProfileTab(): ReactElement {
   const queryClient = useQueryClient();
-  const { data: me, isLoading, isError, error } = useAuth();
+  const { data: me, isLoading, isError, error, refetch } = useAuth();
 
   const profileForm = useForm<ProfileForm>({
     resolver: zodFormResolver(profileSchema),
+    mode: 'onChange',
     defaultValues: { name: '' },
   });
 
@@ -67,21 +84,41 @@ export function ProfileTab(): ReactElement {
     profileForm.reset({ name: me.user.name });
   }, [me, profileForm]);
 
+  const avatarInitials = useMemo(() => {
+    if (!me) {
+      return '??';
+    }
+    return initials(me.user.name, me.user.email);
+  }, [me]);
+
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </CardContent>
+      </Card>
     );
   }
 
   if (isError || !me) {
     return (
-      <p className="text-sm text-destructive">
-        {getApiErrorMessage(error ?? new Error('Profil yüklenemedi.'))}
-      </p>
+      <Card>
+        <CardContent className="pt-6">
+          <QueryErrorAlert
+            error={error ?? new Error('Profil yüklenemedi.')}
+            onRetry={
+              isError
+                ? () => {
+                    void refetch();
+                  }
+                : undefined
+            }
+          />
+        </CardContent>
+      </Card>
     );
   }
 
@@ -92,6 +129,19 @@ export function ProfileTab(): ReactElement {
         <p className="text-sm text-muted-foreground">
           Hesap bilgilerinizi görüntüleyin ve güncelleyin.
         </p>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <Avatar className="h-16 w-16 border-2 border-border">
+          <AvatarFallback className="bg-sky-100 text-base font-semibold text-sky-900 dark:bg-sky-950 dark:text-sky-100">
+            {avatarInitials}
+          </AvatarFallback>
+        </Avatar>
+        <div className="space-y-1">
+          <p className="font-medium text-foreground">{me.user.name}</p>
+          <p className="text-sm text-muted-foreground">{me.user.email}</p>
+          <Badge variant="secondary">{roleLabel(me.user.role)}</Badge>
+        </div>
       </div>
 
       <Form {...profileForm}>
@@ -122,7 +172,14 @@ export function ProfileTab(): ReactElement {
             <label className="text-sm font-medium">Rol</label>
             <Input value={roleLabel(me.user.role)} readOnly />
           </div>
-          <Button type="submit" disabled={updateProfile.isPending}>
+          <Button
+            type="submit"
+            disabled={
+              updateProfile.isPending ||
+              !profileForm.formState.isValid ||
+              !profileForm.formState.isDirty
+            }
+          >
             {updateProfile.isPending ? 'Kaydediliyor…' : 'Profili kaydet'}
           </Button>
         </form>

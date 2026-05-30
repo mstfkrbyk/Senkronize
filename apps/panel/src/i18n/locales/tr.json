@@ -14,6 +14,7 @@
     "stockCountBarcode": "Sayım / Barkod",
     "stockTransfer": "Transferler",
     "pricing": "Fiyatlandırma",
+    "priceAnalysis": "Fiyat analizi",
     "campaigns": "Kampanyalar",
     "analytics": "Analitik",
     "reports": "Raporlar",
@@ -24,23 +25,40 @@
     "syncConflicts": "Çakışmalar",
     "notifications": "Bildirimler",
     "support": "Destek",
-    "auditLogs": "Aktivite Geçmişi",
+    "auditLogs": "Denetim kayıtları",
     "migration": "Geçiş sihirbazı",
+    "migrationShort": "Geçiş",
+    "migrationHistory": "Geçmiş",
     "partner": "Partner Paneli",
+    "partnerDashboard": "Müşterilerim",
+    "partnerClients": "Müşteriler",
+    "partnerCommission": "Komisyon",
     "settings": "Ayarlar",
+    "security": "Güvenlik",
     "suppliers": "Tedarikçiler",
     "purchaseOrders": "Satın Alma Siparişleri",
     "supply": "Tedarik",
     "returns": "İadeler",
     "shipping": "Kargo",
     "accountingOverview": "Ön Muhasebe Özeti",
+    "accountingOverviewShort": "Özet",
     "invoices": "Faturalar",
     "customers": "Müşteriler",
     "ecommerce": "E-Ticaret",
     "accounting": "Ön Muhasebe",
     "nativeAccounting": "Ön Muhasebe",
-    "externalErp": "ERP Entegrasyonu",
+    "externalErp": "Entegrasyonlar",
+    "common": "Ortak",
+    "groupHint": {
+      "ecommerce": {
+        "native": "Pazaryeri operasyonları: sipariş, ilan, fiyat. Yerel modda stok «Ön Muhasebe» grubundadır; bağlantı ve senkron burada.",
+        "externalErp": "Pazaryeri operasyonları: sipariş, stok, ilan, fiyat. Harici ERP modunda bağlantı ve senkron «Entegrasyonlar» grubundadır."
+      },
+      "nativeAccounting": "Yerel ön muhasebe: fatura, cari, KDV, raporlar ve yerel stok (depo, hareket, transfer, sayım). Ön muhasebe panelde kullanıldığında görünür.",
+      "externalErp": "Pazaryeri, e-ticaret, kargo ve ERP bağlantıları; senkron günlükleri ve aktarım ayarları."
+    },
     "erpConnections": "ERP Bağlantıları",
+    "bottomNavAria": "Mobil gezinme",
     "menu": "Menü",
     "live": "canlı",
     "adminPanel": "Admin Panel →",
@@ -86,12 +104,16 @@
     "yes": "Evet",
     "no": "Hayır",
     "previous": "Önceki",
-    "retry": "Tekrar dene"
+    "retry": "Tekrar dene",
+    "loadErrorTitle": "Veri yüklenemedi"
   },
   "products": {
     "title": "Ürünler",
     "catalogTitle": "Ürün Kataloğu",
-    "subtitle": "Merkezi ürün kayıtları ve varyantlar",
+    "subtitle": "Katalog, stok durumu ve depo işlemleri tek panelde",
+    "tabs": {
+      "catalog": "Katalog"
+    },
     "add": "Ürün Ekle",
     "search": "Ürün ara...",
     "name": "Ad",
@@ -102,6 +124,15 @@
     "category": "Kategori",
     "brand": "Marka",
     "cost": "Maliyet",
+    "costSaved": "Maliyet fiyatı kaydedildi",
+    "pushSettings": {
+      "title": "Platform senkronu",
+      "description": "Bu ürün için stok ve fiyat push'unu tek tek kapatabilirsiniz. Kapalıyken bağlantı ayarı geçerli olmaz.",
+      "stock": "Stok push",
+      "stockHint": "Kapalıysa eşleşen ilanlara stok gönderilmez.",
+      "price": "Fiyat push",
+      "priceHint": "Kapalıysa fiyat güncellemeleri gönderilmez."
+    },
     "import": "Ürün İçe Aktar",
     "export": "Ürün Dışa Aktar",
     "bulkEdit": "Toplu Düzenle",
@@ -115,6 +146,8 @@
     "importAction": "İçe aktar",
     "openConnections": "Bağlantıları aç",
     "pageOf": "Sayfa {{page}} / {{total}}",
+    "loadedCount": "{{loaded}} / {{total}} ürün gösteriliyor",
+    "allLoaded": "Tüm ürünler yüklendi",
     "detailTitle": "Ürün detayı",
     "backToCatalog": "Kataloga dön",
     "draft": "Taslak",
@@ -176,6 +209,56 @@
       }
     }
   },
+  "productMatching": {
+    "description": "Pazaryeri ve ERP ürünlerinizi merkezi katalogla eşleştirin.",
+    "autoMatch": "Otomatik Eşleştir",
+    "matchKey": {
+      "title": "Eşleştirme anahtarı",
+      "description": "ERP ve pazaryeri sync'inde ürünlerin nasıl eşleneceğini belirler. Organizasyon varsayılanını kurulumda seçersiniz; platform veya ürün bazında geçersiz kılabilirsiniz.",
+      "label": "Eşleştirme yöntemi",
+      "saved": "Eşleştirme yöntemi kaydedildi.",
+      "notConfigured": "Seçilmedi",
+      "inheritOrg": "Organizasyon varsayılanı ({{method}})",
+      "hierarchy": "Öncelik: ürün → platform bağlantısı → organizasyon varsayılanı",
+      "onboardingTitle": "Ürün eşleştirme yöntemi",
+      "onboardingDescription": "ERP ve pazaryerinden gelen ürünleri katalogla nasıl eşleyeceğinizi seçin. Bu ayarı daha sonra platform veya ürün bazında değiştirebilirsiniz.",
+      "platformTitle": "Platform eşleştirmesi",
+      "platformDescription": "Bu bağlantı için organizasyon varsayılanından farklı bir yöntem kullanın.",
+      "productTitle": "Ürün eşleştirmesi",
+      "productDescription": "Bu ürün için varsayılandan farklı bir eşleştirme yöntemi.",
+      "options": {
+        "BARCODE": "Barkod",
+        "SKU": "SKU / stok kodu",
+        "MANUAL": "Manuel"
+      },
+      "hint": {
+        "BARCODE": "Otomatik eşleştirme ve ERP sync, ürünleri barkod ile eşler; gerekirse yeni katalog kaydı oluşturur.",
+        "SKU": "Otomatik eşleştirme ve ERP sync, ürünleri SKU/stok kodu ile eşler; gerekirse yeni katalog kaydı oluşturur.",
+        "MANUAL": "Otomatik eşleştirme kapalıdır. ERP yalnızca katalogda zaten bulunan ürünleri günceller; yeni eşleşmeleri bu sayfadan yapın.",
+        "notConfigured": "Kurulumda bir yöntem seçin; seçilmeden otomatik eşleştirme ve ERP sync çalışmaz."
+      }
+    }
+  },
+  "listings": {
+    "detail": {
+      "push": {
+        "price": {
+          "native": "Kaydettiğiniz fiyat, bağlı pazaryerine kuyruk üzerinden gönderilir.",
+          "externalErp": "Fiyat pazaryerine gönderilir; harici ERP bu kanalın fiyat kaynağı değildir."
+        },
+        "stock": {
+          "nativeAccounting": "Stok Ön Muhasebe envanterinden yönetilir; burada yalnızca platformdaki son miktar gösterilir.",
+          "nativeIntegration": "Stok güncellemesi Stok sayfası veya senkron üzerinden yapılır; bu alan salt okunurdur.",
+          "externalErp": "Stok pazaryerine gönderilebilir; ana kaynak bağlı ERP senkronu ise önce ERP'yi güncelleyin."
+        },
+        "stockLink": {
+          "inventory": "Envantere git",
+          "channel": "Stok sayfasına git",
+          "erp": "ERP bağlantıları"
+        }
+      }
+    }
+  },
   "orders": {
     "title": "Siparişler",
     "subtitle": "Pazaryeri siparişlerinizi filtreleyin ve detaylarını görüntüleyin.",
@@ -194,6 +277,38 @@
     "cancelled": "İptal",
     "returned": "İade",
     "openDetail": "Detayı aç",
+    "list": {
+      "invoiceColumn": "Fatura",
+      "erpColumn": "ERP",
+      "createInvoice": "Fatura oluştur",
+      "sendToErp": "ERP'ye gönder",
+      "sendToErpTitle": "Sipariş detayında faturayı harici ERP'ye aktarın",
+      "goToConnections": "Bağlantı ekle",
+      "goToConnectionsTitle": "Aktif ERP bağlantısı yok — bağlantılar sayfasına gidin",
+      "openInvoiceTitle": "Fatura {{no}} — faturalar listesinde aç",
+      "openInvoiceAria": "Faturayı aç: {{no}}"
+    },
+    "kpi": {
+      "todayOrders": "Bugün gelen siparişler",
+      "pending": "Bekleyen siparişler",
+      "pendingSub": "Kargo verilmemiş",
+      "cancelReturnRate": "İptal / iade oranı",
+      "cancelReturnSub": "Tüm siparişlere göre",
+      "avgOrderValue": "Ortalama sipariş değeri",
+      "avgOrderSub": "Genel ortalama"
+    },
+    "empty": {
+      "title": "Henüz sipariş yok",
+      "description": "Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın.",
+      "noConnectionDescription": "Pazar yeri bağlantısı ekleyerek senkronizasyonu başlatın.",
+      "syncLabel": "Senkronizasyonu başlat"
+    },
+    "toast": {
+      "labelDownloaded": "Kargo etiketi indirildi",
+      "invoicePdfDownloaded": "Fatura PDF indirildi",
+      "noActiveConnection": "Aktif pazaryeri bağlantısı yok.",
+      "syncQueued": "{{count}} bağlantı için senkron kuyruğa alındı."
+    },
     "status": {
       "new": "Yeni",
       "processing": "İşlemde",
@@ -211,7 +326,13 @@
       "searchPlaceholder": "Sipariş no, müşteri adı veya SKU",
       "cargoProvider": "Kargo firması",
       "cargoPlaceholder": "Örn. Aras, Yurtiçi",
-      "amountRange": "Tutar aralığı"
+      "amountRange": "Tutar aralığı",
+      "invoiceLink": "Fatura bağlantısı",
+      "invoiceLinkAll": "Tümü",
+      "invoiceLinkWith": "Faturalı siparişler",
+      "invoiceLinkWithout": "Faturasız siparişler",
+      "invoiceStatus": "Fatura durumu",
+      "invoiceStatusAll": "Tüm fatura durumları"
     },
     "bulk": {
       "selected": "{{count}} seçili",
@@ -225,6 +346,7 @@
       "exportCsv": "CSV dışa aktar",
       "exportCsvSuccess": "CSV dosyası indirildi",
       "exportToErp": "ERP'ye aktar",
+      "goToErpConnections": "ERP bağlantıları",
       "ship": "Kargoya ver",
       "addNote": "Not ekle",
       "noteTitle": "Toplu not ekle",
@@ -248,7 +370,8 @@
         "general": "Genel Bilgiler",
         "shipping": "Kargo Takip",
         "notes": "Sipariş Notları",
-        "documents": "Fatura & Belgeler"
+        "invoice": "Fatura",
+        "documents": "Belgeler"
       },
       "summary": { "title": "Sipariş özeti" },
       "customer": {
@@ -296,8 +419,23 @@
         "add": "Not ekle",
         "added": "Not eklendi"
       },
+      "invoice": {
+        "title": "Fatura",
+        "openInList": "Faturalar sayfasında aç",
+        "nativeUnavailable": "Ön muhasebe bu organizasyonda etkin değil. Harici muhasebe programı kullanıyorsanız aktarım durumunu bu sekmeden takip edebilirsiniz.",
+        "erpStatus": "ERP aktarım durumu",
+        "erpSent": "{{count}} bağlantıda gönderildi",
+        "erpPending": "Henüz ERP'ye gönderilmedi",
+        "noErpConnection": "Aktif ERP bağlantısı yok. Bağlantılar sayfasından ERP ekleyin.",
+        "erpConnection": "ERP bağlantısı",
+        "erpConnectionPlaceholder": "Bağlantı seçin",
+        "sendToErp": "Faturayı ERP'ye gönder",
+        "manageConnections": "ERP bağlantılarını yönet",
+        "externalErpIntro": "Faturalar harici muhasebe programınızda (Paraşüt, BizimHesap vb.) oluşturulur. Siparişi bağlı ERP'ye aktarın; yerel «Fatura oluştur» akışı bu modda kullanılmaz."
+      },
       "documents": {
-        "title": "Fatura ve belgeler",
+        "title": "Belgeler",
+        "labelHint": "Kargo etiketi PDF olarak indirilebilir.",
         "status": "Fatura durumu",
         "created": "Oluşturuldu",
         "notCreated": "Henüz oluşturulmadı",
@@ -340,54 +478,104 @@
   },
   "settings": {
     "title": "Ayarlar",
-    "subtitle": "Hesap, firma, ekip ve abonelik ayarlarınızı yönetin.",
+    "tabs": {
+      "profile": "Profil",
+      "organization": "Firma",
+      "security": "Güvenlik & KVKK",
+      "notifications": "Bildirimler",
+      "appearance": "Görünüm",
+      "subscription": "Abonelik",
+      "teamMembers": "Ekip Üyeleri",
+      "partners": "Partnerler",
+      "apiKeys": "API anahtarları",
+      "webhooks": "Webhook'lar",
+      "accountingMode": "Muhasebe modu",
+      "currency": "Para birimi",
+      "invoiceNumbering": "Fatura numarası",
+      "erpSync": "ERP senkronu",
+      "productMatching": "Ürün eşleştirme"
+    },
+    "layout": {
+      "groups": {
+        "account": "Hesap",
+        "organization": "Organizasyon",
+        "integration": "Entegrasyon",
+        "accounting": "Muhasebe",
+        "erp": "ERP Bağlantısı"
+      }
+    },
+    "subtitle": {
+      "default": "Hesap, firma, ekip ve abonelik ayarlarınızı yönetin.",
+      "nativeAccounting": "Ön muhasebe panelde: fatura ve cari burada; para birimi ile numaralandırma «Ön muhasebe» bölümünde.",
+      "externalErp": "Muhasebe harici programda (Paraşüt, BizimHesap vb.): senkron ve aktarım ayarları «Harici ERP» bölümünde.",
+      "integrationOnly": "Entegrasyon ayarları «Entegrasyon» bölümünde; ön muhasebe veya harici ERP hattı eklenince ilgili bölümler açılır."
+    },
     "profile": "Profil",
-    "security": "Güvenlik & KVKK",
+    "profileTab": {
+      "title": "Profil",
+      "subtitle": "Kişisel bilgileriniz, güvenlik ve oturum yönetimi."
+    },
     "subscription": "Abonelik",
     "subscriptionTab": {
       "title": "Abonelik",
       "subtitle": "Ürün hatlarınızı, paketinizi karşılaştırın, kullanımınızı izleyin ve faturalarınızı görüntüleyin.",
+      "billingExempt": "Bu hesap iç kullanım için yapılandırıldı. Faturalandırma ve paket yükseltme gerekmez; limitler sınırsızdır.",
       "productLines": {
         "title": "Ürün hatları",
         "subtitle": "Hesabınızda etkin olan entegrasyon ve ön muhasebe kapsamı. Eksik hatlar için paket yükseltmesi yapabilirsiniz.",
         "activeBadge": "Mevcut paket",
-        "recommendedBadge": "Önerilen",
+        "activePrimaryBadge": "✓ Etkin",
+        "activeOnAccountBadge": "Hesabınızda var",
+        "recommendedBadge": "⭐ Önerilen",
         "included": "Hesabınızda etkin",
         "upgradeCta": "Pakete ekle",
+        "upgradingCta": "Ekleniyor…",
         "addSuccess": "Ürün hattı hesabınıza eklendi.",
+        "addError": "Ürün hattı eklenemedi: {{message}}",
+        "nothingToAdd": "Eklenecek ürün hattı bulunmuyor.",
         "upgradeToast": "Ürün hattı genişletme için aşağıdaki plan karşılaştırmasından paketinizi yükseltebilir veya destek ile iletişime geçebilirsiniz.",
         "integration": {
           "title": "Entegrasyon",
           "description": "Pazaryeri, e-ticaret ve sipariş–stok senkronizasyonu.",
           "features": {
             "marketplaces": "Pazaryeri bağlantıları",
-            "orders": "Sipariş akışı",
-            "stock": "Stok senkronu"
+            "orders": "Sipariş ve iade akışı",
+            "stock": "Gerçek zamanlı stok senkronu"
           }
         },
         "accounting": {
           "title": "Ön Muhasebe",
-          "description": "Yerel fatura, cari hesap ve KDV yönetimi.",
+          "description": "Yerel fatura, cari hesap ve KDV yönetimi — harici ERP zorunlu değil.",
           "features": {
-            "invoices": "Fatura oluşturma",
-            "customers": "Cari hesap",
-            "vat": "KDV takibi"
+            "invoices": "Fatura oluşturma ve numaralandırma",
+            "customers": "Cari hesap ve ekstre",
+            "vat": "KDV özeti ve raporlama"
           }
         },
         "bundle": {
           "title": "Paket",
-          "description": "Entegrasyon ve ön muhasebe tek panelde.",
+          "description": "Ön Muhasebe ve Entegrasyon tek panelde; yıllık faturalamada iki hat birlikte alındığında indirim uygulanır.",
+          "discountLabel": "%20 indirimli",
           "features": {
             "accounting": "Fatura ve cari",
             "integration": "Pazaryeri ve sipariş",
             "unified": "Tek panel ve raporlama"
           }
         }
+      },
+      "usageMetrics": {
+        "title": "Kullanım metrikleri",
+        "subtitle": "Mevcut paketinizdeki kaynak kullanımı",
+        "marketplaces": "Pazaryerleri",
+        "products": "Ürünler",
+        "orders": "Siparişler (aylık)",
+        "users": "Kullanıcılar",
+        "warehouses": "Depolar",
+        "erpConnections": "ERP bağlantıları",
+        "apiCallsToday": "API çağrıları (bugün)"
       }
     },
     "notifications": "Bildirimler",
-    "apiKeys": "API anahtarları",
-    "webhooks": "Webhook'lar",
     "appearance": "Görünüm",
     "appearanceTitle": "Görünüm",
     "appearanceHint": "Panel temasını seçin. Tercihiniz bu tarayıcıda saklanır.",
@@ -396,18 +584,119 @@
     "languageChanged": "Dil değişikliği uygulandı",
     "timezoneLabel": "Saat dilimi",
     "timezoneHint": "Tarih ve saat gösterimleri bu saat dilimine göre formatlanır.",
+    "accountingMode": "Muhasebe modu",
+    "accountingModeTab": {
+      "title": "Muhasebe modu",
+      "description": "Ön muhasebeyi Senkronize panelinde (kendi ön muhasebeniz) mi yoksa Paraşüt, BizimHesap vb. dış yazılım entegrasyonuyla mı yöneteceğinizi seçin. Menü ve bağlantı sekmeleri buna göre düzenlenir.",
+      "currentModeLabel": "Mevcut mod",
+      "radioGroupAriaLabel": "Muhasebe modu",
+      "modes": {
+        "native": {
+          "title": "Ön Muhasebe",
+          "description": "Fatura, cari ve KDV işlemlerini panelde yönetin. Harici program bağlantısı zorunlu değildir."
+        },
+        "externalErp": {
+          "title": "Harici ERP",
+          "description": "Muhasebe dış yazılımda kalır; ürün, stok ve fatura senkronu köprü bağlantıları üzerinden yapılır."
+        }
+      },
+      "switchWarning": {
+        "title": "Mod değişikliği",
+        "description": "Mevcut fatura, cari ve ERP kayıtları otomatik taşınmaz. Yeni moda geçtikten sonra verileri ilgili bölümden yeniden yapılandırmanız gerekebilir."
+      },
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "saveSuccess": "Muhasebe modu güncellendi.",
+      "nativeBlocked": {
+        "title": "Yerel moda geçilemiyor",
+        "description": "{{count}} aktif harici ERP bağlantısı var. Yerel ön muhasebe moduna geçmek için önce bağlantıları devre dışı bırakın veya kaldırın.",
+        "connectionsCta": "ERP bağlantılarına git"
+      }
+    },
     "currency": "Para birimi",
     "language": "Dil",
     "users": "Kullanıcılar",
     "organization": "Firma",
+    "organizationTab": {
+      "title": "Firma bilgileri",
+      "description": "Organizasyon profilinizi, fatura bilgilerinizi ve güvenlik politikalarınızı yönetin.",
+      "nameLabel": "Firma adı",
+      "taxNumberLabel": "Vergi numarası",
+      "taxOfficeLabel": "Vergi dairesi",
+      "phoneLabel": "Telefon",
+      "addressLabel": "Adres",
+      "cityLabel": "Şehir",
+      "logoLabel": "Logo",
+      "logoDropHint": "PNG, JPEG, WebP veya SVG — sürükleyip bırakın veya dosya seçin",
+      "logoUploadButton": "Logo yükle",
+      "logoUrlLabel": "veya logo URL",
+      "separateBillingLabel": "Fatura için ayrı adres",
+      "separateBillingHint": "Faturalarda farklı bir adres kullanmak istiyorsanız etkinleştirin.",
+      "billingAddressLabel": "Fatura adresi",
+      "require2faLabel": "2FA zorunluluğu",
+      "require2faHint": "Tüm kullanıcıların iki faktörlü doğrulamayı etkinleştirmesini zorunlu kılar.",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "saveSuccess": "Firma bilgileri kaydedildi.",
+      "logoUploadSuccess": "Logo yüklendi."
+    },
+    "notificationsPage": {
+      "title": "Bildirim tercihleri",
+      "subtitle": "Olay ve kanal bazında bildirim alımını yapılandırın. Değişiklikler anında kaydedilir.",
+      "loadError": "Bildirim tercihleri yüklenemedi. Sayfayı yenileyin."
+    },
+    "notificationsDedicatedHint": "Olay ve kanal matrisi için",
+    "notificationsDedicatedLink": "bildirim tercihleri sayfasına gidin",
+    "notificationsSettingsTabHint": "Ses ve test bildirimleri için",
+    "notificationsSettingsTabLink": "genel ayarlardaki bildirim sekmesi",
     "team": "Ekip",
     "teamMembers": "Ekip Üyeleri",
+    "roles": {
+      "OWNER": "Sahip",
+      "ADMIN": "Yönetici",
+      "MANAGER": "Müdür",
+      "VIEWER": "İzleyici",
+      "SUPER_ADMIN": "Sistem yöneticisi"
+    },
     "invoiceNumbering": "Fatura numarası",
     "invoiceNumberingTitle": "Fatura numaralandırma",
     "invoiceNumberingHint": "Yerel ön muhasebede kesilen faturalar için otomatik numara formatı.",
     "invoiceNumberingFormatLabel": "Varsayılan format",
     "invoiceNumberingFormatExample": "{{year}}/000001",
-    "invoiceNumberingAutoNote": "Numaralar yıl bazında artar; aynı yıl içinde benzersizlik garanti edilir. Özel önek desteği yakında eklenecek.",
+    "invoiceNumberingPrefixLabel": "Fatura öneki",
+    "invoiceNumberingPrefixPlaceholder": "Boş bırakın veya örn. FTR",
+    "invoiceNumberingPrefixHint": "Boş bırakırsanız format YIL/000001 olur. Önek girerseniz ÖNEK-YIL-000001 kullanılır. En fazla 10 karakter; yalnızca harf ve rakam.",
+    "invoiceNumberingPrefixInvalid": "Önek en fazla 10 karakter olmalı ve yalnızca harf veya rakam içermelidir.",
+    "invoiceNumberingSequenceLabel": "Sonraki sıra numarası",
+    "invoiceNumberingSequenceHint": "Yeni kesilecek faturada kullanılacak numara. Kayıttan sonra her faturada otomatik artar.",
+    "invoiceNumberingSequenceInvalid": "Geçerli bir sıra numarası girin (en az 1).",
+    "invoiceNumberingSave": "Kaydet",
+    "invoiceNumberingSaving": "Kaydediliyor…",
+    "invoiceNumberingSaved": "Fatura numaralandırma ayarları kaydedildi.",
+    "productMatching": {
+      "title": "Ürün eşleştirme",
+      "subtitle": "ERP ve pazaryeri ürünlerinin katalogla nasıl eşleneceğini belirleyin. Barkodsuz ürünlerde yalnızca SKU ile eşleştirme yapabilirsiniz.",
+      "openSettings": "Eşleştirme ayarları",
+      "overridesTitle": "Platform ve ürün bazlı geçersiz kılma",
+      "overridesDescription": "Organizasyon varsayılanını bağlantı veya ürün düzeyinde değiştirebilirsiniz.",
+      "overridePlatform": "Pazaryeri ve ERP bağlantı detay sayfasından platforma özel yöntem seçin.",
+      "overrideProduct": "Ürün detayı → Genel sekmesinden tek ürün için farklı yöntem tanımlayın.",
+      "connectionsLink": "Bağlantılara git"
+    },
+    "invoiceNumberingAutoNote": "Numaralar takvim yılına göre sıfırlanır; aynı yıl içinde benzersizlik metadata sırası ile korunur.",
+    "invoiceNumberingOverdueCronNote": "Vadesi geçmiş durumu: vade tarihi geçen kesilmiş faturalar her gün 01:00’da otomatik güncellenir.",
+    "orderAutoInvoice": {
+      "title": "Siparişten otomatik fatura",
+      "label": "Otomatik fatura oluşturma",
+      "nativeHint": "Yerel ön muhasebede yeni siparişler için varsayılan davranış.",
+      "nativeDescription": "Sipariş kargoya verildi veya teslim edildiğinde taslak satış faturası oluşturulur. Platform webhook durum güncellemeleri bu ayarı tetiklemez.",
+      "externalErpHint": "Harici ERP modunda otomatik fatura bağlantı başına yapılandırılır.",
+      "externalErpDisabledHint": "Bu ayar organizasyon genelinde değil; her ERP bağlantısının senkron ayarlarından yönetilir.",
+      "openErpConnections": "ERP bağlantılarına git",
+      "save": "Kaydet",
+      "saving": "Kaydediliyor…",
+      "saved": "Otomatik fatura ayarı kaydedildi."
+    },
     "erpSync": "ERP senkronu",
     "erpSyncTitle": "Harici ERP senkron ayarları",
     "erpSyncHint": "Ürün, stok ve fatura senkronu bağlantı başına yapılandırılır.",
@@ -420,13 +709,62 @@
     "erpSyncConfigure": "Senkron ayarları",
     "profileAdvancedHint": "Gelişmiş profil ve oturum yönetimi için",
     "profileAdvancedLink": "profil sayfasına gidin",
+    "profileSettingsTabHint": "Diğer ayar sekmeleriyle birlikte görmek için",
+    "profileSettingsTabLink": "genel ayarlardaki profil sekmesi",
+    "subscriptionDedicatedHint": "Paket karşılaştırması, kullanım ve faturalar için",
+    "subscriptionDedicatedLink": "abonelik sayfasına gidin",
+    "subscriptionSettingsTabHint": "Diğer ayar sekmeleriyle birlikte görmek için",
+    "subscriptionSettingsTabLink": "genel ayarlardaki abonelik sekmesi",
     "sections": {
       "general": "Genel",
+      "generalHint": "Profil, güvenlik, bildirimler, abonelik ve ekip.",
       "integration": "Entegrasyon",
+      "integrationHint": "Pazaryeri ve mağaza bağlantıları için API anahtarları ve webhook bildirimleri.",
       "accounting": "Ön muhasebe",
-      "externalErp": "Harici ERP"
+      "accountingHint": "Muhasebe modu (Kendi ERP / Harici program); yerel modda para birimi ve fatura numaralandırması.",
+      "externalErp": "Harici ERP",
+      "externalErpHint": "Harici program modu: Paraşüt, BizimHesap vb. programa ürün, stok ve fatura senkronu."
     },
     "partners": "Partnerler",
+    "partnersTab": {
+      "title": "Partnerler",
+      "description": "Bağlı olduğunuz ajans partner bilgileri ve ilişki yönetimi.",
+      "emptyDescription": "Henüz bir partner ile bağlı değilsiniz. Partner ağımızdan bir ajans seçerek bağlantı talebi gönderebilirsiniz.",
+      "discoverCta": "Partnerlerimizi keşfet",
+      "otherRecords": "Diğer kayıtlar",
+      "refresh": "Yenile",
+      "terminate": "Bağlantıyı sonlandır",
+      "terminateTitle": "Partner bağlantısını sonlandır",
+      "terminateConfirm": "{{name}} ile bağlantınızı sonlandırmak istediğinize emin misiniz?",
+      "terminateAction": "Sonlandır",
+      "clientCount": "{{count}} müşteri",
+      "defaultPartnerName": "Partner"
+    },
+    "partnerDiscovery": {
+      "backToSettings": "Ayarlara dön",
+      "title": "Partner keşfet",
+      "subtitle": "Ajans partnerlerimizi inceleyin ve bağlantı talebi gönderin.",
+      "expertisePlaceholder": "Uzmanlık",
+      "locationPlaceholder": "Konum veya şehir ara…",
+      "loading": "Yükleniyor",
+      "emptyListTitle": "Henüz listelenecek partner yok",
+      "emptyListDescription": "Yeni partnerler eklendiğinde burada görünecek.",
+      "emptyFilteredTitle": "Sonuç bulunamadı",
+      "emptyFiltered": "Filtrelere uygun partner bulunamadı. Arama veya uzmanlık filtresini değiştirmeyi deneyin.",
+      "errorTitle": "Partner listesi yüklenemedi",
+      "errorDescription": "Bağlantınızı kontrol edip tekrar deneyin.",
+      "retry": "Yeniden dene",
+      "clearFilters": "Filtreleri temizle",
+      "pendingBadge": "Onay bekleniyor",
+      "requestCta": "Bağlantı talebi gönder",
+      "dialogTitle": "{{name}} — bağlantı talebi",
+      "messageLabel": "Mesajınız (isteğe bağlı)",
+      "messagePlaceholder": "Partnera iletmek istediğiniz kısa bir mesaj yazabilirsiniz.",
+      "cancel": "Vazgeç",
+      "send": "Gönder",
+      "requestSuccess": "Bağlantı talebiniz admin onayına gönderildi",
+      "starRating": "{{value}} yıldız"
+    },
     "timezones": {
       "istanbul": "İstanbul (UTC+3)",
       "london": "Londra (UTC+0)",
@@ -478,12 +816,14 @@
         "productsWrite": "Ürün yazma",
         "stockRead": "Stok okuma",
         "stockWrite": "Stok yazma",
-        "reportsRead": "Rapor okuma"
+        "reportsRead": "Rapor okuma",
+        "webhooksManage": "Webhook yönetimi"
       }
     },
     "webhooks": {
       "title": "Giden webhook'lar",
       "pageTitle": "Giden webhook'lar",
+      "detailNavContext": "Webhook detay",
       "subtitle": "Sipariş, stok ve sistem olaylarını HTTPS uç noktanıza iletin.",
       "signatureHint": "İmza:",
       "createButton": "Yeni webhook",
@@ -541,6 +881,7 @@
       "bulkDeactivated": "Seçili uç noktalar pasifleştirildi"
     },
     "security": {
+      "pageSubtitle": "Şifre, iki adımlı doğrulama, oturumlar ve KVKK veri indirme.",
       "sessionsTitle": "Aktif oturumlar",
       "sessionsDescription": "Cihaz, IP ve konum bilgisiyle oturumlarınızı yönetin.",
       "revokeOthers": "Diğer oturumları sonlandır",
@@ -562,11 +903,69 @@
       "auditLogDescription": "Son 10 güvenlik olayı: giriş, şifre değişimi, 2FA."
     }
   },
+  "emptyState": {
+    "loading": {
+      "title": "Yükleniyor…",
+      "description": "Bağlantı durumu kontrol ediliyor."
+    },
+    "accounting": {
+      "onboardingTitle": "Ön muhasebeye hoş geldiniz",
+      "onboardingDescription": "İlk faturanızı oluşturarak başlayın. İsterseniz Paraşüt veya BizimHesap gibi harici programları bağlantılar sayfasından ekleyebilirsiniz.",
+      "createInvoice": "İlk faturanızı oluşturun",
+      "openConnections": "Harici muhasebe bağlantısı",
+      "tableNoIntegrationTitle": "Pazaryeri entegrasyonu bu pakette yok",
+      "tableNoIntegrationDescription": "Sipariş ve ilan yönetimi Entegrasyon ürün hattında sunulur. Faturalarınızı Ön Muhasebe bölümünden yönetebilirsiniz.",
+      "tableNoIntegrationHint": "Pazaryeri veya mağaza bağlantısı eklemek için Entegrasyon paketine geçebilirsiniz; mevcut paketinizde fatura ve cari işlemleri panelde devam eder.",
+      "goToInvoices": "Faturalara git",
+      "goToAccounting": "Ön muhasebe özetine git"
+    },
+    "integration": {
+      "connectionsTitle": "Henüz kanal bağlantısı yok",
+      "connectionsDescription": "Trendyol, Hepsiburada veya e-ticaret mağazanızı bağlayarak sipariş ve stok akışını başlatın. İlk bağlantıdan sonra siparişler otomatik çekilir.",
+      "connectionsStep1": "Kanal türünü seçin (pazaryeri veya mağaza)",
+      "connectionsStep2": "API anahtarlarınızı güvenli şekilde kaydedin",
+      "connectionsStep3": "Test bağlantısı ile senkronu doğrulayın",
+      "connectionsHint": "Bağlantı bilgileriniz şifreli saklanır; yalnızca sizin organizasyonunuz erişebilir.",
+      "noConnectionTitle": "Bağlantı yok",
+      "noConnectionDescription": "Sipariş ve listelerinizi görmek için önce pazaryeri veya mağaza bağlantınızı ekleyin.",
+      "addFirstConnection": "İlk bağlantınızı ekleyin",
+      "emptyRecordsTitle": "Henüz kayıt yok",
+      "emptyRecordsDescription": "Aktif bağlantılarınızdan veri geldikten sonra kayıtlar burada görünür. Senkronizasyonu başlatabilir veya bağlantılarınızı yönetebilirsiniz.",
+      "filteredTitle": "Filtrelere uygun kayıt yok",
+      "filteredDescription": "Filtreleri gevşeterek veya temizleyerek tekrar deneyin.",
+      "startSync": "Senkronizasyonu başlat",
+      "goToConnections": "Bağlantılara git"
+    }
+  },
+  "productLineRoute": {
+    "cta": "Abonelik ve ürün hatları",
+    "integration": {
+      "feature": "Pazaryeri ve e-ticaret entegrasyonu",
+      "description": "Sipariş, ilan, stok ve pazaryeri bağlantıları Entegrasyon ürün hattında yer alır. Hesabınızda yalnızca Ön Muhasebe etkinse bu sayfayı kullanamazsınız.",
+      "redirectToast": "Bu sayfa Entegrasyon ürün hattınızda yer almıyor. Ön muhasebe özetine yönlendirildiniz."
+    },
+    "accounting": {
+      "feature": "Ön muhasebe",
+      "description": "Fatura, cari ekstre, tedarikçi ve KDV işlemleri Ön Muhasebe ürün hattında yer alır. Hesabınızda yalnızca Entegrasyon etkinse bu sayfayı kullanamazsınız.",
+      "redirectToast": "Bu sayfa Ön Muhasebe ürün hattınızda yer almıyor. Kontrol paneline yönlendirildiniz."
+    },
+    "stock": {
+      "accounting": {
+        "redirectToast": "Stok sayfası hesabınızda yerel envanter (Ön Muhasebe) ile açılır. Gerekli ürün hattı etkin değil; kontrol paneline yönlendirildiniz."
+      },
+      "integration": {
+        "redirectToast": "Stok sayfası pazaryeri ve kanal stokları için Entegrasyon hattında açılır. Gerekli ürün hattı etkin değil; ön muhasebe özetine yönlendirildiniz."
+      },
+      "integrationExternalErp": {
+        "redirectToast": "Harici muhasebe modunda stok pazaryeri entegrasyonu üzerinden yönetilir. Entegrasyon ürün hattı etkin değil; ön muhasebe özetine yönlendirildiniz."
+      }
+    }
+  },
   "connections": {
     "title": "Bağlantılar",
-    "subtitle": "Pazaryeri, e-ticaret siteniz ve ERP entegrasyonlarınızı yönetin.",
-    "marketplace": "Pazaryerleri",
-    "erp": "ERP",
+    "subtitle": "Pazaryeri, e-ticaret, kargo ve isteğe bağlı harici muhasebe bağlantılarınızı yönetin.",
+    "marketplace": "Pazaryeri",
+    "erp": "Harici ERP",
     "ecommerce": "E-Ticaret",
     "cargo": "Kargo",
     "add": "Bağlantı Ekle",
@@ -574,19 +973,97 @@
     "connected": "Bağlı",
     "disconnected": "Bağlı Değil",
     "lastSync": "Son Senkronizasyon",
+    "page": {
+      "subtitleIntegration": "Pazaryeri, e-ticaret ve kargo kanallarınızı yönetin. Harici muhasebe bağlantısı isteğe bağlıdır.",
+      "subtitleBundleNative": "Pazaryeri, e-ticaret ve kargo kanallarınızı buradan bağlayın. Ön muhasebe Senkronize panelinde.",
+      "subtitleAccountingNative": "Fatura ve cari işlemleriniz paneldeki Ön Muhasebe ile yönetilir. Pazaryeri bağlantıları için Entegrasyon paketi gerekir.",
+      "subtitleAccountingExternal": "Paraşüt, BizimHesap gibi harici muhasebe programlarınızı bağlayın."
+    },
+    "bundleNativeGuide": {
+      "title": "Bu sayfa: satış kanalları",
+      "body": "Trendyol, Hepsiburada, mağaza ve kargo bağlantılarını buradan ekleyin. Fatura, cari ve KDV işlemleri Senkronize Ön Muhasebe'de yürür; harici ERP sekmesi bu sayfada gösterilmez.",
+      "accountingLink": "Ön Muhasebe özetine git"
+    },
+    "tabs": {
+      "marketplace": "Pazaryeri",
+      "ecommerce": "E-Ticaret mağazası",
+      "cargo": "Kargo",
+      "externalErp": "Harici ERP",
+      "externalErpHint": "Harici",
+      "externalErpActiveHint": "Harici ERP modu etkin",
+      "groupChannels": "Satış kanalları",
+      "groupExternalErp": "Harici muhasebe"
+    },
+    "pushSettings": {
+      "title": "Stok ve fiyat push",
+      "description": "Bu bağlantıya otomatik stok ve fiyat gönderimini açıp kapatın.",
+      "stock": "Stok push",
+      "stockHint": "ERP veya panel stok değişince platforma stok gönderilir.",
+      "price": "Fiyat push",
+      "priceHint": "Fiyat değişikliklerini platforma gönderir (desteklenen kanallar).",
+      "saved": "Push ayarları kaydedildi"
+    },
+    "regions": {
+      "turkey": "Türkiye",
+      "europe": "Avrupa",
+      "mena": "Orta Doğu ve Afrika",
+      "asiaPacific": "Asya-Pasifik",
+      "americas": "Amerika",
+      "global": "Küresel / B2B",
+      "foodDelivery": "Yemek ve hızlı teslimat",
+      "other": "Diğer"
+    },
+    "platformSearch": {
+      "label": "Platform ara",
+      "placeholder": "Trendyol, Amazon, Hepsiburada…",
+      "results": "{{count}} platform",
+      "empty": "Aramanızla eşleşen platform yok."
+    },
+    "channelPanel": {
+      "searchPlaceholder": "Bağlantı veya platform ara…",
+      "results": "{{count}} bağlantı",
+      "emptyCategory": "Bu kategoride bağlantı yok."
+    },
+    "kpi": {
+      "active": "Aktif",
+      "error": "Hata",
+      "pending": "Bekleyen",
+      "total": "Toplam"
+    },
+    "erpDetail": {
+      "backToConnections": "Bağlantılara dön"
+    },
+    "erpBridge": {
+      "title": "Harici muhasebe köprüsü",
+      "subtitle": "Paraşüt, BizimHesap ve diğer harici muhasebe programları.",
+      "infoTitle": "Ön Muhasebe modu aktif",
+      "infoBody": "Fatura, cari hesap ve KDV işlemleriniz Senkronize panelindeki Ön Muhasebe modülünde yönetilir. Paraşüt veya BizimHesap gibi harici program bağlamanız gerekmez.",
+      "infoHint": "Harici ERP bağlantıları bu modda gizlenir; modu değiştirmek için Ayarlar → Muhasebe modu sayfasını kullanın.",
+      "infoLinkLabel": "Ön Muhasebe özetine git",
+      "wizardButton": "Kurulum sihirbazı",
+      "addConnection": "Harici bağlantı ekle"
+    },
+    "integrationUpgrade": {
+      "feature": "Pazaryeri ve e-ticaret entegrasyonu",
+      "description": "Trendyol, Hepsiburada, T-Soft ve diğer kanalları bağlamak için Entegrasyon ürün hattına ihtiyacınız var. Ön muhasebe paketiniz yerel fatura ve cari yönetimini kapsar.",
+      "goToAccounting": "Ön Muhasebe özetine git"
+    },
     "emptyMarketplaceTitle": "Henüz bağlantı yok",
     "emptyMarketplaceDescription": "İlk bağlantınızı ekleyerek başlayın.",
     "emptyMarketplaceAction": "İlk bağlantınızı ekleyin",
     "emptyEcommerceTitle": "E-ticaret bağlantısı yok",
     "emptyEcommerceDescription": "T-Soft, Ticimax, WooCommerce, Shopify veya İdeasoft mağazanızı bağlayın.",
     "emptyEcommerceAction": "Mağaza bağlantısı ekle",
-    "emptyErpTitle": "ERP bağlantısı yok",
-    "emptyErpDescription": "Muhasebe veya stok sisteminizi bağlayarak fatura ve stok akışını tek yerden yönetin.",
-    "emptyErpAction": "ERP bağlantısı ekle"
+    "emptyErpTitle": "Harici muhasebe bağlantısı yok",
+    "emptyErpDescription": "Paraşüt veya BizimHesap kullanıyorsanız bağlayabilirsiniz; kullanmıyorsanız Ön Muhasebe yeterlidir.",
+    "emptyErpAction": "Harici bağlantı ekle"
   },
   "stock": {
     "title": "Stok Yönetimi",
-    "subtitle": "Depo bazlı stok seviyelerini izleyin, kritik ürünleri takip edin ve hızlı aksiyon alın.",
+    "subtitle": {
+      "nativeAccounting": "Depo bazlı stok seviyelerini izleyin, kritik ürünleri takip edin ve hızlı aksiyon alın.",
+      "ecommerce": "Pazaryeri ve mağaza kanallarındaki stok seviyelerini izleyin, senkron durumunu takip edin ve hızlı güncelleyin."
+    },
     "warehouse": "Depo",
     "movement": "Hareket",
     "count": "Stok Sayımı",
@@ -607,7 +1084,8 @@
       "totalSku": "Toplam SKU",
       "critical": "Kritik stok",
       "outOfStock": "Tükenen ürünler",
-      "reserved": "Rezerv edilmiş stok"
+      "reserved": "Rezerv edilmiş stok",
+      "totalStockValue": "Toplam stok değeri"
     },
     "quickSearch": {
       "title": "Hızlı stok arama",
@@ -620,6 +1098,7 @@
       "noResults": "Sonuç bulunamadı."
     },
     "status": {
+      "pageDesc": "Stok seviyeleri, hareket akışı ve yeniden sipariş önerileri.",
       "cardDesc": "Ürün bazında depo stokları, rezerv ve eşik değerleri",
       "warehouse": "Depo",
       "allWarehouses": "Tüm depolar",
@@ -638,6 +1117,28 @@
       "invalidQty": "Geçerli miktar girin.",
       "updated": "Stok güncellendi.",
       "inlineAdjustNote": "Stok sayfası satır düzeltmesi"
+    },
+    "movements": {
+      "pageTitle": "Stok Hareketleri",
+      "pageDesc": "Ürün giriş-çıkış hareketlerini izleyin.",
+      "cardTitle": "Hareketler",
+      "cardDesc": "Depo, ürün, hareket tipi ve tarih aralığı filtreleri",
+      "exportCsv": "CSV dışa aktar",
+      "exportSuccess": "CSV indirildi",
+      "movementType": "Hareket tipi",
+      "dateFrom": "Başlangıç",
+      "dateTo": "Bitiş",
+      "productPlaceholder": "Barkod veya isim…",
+      "empty": "Bu filtrelere uygun hareket bulunamadı.",
+      "colType": "Tip",
+      "colReason": "Neden",
+      "colReference": "Referans",
+      "colUser": "Kullanıcı",
+      "systemUser": "Sistem",
+      "totalRecords": "Toplam {{count}} kayıt"
+    },
+    "count": {
+      "pageDesc": "Depo bazlı sayım, barkod ile giriş ve farkların merkezi stoğa uygulanması."
     },
     "warehouses": {
       "cardDesc": "Depo kartları, toplam SKU ve stok değeri",
@@ -712,7 +1213,11 @@
     "orders7d": "Son 7 gün — sipariş",
     "ordersMonth": "Bu ay — sipariş",
     "title": "Özet",
-    "subtitle": "Günlük operasyonlarınızın genel görünümü.",
+    "subtitle": {
+      "integration": "Günlük operasyonlarınızın genel görünümü.",
+      "hybridNative": "Pazaryeri siparişleri, stok ve satış trendi; ön muhasebe özetini widget olarak ekleyebilirsiniz.",
+      "hybridExternalErp": "E-ticaret operasyonları; fatura ve cari harici ERP programınızda."
+    },
     "weeklyOrders": "Haftalık siparişler",
     "weeklyOrdersDescSample": "Son 7 gün (örnek veri — rapor yüklenemedi veya bekleniyor)",
     "weeklyOrdersDesc": "Son 7 gün (günlük rapor)",
@@ -742,22 +1247,61 @@
     "selectDateRange": "Tarih aralığı seçin",
     "noConnectionsTitle": "Henüz bağlantı yok",
     "noConnectionsDesc": "Pazaryeri veya e-ticaret mağazanızı bağlayarak başlayın.",
-    "addFirstConnection": "İlk Bağlantıyı Ekle"
+    "addFirstConnection": "İlk Bağlantıyı Ekle",
+    "allWidgetsHiddenTitle": "Widget görünümü boş",
+    "allWidgetsHiddenDesc": "Özet kartlarını Widget özelleştirme menüsünden yeniden açabilirsiniz.",
+    "widgets": {
+      "sync": {
+        "title": "Senkronizasyon",
+        "desc": "Aktif bağlantılar ve son sync",
+        "emptyTitle": "Bağlantı yok",
+        "emptyDesc": "Pazaryeri bağlantısı ekleyerek senkronizasyonu başlatın.",
+        "lastSync": "Son sync: {{time}}",
+        "syncNow": "Şimdi Sync Et",
+        "queued": "Senkronizasyon kuyruğa alındı."
+      },
+      "topProducts": {
+        "title": "En çok satan ürünler",
+        "desc": "Seçili dönem · ilk 10 ürün",
+        "emptyTitle": "Veri yok",
+        "emptyDesc": "Henüz satış kaydı bulunmuyor.",
+        "colSales": "Satış",
+        "colRevenue": "Gelir"
+      }
+    }
   },
   "accounting": {
     "title": "Ön Muhasebe Özeti",
     "subtitle": "Bu ayki fatura, tahsilat ve KDV özetiniz tek ekranda.",
     "kpi": {
       "issuedThisMonth": "Bu ay kesilen fatura",
+      "openReceivables": "Açık alacak",
       "collectedThisMonth": "Tahsil edilen",
       "pending": "Bekleyen",
       "vatSummary": "KDV özeti"
     },
     "vatSubtotal": "Matrah",
     "vatTax": "KDV",
+    "revenueTrend": "Aylık fatura geliri",
+    "revenueTrendHint": "Son 6 ayda kesilen faturaların toplam tutarı (iptal edilenler hariç).",
+    "revenueTrendAmount": "Fatura tutarı",
+    "revenueTrendInvoiceCount": "{{count}} fatura",
+    "revenueTrendLoading": "Grafik verisi yükleniyor…",
+    "revenueTrendError": "Grafik yüklenemedi",
+    "revenueTrendEmpty": "Bu dönem için fatura verisi yok",
+    "revenueTrendEmptyDescription": "Fatura kestikçe aylık gelir grafiği burada görünür.",
+    "recentInvoicesLoading": "Son faturalar yükleniyor…",
+    "recentInvoicesError": "Son faturalar yüklenemedi",
+    "overviewError": "Özet yüklenemedi",
     "recentInvoices": "Son faturalar",
     "viewAll": "Tümünü gör",
     "viewAllInvoices": "Faturalara git",
+    "stockSectionTitle": "Stok özeti",
+    "stockSectionHint": "Yerel ön muhasebe modunda depo stokları ve envanter değerlemesi.",
+    "inventoryValuationLink": "Envanter değerlemesi",
+    "goToStockManagement": "Stok yönetimine git",
+    "stockEmptyTitle": "Stok kaydı yok",
+    "stockEmptyDescription": "Depo ve stok hareketlerini stok yönetimi ekranından tanımlayın; envanter değerlemesi depo kartlarında görünür.",
     "emptyRecent": "Henüz fatura yok",
     "emptyRecentDescription": "İlk faturanızı oluşturduğunuzda burada görünecek.",
     "table": {
@@ -768,15 +1312,60 @@
       "status": "Durum"
     }
   },
+  "migration": {
+    "pageSubtitle": "Rakip platformdan verilerinizi adım adım Senkronize'a taşıyın.",
+    "historyTitle": "İçe aktarma geçmişi",
+    "historySubtitle": "Geçmiş veri taşıma işlemlerinizi görüntüleyin ve yönetin."
+  },
   "reports": {
-    "subtitle": "Satış, kâr/zarar, vergi, analitik, özel raporlar ve zamanlanmış gönderimler.",
+    "subtitle": {
+      "nativeAccounting": "Satış, kâr/zarar, KDV ve özel raporlar — yerel ön muhasebe.",
+      "integration": "Pazaryeri satış, kâr/zarar, platform analitiği ve zamanlanmış raporlar.",
+      "externalErp": "Muhasebe verileri harici ERP üzerinden; aktarım özeti yakında.",
+      "hybridNative": "E-ticaret ve yerel ön muhasebe raporları tek ekranda.",
+      "hybridExternalErp": "E-ticaret satış raporları; KDV ve muhasebe özeti harici ERP'de."
+    },
     "tabs": {
       "sales": "Satış Raporu",
       "profit": "Kâr/Zarar",
       "tax": "Vergi/KDV",
       "analytics": "Platform Analitik",
       "custom": "Özel Raporlar",
-      "schedule": "Zamanlanmış Raporlar"
+      "schedule": "Zamanlanmış Raporlar",
+      "erpTransfer": "ERP Aktarım"
+    },
+    "erpTransfer": {
+      "title": "Harici ERP aktarım raporu",
+      "description": "Fatura, cari ve KDV özetleri bağlı ERP sisteminizde tutulur. Senkron geçmişi ve bağlantı durumunu buradan izleyebilirsiniz; detaylı muhasebe raporları için ERP arayüzünü kullanın.",
+      "openConnections": "ERP bağlantıları",
+      "openSyncLogs": "Senkron kayıtları",
+      "recentLogCount": "Son {{count}} ERP senkron kaydı yüklendi.",
+      "connectionsTitle": "ERP bağlantıları",
+      "connectionsDescription": "Aktif bağlantılar ve son senkron durumu.",
+      "noConnectionsTitle": "Henüz ERP bağlantısı yok",
+      "noConnectionsDescription": "Harici ERP aktarımı için önce bir bağlantı ekleyin.",
+      "recentLogsTitle": "Son senkron kayıtları",
+      "recentLogsDescription": "Son kayıtlar arasında {{failed}} başarısız işlem var.",
+      "noRecentLogs": "Henüz ERP senkron kaydı yok.",
+      "kpi": {
+        "connected": "Bağlı ERP",
+        "connectedValue": "{{active}} / {{total}}",
+        "lastSync": "Son senkron",
+        "errors": "Hata sayısı"
+      },
+      "table": {
+        "erp": "ERP",
+        "status": "Durum",
+        "lastSync": "Son senkron",
+        "errors": "Hatalar",
+        "action": "İşlem"
+      },
+      "logTable": {
+        "status": "Durum",
+        "job": "İşlem",
+        "started": "Başlangıç",
+        "items": "Kayıt"
+      }
     },
     "noChartData": "Grafik için veri yok.",
     "noTableData": "Tablo için veri yok.",
@@ -821,9 +1410,17 @@
       "emptyTitle": "Henüz yeterli veri yok",
       "emptyDesc": "Raporlar sync başladıktan sonra oluşacak.",
       "revenueTrend": "Günlük gelir trendi",
-      "platformTable": "Platform bazlı satış"
+      "platformTable": "Platform bazlı satış",
+      "externalErpTitle": "Satış özetleri pazaryeri hattında",
+      "externalErpDescription": "Harici program modunda yerel satış raporu yoktur; fatura ve cari özetleri bağlı programınızda tutulur. Pazaryeri satış raporları için Entegrasyon paketini veya ERP Aktarım sekmesini kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları"
     },
     "profit": {
+      "externalErpTitle": "Kâr ve maliyet harici ERP'de",
+      "externalErpDescription": "Net kâr, maliyet ve muhasebe kırılımları bağlı programınızda (Paraşüt, BizimHesap vb.) tutulur. Pazaryeri satış özetleri için Satış sekmesini; aktarım durumu için ERP Aktarım sekmesini kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları",
       "upgradeDesc": "Gelir, maliyet kırılımı ve kâr marjı PRO ve Kurumsal paketlerde kullanılabilir.",
       "productCost": "Maliyet",
       "commission": "Platform komisyonu",
@@ -835,9 +1432,25 @@
       "topProducts": "En karlı 10 ürün",
       "platformMargin": "Platform bazlı kâr marjı",
       "fxWarningTitle": "Kur dönüşümü kısmen tahmini",
-      "fxWarningDesc": "{{count}} sipariş için geçerli kur bulunamadı; maliyet ve kâr tahminidir."
+      "fxWarningDesc": "{{count}} sipariş için geçerli kur bulunamadı; maliyet ve kâr tahminidir.",
+      "noCostTitle": "Ürün maliyeti girilmemiş",
+      "noCostDesc": "Ürün kartlarında maliyet fiyatı tanımladığınızda kâr, satış ve maliyet verilerinize göre hesaplanır. Şu an gösterilen değerler tahminidir.",
+      "chartPlatformStacked": "Gelir, maliyet ve kâr (platform)",
+      "chartPlatformStackedDesc": "Net kâr, ürün maliyetleri ve komisyon/kargo kırılımına göre platformlar arasında oransal dağıtılır.",
+      "platformProfitTable": "Platform kâr tablosu",
+      "topProfitableProducts": "En kârlı ürünler",
+      "bottomProfitableProducts": "En az kârlı ürünler",
+      "chartRevenue": "Gelir",
+      "chartCost": "Maliyet",
+      "chartProfit": "Kâr",
+      "productColumn": "Ürün",
+      "totalCost": "Maliyet"
     },
     "tax": {
+      "externalErpTitle": "KDV ve vergi raporları harici ERP'de",
+      "externalErpDescription": "KDV beyannamesi, e-defter ve Ba/Bs özetleri bağlı programınızda (Paraşüt, BizimHesap vb.) tutulur. Aktarım durumu için ERP Aktarım sekmesini; ayrıntılı vergi raporları için ERP arayüzünü kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları",
       "year": "Yıl",
       "month": "Ay",
       "quarter": "Çeyrek",
@@ -850,7 +1463,12 @@
       "downloadVatPdf": "KDV Raporu İndir",
       "downloadBaBsPdf": "Ba/Bs Formu İndir",
       "baBsPreview": "Ba/Bs formu özeti",
-      "baBsHint": "Eşik üzeri işlemler için Ba/Bs formunu PDF olarak indirebilirsiniz."
+      "baBsHint": "Eşik üzeri işlemler için Ba/Bs formunu PDF olarak indirebilirsiniz.",
+      "invoiceCount": "Fatura sayısı",
+      "totalWithVat": "Toplam (KDV dahil)",
+      "accountingNote": "Özet, seçilen ayda oluşturulan ve iptal edilmemiş yerel faturalardan hesaplanır.",
+      "emptyTitle": "Bu ay için fatura yok",
+      "emptyDesc": "Seçilen ayda yerel ön muhasebe faturası bulunmuyor. Fatura oluşturduğunuzda KDV özeti burada görünür."
     },
     "analytics": {
       "subtitle": "Platform performans karşılaştırması",
@@ -862,10 +1480,27 @@
       "comparisonTable": "Platform karşılaştırma tablosu",
       "previousPeriod": "Önceki dönem",
       "change": "Değişim",
-      "returnRateNote": "İade oranı"
+      "returnRateNote": "İade oranı",
+      "externalErpTitle": "Gelişmiş analiz raporları harici ERP'de",
+      "externalErpDescription": "Özelleştirilmiş muhasebe ve detaylı analiz raporları bağlı programınızda (Paraşüt, BizimHesap vb.) tutulur. Pazaryeri satış özetleri için Satış sekmesini; aktarım durumu için ERP Aktarım sekmesini kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları"
+    },
+    "schedule": {
+      "contextLabel": "Zamanlama",
+      "subtitle": "Satış ve kâr/zarar raporlarını e-posta ile otomatik gönderin.",
+      "externalErpTitle": "Zamanlanmış muhasebe raporları harici ERP'de",
+      "externalErpDescription": "KDV, özel rapor ve muhasebe zamanlamaları bağlı programınızda (Paraşüt, BizimHesap vb.) yönetilir. Pazaryeri satış ve kâr özetleri için Satış sekmesini; aktarım durumu için ERP Aktarım sekmesini kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları"
     },
     "custom": {
       "subtitle": "Kayıtlı özel raporlarınızı yönetin veya yeni rapor oluşturun.",
+      "subtitleNative": "Sütun, filtre ve gruplama ile özel rapor oluşturun; kayıtlı raporlarınızı aşağıdan yönetin.",
+      "externalErpTitle": "Özel raporlar harici ERP'de",
+      "externalErpDescription": "Özelleştirilmiş muhasebe ve analiz raporları bağlı programınızda (Paraşüt, BizimHesap vb.) tutulur. Aktarım durumu için ERP Aktarım sekmesini; yerel satış ve stok özetleri için diğer rapor sekmelerini kullanın.",
+      "openErpTransfer": "ERP aktarım raporu",
+      "openConnections": "ERP bağlantıları",
       "createNew": "Yeni Rapor Oluştur",
       "savedList": "Oluşturulmuş özel raporlar",
       "wizardTitle": "Özel rapor sihirbazı",
@@ -907,6 +1542,12 @@
     "title": "Fiyatlandırma ve BuyBox",
     "subtitle": "BuyBox durumu, fiyat kuralları, rakip analizi ve fiyat geçmişini tek ekrandan yönetin.",
     "runEngine": "Motoru çalıştır",
+    "analysis": {
+      "pageTitle": "Fiyat analizi",
+      "title": "Fiyat analizi",
+      "subtitle": "Fiyat geçmişi, rakip matrisi ve eşik uyarılarını tek ekranda yönetin.",
+      "upgrade": "Fiyat analizi PRO ve Kurumsal paketlerde kullanılabilir."
+    },
     "tabs": {
       "buybox": "BuyBox durumu",
       "rules": "Fiyat kuralları",
@@ -1044,6 +1685,59 @@
       "alertAdded": "Fiyat uyarısı eklendi"
     }
   },
+  "sync": {
+    "banner": {
+      "erpTitle": "Harici ERP aktarımı",
+      "erpDescription": "Fatura ve cari aktarım kayıtları bağlı ERP bağlantınızda izlenir. Kanal sekmesinde pazaryeri senkronizasyonu; ERP sekmesinde harici aktarım kayıtları listelenir.",
+      "erpConnectionsLink": "ERP bağlantıları"
+    },
+    "history": {
+      "title": "Sync Geçmişi",
+      "subtitle": "Pazaryeri senkronizasyon kayıtları ve platform başarı oranları."
+    },
+    "conflicts": {
+      "title": "Senkronizasyon çakışmaları",
+      "subtitle": "Platform ile yerel veri arasındaki uyuşmazlıkları yönetin."
+    },
+    "logs": {
+      "title": "Sync durumu",
+      "subtitle": "Pazaryeri kanal senkronu ve harici ERP aktarım kayıtlarını tek yerden izleyin.",
+      "context": {
+        "ecommerceTitle": "E-Ticaret",
+        "ecommerceDescription": "Trendyol, Hepsiburada ve mağaza kanallarından sipariş çekme, stok ve fiyat gönderme, listeleme senkronu.",
+        "erpTitle": "Harici ERP",
+        "erpDescription": "Paraşüt, BizimHesap vb. harici muhasebe programına fatura, cari, stok ve ürün aktarımı (Harici ERP modunda).",
+        "nativeTitle": "Ön Muhasebe",
+        "nativeDescription": "Fatura, cari ve KDV panelde yönetilir; harici program köprüsü kullanılmaz (Ön Muhasebe modunda)."
+      },
+      "tabs": {
+        "channel": "Kanal senkronu",
+        "erp": "ERP aktarımı"
+      },
+      "bundleNative": {
+        "title": "Paket: kanal + yerel ön muhasebe",
+        "body": "Pazaryeri senkronu bu sayfada; fatura ve cari işlemler Ön Muhasebe'de. Harici ERP aktarımı yalnızca harici muhasebe modunda «ERP aktarımı» sekmesinde görünür.",
+        "accountingLink": "Ön Muhasebe özetine git"
+      },
+      "channelHealth": "Platform sağlığı",
+      "recordsTitle": "Senkronizasyon kayıtları",
+      "recordsDescription": "Son işlemler (en fazla 50 kayıt).",
+      "manualSync": "Manuel sync",
+      "noHealth": "Aktif pazaryeri bağlantısı yok veya henüz kayıt oluşmadı.",
+      "noLogs": "Bu sekme için henüz kayıt yok.",
+      "erpEmpty": "Harici ERP aktarımı için önce bir ERP bağlantısı ekleyin veya «Kanal senkronu» sekmesine geçin.",
+      "erpConnectionsLink": "ERP bağlantıları",
+      "table": {
+        "time": "Zaman",
+        "platform": "Platform / bağlantı",
+        "jobType": "İş türü",
+        "status": "Durum",
+        "processed": "İşlenen",
+        "failed": "Başarısız",
+        "duration": "Süre"
+      }
+    }
+  },
   "theme": {
     "light": "Açık",
     "lightDesc": "Her zaman açık tema.",
@@ -1073,5 +1767,1536 @@
       "high": "Yüksek",
       "urgent": "Acil"
     }
+  },
+  "payment": {
+    "pageTitle": "Ödeme",
+    "successPageTitle": "Ödeme başarılı",
+    "failurePageTitle": "Ödeme başarısız",
+    "callbackPageTitle": "Ödeme doğrulanıyor",
+    "plans": {
+      "BASLANGIC": "Başlangıç",
+      "GELISIM": "Gelişim",
+      "PRO": "Pro",
+      "KURUMSAL": "Kurumsal"
+    },
+    "billing": {
+      "monthly": "Aylık",
+      "yearly": "Yıllık"
+    },
+    "checkout": {
+      "title": "{{plan}} paketi — {{period}} ödeme",
+      "loadingForm": "Güvenli ödeme formu yükleniyor…",
+      "formAriaLabel": "Iyzico ödeme formu",
+      "invalidPlan": "Geçersiz paket seçimi",
+      "noPlanSelected": "Ödeme için geçerli bir paket seçilmedi.",
+      "formLoadFailed": "Ödeme formu yüklenemedi."
+    },
+    "success": {
+      "title": "Teşekkürler!",
+      "description": "Ödemeniz başarıyla alındı. Aboneliğiniz aktifleştirildi; fatura e-posta adresinize gönderildi.",
+      "loadingPlan": "Plan bilgileri yükleniyor…",
+      "planPackage": "{{plan}} Paketi",
+      "subscriptionLabel": "{{period}} abonelik",
+      "goToPanel": "Panele Git",
+      "features": {
+        "BASLANGIC": ["3 pazaryeri", "500 sipariş/ay", "Temel senkronizasyon"],
+        "GELISIM": ["10 pazaryeri", "BuyBox & webhook", "Çoklu para birimi"],
+        "PRO": ["25 pazaryeri", "BuyBox AI", "API erişimi"],
+        "KURUMSAL": ["Sınırsız entegrasyon", "Özel destek", "White-label"]
+      }
+    },
+    "callback": {
+      "title": "Ödeme doğrulanıyor",
+      "description": "Lütfen bekleyin, aboneliğiniz etkinleştiriliyor…",
+      "missingToken": "Ödeme doğrulama bilgisi eksik."
+    },
+    "failure": {
+      "title": "Ödeme tamamlanamadı",
+      "description": "İşlem sırasında bir sorun oluştu veya ödeme iptal edildi. Kart bilgilerinizi kontrol ederek tekrar deneyebilirsiniz.",
+      "retry": "Tekrar dene",
+      "backToPanel": "Panele dön"
+    }
+  },
+  "register": {
+    "nav": {
+      "pageLabel": "Kayıt",
+      "step": "Adım {{step}}"
+    },
+    "documentTitle": "{{stepLabel}} | {{pageLabel}} | Senkronize",
+    "title": "Hesap oluştur",
+    "description": "14 günlük ücretsiz denemenizi başlatın. Kredi kartı gerekmez; ödeme daha sonra.",
+    "partnerInvite": {
+      "verifying": "Davet doğrulanıyor…",
+      "errorPrefix": "Davet doğrulanamadı:",
+      "registeringSuffix": "davetiyle kayıt oluyorsunuz. Referans kodu otomatik uygulandı."
+    },
+    "progress": {
+      "stepOf": "Adım {{current}} / {{total}}"
+    },
+    "step1": {
+      "nameLabel": "Ad Soyad",
+      "namePlaceholder": "Adınız Soyadınız",
+      "emailLabel": "E-posta",
+      "emailPlaceholder": "ornek@sirket.com",
+      "phoneLabel": "Telefon",
+      "phoneHint": "Başında 0 olmadan 10 hane (ör. 5XXXXXXXXX).",
+      "passwordLabel": "Şifre",
+      "passwordPlaceholder": "En az 8 karakter",
+      "confirmPasswordLabel": "Şifre tekrar",
+      "confirmPasswordPlaceholder": "Şifrenizi tekrar girin"
+    },
+    "step2": {
+      "companyNameLabel": "Firma adı",
+      "companyNamePlaceholder": "Ticari unvan",
+      "taxNumberLabel": "Vergi numarası",
+      "taxNumberPlaceholder": "10 hane",
+      "taxOfficeLabel": "Vergi dairesi",
+      "taxOfficePlaceholder": "Bağlı olduğunuz vergi dairesi",
+      "addressLabel": "Adres",
+      "addressPlaceholder": "Açık adres",
+      "cityLabel": "Şehir",
+      "cityPlaceholder": "İl seçin",
+      "websiteLabel": "Web sitesi (isteğe bağlı)",
+      "websitePlaceholder": "https://...",
+      "referralCodeLabel": "Referans kodu (isteğe bağlı)",
+      "referralCodePlaceholder": "Partner referans kodunuz varsa girin"
+    },
+    "step3": {
+      "productLineLabel": "Ürün hattı",
+      "productLineHint": "Entegrasyon, Ön Muhasebe veya Paket seçin — fiyatlandırma sayfasındaki ürün hatlarıyla aynıdır. Seçimden sonra menü önizlemesinde stok konumunu görebilirsiniz.",
+      "accountingModeLabel": "Muhasebeyi nerede yönetiyorsunuz?",
+      "accountingModeBundleHint": "Paket seçiminde tercihiniz menü yapısını ve bağlantı ekranlarını şekillendirir.",
+      "accountingModeAccountingHint": "İsteğe bağlıdır; seçim yapmazsanız Senkronize ön muhasebe kullanılır. Harici ERP seçerseniz bağlantı ekranları buna göre açılır."
+    },
+    "step4": {
+      "erpQuestion": "ERP kullanıyor musunuz?",
+      "erpAriaLabel": "ERP kullanımı",
+      "marketplaceQuestion": "Hangi pazaryerlerinde satış yapıyorsunuz?",
+      "ecommerceQuestion": "E-ticaret siteniz var mı?",
+      "ecommerceAriaLabel": "E-ticaret sitesi"
+    },
+    "step5": {
+      "recommendLoading": "Paket önerisi hesaplanıyor…",
+      "recommendedTitle": "Önerilen paket",
+      "planSelectionLabel": "Paket seçimi",
+      "recommendedBadge": "Önerilen",
+      "pricePerYear": "/yıl",
+      "monthlyEquivalent": "Aylık {{amount}} ₺'ye eşdeğer",
+      "tosLabel": "Senkronize kullanım şartlarını ve gizlilik politikasını okudum, kabul ediyorum.",
+      "submitPending": "Kaydediliyor…",
+      "submit": "14 Günlük Ücretsiz Deneme Başlat"
+    },
+    "footer": {
+      "hasAccount": "Zaten hesabınız var mı?",
+      "signIn": "Giriş yapın"
+    },
+    "choices": {
+      "other": "Diğer"
+    },
+    "validation": {
+      "phoneDigits": "Geçerli bir cep numarası girin (10 hane, 5 ile başlar, başında 0 yok).",
+      "passwordMin": "Şifre en az 8 karakter olmalıdır.",
+      "taxNumber": "Vergi numarası 10 haneli olmalıdır",
+      "acceptTos": "Kullanım şartlarını kabul etmelisiniz.",
+      "passwordMismatch": "Şifreler eşleşmiyor."
+    },
+    "toast": {
+      "success": "Kayıt tamamlandı, hoş geldiniz.",
+      "productRequired": "Devam etmek için bir ürün seçeneği seçin.",
+      "accountingModeRequired": "Paket için muhasebe yönetim yerini seçin.",
+      "erpRequired": "En az bir ERP seçin veya ERP kullanmıyorum seçeneğini işaretleyin.",
+      "marketplaceRequired": "En az bir pazaryeri seçin.",
+      "ecommerceRequired": "E-ticaret altyapısı seçin veya \"E-ticaret sitem yok\" seçeneğini işaretleyin.",
+      "productMissing": "Ürün seçimi yapılmadı. Lütfen önceki adıma dönün.",
+      "inviteInvalid": "Davet kodu geçerli değil veya doğrulanamadı."
+    }
+  },
+  "acceptInvite": {
+    "pageTitle": "Daveti kabul et",
+    "inviteTitle": "Davet",
+    "invalidLink": "Davet bağlantısı geçersiz veya eksik.",
+    "backToLogin": "Giriş sayfasına dön",
+    "verifying": "Davet doğrulanıyor…",
+    "unavailableTitle": "Davet kullanılamıyor",
+    "notFound": "Davet bulunamadı.",
+    "joinTitle": "Organizasyona katıl",
+    "invitedBySuffix": "sizi davet etti.",
+    "completeAccount": "Hesabınızı tamamlayın (davet e-postası: {{email}}).",
+    "nameLabel": "Adınız",
+    "namePlaceholder": "Ad Soyad",
+    "passwordLabel": "Şifre",
+    "passwordMin": "En az 8 karakter",
+    "submit": "Hesabı oluştur ve katıl",
+    "alreadyHaveAccount": "Zaten hesabım var",
+    "successToast": "Hesabınız hazır. Hoş geldiniz!"
+  },
+  "partnerInviteAccept": {
+    "pageTitle": "Partner daveti",
+    "inviteTitle": "Davet",
+    "invalidLink": "Geçersiz davet bağlantısı.",
+    "partnerTitle": "Partner daveti",
+    "loginRequired": "Daveti kabul etmek için giriş yapmanız veya kayıt olmanız gerekir.",
+    "signIn": "Giriş yap",
+    "register": "Kayıt ol",
+    "failedTitle": "Davet işlenemedi",
+    "backToPanel": "Panele dön",
+    "confirmDescription": "Partner ilişkisini kurmak için onaylayın. İşlem tamamlandığında panele yönlendirileceksiniz.",
+    "accept": "Daveti kabul et",
+    "processing": "İşleniyor…",
+    "loadingAria": "Yükleniyor"
+  },
+  "offline": {
+    "pageTitle": "Çevrimdışı",
+    "title": "İnternet bağlantınız kesildi",
+    "description": "Bağlantı geri geldiğinde yeniden deneyin. Bekleyen işlemler bağlantı kurulunca senkronize edilir.",
+    "retry": "Yeniden Dene",
+    "snapshotAria": "Son bilinen özet veriler",
+    "snapshotTitle": "Son bilinen veriler",
+    "savedAt": "Kayıt: {{date}}",
+    "ordersToday": "Bugünkü sipariş: {{count}}",
+    "revenueToday": "Bugünkü ciro: {{amount}}",
+    "pendingOrders": "Bekleyen sipariş: {{count}}",
+    "lowStockCount": "Düşük stok uyarısı: {{count}}",
+    "noSnapshot": "Henüz kayıtlı özet veri yok. Paneli çevrimiçi kullandıktan sonra burada görüntülenir.",
+    "queuePending": "{{count}} bekleyen çevrimdışı işlem kuyrukta."
+  },
+  "admin": {
+    "orgType": {
+      "DIRECT": "Doğrudan",
+      "PARTNER": "Partner"
+    },
+    "partner": {
+      "editCommission": "Komisyon Düzenle",
+      "editCommissionReason": "Değişiklik Nedeni",
+      "editCommissionSaved": "Komisyon oranı güncellendi.",
+      "payout": {
+        "rejectNote": "Ret Notu (opsiyonel)"
+      },
+      "linkRequest": {
+        "rejectReason": "Ret Gerekçesi (zorunlu)",
+        "rejectReasonMinLength": "Ret gerekçesi en az 10 karakter olmalıdır."
+      },
+      "clientStatus": {
+        "ACTIVE": "Aktif",
+        "PENDING": "Beklemede"
+      }
+    },
+    "userRole": {
+      "OWNER": "Sahip",
+      "ADMIN": "Yönetici",
+      "MANAGER": "Müdür",
+      "VIEWER": "İzleyici",
+      "SUPER_ADMIN": "Sistem yöneticisi"
+    },
+    "subscriptionStatus": {
+      "TRIAL": "Deneme",
+      "ACTIVE": "Aktif",
+      "PAUSED": "Duraklatıldı",
+      "CANCELING": "İptal sürecinde",
+      "CANCELLED": "İptal",
+      "EXPIRED": "Süresi doldu"
+    },
+    "planTier": {
+      "BASLANGIC": "Başlangıç",
+      "GELISIM": "Gelişim",
+      "PRO": "Pro",
+      "KURUMSAL": "Kurumsal"
+    },
+    "paymentStatus": {
+      "PENDING": "Beklemede",
+      "SUCCESS": "Başarılı",
+      "FAILED": "Başarısız",
+      "REFUNDED": "İade"
+    },
+    "productSelection": {
+      "INTEGRATION": "Entegrasyon",
+      "ACCOUNTING": "Ön Muhasebe",
+      "BUNDLE": "Tam paket"
+    },
+    "productLine": {
+      "INTEGRATION": "Entegrasyon",
+      "ACCOUNTING": "Muhasebe"
+    },
+    "accountingMode": {
+      "NATIVE": "Ön muhasebe",
+      "EXTERNAL_ERP": "Harici ERP"
+    },
+    "accountStatus": {
+      "active": "Çalışıyor",
+      "suspended": "Askıda"
+    },
+    "noSubscription": "Abonelik yok",
+    "orgDelete": {
+      "blocked": {
+        "platform": "Platform organizasyonu silinemez.",
+        "partner": "Partner organizasyonları bu ekrandan silinemez. Partner yönetim sayfasını kullanın."
+      }
+    },
+    "partnerLinkStatus": {
+      "PENDING": "Beklemede",
+      "APPROVED": "Onaylandı",
+      "REJECTED": "Reddedildi",
+      "unknown": "Bilinmeyen"
+    },
+    "partnerPayoutStatus": {
+      "PENDING": "Beklemede",
+      "APPROVED": "Onaylandı",
+      "REJECTED": "Reddedildi"
+    },
+    "layout": {
+      "title": "Super Admin",
+      "badge": "Platform",
+      "platformOrgLink": "Platform organizasyonu",
+      "backToPanel": "← Panele dön"
+    },
+    "nav": {
+      "dashboard": "Platform İstatistikleri",
+      "organizations": "Organizasyonlar",
+      "users": "Kullanıcılar",
+      "partners": "Partnerler",
+      "partnerLinks": "Partner Bağlantıları",
+      "subscriptions": "Abonelikler",
+      "tickets": "Destek Talepleri",
+      "auditLogs": "Denetim kayıtları",
+      "integrations": "Entegrasyonlar",
+      "security": "Güvenlik"
+    },
+    "pageHeader": {
+      "breadcrumbAria": "Konum"
+    },
+    "pages": {
+      "dashboard": {
+        "title": "Platform İstatistikleri",
+        "description": "Organizasyon, gelir ve büyüme metriklerinin platform özeti.",
+        "productFilterNote": "Özet kartları {{product}} ürün hattına göre filtreleniyor. Gelir ve büyüme grafikleri tüm platformu kapsar.",
+        "listOrganizations": "Organizasyonları listele",
+        "loadingOverview": "Platform özeti yükleniyor…",
+        "chartsLoading": "Grafikler yükleniyor…",
+        "noRecordsYet": "Henüz kayıt yok"
+      },
+      "organizations": {
+        "title": "Organizasyonlar",
+        "description": "Tüm müşteri organizasyonlarını görüntüleyin ve yönetin.",
+        "exportCsv": "CSV dışa aktar"
+      },
+      "users": {
+        "title": "Kullanıcılar",
+        "description": "Tüm platform kullanıcılarını listeleyin, rol ve erişimlerini yönetin.",
+        "exportCsv": "CSV dışa aktar"
+      },
+      "userDetail": {
+        "title": "Kullanıcı Detayı",
+        "tabs": {
+          "general": "Genel",
+          "activity": "Aktivite"
+        },
+        "orgLabel": "Organizasyon",
+        "orgOtherUsers": "Organizasyonda {{count}} diğer kullanıcı",
+        "registeredAt": "Kayıt Tarihi",
+        "lastLogin": "Son Giriş",
+        "actions": {
+          "changeRole": "Rolü Değiştir",
+          "resetPassword": "Şifre Sıfırla",
+          "killSessions": "Oturumları Sonlandır",
+          "suspend": "Askıya Al",
+          "unsuspend": "Askıyı Kaldır"
+        },
+        "emptyActivity": "Aktivite kaydı bulunamadı.",
+        "backToUsers": "Kullanıcılara Dön"
+      },
+      "partners": {
+        "title": "Partner Organizasyonları",
+        "description": "Partner bayilerin listesi, komisyon oranları ve bağlı müşteriler.",
+        "loadingAria": "Partnerler yükleniyor",
+        "loading": "Partnerler yükleniyor…",
+        "empty": "Kayıtlı partner organizasyonu yok. Seed veya kayıt ile partner oluşturun.",
+        "table": {
+          "partner": "Partner",
+          "activeClients": "Aktif müşteri",
+          "commission": "Komisyon (%)",
+          "registered": "Kayıt",
+          "actions": "İşlem"
+        },
+        "demo": "Demo",
+        "clientsExpanded": "Müşteriler açık",
+        "list": "Liste",
+        "editRate": "Oranı Düzenle",
+        "commissionDialogTitle": "{{name}} — komisyon oranı",
+        "rateLabel": "Oran (%)",
+        "demoPartnerTitle": "Demo partner",
+        "demoPartnerHint": "Seed müşterileri: {{slug1}} (tam paket · PRO deneme), {{slug2}} (yalnızca entegrasyon). Giriş: {{login1}} / {{login2}}.",
+        "partnerNotInList": "Bağlantıdaki partner kaydı listede bulunamadı.",
+        "selectedPartnerNotFound": "Seçili partner kaydı bulunamadı.",
+        "toast": {
+          "commissionRange": "Komisyon oranı 0 ile 50 arasında olmalıdır.",
+          "commissionUpdated": "Komisyon oranı güncellendi",
+          "commissionReasonRequired": "Değişiklik nedeni zorunludur."
+        }
+      },
+      "partnerClients": {
+        "defaultPartnerName": "Partner",
+        "title": "{{name}} — bağlı müşteriler",
+        "subtitle": "Organizasyon listesi ile aynı ürün hattı ve muhasebe rozetleri",
+        "listAll": "Tümünü listele",
+        "loadingAria": "Müşteriler yükleniyor",
+        "exportCsv": "CSV dışa aktar",
+        "table": {
+          "organization": "Organizasyon",
+          "accounting": "Muhasebe",
+          "plan": "Paket",
+          "status": "Durum",
+          "detail": "Detay"
+        },
+        "empty": "Aktif müşteri bağlantısı yok.",
+        "demoHint": {
+          "demo-partner-musteri": "Tam paket (entegrasyon + muhasebe) · PRO deneme",
+          "demo-partner-musteri-2": "Yalnızca entegrasyon · Gelişim deneme"
+        },
+        "csv": {
+          "organization": "Organizasyon",
+          "slug": "Slug",
+          "products": "Ürünler",
+          "accounting": "Muhasebe",
+          "plan": "Paket",
+          "accountStatus": "Hesap durumu",
+          "subscription": "Abonelik",
+          "registered": "Kayıt"
+        },
+        "toast": {
+          "exportCsvSuccess": "CSV indirildi.",
+          "exportEmpty": "Dışa aktarılacak müşteri kaydı yok."
+        },
+        "filename": "partner-musteriler-{{date}}.csv"
+      },
+      "partnerLinks": {
+        "title": "Partner Bağlantı Talepleri",
+        "description": "Bekleyen partner-müşteri bağlantı taleplerini onaylayın veya reddedin.",
+        "loadingAria": "Bağlantı talepleri yükleniyor",
+        "loading": "Bağlantı talepleri yükleniyor…",
+        "empty": "Kayıt bulunmuyor.",
+        "tabs": {
+          "pending": "Bekleyen",
+          "history": "Geçmiş"
+        },
+        "table": {
+          "client": "Müşteri",
+          "partner": "Partner",
+          "date": "Tarih",
+          "actions": "İşlem",
+          "status": "Durum"
+        },
+        "requestNote": "Talep notu:",
+        "approve": "Onayla",
+        "reject": "Reddet",
+        "approveDialog": {
+          "title": "Bağlantı talebini onayla",
+          "description": "{{client}} müşterisi {{partner}} partnerına bağlanacak. Partner ilişkisi ve komisyon oranı otomatik uygulanır."
+        },
+        "rejectDialog": {
+          "title": "Talebi reddet",
+          "noteLabel": "Red notu",
+          "notePlaceholder": "Red gerekçesini yazın (müşteriye iletilebilir)"
+        },
+        "toast": {
+          "approved": "Bağlantı talebi onaylandı",
+          "rejected": "Bağlantı talebi reddedildi",
+          "rejectNoteRequired": "Red notu zorunludur."
+        }
+      },
+      "subscriptions": {
+        "title": "Abonelikler",
+        "description": "Tüm organizasyonların abonelik durumlarını görüntüleyin.",
+        "statusLabel": "Durum",
+        "table": {
+          "organization": "Organizasyon",
+          "productLines": "Ürün hatları",
+          "accountingMode": "Muhasebe modu",
+          "plan": "Paket",
+          "status": "Durum",
+          "periodStart": "Dönem başı",
+          "periodEnd": "Dönem sonu"
+        },
+        "empty": "Henüz abonelik kaydı yok.",
+        "emptyFiltered": "Seçilen filtrelere uygun abonelik bulunamadı.",
+        "orgSuspended": "Org askıda"
+      },
+      "auditLogs": {
+        "title": "Platform Denetim Günlüğü",
+        "description": "Tüm sistem eylemlerinin denetim kaydı.",
+        "exportCsv": "CSV dışa aktar",
+        "cardTitle": "Platform denetim kayıtları",
+        "cardDescriptionBefore": "Kiracı panelindeki",
+        "tenantAuditLink": "Denetim kayıtları",
+        "cardDescriptionAfter": "sayfası yalnızca oturumdaki organizasyonu kapsar; bu liste tüm kiracıları içerir.",
+        "table": {
+          "date": "Tarih",
+          "action": "Eylem",
+          "resource": "Kaynak",
+          "actorOrg": "Aktör org",
+          "impersonation": "Impersonation"
+        },
+        "toast": {
+          "csvDownloaded": "CSV indirildi.",
+          "csvDownloadedLocal": "CSV indirildi (yerel).",
+          "exportEmpty": "Dışa aktarılacak kayıt yok.",
+          "exportFailed": "CSV oluşturulamadı."
+        },
+        "csv": {
+          "date": "Tarih",
+          "action": "Eylem",
+          "resource": "Kaynak",
+          "actorOrg": "Aktör org",
+          "actorOrgId": "Aktör org ID",
+          "impersonationOrg": "Impersonation org",
+          "impersonationOrgId": "Impersonation org ID",
+          "filename": "platform-denetim-{{date}}.csv"
+        }
+      },
+      "integrations": {
+        "title": "Entegrasyonlar & API Sağlığı",
+        "description": "Her entegrasyonun sync, rate limit ve devre kesici ayarlarını ayrı ayrı yönetin.",
+        "listTitle": "Entegrasyon listesi",
+        "searchPlaceholder": "Platform veya ad ara…",
+        "openHint": "Ayarları açmak için satıra çift tıklayın.",
+        "backToList": "Entegrasyon listesine dön",
+        "loadingDetail": "Entegrasyon yükleniyor…",
+        "saved": "Entegrasyon ayarları kaydedildi.",
+        "circuitReset": "Devre kesici sıfırlandı.",
+        "healthTitle": "API sağlığı",
+        "healthScore": "Sağlık skoru",
+        "circuitStateLabel": "Devre kesici",
+        "requestsToday": "Bugünkü istek",
+        "violationsToday": "Bugünkü ihlal",
+        "resetCircuit": "Devre kesiciyi sıfırla",
+        "settingsTitle": "Entegrasyon ayarları",
+        "settingsDescription": "Boş bırakılan alanlar platform varsayılanını kullanır.",
+        "useDefault": "Varsayılan",
+        "effectiveValue": "Etkin değer: {{value}}",
+        "lastUpdated": "Son güncelleme: {{date}}",
+        "enabled": "Aktif",
+        "disabled": "Kapalı",
+        "categories": {
+          "marketplace": "Pazaryeri",
+          "ecommerce": "E-ticaret",
+          "erp": "ERP"
+        },
+        "sections": {
+          "general": "Genel",
+          "sync": "Senkronizasyon",
+          "rateLimit": "Rate limit"
+        },
+        "circuitState": {
+          "CLOSED": "Sağlıklı",
+          "OPEN": "Açık (bloklu)",
+          "HALF_OPEN": "Test modu"
+        },
+        "table": {
+          "name": "Entegrasyon",
+          "category": "Kategori",
+          "health": "Sağlık",
+          "rpm": "RPM",
+          "requestsToday": "Bugün istek",
+          "status": "Durum",
+          "circuit": "Devre kesici"
+        }
+      },
+      "security": {
+        "title": "Güvenlik",
+        "description": "Engellenen IP adresleri ve rate limit metrikleri.",
+        "blockedIps": {
+          "title": "Engellenen IP Adresleri",
+          "addButton": "IP Engelle",
+          "removeButton": "Kaldır",
+          "empty": "Engellenen IP adresi yok.",
+          "addDialog": {
+            "title": "IP Adresi Engelle",
+            "label": "IP Adresi",
+            "confirm": "Engelle"
+          },
+          "table": {
+            "ip": "IP adresi",
+            "blockedAt": "Engelleme zamanı"
+          },
+          "toast": {
+            "blocked": "IP adresi engellendi.",
+            "unblocked": "IP engeli kaldırıldı."
+          }
+        },
+        "rateLimit": {
+          "title": "Rate Limit İstatistikleri",
+          "violationsToday": "Bugünkü ihlaller",
+          "requestsTitle": "Platform istekleri (bugün)",
+          "violationsTitle": "İhlal özeti (platform:kaynak)",
+          "table": {
+            "platform": "Platform",
+            "requests": "İstek sayısı",
+            "source": "Kaynak",
+            "throttleCount": "Throttle / ihlal"
+          }
+        },
+        "health": {
+          "title": "Platform Bağlantı Sağlığı",
+          "resetButton": "Sıfırla",
+          "resetSuccess": "Platform sağlığı sıfırlandı.",
+          "table": {
+            "platform": "Platform",
+            "score": "Sağlık skoru",
+            "errors": "Penceredeki hata",
+            "state": "Devre kesici",
+            "failures": "Ardışık hata"
+          },
+          "circuitState": {
+            "CLOSED": "Kapalı (sağlıklı)",
+            "OPEN": "Açık (engelli)",
+            "HALF_OPEN": "Yarı açık"
+          }
+        }
+      },
+      "tickets": {
+        "title": "Destek Talepleri",
+        "description": "Tüm müşteri destek taleplerini görüntüleyin ve yönetin."
+      },
+      "orgDetail": {
+        "invalidUrl": "Geçersiz adres.",
+        "invalidResponse": "Geçersiz organizasyon yanıtı",
+        "backToList": "Listeye dön",
+        "backToOrganizations": "Organizasyonlara dön",
+        "partnerErrorHint": "Partner organizasyonları",
+        "partnerErrorLink": "Partnerler",
+        "partnerErrorSuffix": "sayfasından yönetilir.",
+        "goToPartners": "Partnerlere git",
+        "taxNumber": "VKN {{value}}",
+        "accountingModeResolvedTitle": "Kayıtlı mod yok; ERP bağlantısına göre çözümlendi",
+        "partnerPrefix": "Partner:",
+        "period": "Dönem:",
+        "trialEnds": "Deneme bitişi:",
+        "activitySummary": "Aktivite özeti",
+        "last30Days": "Son 30 gün",
+        "sync": "Sync",
+        "orders": "Sipariş",
+        "errors": "Hata",
+        "notes": "Notlar",
+        "notePlaceholder": "İç not ekleyin…",
+        "addNote": "Not ekle",
+        "noNotesYet": "Henüz not yok.",
+        "dangerZone": "Tehlikeli işlemler",
+        "exportZip": "Veriyi dışa aktar (ZIP)",
+        "goToPartnerManagement": "Partner yönetimine git",
+        "deleteOrg": "Organizasyonu sil",
+        "deleteConfirmTitle": "Organizasyonu sil",
+        "deleteConfirmDescription": "Bu işlem organizasyonu kalıcı olarak askıya alır ve soft-delete uygular. Tüm kullanıcı oturumları etkilenebilir. Devam etmek istediğinize emin misiniz?",
+        "tabs": {
+          "settings": "Ayarlar",
+          "general": "Genel bilgi",
+          "users": "Kullanıcılar",
+          "connections": "Bağlantılar",
+          "orders": "Son siparişler",
+          "audit": "Audit log",
+          "invoices": "Fatura geçmişi"
+        },
+        "settingsHintBefore": "Abonelik, ürün hattı ve partner ataması için",
+        "settingsHintLink": "Ayarlar",
+        "settingsHintAfter": "sekmesini kullanın.",
+        "contactAddress": "İletişim ve adres",
+        "taxOffice": "Vergi dairesi",
+        "city": "Şehir",
+        "address": "Adres",
+        "website": "Web sitesi",
+        "registeredAt": "Kayıt tarihi",
+        "orgType": "Organizasyon tipi",
+        "usersTable": {
+          "name": "Ad",
+          "email": "E-posta",
+          "role": "Rol",
+          "lastLogin": "Son giriş",
+          "empty": "Kullanıcı yok."
+        },
+        "connectionsTable": {
+          "platform": "Platform",
+          "status": "Durum",
+          "lastSync": "Son sync",
+          "errorCount": "Hata sayısı",
+          "empty": "Pazaryeri bağlantısı yok.",
+          "active": "Aktif",
+          "inactive": "Pasif"
+        },
+        "ordersTable": {
+          "platform": "Platform",
+          "order": "Sipariş",
+          "customer": "Müşteri",
+          "status": "Durum",
+          "amount": "Tutar",
+          "date": "Tarih",
+          "empty": "Sipariş yok."
+        },
+        "auditTable": {
+          "date": "Tarih",
+          "action": "Eylem",
+          "resource": "Kaynak",
+          "empty": "Kayıt yok.",
+          "exportCsv": "CSV dışa aktar"
+        },
+        "invoicesTable": {
+          "date": "Tarih",
+          "plan": "Paket",
+          "status": "Durum",
+          "amount": "Tutar",
+          "empty": "Ödeme kaydı yok.",
+          "billingExempt": "İç hesap — faturalandırma devre dışı."
+        },
+        "toast": {
+          "noteAdded": "Not eklendi.",
+          "orgDeleted": "Organizasyon silindi.",
+          "exportFailed": "Dışa aktarma başarısız.",
+          "exportDownloaded": "Dışa aktarma indirildi.",
+          "auditCsvDownloaded": "Denetim CSV indirildi."
+        }
+      },
+      "orgSettings": {
+        "subscriptionTitle": "Abonelik ve ürün hattı",
+        "subscriptionDescription": "Paket, deneme durumu ve satın alınan ürün modülleri",
+        "planLabel": "Paket:",
+        "changePlan": "Paket değiştir",
+        "platformOrgLocked": "Platform organizasyonunun abonelik durumu değiştirilemez.",
+        "internalAccountBadge": "İç hesap",
+        "internalAccountTitle": "İç hesap / faturalandırma muaf",
+        "internalAccountDescription": "Faturalandırma ve ödeme akışı devre dışı kalır; paket limitleri sınırsız (Kurumsal) olarak uygulanır. Abonelik durumunu aşağıdan yine de güncelleyebilirsiniz.",
+        "internalAccountReason": "Denetim gerekçesi",
+        "internalAccountDefaultReason": "Platform iç hesabı",
+        "applyInternalAccount": "Sınırsız iç hesap uygula",
+        "internalAccountActive": "Bu organizasyon iç hesap olarak işaretli; faturalandırma gösterilmez.",
+        "subscriptionStatus": "Abonelik durumu",
+        "statusLabel": "Durum",
+        "trialEndsLabel": "Deneme bitiş tarihi",
+        "extendTrial": "Deneme uzat (+7 gün)",
+        "currentStatus": "Mevcut:",
+        "reasonPlaceholder": "Değişiklik gerekçesi (denetim kaydı)…",
+        "saveSubscription": "Abonelik durumunu kaydet",
+        "noSubscription": "Abonelik kaydı yok.",
+        "productLineLabel": "Ürün hattı:",
+        "accountingPrefix": "Muhasebe:",
+        "accountingResolved": " (çözümlenen)",
+        "activeErpCount": "{{count}} aktif ERP",
+        "changeAccountingMode": "Muhasebe modunu değiştir",
+        "changeProductLine": "Ürün hattını değiştir",
+        "partnerAssignTitle": "Partner ataması",
+        "partnerAssignDescription": "Müşteriyi bir partner organizasyonuna bağlayın (admin onayı gerekmez)",
+        "noActivePartner": "Aktif partner bağlantısı yok.",
+        "commission": "Komisyon %{{pct}}",
+        "impersonationOn": " · Impersonation açık",
+        "clients": "Müşteriler",
+        "remove": "Kaldır",
+        "noPartnersInSystem": "Sistemde partner organizasyonu yok. Önce seed veya kayıt ile partner oluşturun.",
+        "allPartnersAssigned": "Tüm partnerler bu müşteriye zaten atanmış.",
+        "assignPartner": "Partner ata",
+        "partnerOrgTitle": "Partner organizasyonu",
+        "partnerOrgDescription": "Bu kayıt bir partner hesabıdır; müşteri partner ataması yalnızca DIRECT tip organizasyonlarda yapılır.",
+        "changePlanTitle": "Paket değiştir",
+        "newPlan": "Yeni paket",
+        "assignPartnerTitle": "Partner ata",
+        "assignPartnerDescription": "{{orgName}} müşterisini bir partner organizasyonuna bağlayın. Bağlantı anında aktif olur; partner onayı gerekmez.",
+        "partnerOrgSelect": "Partner organizasyonu",
+        "partnerSelectPlaceholder": "Partner seçin…",
+        "demoSuffix": " · Demo",
+        "commissionActiveClients": "Komisyon %{{rate}} · {{count}} aktif müşteri",
+        "goToPartnerProfile": "Partner profiline git",
+        "selectPartnerHint": "Listeden bir partner seçin; komisyon ve müşteri sayısı burada görünür.",
+        "optionalNote": "Not (isteğe bağlı)",
+        "auditNotePlaceholder": "Denetim kaydı için kısa not…",
+        "assignPartnerConfirm": "Partneri ata",
+        "changeAccountingTitle": "Muhasebe modunu değiştir",
+        "changeAccountingDescription": "Ön muhasebe panelde: fatura ve cari burada; harici program: muhasebe Paraşüt, BizimHesap vb. Değişiklik denetim kaydına yazılır.",
+        "newMode": "Yeni mod",
+        "nativeBlockedTitle": "Yerel moda geçilemiyor",
+        "nativeBlockedDescription": "{{count}} aktif harici ERP bağlantısı var. Yerel ön muhasebe moduna geçmek için önce bağlantıları devre dışı bırakın veya kaldırın.",
+        "changeProductTitle": "Ürün hattını değiştir",
+        "productSelection": "Ürün seçimi",
+        "toast": {
+          "planUpdated": "Paket güncellendi.",
+          "productLineUpdated": "Ürün hattı güncellendi.",
+          "accountingModeUpdated": "Muhasebe modu güncellendi.",
+          "partnerAssigned": "Partner atandı.",
+          "subscriptionUpdated": "Abonelik durumu güncellendi.",
+          "trialExtended": "Deneme süresi 7 gün uzatıldı.",
+          "partnerRemoved": "Partner bağlantısı kaldırıldı.",
+          "invalidTrialDate": "Geçersiz deneme bitiş tarihi.",
+          "internalAccountEnabled": "İç hesap ve sınırsız limitler uygulandı.",
+          "internalAccountDisabled": "İç hesap işareti kaldırıldı."
+        }
+      },
+      "partnerPayouts": {
+        "title": "Ödeme talepleri",
+        "description": "Partner komisyon ödeme taleplerini onaylayın veya reddedin.",
+        "loading": "Talepler yükleniyor…",
+        "filterPending": "Bekleyen",
+        "filterApproved": "Onaylanan",
+        "filterRejected": "Reddedilen",
+        "filterAll": "Tümü",
+        "emptyPending": "Bekleyen ödeme talebi yok.",
+        "emptyFiltered": "Bu filtrede kayıt bulunamadı.",
+        "viewPartner": "{{name}} satırına git",
+        "table": {
+          "partner": "Partner",
+          "date": "Tarih",
+          "amount": "Tutar",
+          "status": "Durum",
+          "actions": "İşlem"
+        },
+        "approve": "Onayla",
+        "reject": "Reddet",
+        "approveDialog": {
+          "title": "Ödeme talebini onayla",
+          "description": "{{partner}} için {{amount}} tutarındaki talep onaylanacak; komisyon bakiyesi muhasebe kaydına aktarılır."
+        },
+        "rejectDialog": {
+          "title": "Ödeme talebini reddet",
+          "summary": "{{partner}} · {{amount}}",
+          "noteLabel": "Red notu",
+          "notePlaceholder": "Red gerekçesini yazın (denetim kaydına işlenir)"
+        },
+        "toast": {
+          "approved": "Ödeme talebi onaylandı.",
+          "rejected": "Ödeme talebi reddedildi.",
+          "rejectNoteRequired": "Red notu zorunludur."
+        }
+      }
+    },
+    "support": {
+      "kpi": {
+        "open": "Açık ticket",
+        "inProgress": "İşlemde",
+        "waitingCustomer": "Müşteri bekleniyor",
+        "avgFirstResponse": "Ort. ilk yanıt",
+        "avgResolution": "Ort. çözüm süresi",
+        "slaCompliance": "SLA uyum oranı"
+      },
+      "status": {
+        "OPEN": "Açık",
+        "IN_PROGRESS": "İşlemde",
+        "WAITING_CUSTOMER": "Müşteri bekleniyor",
+        "RESOLVED": "Çözüldü",
+        "CLOSED": "Kapalı"
+      },
+      "priority": {
+        "LOW": "Düşük",
+        "MEDIUM": "Orta",
+        "HIGH": "Yüksek",
+        "URGENT": "Acil"
+      },
+      "loading": "Destek talepleri yükleniyor…",
+      "loadingAria": "Destek talepleri yükleniyor",
+      "retry": "Tekrar dene",
+      "emptyFilteredTitle": "Filtrelere uygun talep yok",
+      "emptyFilteredDescription": "Durum, öncelik veya organizasyon filtresini değiştirerek tekrar deneyin.",
+      "emptyTitle": "Henüz destek talebi yok",
+      "emptyDescription": "Müşteriler destek talebi oluşturduğunda kayıtlar burada listelenir.",
+      "toast": {
+        "internalNoteAdded": "İç not eklendi",
+        "replySent": "Yanıt gönderildi",
+        "statusUpdated": "Durum güncellendi",
+        "assigned": "Talep atandı"
+      },
+      "allOrganizations": "Tüm organizasyonlar",
+      "allStatuses": "Tüm durumlar",
+      "allPriorities": "Tüm öncelikler",
+      "orgFilterPlaceholder": "Organizasyon seçin",
+      "table": {
+        "ticket": "Talep",
+        "organization": "Organizasyon",
+        "assignee": "Atanan",
+        "status": "Durum",
+        "priority": "Öncelik",
+        "sla": "SLA",
+        "unassigned": "Atanmadı",
+        "manage": "Yönet",
+        "slaDays": "{{count}} gün",
+        "slaHours": "{{count}} sa"
+      },
+      "detail": {
+        "title": "Talep detayı",
+        "loading": "Talep detayı yükleniyor…",
+        "loadingAria": "Talep detayı yükleniyor",
+        "noMessages": "Bu talepte henüz mesaj yok.",
+        "internalNoteSuffix": " (iç not)",
+        "saveStatus": "Durumu kaydet",
+        "assign": "Ata",
+        "replyHeading": "Yanıt gönder",
+        "internalCheckbox": "İç not olarak gönder (müşteri görmez)",
+        "replyPlaceholder": "Yanıtınız…",
+        "internalPlaceholder": "İç not…",
+        "send": "Gönder",
+        "internalHeading": "İç not ekle",
+        "saveInternal": "İç not kaydet",
+        "close": "Kapat"
+      },
+      "assignDialog": {
+        "title": "Talep ata",
+        "descriptionWithNumber": "{{ticketNumber}} numaralı talebi bir süper admin kullanıcısına atayın.",
+        "description": "Talebi bir süper admin kullanıcısına atayın.",
+        "assigneeLabel": "Destek uzmanı",
+        "loadingAssignees": "Kullanıcı listesi yükleniyor…",
+        "noAssigneesTitle": "Atanabilir süper admin yok",
+        "noAssigneesDescription": "Talep atamak için SUPER_ADMIN rolünde en az bir aktif kullanıcı gerekir. Kullanıcılar sayfasından rol atayabilirsiniz.",
+        "manageUsers": "Kullanıcıları yönet",
+        "selectPlaceholder": "Kullanıcı seçin…",
+        "currentAssignment": "Mevcut atama: {{name}}",
+        "hint": "Listeden bir süper admin seçin; atama kaydedildiğinde talep bu kullanıcıya bağlanır.",
+        "cancel": "İptal",
+        "confirm": "Ata"
+      },
+      "slaTarget": "Hedef: {{hours}} sa",
+      "resolutionCompliance": "Çözüm: %{{rate}}",
+      "hoursMinutes": "{{minutes}} dk",
+      "hoursDecimal": "{{hours}} sa"
+    },
+    "common": {
+      "retry": "Tekrar dene",
+      "refresh": "Yenile",
+      "all": "Tümü",
+      "allProducts": "Hepsi",
+      "search": "Ara",
+      "previous": "Önceki",
+      "next": "Sonraki",
+      "cancel": "İptal",
+      "dismiss": "Vazgeç",
+      "save": "Kaydet",
+      "yesDelete": "Evet, sil",
+      "menu": "Menü",
+      "menuAria": "Menü",
+      "productLine": "Ürün hattı",
+      "productLines": "Ürün hatları",
+      "accountingMode": "Muhasebe modu",
+      "plan": "Paket",
+      "status": "Durum",
+      "organization": "Organizasyon",
+      "role": "Rol",
+      "priority": "Öncelik",
+      "noRecords": "Kayıt bulunamadı.",
+      "noData": "Veri bulunamadı.",
+      "noRecordsYet": "Henüz kayıt yok.",
+      "noRecordsYetDot": "Henüz kayıt yok.",
+      "emDash": "—",
+      "taxNumber": "VKN: {{value}}",
+      "partnerClients": "müşteriler",
+      "selectedPartner": "Seçili partner",
+      "pagination": "Toplam {{total}} {{entity}} — Sayfa {{page}} / {{totalPages}}",
+      "entityOrganizations": "organizasyon",
+      "entityUsers": "kullanıcı",
+      "listEmpty": {
+        "organizations": "Henüz organizasyon kaydı yok.",
+        "users": "Kullanıcı bulunamadı.",
+        "audit": "Henüz platform denetim kaydı yok.",
+        "subscriptions": "Henüz abonelik kaydı yok.",
+        "partners": "Kayıtlı partner organizasyonu yok.",
+        "partnerLinks": "Partner bağlantı talebi yok."
+      },
+      "loadingActivityHealth": "Aktivite ve sağlık verileri yükleniyor…",
+      "detail": "Detay",
+      "delete": "Sil",
+      "currentPlan": "Mevcut: {{plan}}",
+      "newPlan": "Yeni paket",
+      "reason": "Gerekçe"
+    },
+    "orgListStatus": {
+      "AKTIF": "Aktif (deneme dışı)",
+      "DENEME": "Deneme",
+      "ASKIDA": "Askıda"
+    },
+    "dashboard": {
+      "kpi": {
+        "totalOrganizations": "Toplam organizasyon",
+        "totalOrganizationsSub": "{{active}} aktif · {{inactive}} askıda",
+        "newSignups30d": "Bu ay yeni kayıt (30 gün)",
+        "newSignups30dSub": "{{count}} org son 7 günde aktif",
+        "mrr": "Aylık tekrarlayan gelir (MRR)",
+        "mrrSub": "Aktif abonelikler",
+        "arr": "Yıllık tekrarlayan gelir (ARR)",
+        "arrSub": "MRR × 12 (liste fiyatı)",
+        "growth30d": "Büyüme (30 gün)",
+        "growth30dSub": "MRR, önceki döneme göre",
+        "churnRate": "Churn oranı",
+        "churnRateSub": "{{count}} iptal (30 gün)",
+        "activeTrials": "Aktif deneme süreci",
+        "activeTrialsSub": "Deneme aboneliği",
+        "productLines": "Ürün hatları",
+        "accountingMode": "Muhasebe modu",
+        "platformHealth": "Platform sağlığı",
+        "platformHealthSub": "0–100 skor (24s hata oranı)",
+        "distributionEntry": "{{label}} {{count}}"
+      },
+      "charts": {
+        "growthTrend": "Büyüme trendi (son 12 ay)",
+        "growthEmpty": "Bu dönem için büyüme verisi yok.",
+        "planDistribution": "Paket dağılımı",
+        "planEmpty": "Henüz aktif paket dağılımı yok.",
+        "topMarketplaces": "Top 10 pazaryeri bağlantısı",
+        "marketplaceEmpty": "Henüz aktif pazaryeri bağlantısı yok.",
+        "topErp": "Top 5 ERP bağlantısı",
+        "erpEmpty": "Henüz aktif ERP bağlantısı yok.",
+        "revenue12m": "Son 12 ay gelir (başarılı ödemeler)",
+        "revenueEmpty": "Son 12 ayda başarılı ödeme kaydı yok.",
+        "revenueLoading": "Gelir grafiği yükleniyor…",
+        "dailySignups": "Günlük yeni kayıt (30 gün)",
+        "ordersThisMonth": "Bu ay sipariş:",
+        "activeConnections": "Aktif bağlantı:",
+        "signupEmpty": "Son 30 günde yeni kayıt yok.",
+        "cohortMatrix": "Cohort retention matrisi",
+        "cohortEmpty": "Henüz cohort verisi yok.",
+        "cohortSignupMonth": "Kayıt ayı",
+        "cohortSize": "Boyut",
+        "cohortMonthOffset": "+{{months}} ay",
+        "cohortLegend": "Renk: ≥80% yeşil · ≥50% sarı · <50% kırmızı",
+        "tooltipMrr": "MRR",
+        "tooltipNewSignup": "Yeni kayıt",
+        "tooltipActiveOrg": "Aktif org",
+        "tooltipCount": "Sayı",
+        "tooltipOrgCount": "{{count}} org",
+        "tooltipConnection": "Bağlantı",
+        "tooltipRevenue": "Gelir",
+        "tooltipNewOrg": "Yeni org",
+        "tooltipCommission": "Komisyon"
+      },
+      "activity": {
+        "title": "Son aktiviteler",
+        "viewAllAudit": "Tüm denetim kayıtları"
+      },
+      "health": {
+        "title": "Pazaryeri sağlığı",
+        "platform": "Platform",
+        "connections": "Bağlantı",
+        "errorRate24h": "24s hata oranı",
+        "avgDurationMs": "Ort. süre (ms)",
+        "lastSync": "Son sync"
+      },
+      "legend": {
+        "newSignup": "Yeni kayıt",
+        "activeOrg": "Aktif org",
+        "mrr": "MRR"
+      }
+    },
+    "organizations": {
+      "searchPlaceholder": "Firma, vergi no veya e-posta…",
+      "partnerFilter": "Partner filtresi:",
+      "clearPartnerFilter": "Filtreyi kaldır",
+      "goToPartnerRow": "Partner satırına git",
+      "table": {
+        "organization": "Organizasyon",
+        "partner": "Partner",
+        "accounting": "Muhasebe",
+        "plan": "Paket",
+        "status": "Durum",
+        "orders": "Sipariş",
+        "registered": "Kayıt",
+        "lastActivity": "Son aktivite",
+        "menu": "Menü"
+      },
+      "actions": {
+        "changePlan": "Paket değiştir",
+        "extendTrial": "Deneme uzat (+7 gün)",
+        "unsuspend": "Askıyı kaldır",
+        "suspend": "Askıya al",
+        "enterAccount": "Hesaba giriş"
+      },
+      "dialogs": {
+        "suspendTitle": "Organizasyonu askıya al",
+        "suspendReasonPlaceholder": "Kısa açıklama yazın…",
+        "suspendConfirm": "Askıya al",
+        "deleteTitle": "Organizasyonu sil",
+        "deleteDescription": "{{name}} kalıcı olarak askıya alınacak ve soft-delete uygulanacak. Tüm kullanıcı oturumları etkilenebilir. Devam etmek istediğinize emin misiniz?",
+        "deleteDescriptionGeneric": "Bu işlem geri alınamaz. Devam etmek istediğinize emin misiniz?",
+        "changePlanTitle": "Paket değiştir",
+        "changePlanNotePlaceholder": "Değişiklik notu…"
+      },
+      "toast": {
+        "suspended": "Organizasyon askıya alındı.",
+        "unsuspended": "Askı kaldırıldı.",
+        "trialExtended": "Deneme süresi 7 gün uzatıldı.",
+        "planUpdated": "Paket güncellendi.",
+        "deleted": "Organizasyon silindi.",
+        "exportEmpty": "Dışa aktarılacak kayıt yok.",
+        "csvDownloaded": "CSV indirildi."
+      },
+      "csv": {
+        "organization": "Organizasyon",
+        "taxNumber": "VKN",
+        "products": "Ürünler",
+        "accounting": "Muhasebe modu",
+        "partner": "Partner",
+        "plan": "Paket",
+        "accountStatus": "Hesap durumu",
+        "subscription": "Abonelik",
+        "trialEnd": "Deneme bitiş",
+        "orders": "Sipariş",
+        "registered": "Kayıt",
+        "lastActivity": "Son aktivite",
+        "filename": "organizasyonlar-{{date}}.csv"
+      },
+      "enterOrg": {
+        "invalidSession": "Geçersiz oturum yanıtı",
+        "failed": "Müşteri hesabına geçilemedi.",
+        "redirecting": "Müşteri paneline yönlendiriliyorsunuz.",
+        "confirmTitle": "Müşteri paneline geçilecek",
+        "confirmDescription": "{{name}} hesabına giriş yapılacak. Devam etmek istiyor musunuz?",
+        "confirmAction": "Panele geç"
+      }
+    },
+    "users": {
+      "searchPlaceholder": "İsim veya e-posta…",
+      "table": {
+        "user": "Kullanıcı",
+        "organization": "Organizasyon",
+        "role": "Rol",
+        "lastLogin": "Son giriş",
+        "actions": "İşlemler"
+      },
+      "empty": "Kullanıcı bulunamadı.",
+      "editName": "Adı Düzenle",
+      "editNameDialog": {
+        "title": "Kullanıcı Adını Düzenle",
+        "label": "Ad Soyad",
+        "saved": "Kullanıcı adı güncellendi."
+      },
+      "actions": {
+        "changeRole": "Rol değiştir",
+        "editName": "Adı düzenle",
+        "endSessions": "Oturumları sonlandır",
+        "resetPassword": "Şifreyi sıfırla",
+        "unsuspend": "Askıyı kaldır",
+        "suspend": "Askıya al"
+      },
+      "dialogs": {
+        "suspendTitle": "Kullanıcıyı askıya al",
+        "suspendDescription": "{{name}} ({{email}}) hesabı askıya alınacak. Kullanıcı panele giremez ve tüm oturumları sonlandırılır. Bu işlemi onaylıyor musunuz?",
+        "suspendDescriptionGeneric": "Bu kullanıcı askıya alınacak. Devam etmek istiyor musunuz?",
+        "suspendConfirm": "Askıya al",
+        "changeRoleTitle": "Rol değiştir",
+        "changeRoleDescription": "{{name}} — mevcut rol: {{role}}",
+        "newRole": "Yeni rol"
+      },
+      "filename": "kullanicilar-{{date}}.csv",
+      "toast": {
+        "csvDownloaded": "CSV indirildi.",
+        "exportEmpty": "Filtrelere uygun dışa aktarılacak kullanıcı yok.",
+        "suspended": "Kullanıcı askıya alındı.",
+        "unsuspended": "Askı kaldırıldı.",
+        "roleUpdated": "Rol güncellendi.",
+        "sessionsEnded": "Oturumlar sonlandırıldı.",
+        "resetEmailSent": "Şifre sıfırlama e-postası gönderildi.",
+        "nameUpdated": "Kullanıcı adı güncellendi."
+      }
+    },
+    "orgDetail": {
+      "editInfo": "Bilgileri Düzenle",
+      "editInfoDialog": {
+        "title": "Organizasyon Bilgilerini Düzenle",
+        "saved": "Organizasyon bilgileri güncellendi.",
+        "name": "Firma adı",
+        "taxId": "Vergi numarası",
+        "taxOffice": "Vergi dairesi",
+        "city": "Şehir",
+        "address": "Adres",
+        "website": "Web sitesi"
+      }
+    }
+  },
+  "partner": {
+    "portalLabel": "Partner",
+    "layout": {
+      "title": "Partner Paneli",
+      "badge": "Bayi",
+      "hint": "Müşteri seçerek müşteri paneline geçebilirsiniz",
+      "accountMenuAria": "Hesap menüsü",
+      "navAria": "Partner paneli menüsü",
+      "backToDashboard": "Ana panele dön",
+      "settings": "Ayarlar",
+      "logout": "Çıkış",
+      "kurumsalUpsell": {
+        "feature": "Kurumsal partner özellikleri",
+        "description": "Özel SLA, gelişmiş raporlama ve öncelikli entegrasyon desteği Kurumsal pakette sunulur. Gelişim ve üzeri paketlerde temel partner paneli kullanılabilir."
+      }
+    },
+    "nav": {
+      "dashboard": "Müşterilerim",
+      "clients": "Tüm müşteriler",
+      "commission": "Komisyon",
+      "commissionReport": "Komisyon raporu",
+      "performance": "Performans",
+      "onboarding": "Davetler",
+      "whiteLabel": "Beyaz etiket"
+    },
+    "pages": {
+      "dashboard": {
+        "title": "Müşterilerim",
+        "description": "Aktif müşterinizi seçerek müşteri paneline geçin.",
+        "loadFailed": "Müşteriler yüklenemedi.",
+        "loadingAria": "Yükleniyor",
+        "emptyTitle": "Henüz bağlı müşteri yok",
+        "emptyDescription": "İlk müşterinizi davet edin. Davet kabul edildikten sonra burada listelenir; Müşteriye gir ile müşteri paneline geçebilirsiniz.",
+        "demoAlertTitle": "Demo bayi hesabı",
+        "demoAlertDescription": "Bu ortamda iki örnek müşteri bağlıdır: Demo Partner A.Ş. (tam paket) ve Demo Mağaza İkinci (entegrasyon). Karttan Müşteriye gir ile ilgili müşteri paneline geçin; üstteki turuncu çubuktan Kendi Hesabıma Dön ile partner paneline geri dönersiniz.",
+        "impersonationAlertTitle": "Müşteri paneline geçiş",
+        "impersonationAlertDescription": "Aktif müşteri kartında Müşteriye gir düğmesine tıklayın; müşterinin panelinde işlem yaparsınız. Üstteki turuncu çubuktan Kendi Hesabıma Dön ile bayi paneline geri dönersiniz.",
+        "commissionLink": "Komisyon",
+        "allClientsLink": "Tüm müşteriler",
+        "manageInvitesLink": "Davetleri yönet",
+        "commissionInfoLink": "Komisyon bilgisi",
+        "commissionSummaryTitle": "Komisyon özeti",
+        "commissionSummaryThisMonth": "Bu ay {{amount}}",
+        "commissionSummaryTotal": "Toplam {{amount}}",
+        "commissionDetailLink": "Komisyon detayı"
+      },
+      "clients": {
+        "description": "Bağlı müşterilerinizi yönetin, panele geçiş yapın veya yeni davet gönderin.",
+        "emptyTitle": "Henüz müşteri kaydı yok",
+        "emptyDescription": "Yeni bir müşteri davet ederek partner ilişkisi başlatın. Davet kabul edildiğinde müşteri burada listelenir.",
+        "emptyFilteredTitle": "Filtrelere uygun müşteri yok",
+        "emptyFilteredDescription": "Arama, plan veya durum filtresini değiştirerek tekrar deneyin.",
+        "invitePending": "Davet bekliyor",
+        "searchPlaceholder": "Firma adı veya slug ara…",
+        "loadingAria": "Yükleniyor",
+        "inviteClient": "Müşteri davet et",
+        "exportCsv": "CSV dışa aktar",
+        "exportCsvSuccess": "CSV indirildi.",
+        "exportEmptyAll": "Dışa aktarılacak müşteri kaydı yok.",
+        "exportEmptyFiltered": "Filtrelere uygun dışa aktarılacak kayıt yok.",
+        "filterPlanAll": "Tüm planlar",
+        "filterStatusAll": "Tüm durumlar",
+        "filterStatusActive": "Aktif",
+        "filterStatusPending": "Trial",
+        "filterStatusSuspended": "Pasif",
+        "sortLabel": "Sırala",
+        "sortNameAsc": "Firma adı (A–Z)",
+        "sortNameDesc": "Firma adı (Z–A)",
+        "sortOrdersDesc": "Sipariş (30 gün) — çoktan aza",
+        "sortOrdersAsc": "Sipariş (30 gün) — azdan çoğa",
+        "enterClient": "Müşteriye gir",
+        "enteringClient": "Giriliyor…",
+        "enterClientFailed": "Müşteri hesabına geçilemedi.",
+        "enterClientAria": "{{name}} müşteri paneline gir",
+        "table": {
+          "company": "Firma",
+          "plan": "Plan",
+          "orders30d": "Sipariş (30 gün)",
+          "monthlyRevenue": "Aylık gelir",
+          "commissionPct": "Komisyon %",
+          "commission": "Komisyon",
+          "status": "Durum",
+          "registered": "Kayıt",
+          "actions": "İşlem"
+        }
+      },
+      "commission": {
+        "title": "Komisyon",
+        "description": "Bakiye özeti, dönem raporu, ödeme talepleri ve hareket geçmişi.",
+        "authPending": "Oturum doğrulanıyor…",
+        "partnerOnly": "Komisyon verileri yalnızca partner hesabıyla görüntülenebilir.",
+        "tabs": {
+          "overview": "Özet",
+          "report": "Dönem raporu",
+          "history": "Geçmiş",
+          "payoutRequests": "Ödeme talepleri"
+        }
+      },
+      "performance": {
+        "title": "Performans",
+        "description": "Müşteri portföyünüzün büyüme ve komisyon performans özeti.",
+        "loading": "Performans verileri yükleniyor…",
+        "loadingAria": "Yükleniyor",
+        "loadFailed": "Performans verileri alınamadı.",
+        "errorTitle": "Performans özeti yüklenemedi",
+        "errorDescription": "Bağlantınızı kontrol edip tekrar deneyin.",
+        "retry": "Yeniden dene",
+        "emptyTitle": "Performans verisi yok",
+        "emptyDescription": "Aktif müşterileriniz ve komisyon hareketleri oluştuğunda özet burada görünür.",
+        "activeClients": "Aktif müşteri",
+        "newClientsThisMonth": "Bu ay yeni müşteri",
+        "avgCommissionPerClient": "Ortalama müşteri başına aylık komisyon",
+        "distributionSummary": "Bu ay dağılım özeti",
+        "topProfitableHeading": "En kârlı müşteriler (bu ay)",
+        "tableClient": "Müşteri",
+        "tableCommissionTry": "Komisyon (TRY)",
+        "noData": "Henüz veri yok.",
+        "noDescription": "Açıklama yok"
+      },
+      "discovery": {
+        "backToSettings": "Ayarlara dön",
+        "title": "Partner keşfet",
+        "subtitle": "Ajans partnerlerimizi inceleyin ve bağlantı talebi gönderin.",
+        "expertisePlaceholder": "Uzmanlık",
+        "locationPlaceholder": "Konum veya şehir ara…",
+        "loading": "Partner listesi yükleniyor…",
+        "emptyListTitle": "Henüz listelenecek partner yok",
+        "emptyListDescription": "Yeni partnerler eklendiğinde burada görünecek.",
+        "emptyFilteredTitle": "Sonuç bulunamadı",
+        "emptyFilteredDescription": "Filtrelere uygun partner bulunamadı. Arama veya uzmanlık filtresini değiştirmeyi deneyin.",
+        "errorTitle": "Partner listesi yüklenemedi",
+        "errorDescription": "Bağlantınızı kontrol edip tekrar deneyin.",
+        "retry": "Yeniden dene",
+        "clearFilters": "Filtreleri temizle",
+        "pendingBadge": "Onay bekleniyor",
+        "requestCta": "Bağlantı talebi gönder",
+        "dialogTitle": "{{name}} — bağlantı talebi",
+        "messageLabel": "Mesajınız (isteğe bağlı)",
+        "messagePlaceholder": "Partnera iletmek istediğiniz kısa bir mesaj yazabilirsiniz.",
+        "cancel": "Vazgeç",
+        "send": "Gönder",
+        "sending": "Gönderiliyor…",
+        "requestSuccess": "Bağlantı talebiniz admin onayına gönderildi.",
+        "starRating": "{{value}} yıldız",
+        "clientCount": "{{count}} müşteri",
+        "noDescription": "Açıklama yok",
+        "expertise": {
+          "all": "Tümü",
+          "marketplace": "Pazaryeri entegrasyonu",
+          "erp": "ERP köprüsü",
+          "full": "Tam entegrasyon"
+        }
+      },
+      "onboarding": {
+        "title": "Davetler",
+        "description": "E-posta ile kayıt bağlantısı gönderin; müşteri kayıt olduktan sonra ilişki otomatik kurulur.",
+        "inviteClient": "Müşteri davet et",
+        "loading": "Davet listesi yükleniyor…",
+        "loadFailed": "Davet listesi alınamadı.",
+        "errorTitle": "Davet listesi yüklenemedi",
+        "errorDescription": "Bağlantınızı kontrol edip tekrar deneyin.",
+        "retry": "Yeniden dene",
+        "emptyTitle": "Henüz davet gönderilmedi",
+        "emptyDescription": "İlk müşterinize davet e-postası gönderin. Bağlantıyı listeden kopyalayıp paylaşabilir veya yeniden gönderebilirsiniz.",
+        "tableEmail": "E-posta",
+        "tableInviteDate": "Davet tarihi",
+        "tableStatus": "Durum",
+        "tableActions": "İşlemler",
+        "copyLink": "Bağlantıyı kopyala",
+        "resend": "Yeniden gönder",
+        "status": {
+          "expired": "Süresi doldu",
+          "INVITED": "Bekliyor",
+          "REGISTERED": "Kayıtlı",
+          "ONBOARDED": "Onboarding",
+          "ACTIVE": "Aktif"
+        },
+        "toast": {
+          "linkCopied": "Davet bağlantısı kopyalandı.",
+          "copyFailed": "Panoya kopyalanamadı.",
+          "resent": "Davet yeniden gönderildi."
+        }
+      },
+      "whiteLabel": {
+        "title": "Beyaz etiket",
+        "description": "Müşteri arayüzünde gösterilecek marka bilgilerini yapılandırın.",
+        "loading": "Yükleniyor…",
+        "partnerOnly": "Beyaz etiket ayarları yalnızca partner hesabıyla görüntülenebilir.",
+        "errorTitle": "Beyaz etiket ayarları yüklenemedi",
+        "errorDescription": "Bağlantınızı kontrol edip tekrar deneyin.",
+        "retry": "Yeniden dene",
+        "brandSettingsTitle": "Marka ayarları",
+        "brandSettingsDescription": "Logo, renk ve destek iletişim bilgilerinizi girin.",
+        "brandName": "Marka adı",
+        "brandNamePlaceholder": "Ajansınız Entegrasyon",
+        "logo": "Logo",
+        "logoUploading": "Logo yükleniyor…",
+        "logoUrl": "Logo URL",
+        "logoUrlPlaceholder": "https://…",
+        "primaryColor": "Ana renk",
+        "supportEmail": "Destek e-postası",
+        "supportEmailPlaceholder": "destek@ajans.com",
+        "supportPhone": "Destek telefonu",
+        "supportPhonePlaceholder": "+90 …",
+        "hideSenkronize": "Senkronize markasını gizle",
+        "hideSenkronizeHint": "Beyaz etiket deneyiminde platform adını göstermeyin",
+        "saving": "Kaydediliyor…",
+        "previewTitle": "Önizleme",
+        "previewDescription": "Logo ve marka adının görünümü",
+        "previewBrandFallback": "Marka adınız",
+        "previewLogoInitials": "LOG",
+        "previewLogoAlt": "Marka logosu önizlemesi",
+        "previewHidden": "Platform markası gizlendi",
+        "previewPoweredBy": "Senkronize ile güçlendirildi",
+        "validation": {
+          "brandNameMax": "Marka adı en fazla 200 karakter olabilir.",
+          "logoUrlInvalid": "Geçerli bir logo URL'si girin (https://…).",
+          "supportEmailInvalid": "Geçerli bir destek e-postası girin.",
+          "supportPhoneMax": "Telefon en fazla 40 karakter olabilir.",
+          "customDomainMax": "Alan adı en fazla 200 karakter olabilir."
+        },
+        "toast": {
+          "saved": "Ayarlar kaydedildi.",
+          "logoUploaded": "Logo yüklendi."
+        }
+      }
+    },
+    "commission": {
+      "paymentStatus": {
+        "pending": "Bekleyen",
+        "paid": "Ödendi"
+      },
+      "ledgerStatus": {
+        "PENDING": "Beklemede",
+        "SETTLED": "Ödendi",
+        "CANCELLED": "İptal"
+      },
+      "type": {
+        "SUBSCRIPTION_FEE": "Abonelik",
+        "SERVICE_FEE": "Hizmet",
+        "BONUS": "Prim",
+        "DEDUCTION": "Kesinti"
+      },
+      "unknown": "Bilinmeyen",
+      "other": "Diğer",
+      "noDataTitle": "Komisyon verisi yok",
+      "noDataDescription": "Seçili dönem için özet oluşturulamadı. Farklı bir ay deneyin veya müşteri davetlerinizi kontrol edin.",
+      "reportNoDataTitle": "Rapor verisi yok",
+      "reportNoDataDescription": "Seçili dönem için rapor oluşturulamadı. Farklı bir ay deneyin.",
+      "emptyHistoryTitle": "Henüz komisyon kaydı yok",
+      "emptyHistoryDescription": "Müşteri abonelik ve hizmet komisyonları burada listelenir.",
+      "emptyMonthlyTitle": "Henüz komisyon kaydı yok",
+      "emptyMonthlyDescription": "Aktif müşterilerinizin abonelik ödemeleri işlendikçe burada aylık özet görünür.",
+      "emptyPeriodTitle": "{{period}} için kayıt yok",
+      "emptyPeriodDescription": "Seçili ayda ödenen abonelik veya hesaplanan komisyon bulunmuyor. Başka bir dönem seçebilirsiniz.",
+      "perClientRate": "Müşteri bazlı",
+      "loading": "Komisyon verileri yükleniyor…",
+      "loadFailed": "Komisyon bilgisi alınamadı:",
+      "reportLoading": "Dönem raporu yükleniyor…",
+      "reportLoadFailed": "Rapor alınamadı:",
+      "historyLoading": "Komisyon geçmişi yükleniyor…",
+      "historyLoadFailed": "Komisyon listesi yüklenemedi.",
+      "refresh": "Yenile",
+      "retry": "Yeniden dene",
+      "payoutStatus": {
+        "PENDING": "Beklemede",
+        "APPROVED": "Onaylandı",
+        "REJECTED": "Reddedildi"
+      },
+      "payoutLoading": "Ödeme talepleri yükleniyor…",
+      "payoutLoadFailed": "Ödeme talepleri alınamadı:",
+      "emptyPayoutTitle": "Henüz ödeme talebi yok",
+      "emptyPayoutDescription": "Özet veya dönem raporu sekmesinden bekleyen bakiyeniz için ödeme talebi oluşturabilirsiniz.",
+      "cards": {
+        "pendingBalance": "Bekleyen bakiye",
+        "pendingBalanceHint": "Ödeme talebine uygun tutar",
+        "settledTotal": "Ödenen toplam",
+        "settledTotalHint": "Muhasebe onayıyla aktarılan",
+        "periodCommission": "{{period}} komisyonu",
+        "periodCommissionHint": "{{count}} aktif müşteri · varsayılan oran %10",
+        "periodCommissionShort": "{{period}} komisyonu",
+        "previousMonth": "Önceki ay",
+        "lifetime": "Birikmiş (bekleyen / ödenen)"
+      },
+      "periodYear": "Dönem yılı",
+      "periodMonth": "Dönem ayı",
+      "payoutMinHint": "Ödeme talebi için bekleyen bakiyeniz en az {{amount}} olmalıdır.",
+      "createPayoutRequest": "Ödeme talebi oluştur",
+      "summary6mTitle": "Son 6 ay — komisyon özeti",
+      "summary6mDescription": "Güncel ay için müşteri ve abonelik sütunları seçili dönemden gelir; diğer aylarda yalnızca komisyon tutarı gösterilir.",
+      "breakdownTitle": "{{period}} — müşteri kırılımı",
+      "breakdownEmpty": "Bu dönemde aktif müşteri komisyonu bulunmuyor.",
+      "breakdownCount": "{{count}} müşteri listeleniyor.",
+      "breakdownNoRecords": "Bu dönemde komisyon kaydı yok.",
+      "periodTotal": "Dönem toplamı: {{amount}}",
+      "trendTitle": "Son 6 ay komisyon trendi",
+      "trendDescription": "Aylık toplam komisyon tutarları (TRY).",
+      "historyTitle": "Komisyon geçmişi",
+      "historyDescription": "Sayfalı hareketler ve aylık özet.",
+      "monthTotal": "Bu ay toplam ({{month}})",
+      "exportCsvPage": "CSV indir (bu sayfa)",
+      "table": {
+        "period": "Dönem",
+        "client": "Müşteri",
+        "clients": "Müşteri",
+        "subscriptionTry": "Abonelik (TRY)",
+        "rate": "Oran",
+        "commissionTry": "Komisyon (TRY)",
+        "paymentStatus": "Ödeme durumu",
+        "plan": "Plan",
+        "date": "Tarih",
+        "amount": "Miktar",
+        "type": "Tür",
+        "status": "Durum",
+        "payoutAmount": "Tutar",
+        "processedAt": "İşlem tarihi"
+      },
+      "months": {
+        "1": "Ocak",
+        "2": "Şubat",
+        "3": "Mart",
+        "4": "Nisan",
+        "5": "Mayıs",
+        "6": "Haziran",
+        "7": "Temmuz",
+        "8": "Ağustos",
+        "9": "Eylül",
+        "10": "Ekim",
+        "11": "Kasım",
+        "12": "Aralık"
+      },
+      "payoutDialog": {
+        "title": "Ödeme talebi oluştur",
+        "description": "Bekleyen bakiyeniz: {{amount}}. Talep tutarını girin; işlem muhasebe onayına iletilir.",
+        "amountLabel": "Tutar (TRY)",
+        "amountRequired": "Tutar girin.",
+        "minAmountError": "Minimum talep tutarı 1 TRY olmalıdır.",
+        "useFullBalance": "Tüm bakiyeyi kullan",
+        "maxHint": "En fazla {{amount}} talep edebilirsiniz.",
+        "minBalanceHint": "Ödeme talebi için bekleyen bakiye en az 1 TRY olmalıdır.",
+        "dismiss": "Vazgeç",
+        "submitting": "Gönderiliyor…",
+        "submit": "Talep gönder"
+      },
+      "toast": {
+        "invalidAmount": "Geçerli bir tutar girin.",
+        "amountExceedsBalance": "Tutar bekleyen bakiyeyi ({{amount}}) aşamaz.",
+        "payoutSubmitted": "Ödeme talebiniz kaydedildi.",
+        "csvDownloaded": "CSV indirildi."
+      },
+      "pagination": "Toplam {{total}} kayıt — sayfa {{page}} / {{totalPages}}"
+    },
+    "status": {
+      "PENDING": "Trial",
+      "ACTIVE": "Aktif",
+      "SUSPENDED": "Pasif",
+      "TERMINATED": "Sonlandı"
+    },
+    "clientCard": {
+      "unnamedClient": "Müşteri",
+      "commissionBadge": "Komisyon %{{pct}}",
+      "orders30dBadge": "Son 30 gün: {{count}} sipariş",
+      "invitePendingBadge": "Davet bekleniyor",
+      "enterClient": "Müşteriye gir",
+      "enteringClient": "Giriliyor…",
+      "copyInvite": "Daveti kopyala",
+      "detail": "Detay",
+      "terminate": "İlişkiyi sonlandır",
+      "terminateTitle": "İlişkiyi sonlandır",
+      "terminateDescription": "{{name}} ile partner ilişkisini sonlandırmak istediğinize emin misiniz? Bu işlem geri alınamaz.",
+      "cancel": "Vazgeç",
+      "confirmTerminate": "Sonlandır",
+      "toast": {
+        "inviteUrlMissing": "Kopyalanacak davet bağlantısı bulunamadı.",
+        "inviteCopied": "Davet bağlantısı kopyalandı.",
+        "copyFailed": "Panoya kopyalanamadı."
+      }
+    },
+    "invite": {
+      "sent": "Davet gönderildi."
+    },
+    "linkStatus": {
+      "PENDING": "Beklemede",
+      "APPROVED": "Onaylandı",
+      "REJECTED": "Reddedildi",
+      "unknown": "Bilinmeyen"
+    },
+    "common": {
+      "loading": "Yükleniyor…",
+      "save": "Kaydet",
+      "retry": "Yeniden dene",
+      "cancel": "Vazgeç"
+    }
+  },
+  "notFound": {
+    "pageTitle": "Sayfa bulunamadı",
+    "title": "Sayfa bulunamadı",
+    "description": "Aradığınız adres mevcut değil veya taşınmış olabilir.",
+    "backToPanel": "Panele dön"
   }
 }

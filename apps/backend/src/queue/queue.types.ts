@@ -28,7 +28,20 @@ export interface ErpSyncJobData {
   /** push-stock-to-erp işi için */
   barcode?: string;
   quantity?: number;
+  /** Manuel toplu sync UI ilerlemesi */
+  batchIndex?: number;
+  batchTotal?: number;
 }
+
+/** Aynı org'daki BizimHesap bağlantılarını tek job'da sıralı senkronize eder */
+export interface BizimHesapOrgSyncJobData {
+  organizationId: string;
+  erpConnectionIds: string[];
+  syncType?: 'all' | 'products' | 'stock' | 'invoices' | 'customers';
+  triggerConnectionId?: string;
+}
+
+export type ErpQueueJobData = ErpSyncJobData | BizimHesapOrgSyncJobData;
 
 /** notification-dispatch job payload */
 export interface NotificationJobData {
@@ -100,6 +113,7 @@ export interface ListingSyncBatchUpdate {
   price?: number;
   listPrice?: number;
   listingId?: string;
+  platformProductId?: string;
 }
 
 export interface ListingSyncBatchJobData {

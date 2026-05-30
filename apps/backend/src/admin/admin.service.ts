@@ -10,7 +10,11 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import archiver from 'archiver';
 import {
+  AccountingMode,
   Marketplace,
+  OrgType,
+  PartnerLinkStatus,
+  PartnerStatus,
   PaymentStatus,
   PlanTier,
   Prisma,
@@ -23,12 +27,58 @@ import Papa from 'papaparse';
 import type { AuthenticatedUser, JwtPayload } from '../auth/auth.types';
 import { SessionService } from '../auth/session.service';
 import { EmailService } from '../notifications/email/email.service';
+import {
+  getAccountingModeChangeBlockReason,
+  productSelectionToInitialAccountingMode,
+  organizationWhereResolvedAccountingMode,
+  resolveOrganizationAccountingMode,
+} from '../common/accounting-mode';
+import {
+  isBillingExempt,
+  isInternalAccount,
+  mergeInternalAccountMetadata,
+} from '../organization/organization-internal';
+import { dbLimitsForPlan } from '../subscription/plan-limits';
+import {
+  countExtraErpSlots,
+  effectiveErpSlotLimit,
+  mergeExtraErpSlotAddon,
+} from '../erp-connection/erp-slot-limit.util';
+import {
+  adminOrgProductLineWhere,
+  productSelectionToProductLines,
+  resolveOrgProductLines,
+  type AdminOrgProductFilter,
+  type ProductSelection,
+} from '../common/product-lines';
+import { CacheKeys } from '../common/cache/cache-keys';
+import { CACHE_TTL } from '../common/cache/cache-ttl';
+import { CacheService } from '../common/cache/cache.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { AdminUsersQueryDto } from './admin.dto';
+import { ensureArray } from './admin-array.util';
+import {
+  ADMIN_PLATFORM_ACTIVITY_EXPORT_MAX,
+  buildAdminPlatformActivityCsv,
+} from './admin-platform-activity-csv';
+import {
+  ADMIN_USERS_EXPORT_MAX,
+  buildAdminUsersCsv,
+} from './admin-users-csv';
+import {
+  CUSTOMER_ORG_WHERE,
+  PLATFORM_ORG_SLUG,
+  customerOrgWhere,
+} from './admin-customer-org';
+import type {
+  AdminUsersQueryDto,
+  UpdateAdminOrganizationInfoDto,
+  UpdateAdminUserDto,
+} from './admin.dto';
 import type {
   ActivityItem,
   ActivitySummary,
   AdminOrgListItem,
+  AdminUserListItem,
   AdminUserDetail,
   DailySignupPoint,
   HealthStats,
@@ -49,52 +99,13 @@ const PLAN_PRICES_KURUS: Record<PlanTier, number> = {
   KURUMSAL: 1_990_000,
 };
 
-const PLAN_LIMITS: Record<
-  PlanTier,
-  {
-    monthlyOrderLimit: number;
-    marketplaceLimit: number;
-    ecommerceLimit: number;
-    erpLimit: number;
-    userLimit: number;
-  }
-> = {
-  BASLANGIC: {
-    monthlyOrderLimit: 500,
-    marketplaceLimit: 1,
-    ecommerceLimit: 1,
-    erpLimit: 1,
-    userLimit: 2,
-  },
-  GELISIM: {
-    monthlyOrderLimit: 2_000,
-    marketplaceLimit: 3,
-    ecommerceLimit: 2,
-    erpLimit: 2,
-    userLimit: 5,
-  },
-  PRO: {
-    monthlyOrderLimit: 10_000,
-    marketplaceLimit: 10,
-    ecommerceLimit: 5,
-    erpLimit: 3,
-    userLimit: 15,
-  },
-  KURUMSAL: {
-    monthlyOrderLimit: 100_000,
-    marketplaceLimit: 50,
-    ecommerceLimit: 20,
-    erpLimit: 10,
-    userLimit: 100,
-  },
-};
-
 const ADMIN_ORG_LIST_INCLUDE = Prisma.validator<Prisma.OrganizationInclude>()({
   _count: {
     select: {
       users: { where: { deletedAt: null } },
       marketplaceConnections: { where: { deletedAt: null } },
       orders: { where: { deletedAt: null } },
+      erpConnections: { where: { deletedAt: null, isActive: true } },
     },
   },
   subscription: {
@@ -111,6 +122,14 @@ const ADMIN_ORG_LIST_INCLUDE = Prisma.validator<Prisma.OrganizationInclude>()({
     orderBy: { createdAt: 'desc' },
     take: 1,
     select: { createdAt: true },
+  },
+  clientRelationships: {
+    where: { status: PartnerStatus.ACTIVE },
+    orderBy: { acceptedAt: 'desc' },
+    take: 3,
+    select: {
+      partnerOrg: { select: { id: true, name: true, slug: true } },
+    },
   },
 });
 
@@ -160,12 +179,28 @@ export class AdminService {
     private readonly config: ConfigService,
     private readonly emailService: EmailService,
     private readonly sessionService: SessionService,
+    private readonly cache: CacheService,
   ) {}
 
-  async getPlatformStats(): Promise<PlatformStats> {
+  async getPlatformStats(
+    product?: AdminOrgProductFilter,
+  ): Promise<PlatformStats> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsPlatform(product ?? 'all'),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadPlatformStats(product),
+    );
+  }
+
+  private async loadPlatformStats(
+    product?: AdminOrgProductFilter,
+  ): Promise<PlatformStats> {
     const now = new Date();
     const since30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const monthStart = startOfUtcMonth(now);
+    const scopedCustomerWhere = product
+      ? customerOrgWhere(adminOrgProductLineWhere(product))
+      : CUSTOMER_ORG_WHERE;
 
     const [
       totalOrganizations,
@@ -179,46 +214,82 @@ export class AdminService {
       activeMarketplaceConnections,
       health,
       dailyNewRegistrations,
+      integrationOnlyOrgs,
+      accountingOnlyOrgs,
+      bundleOrgs,
+      nativeAccountingOrgs,
+      externalErpAccountingOrgs,
     ] = await Promise.all([
-      this.prisma.organization.count({ where: { deletedAt: null } }),
+      this.prisma.organization.count({ where: scopedCustomerWhere }),
       this.prisma.organization.count({
-        where: { deletedAt: null, suspended: false },
+        where: { AND: [scopedCustomerWhere, { suspended: false }] },
       }),
       this.prisma.organization.count({
-        where: { deletedAt: null, suspended: true },
+        where: { AND: [scopedCustomerWhere, { suspended: true }] },
       }),
-      this.prisma.user.count({ where: { deletedAt: null } }),
+      this.prisma.user.count({
+        where: {
+          deletedAt: null,
+          organization: scopedCustomerWhere,
+        },
+      }),
       this.prisma.subscription.groupBy({
         by: ['plan'],
-        where: { organization: { deletedAt: null } },
+        where: { organization: scopedCustomerWhere },
         _count: { _all: true },
       }),
       this.prisma.subscription.count({
         where: {
           status: SubStatus.TRIAL,
-          organization: { deletedAt: null },
+          organization: scopedCustomerWhere,
           OR: [{ trialEndsAt: null }, { trialEndsAt: { gt: now } }],
         },
       }),
       this.prisma.organization.count({
-        where: { deletedAt: null, createdAt: { gte: since30 } },
+        where: {
+          AND: [scopedCustomerWhere, { createdAt: { gte: since30 } }],
+        },
       }),
       this.prisma.order.count({
         where: {
           deletedAt: null,
           createdAt: { gte: monthStart },
+          organization: scopedCustomerWhere,
         },
       }),
       this.prisma.marketplaceConnection.count({
-        where: { isActive: true, deletedAt: null },
+        where: {
+          isActive: true,
+          deletedAt: null,
+          organization: scopedCustomerWhere,
+        },
       }),
       this.buildPlatformHealth(),
-      this.getDailySignupsLast30Days(),
+      this.getDailySignupsLast30Days(product),
+      this.prisma.organization.count({
+        where: customerOrgWhere(adminOrgProductLineWhere('INTEGRATION')),
+      }),
+      this.prisma.organization.count({
+        where: customerOrgWhere(adminOrgProductLineWhere('ACCOUNTING')),
+      }),
+      this.prisma.organization.count({
+        where: customerOrgWhere(adminOrgProductLineWhere('BUNDLE')),
+      }),
+      this.prisma.organization.count({
+        where: customerOrgWhere(
+          organizationWhereResolvedAccountingMode(AccountingMode.NATIVE),
+        ),
+      }),
+      this.prisma.organization.count({
+        where: customerOrgWhere(
+          organizationWhereResolvedAccountingMode(AccountingMode.EXTERNAL_ERP),
+        ),
+      }),
     ]);
 
     const allTiers = Object.values(PlanTier);
     const planMap = new Map(
-      planGroups.map((g) => [g.plan, g._count._all] as const),
+      ensureArray(planGroups).map((g) => [g.plan, g._count._all] as const),
     );
     const planDistribution = allTiers.map((plan) => ({
       plan,
@@ -231,20 +302,40 @@ export class AdminService {
       inactiveOrganizations,
       totalUsers,
       planDistribution,
+      productLineDistribution: [
+        { bucket: 'INTEGRATION', count: integrationOnlyOrgs },
+        { bucket: 'ACCOUNTING', count: accountingOnlyOrgs },
+        { bucket: 'BUNDLE', count: bundleOrgs },
+      ],
+      accountingModeDistribution: [
+        { mode: AccountingMode.NATIVE, count: nativeAccountingOrgs },
+        {
+          mode: AccountingMode.EXTERNAL_ERP,
+          count: externalErpAccountingOrgs,
+        },
+      ],
       trialActiveOrganizations,
       newRegistrationsLast30Days,
       ordersThisMonthCount,
       activeMarketplaceConnections,
-      platformHealthScore: computeHealthScore(health),
-      dailyNewRegistrations,
+      platformHealthScore: computeHealthScore(ensureArray(health)),
+      dailyNewRegistrations: ensureArray(dailyNewRegistrations),
     };
   }
 
   async getRevenueStats(): Promise<RevenueStats> {
+    return this.cache.readThrough(
+      CacheKeys.adminStatsRevenue(),
+      CACHE_TTL.ADMIN_STATS,
+      () => this.loadRevenueStats(),
+    );
+  }
+
+  private async loadRevenueStats(): Promise<RevenueStats> {
     const activeSubs = await this.prisma.subscription.findMany({
       where: {
         status: SubStatus.ACTIVE,
-        organization: { deletedAt: null },
+        organization: CUSTOMER_ORG_WHERE,
       },
       select: { plan: true },
     });
@@ -297,15 +388,43 @@ export class AdminService {
     };
   }
 
-  async getDailySignupsLast30Days(): Promise<DailySignupPoint[]> {
+  async getDailySignupsLast30Days(
+    product?: AdminOrgProductFilter,
+  ): Promise<DailySignupPoint[]> {
     const now = new Date();
     const start = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
     start.setUTCHours(0, 0, 0, 0);
+
+    if (product) {
+      const orgs = await this.prisma.organization.findMany({
+        where: {
+          AND: [
+            customerOrgWhere(adminOrgProductLineWhere(product)),
+            { createdAt: { gte: start } },
+          ],
+        },
+        select: { createdAt: true },
+      });
+      const map = new Map<string, number>();
+      for (const org of orgs) {
+        const key = org.createdAt.toISOString().slice(0, 10);
+        map.set(key, (map.get(key) ?? 0) + 1);
+      }
+      const out: DailySignupPoint[] = [];
+      for (let i = 0; i < 30; i++) {
+        const day = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+        const key = day.toISOString().slice(0, 10);
+        out.push({ date: key, count: map.get(key) ?? 0 });
+      }
+      return out;
+    }
 
     const rows = await this.prisma.$queryRaw<{ d: Date; c: bigint }[]>`
       SELECT date_trunc('day', "createdAt" AT TIME ZONE 'UTC') AS d, COUNT(*)::bigint AS c
       FROM "Organization"
       WHERE "deletedAt" IS NULL
+        AND "type" = 'DIRECT'::"OrgType"
+        AND "slug" <> ${PLATFORM_ORG_SLUG}
         AND "createdAt" >= ${start}
       GROUP BY 1
       ORDER BY 1 ASC
@@ -332,12 +451,15 @@ export class AdminService {
     search?: string,
     plan?: PlanTier,
     status?: string,
+    product?: AdminOrgProductFilter,
+    partnerOrgId?: string,
+    accountingMode?: AccountingMode,
   ): Promise<PaginatedOrganizations> {
     const take = Math.min(Math.max(limit, 1), 100);
     const skip = (Math.max(page, 1) - 1) * take;
     const s = search?.trim();
 
-    const andParts: Prisma.OrganizationWhereInput[] = [{ deletedAt: null }];
+    const andParts: Prisma.OrganizationWhereInput[] = [CUSTOMER_ORG_WHERE];
 
     if (s && s.length > 0) {
       andParts.push({
@@ -381,6 +503,26 @@ export class AdminService {
       });
     }
 
+    if (product) {
+      andParts.push(adminOrgProductLineWhere(product));
+    }
+
+    const partnerId = partnerOrgId?.trim();
+    if (partnerId) {
+      andParts.push({
+        clientRelationships: {
+          some: {
+            partnerOrgId: partnerId,
+            status: PartnerStatus.ACTIVE,
+          },
+        },
+      });
+    }
+
+    if (accountingMode) {
+      andParts.push(organizationWhereResolvedAccountingMode(accountingMode));
+    }
+
     const where: Prisma.OrganizationWhereInput =
       andParts.length === 1 ? andParts[0]! : { AND: andParts };
 
@@ -396,11 +538,23 @@ export class AdminService {
     ]);
 
     return {
-      orgs: orgs.map((o) => this.mapOrgListItem(o)),
+      orgs: ensureArray(orgs).map((o) => this.mapOrgListItem(o)),
       total,
       page: Math.max(page, 1),
       limit: take,
     };
+  }
+
+  async getPlatformOrganization(): Promise<{
+    id: string;
+    name: string;
+    slug: string;
+  } | null> {
+    const org = await this.prisma.organization.findFirst({
+      where: { slug: PLATFORM_ORG_SLUG, deletedAt: null },
+      select: { id: true, name: true, slug: true },
+    });
+    return org;
   }
 
   async getOrganizationDetail(orgId: string): Promise<OrganizationDetail> {
@@ -451,10 +605,42 @@ export class AdminService {
     });
 
     if (!org) {
+      const other = await this.prisma.organization.findFirst({
+        where: { id: orgId, deletedAt: null },
+        select: { type: true, slug: true },
+      });
+      if (other?.type === OrgType.PARTNER) {
+        throw new BadRequestException(
+          'Partner detayı için Partnerler sayfasını kullanın.',
+        );
+      }
       throw new NotFoundException('Organizasyon bulunamadı.');
     }
 
-    const [recentAuditLogs, payments] = await Promise.all([
+    if (org.type === OrgType.PARTNER) {
+      throw new BadRequestException(
+        'Partner detayı için Partnerler sayfasını kullanın.',
+      );
+    }
+
+    const activePartners = await this.prisma.partnerRelationship.findMany({
+      where: {
+        clientOrgId: orgId,
+        status: PartnerStatus.ACTIVE,
+      },
+      orderBy: { acceptedAt: 'desc' },
+      select: {
+        id: true,
+        partnerOrgId: true,
+        commissionPct: true,
+        canImpersonate: true,
+        acceptedAt: true,
+        partnerOrg: { select: { name: true, slug: true } },
+      },
+    });
+
+    const [recentAuditLogs, payments, activeErpConnectionCount, erpConnections] =
+      await Promise.all([
       this.prisma.auditLog.findMany({
         where: {
           OR: [
@@ -494,10 +680,36 @@ export class AdminService {
           createdAt: true,
         },
       }),
+      this.prisma.erpConnection.count({
+        where: { organizationId: orgId, deletedAt: null, isActive: true },
+      }),
+      this.prisma.erpConnection.findMany({
+        where: { organizationId: orgId, deletedAt: null },
+        orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          erpType: true,
+          displayName: true,
+          role: true,
+          isActive: true,
+          lastSyncAt: true,
+          syncErrorCount: true,
+          lastErrorAt: true,
+          lastErrorMessage: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
-    const { subscription, users, marketplaceConnections, orders, ...rest } =
-      org;
+    const {
+      subscription,
+      users,
+      marketplaceConnections,
+      orders,
+      productLines,
+      accountingMode,
+      ...rest
+    } = org;
 
     return {
       organization: {
@@ -514,6 +726,24 @@ export class AdminService {
         onboardingCompleted: rest.onboardingCompleted,
         createdAt: rest.createdAt,
       },
+      orgProducts: resolveOrgProductLines(productLines),
+      accountingMode,
+      activeErpConnectionCount,
+      erpConnections: ensureArray(erpConnections),
+      erpSlotLimit: effectiveErpSlotLimit({
+        subscription: subscription ?? null,
+        isInternalAccount: isInternalAccount(org),
+      }),
+      extraErpSlotCount: countExtraErpSlots(subscription?.addons),
+      activePartners: ensureArray(activePartners).map((r) => ({
+        relationshipId: r.id,
+        partnerOrgId: r.partnerOrgId,
+        name: r.partnerOrg.name,
+        slug: r.partnerOrg.slug,
+        commissionPct: Number(r.commissionPct),
+        canImpersonate: r.canImpersonate,
+        acceptedAt: r.acceptedAt,
+      })),
       subscription: subscription
         ? {
             plan: subscription.plan,
@@ -524,15 +754,144 @@ export class AdminService {
             nextBillingAt: subscription.nextBillingAt,
           }
         : null,
-      users,
-      marketplaceConnections,
-      recentOrders: orders.map((o) => ({
+      users: ensureArray(users),
+      marketplaceConnections: ensureArray(marketplaceConnections),
+      recentOrders: ensureArray(orders).map((o) => ({
         ...o,
         totalAmount: o.totalAmount.toString(),
       })),
-      recentAuditLogs,
-      payments,
+      recentAuditLogs: ensureArray(recentAuditLogs),
+      payments: isBillingExempt(org) ? [] : ensureArray(payments),
+      internalAccount: isInternalAccount(org),
+      billingExempt: isBillingExempt(org),
     };
+  }
+
+  async grantExtraErpSlot(
+    orgId: string,
+    quantity: number,
+    reason: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ extraErpSlotCount: number; erpSlotLimit: number | null }> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+      select: { id: true, slug: true, metadata: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { organizationId: orgId },
+    });
+    if (!subscription) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    const mergedAddons = mergeExtraErpSlotAddon(subscription.addons, quantity);
+    await this.prisma.$transaction([
+      this.prisma.subscription.update({
+        where: { organizationId: orgId },
+        data: { addons: mergedAddons as unknown as Prisma.InputJsonValue },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_extra_erp_slot_granted',
+          resourceType: 'Organization',
+          resourceId: orgId,
+          metadata: {
+            reason,
+            quantityAdded: quantity,
+            extraErpSlotCount: countExtraErpSlots(mergedAddons),
+          },
+        },
+      }),
+    ]);
+    await this.cache.del(CacheKeys.subscription(orgId));
+
+    return {
+      extraErpSlotCount: countExtraErpSlots(mergedAddons),
+      erpSlotLimit: effectiveErpSlotLimit({
+        subscription: { addons: mergedAddons },
+        isInternalAccount: isInternalAccount(org),
+      }),
+    };
+  }
+
+  async configureInternalAccount(
+    orgId: string,
+    dto: { enabled: boolean; plan?: PlanTier; reason: string },
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+      include: { subscription: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    if (!org.subscription) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    const meta = mergeInternalAccountMetadata(org.metadata, dto.enabled);
+    const plan = dto.plan ?? PlanTier.KURUMSAL;
+    const limits = dbLimitsForPlan(plan);
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setFullYear(periodEnd.getFullYear() + 50);
+
+    const subscriptionUpdate: Prisma.SubscriptionUpdateInput = dto.enabled
+      ? {
+          plan,
+          status: SubStatus.ACTIVE,
+          trialEndsAt: null,
+          nextBillingAt: null,
+          canceledAt: null,
+          cancelReason: null,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+          monthlyOrderLimit: limits.monthlyOrderLimit,
+          marketplaceLimit: limits.marketplaceLimit,
+          ecommerceLimit: limits.ecommerceLimit,
+          erpLimit: limits.erpLimit,
+          userLimit: limits.userLimit,
+        }
+      : {};
+
+    await this.prisma.$transaction([
+      this.prisma.organization.update({
+        where: { id: orgId },
+        data: { metadata: meta as Prisma.InputJsonValue },
+      }),
+      ...(dto.enabled
+        ? [
+            this.prisma.subscription.update({
+              where: { organizationId: orgId },
+              data: subscriptionUpdate,
+            }),
+          ]
+        : []),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.internal_account_configured',
+          resourceType: 'Organization',
+          resourceId: orgId,
+          metadata: {
+            reason: dto.reason,
+            enabled: dto.enabled,
+            plan: dto.enabled ? plan : null,
+          },
+        },
+      }),
+    ]);
+
+    await this.cache.del(CacheKeys.subscription(orgId));
   }
 
   async suspendOrganization(
@@ -605,7 +964,7 @@ export class AdminService {
   async impersonateOrganization(
     orgId: string,
     actor: AuthenticatedUser,
-  ): Promise<{ token: string }> {
+  ): Promise<{ token: string; impersonationToken: string }> {
     const target = await this.prisma.organization.findFirst({
       where: { id: orgId, deletedAt: null },
     });
@@ -638,12 +997,17 @@ export class AdminService {
       expiresIn: '4h',
     });
 
-    return { token };
+    return { token, impersonationToken: token };
   }
 
-  async getRecentActivity(limit: number): Promise<ActivityItem[]> {
-    const take = Math.min(Math.max(limit, 1), 100);
-    return this.prisma.auditLog.findMany({
+  static readonly ACTIVITY_LIST_MAX = 100;
+
+  async getRecentActivity(
+    limit: number,
+    maxCap: number = AdminService.ACTIVITY_LIST_MAX,
+  ): Promise<ActivityItem[]> {
+    const take = Math.min(Math.max(limit, 1), maxCap);
+    const rows = await this.prisma.auditLog.findMany({
       orderBy: { createdAt: 'desc' },
       take,
       select: {
@@ -657,6 +1021,39 @@ export class AdminService {
         createdAt: true,
       },
     });
+
+    const orgIds = new Set<string>();
+    for (const row of rows) {
+      orgIds.add(row.actorOrgId);
+      if (row.impersonatedOrgId) {
+        orgIds.add(row.impersonatedOrgId);
+      }
+    }
+
+    const orgNames =
+      orgIds.size > 0
+        ? await this.prisma.organization.findMany({
+            where: { id: { in: [...orgIds] } },
+            select: { id: true, name: true },
+          })
+        : [];
+    const nameById = new Map(orgNames.map((o) => [o.id, o.name]));
+
+    return rows.map((row) => ({
+      ...row,
+      actorOrgName: nameById.get(row.actorOrgId) ?? null,
+      impersonatedOrgName: row.impersonatedOrgId
+        ? (nameById.get(row.impersonatedOrgId) ?? null)
+        : null,
+    }));
+  }
+
+  async exportPlatformActivityCsv(): Promise<string> {
+    const rows = await this.getRecentActivity(
+      ADMIN_PLATFORM_ACTIVITY_EXPORT_MAX,
+      ADMIN_PLATFORM_ACTIVITY_EXPORT_MAX,
+    );
+    return buildAdminPlatformActivityCsv(rows);
   }
 
   async getPlatformHealthStats(): Promise<HealthStats> {
@@ -680,18 +1077,17 @@ export class AdminService {
       throw new BadRequestException('Organizasyon zaten bu pakette.');
     }
 
-    const limits = PLAN_LIMITS[newPlan];
+    const limits = dbLimitsForPlan(newPlan);
 
     await this.prisma.$transaction([
       this.prisma.subscription.update({
         where: { organizationId: orgId },
         data: {
           plan: newPlan,
-          monthlyOrderLimit: limits.monthlyOrderLimit,
-          marketplaceLimit: limits.marketplaceLimit,
-          ecommerceLimit: limits.ecommerceLimit,
-          erpLimit: limits.erpLimit,
-          userLimit: limits.userLimit,
+          ...limits,
+          ...(isInternalAccount(org)
+            ? { status: SubStatus.ACTIVE, trialEndsAt: null, nextBillingAt: null }
+            : {}),
         },
       }),
       this.prisma.auditLog.create({
@@ -706,6 +1102,321 @@ export class AdminService {
             reason,
             previousPlan: org.subscription.plan,
             newPlan,
+          },
+        },
+      }),
+    ]);
+
+    await this.cache.del(CacheKeys.subscription(orgId));
+  }
+
+  async updateSubscription(
+    orgId: string,
+    dto: { status?: SubStatus; trialEndsAt?: string; reason: string },
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    if (dto.status === undefined && dto.trialEndsAt === undefined) {
+      throw new BadRequestException(
+        'Durum veya deneme bitiş tarihi güncellenmelidir.',
+      );
+    }
+
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+      include: { subscription: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    if (org.slug === PLATFORM_ORG_SLUG) {
+      throw new BadRequestException(
+        'Platform organizasyonunun aboneliği değiştirilemez.',
+      );
+    }
+    if (!org.subscription) {
+      throw new NotFoundException('Abonelik bulunamadı.');
+    }
+
+    const sub = org.subscription;
+    const nextStatus = dto.status ?? sub.status;
+    const nextTrialEndsAt =
+      dto.trialEndsAt !== undefined
+        ? dto.trialEndsAt
+          ? new Date(dto.trialEndsAt)
+          : null
+        : sub.trialEndsAt;
+
+    const statusUnchanged = nextStatus === sub.status;
+    const trialUnchanged =
+      (nextTrialEndsAt === null && sub.trialEndsAt === null) ||
+      (nextTrialEndsAt !== null &&
+        sub.trialEndsAt !== null &&
+        nextTrialEndsAt.getTime() === sub.trialEndsAt.getTime());
+
+    if (statusUnchanged && trialUnchanged) {
+      throw new BadRequestException('Abonelikte değişiklik yok.');
+    }
+
+    const updateData: Prisma.SubscriptionUpdateInput = {};
+    if (!statusUnchanged) {
+      updateData.status = nextStatus;
+    }
+    if (!trialUnchanged) {
+      updateData.trialEndsAt = nextTrialEndsAt;
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.subscription.update({
+        where: { organizationId: orgId },
+        data: updateData,
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.subscription_updated',
+          resourceType: 'Subscription',
+          resourceId: sub.id,
+          metadata: {
+            reason: dto.reason,
+            previousStatus: sub.status,
+            newStatus: nextStatus,
+            previousTrialEndsAt: sub.trialEndsAt?.toISOString() ?? null,
+            newTrialEndsAt: nextTrialEndsAt?.toISOString() ?? null,
+          },
+        },
+      }),
+    ]);
+  }
+
+  async changeProductLines(
+    orgId: string,
+    productSelection: ProductSelection,
+    reason: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+      select: { id: true, productLines: true, accountingMode: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    const previous = resolveOrgProductLines(org.productLines);
+    const nextLines = productSelectionToProductLines(productSelection);
+    const nextResolved = resolveOrgProductLines(nextLines);
+    const same =
+      previous.length === nextResolved.length &&
+      previous.every((line) => nextResolved.includes(line));
+    if (same) {
+      throw new BadRequestException('Organizasyon zaten bu ürün hattında.');
+    }
+
+    const accountingMode =
+      org.accountingMode ??
+      productSelectionToInitialAccountingMode(productSelection);
+
+    await this.prisma.$transaction([
+      this.prisma.organization.update({
+        where: { id: orgId },
+        data: {
+          productLines: nextLines,
+          accountingMode,
+        },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_product_lines_changed',
+          resourceType: 'Organization',
+          resourceId: orgId,
+          metadata: {
+            reason,
+            previousProductLines: previous,
+            productSelection,
+          },
+        },
+      }),
+    ]);
+  }
+
+  async changeAccountingMode(
+    orgId: string,
+    accountingMode: AccountingMode,
+    reason: string,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const org = await this.prisma.organization.findFirst({
+      where: { id: orgId, deletedAt: null },
+      select: { id: true, accountingMode: true },
+    });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+
+    if (org.accountingMode === accountingMode) {
+      throw new BadRequestException('Organizasyon zaten bu muhasebe modunda.');
+    }
+
+    const activeErpCount = await this.prisma.erpConnection.count({
+      where: { organizationId: orgId, deletedAt: null, isActive: true },
+    });
+    const blockReason = getAccountingModeChangeBlockReason(
+      accountingMode,
+      activeErpCount,
+    );
+    if (blockReason) {
+      throw new ConflictException(blockReason);
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.organization.update({
+        where: { id: orgId },
+        data: { accountingMode },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_accounting_mode_changed',
+          resourceType: 'Organization',
+          resourceId: orgId,
+          metadata: {
+            reason,
+            previousAccountingMode: org.accountingMode,
+            newAccountingMode: accountingMode,
+            activeErpConnectionCount: activeErpCount,
+          },
+        },
+      }),
+    ]);
+  }
+
+  async assignPartnerToOrganization(
+    clientOrgId: string,
+    partnerOrgId: string,
+    actor: AuthenticatedUser,
+    reason?: string,
+  ): Promise<void> {
+    const client = await this.prisma.organization.findFirst({
+      where: { id: clientOrgId, deletedAt: null },
+      select: { id: true, type: true, name: true },
+    });
+    if (!client) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    if (client.type !== OrgType.DIRECT) {
+      throw new BadRequestException(
+        'Yalnızca doğrudan müşteri organizasyonlarına partner atanabilir.',
+      );
+    }
+
+    const partner = await this.prisma.organization.findFirst({
+      where: { id: partnerOrgId, type: OrgType.PARTNER, deletedAt: null },
+      select: { id: true, name: true },
+    });
+    if (!partner) {
+      throw new NotFoundException('Partner organizasyonu bulunamadı.');
+    }
+
+    const profile = await this.prisma.partnerProfile.findUnique({
+      where: { organizationId: partnerOrgId },
+    });
+    const commissionPct = profile?.commissionRate ?? new Prisma.Decimal(10);
+
+    await this.prisma.$transaction(async (tx) => {
+      const pendingRequest = await tx.partnerLinkRequest.findUnique({
+        where: {
+          clientOrgId_partnerOrgId: { clientOrgId, partnerOrgId },
+        },
+      });
+      if (pendingRequest?.status === PartnerLinkStatus.PENDING) {
+        await tx.partnerLinkRequest.update({
+          where: { id: pendingRequest.id },
+          data: {
+            status: PartnerLinkStatus.APPROVED,
+            reviewedAt: new Date(),
+            reviewedBy: actor.id,
+          },
+        });
+      }
+
+      await tx.partnerRelationship.upsert({
+        where: {
+          partnerOrgId_clientOrgId: { partnerOrgId, clientOrgId },
+        },
+        create: {
+          partnerOrgId,
+          clientOrgId,
+          status: PartnerStatus.ACTIVE,
+          commissionPct,
+          canImpersonate: true,
+          acceptedAt: new Date(),
+        },
+        update: {
+          status: PartnerStatus.ACTIVE,
+          commissionPct,
+          acceptedAt: new Date(),
+          inviteToken: null,
+          inviteExpiresAt: null,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_partner_assigned',
+          resourceType: 'Organization',
+          resourceId: clientOrgId,
+          metadata: {
+            partnerOrgId,
+            partnerName: partner.name,
+            reason: reason ?? null,
+          },
+        },
+      });
+    });
+  }
+
+  async removePartnerFromOrganization(
+    clientOrgId: string,
+    partnerOrgId: string,
+    actor: AuthenticatedUser,
+    reason?: string,
+  ): Promise<void> {
+    const rel = await this.prisma.partnerRelationship.findUnique({
+      where: {
+        partnerOrgId_clientOrgId: { partnerOrgId, clientOrgId },
+      },
+    });
+    if (!rel || rel.status !== PartnerStatus.ACTIVE) {
+      throw new NotFoundException('Aktif partner bağlantısı bulunamadı.');
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.partnerRelationship.update({
+        where: { id: rel.id },
+        data: { status: PartnerStatus.TERMINATED },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: actor.id,
+          actorOrgId: actor.organizationId,
+          impersonatedOrgId: null,
+          action: 'admin.organization_partner_removed',
+          resourceType: 'PartnerRelationship',
+          resourceId: rel.id,
+          metadata: {
+            clientOrgId,
+            partnerOrgId,
+            reason: reason ?? null,
           },
         },
       }),
@@ -735,16 +1446,24 @@ export class AdminService {
       subscription: o.subscription,
       _count: o._count,
       lastActivityAt,
+      orgProducts: resolveOrgProductLines(o.productLines),
+      accountingMode: resolveOrganizationAccountingMode(
+        o.accountingMode,
+        o._count.erpConnections,
+      ),
+      activePartners: ensureArray(o.clientRelationships).map((rel) => ({
+        id: rel.partnerOrg.id,
+        name: rel.partnerOrg.name,
+        slug: rel.partnerOrg.slug,
+      })),
     };
   }
 
-  async getUsers(filters: AdminUsersQueryDto): Promise<PaginatedUsers> {
-    const page = Math.max(filters.page ?? 1, 1);
-    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
-    const skip = (page - 1) * limit;
+  private buildAdminUsersWhere(
+    filters: AdminUsersQueryDto,
+  ): Prisma.UserWhereInput {
     const search = filters.search?.trim();
-
-    const where: Prisma.UserWhereInput = {
+    return {
       deletedAt: null,
       ...(search
         ? {
@@ -756,13 +1475,44 @@ export class AdminService {
         : {}),
       ...(filters.orgId ? { organizationId: filters.orgId } : {}),
       ...(filters.role ? { role: filters.role } : {}),
+      ...(filters.product
+        ? {
+            organization: customerOrgWhere(
+              adminOrgProductLineWhere(filters.product),
+            ),
+          }
+        : {}),
     };
+  }
+
+  private mapAdminUserListItem(
+    u: Prisma.UserGetPayload<{
+      include: { organization: { select: { id: true; name: true; slug: true } } };
+    }>,
+  ): AdminUserListItem {
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      suspended: u.suspended,
+      lastLoginAt: u.lastLoginAt,
+      createdAt: u.createdAt,
+      organization: u.organization,
+    };
+  }
+
+  async getUsers(filters: AdminUsersQueryDto): Promise<PaginatedUsers> {
+    const page = Math.max(filters.page ?? 1, 1);
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 100);
+    const skip = (page - 1) * limit;
+    const where = this.buildAdminUsersWhere(filters);
 
     const [users, total] = await Promise.all([
       this.prisma.user.findMany({
         where,
         include: {
-          organization: { select: { name: true, slug: true } },
+          organization: { select: { id: true, name: true, slug: true } },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -772,20 +1522,25 @@ export class AdminService {
     ]);
 
     return {
-      users: users.map((u) => ({
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        role: u.role,
-        suspended: u.suspended,
-        lastLoginAt: u.lastLoginAt,
-        createdAt: u.createdAt,
-        organization: u.organization,
-      })),
+      users: ensureArray(users).map((u) => this.mapAdminUserListItem(u)),
       total,
       page,
       limit,
     };
+  }
+
+  async exportUsersCsv(filters: AdminUsersQueryDto): Promise<string> {
+    const users = await this.prisma.user.findMany({
+      where: this.buildAdminUsersWhere(filters),
+      include: {
+        organization: { select: { id: true, name: true, slug: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: ADMIN_USERS_EXPORT_MAX,
+    });
+    return buildAdminUsersCsv(
+      ensureArray(users).map((u) => this.mapAdminUserListItem(u)),
+    );
   }
 
   async getUserDetail(userId: string): Promise<AdminUserDetail> {
@@ -996,23 +1751,108 @@ export class AdminService {
     return { logs, total, page: Math.max(page, 1), limit: take };
   }
 
+  async updateUserInfo(
+    userId: string,
+    dto: UpdateAdminUserDto,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId,
+        impersonatedOrgId: null,
+        action: 'admin.user_info_updated',
+        resourceType: 'User',
+        resourceId: userId,
+        metadata: {},
+      },
+    });
+  }
+
+  async updateOrganizationInfo(
+    orgId: string,
+    dto: UpdateAdminOrganizationInfoDto,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org) {
+      throw new NotFoundException('Organizasyon bulunamadı.');
+    }
+    await this.prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.taxId !== undefined ? { taxNumber: dto.taxId } : {}),
+        ...(dto.taxOffice !== undefined ? { taxOffice: dto.taxOffice } : {}),
+        ...(dto.city !== undefined ? { city: dto.city } : {}),
+        ...(dto.address !== undefined ? { address: dto.address } : {}),
+        ...(dto.website !== undefined ? { website: dto.website } : {}),
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: actor.id,
+        actorOrgId: actor.organizationId,
+        impersonatedOrgId: null,
+        action: 'admin.organization_info_updated',
+        resourceType: 'Organization',
+        resourceId: orgId,
+        metadata: {},
+      },
+    });
+  }
+
   async deleteOrganization(
     orgId: string,
     actor: AuthenticatedUser,
   ): Promise<void> {
     const org = await this.prisma.organization.findFirst({
       where: { id: orgId, deletedAt: null },
+      select: { id: true, slug: true, type: true },
     });
     if (!org) {
       throw new NotFoundException('Organizasyon bulunamadı.');
     }
+    if (org.slug === PLATFORM_ORG_SLUG) {
+      throw new BadRequestException('Platform organizasyonu silinemez.');
+    }
+    if (org.id === actor.organizationId) {
+      throw new BadRequestException('Kendi organizasyonunuz silinemez.');
+    }
+    if (org.type === OrgType.PARTNER) {
+      throw new BadRequestException(
+        'Partner organizasyonları bu ekrandan silinemez. Partner yönetim sayfasını kullanın.',
+      );
+    }
 
-    await this.prisma.$transaction([
-      this.prisma.organization.update({
+    const users = await this.prisma.user.findMany({
+      where: { organizationId: orgId, deletedAt: null },
+      select: { id: true },
+    });
+    const deletedAt = new Date();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({
         where: { id: orgId },
-        data: { deletedAt: new Date(), suspended: true },
-      }),
-      this.prisma.auditLog.create({
+        data: { deletedAt, suspended: true },
+      });
+      if (users.length > 0) {
+        await tx.user.updateMany({
+          where: { organizationId: orgId, deletedAt: null },
+          data: { deletedAt },
+        });
+      }
+      await tx.auditLog.create({
         data: {
           actorUserId: actor.id,
           actorOrgId: actor.organizationId,
@@ -1020,10 +1860,14 @@ export class AdminService {
           action: 'admin.organization_deleted',
           resourceType: 'Organization',
           resourceId: orgId,
-          metadata: {},
+          metadata: { userCount: users.length },
         },
-      }),
-    ]);
+      });
+    });
+
+    await Promise.all(
+      users.map((u) => this.sessionService.revokeAllUserSessions(u.id)),
+    );
   }
 
   async exportOrgData(orgId: string): Promise<OrgDataExport> {
@@ -1184,9 +2028,18 @@ export class AdminService {
 
   private async requireActiveOrg(orgId: string): Promise<void> {
     const org = await this.prisma.organization.findFirst({
-      where: { id: orgId, deletedAt: null },
+      where: { id: orgId, ...CUSTOMER_ORG_WHERE },
     });
     if (!org) {
+      const other = await this.prisma.organization.findFirst({
+        where: { id: orgId, deletedAt: null },
+        select: { type: true },
+      });
+      if (other?.type === OrgType.PARTNER) {
+        throw new BadRequestException(
+          'Partner detayı için Partnerler sayfasını kullanın.',
+        );
+      }
       throw new NotFoundException('Organizasyon bulunamadı.');
     }
   }

@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import { TRENDYOL_WEBHOOK_EVENTS } from '../adapters/trendyol/trendyol.constants';
 import { EncryptionService } from '../common/encryption/encryption.service';
 import { ListingService } from '../listing/listing.service';
+import { OrderPullService } from '../order/order-pull.service';
 import { OrderService } from '../order/order.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
@@ -107,6 +108,7 @@ export class WebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orderService: OrderService,
+    private readonly orderPullService: OrderPullService,
     private readonly listingService: ListingService,
     private readonly encryptionService: EncryptionService,
     private readonly webhookSignature: WebhookSignatureService,
@@ -489,6 +491,7 @@ export class WebhookService {
           Marketplace.TRENDYOL,
           ids.platformOrderId,
           ids.status,
+          { fromPlatformWebhook: true },
         );
       }
       return;
@@ -625,6 +628,20 @@ export class WebhookService {
   ): Promise<void> {
     const normalized = eventType.trim().toUpperCase();
 
+    if (
+      normalized === 'NEW_ORDER' ||
+      normalized === 'NEWORDER' ||
+      normalized === 'ORDER_CREATED'
+    ) {
+      const since = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      await this.orderPullService.pullOrders(
+        organizationId,
+        Marketplace.HEPSIBURADA,
+        since,
+      );
+      return;
+    }
+
     if (normalized === 'ORDER_STATUS_UPDATE') {
       const ids = extractHepsiburadaOrderStatus(payload);
       if (ids.platformOrderId && ids.status) {
@@ -633,6 +650,7 @@ export class WebhookService {
           Marketplace.HEPSIBURADA,
           ids.platformOrderId,
           ids.status,
+          { fromPlatformWebhook: true },
         );
       }
       return;

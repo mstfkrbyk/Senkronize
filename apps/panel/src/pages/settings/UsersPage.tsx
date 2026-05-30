@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { toast } from 'sonner';
@@ -51,9 +52,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { formatIpAddress } from '@/lib/format-ip-address';
 import { FORM_MESSAGES } from '@/lib/form-messages';
 import { useAuthStore } from '@/store/auth.store';
 import type { OrgUser } from '@/types/user';
@@ -108,6 +112,8 @@ interface SessionRow {
 type OrgMember = OrgUser & { lastActivityAt: string };
 
 export function UsersPage(): ReactElement {
+  const { t } = useTranslation();
+  usePageTitle(t('settings.teamMembers'));
   const queryClient = useQueryClient();
   const { data: me } = useAuth();
   const currentSessionId = useAuthStore((s) => s.sessionId);
@@ -283,10 +289,12 @@ export function UsersPage(): ReactElement {
   }, [usersQuery.data, me?.user.id]);
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h3 className="text-lg font-medium text-primary">Ekip üyeleri</h3>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">
+            {t('settings.teamMembers')}
+          </h1>
           <p className="text-sm text-muted-foreground">
             Üyeleri yönetin, davet gönderin ve oturumları kontrol edin.
           </p>
@@ -318,7 +326,12 @@ export function UsersPage(): ReactElement {
       ) : null}
 
       {usersQuery.isError ? (
-        <p className="text-sm text-destructive">{getApiErrorMessage(usersQuery.error)}</p>
+        <QueryErrorAlert
+          error={usersQuery.error}
+          onRetry={() => {
+            void usersQuery.refetch();
+          }}
+        />
       ) : null}
 
       {!usersQuery.isLoading && !usersQuery.isError && usersQuery.data?.length === 0 ? (
@@ -427,7 +440,12 @@ export function UsersPage(): ReactElement {
         </p>
         {invitesQuery.isLoading ? <Skeleton className="h-10 w-full" /> : null}
         {invitesQuery.isError ? (
-          <p className="text-sm text-destructive">{getApiErrorMessage(invitesQuery.error)}</p>
+          <QueryErrorAlert
+            error={invitesQuery.error}
+            onRetry={() => {
+              void invitesQuery.refetch();
+            }}
+          />
         ) : null}
         {!invitesQuery.isLoading &&
         !invitesQuery.isError &&
@@ -510,7 +528,12 @@ export function UsersPage(): ReactElement {
         </div>
         {sessionsQuery.isLoading ? <Skeleton className="h-10 w-full" /> : null}
         {sessionsQuery.isError ? (
-          <p className="text-sm text-destructive">{getApiErrorMessage(sessionsQuery.error)}</p>
+          <QueryErrorAlert
+            error={sessionsQuery.error}
+            onRetry={() => {
+              void sessionsQuery.refetch();
+            }}
+          />
         ) : null}
         {!sessionsQuery.isLoading && (sessionsQuery.data?.length ?? 0) === 0 ? (
           <p className="rounded-lg border border-dashed bg-muted/20 p-6 text-sm text-muted-foreground">
@@ -533,8 +556,8 @@ export function UsersPage(): ReactElement {
                   const isCurrent = currentSessionId === s.id;
                   return (
                     <TableRow key={s.id}>
-                      <TableCell className="font-mono text-sm">
-                        {s.ipAddress ?? '—'}
+                      <TableCell className="text-sm">
+                        {formatIpAddress(s.ipAddress)}
                         {isCurrent ? (
                           <Badge className="ml-2" variant="default">
                             Bu cihaz

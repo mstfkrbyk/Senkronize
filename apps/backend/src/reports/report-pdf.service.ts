@@ -45,10 +45,6 @@ function platformLabel(platform: string): string {
   return MARKETPLACE_LABEL_TR[key] ?? platform;
 }
 
-/** Recharts sunucu tarafı render stub — gerçek grafik üretimi sonraki fazda */
-const CHART_STUB_BASE64 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-
 const SENKRONIZE_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" role="img" aria-label="Senkronize">
   <rect width="48" height="48" rx="12" fill="#0f172a"/>
   <path d="M14 24c0-5.5 4.5-10 10-10h10v6H24a4 4 0 100 8h10v6H24c-5.5 0-10-4.5-10-10z" fill="#38bdf8"/>
@@ -355,10 +351,9 @@ export class ReportPdfService {
 
     const filterSummary =
       params.filterSummary ?? `Dönem: ${params.periodLabel}`;
-    const chartBlock = `
-    <div class="chart-block">
-      <img src="data:image/png;base64,${CHART_STUB_BASE64}" alt="Grafik özeti (stub)" width="520" height="120" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" />
-      <div class="chart-caption">Grafik görünümü — Recharts sunucu render (yakında)</div>
+    const summaryNote = `
+    <div class="report-summary-note">
+      Bu rapor tablo odaklıdır. Özet göstergeler ve platform, ürün ile stok detayları aşağıdaki tablolarda sunulmaktadır.
     </div>`;
 
     return `<!DOCTYPE html>
@@ -391,8 +386,17 @@ export class ReportPdfService {
     table { width: 100%; border-collapse: collapse; margin: 8px 0 20px; }
     th { background: #0f172a; color: #f8fafc; padding: 10px; text-align: left; font-size: 12px; }
     td { padding: 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-    .chart-block { margin: 20px 0; text-align: center; }
-    .chart-caption { font-size: 10px; color: #94a3b8; margin-top: 6px; }
+    .report-summary-note {
+      margin: 16px 0 20px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 3px solid #38bdf8;
+      border-radius: 8px;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.5;
+    }
     .page-footer {
       position: fixed;
       bottom: 0;
@@ -428,7 +432,7 @@ export class ReportPdfService {
 
   <section class="page-body">
     <h2>Özet</h2>
-    ${chartBlock}
+    ${summaryNote}
     <div class="kpi-grid">
       <div class="kpi">
         <div class="kpi-label">${escapeHtml(kpiLabels.revenue)}</div>

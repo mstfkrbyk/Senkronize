@@ -1,27 +1,33 @@
 import type { ReactElement } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ImagePlus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { SettingsPageShell } from '@/components/settings/SettingsPageShell';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api, getApiErrorMessage } from '@/lib/api';
 import { FORM_MESSAGES } from '@/lib/form-messages';
+import { cn } from '@/lib/utils';
 import type { OrganizationDetail } from '@/types/organization';
 
 const BILLING_SEPARATOR = '\n---FATURA---\n';
@@ -101,8 +107,11 @@ function serializeAddress(
 }
 
 export function OrganizationTab(): ReactElement {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [logoUploading, setLogoUploading] = useState(false);
+  const [logoDragActive, setLogoDragActive] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   const orgQuery = useQuery({
     queryKey: ['organizations', 'me'],
@@ -114,6 +123,7 @@ export function OrganizationTab(): ReactElement {
 
   const form = useForm<OrgFormValues>({
     resolver: zodFormResolver(orgSchema),
+    mode: 'onChange',
     defaultValues: {
       name: '',
       taxNumber: '',
@@ -172,7 +182,7 @@ export function OrganizationTab(): ReactElement {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['organizations', 'me'] });
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
-      toast.success('Firma bilgileri kaydedildi.');
+      toast.success(t('settings.organizationTab.saveSuccess'));
     },
     onError: (err: unknown) => {
       toast.error(getApiErrorMessage(err));
@@ -188,7 +198,7 @@ export function OrganizationTab(): ReactElement {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       form.setValue('logoUrl', data.url, { shouldValidate: true });
-      toast.success('Logo yüklendi.');
+      toast.success(t('settings.organizationTab.logoUploadSuccess'));
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err));
     } finally {
@@ -201,46 +211,55 @@ export function OrganizationTab(): ReactElement {
 
   if (orgQuery.isLoading) {
     return (
-      <div className="max-w-lg space-y-4">
+      <SettingsPageShell
+        title={t('settings.organizationTab.title')}
+        description="Organizasyon adı, vergi ve iletişim bilgilerini yönetin."
+      >
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-32 w-full" />
-      </div>
+      </SettingsPageShell>
     );
   }
 
   if (orgQuery.isError) {
     return (
-      <p className="text-sm text-destructive">
-        {getApiErrorMessage(orgQuery.error)}
-      </p>
+      <SettingsPageShell
+        title={t('settings.organizationTab.title')}
+        description="Organizasyon adı, vergi ve iletişim bilgilerini yönetin."
+      >
+        <QueryErrorAlert
+          error={orgQuery.error}
+          onRetry={() => {
+            void orgQuery.refetch();
+          }}
+        />
+      </SettingsPageShell>
     );
   }
 
   return (
-    <div className="max-w-lg space-y-6">
-      <div className="space-y-1">
-        <h3 className="text-lg font-medium text-primary">Firma bilgileri</h3>
-        <p className="text-sm text-muted-foreground">
-          Organizasyon profilinizi, fatura bilgilerinizi ve güvenlik politikalarınızı yönetin.
-        </p>
-      </div>
-
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit((values) => {
-            saveMutation.mutate(values);
-          })}
-          className="space-y-4"
-        >
+    <SettingsPageShell
+      title={t('settings.organizationTab.title')}
+      description="Organizasyon adı, vergi ve iletişim bilgilerini yönetin."
+    >
+    <Card className="border-border bg-card shadow-sm">
+      <CardContent className="pt-6">
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit((values) => {
+              saveMutation.mutate(values);
+            })}
+            className="space-y-4"
+          >
           <FormField
             control={form.control}
             name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Firma adı</FormLabel>
+                <FormLabel>{t('settings.organizationTab.nameLabel')}</FormLabel>
                 <FormControl>
-                  <Input {...field} />
+                  <Input className="bg-background" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -253,9 +272,9 @@ export function OrganizationTab(): ReactElement {
               name="taxNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vergi numarası</FormLabel>
+                  <FormLabel>{t('settings.organizationTab.taxNumberLabel')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="1234567890" {...field} />
+                    <Input className="bg-background" placeholder="1234567890" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -266,9 +285,9 @@ export function OrganizationTab(): ReactElement {
               name="taxOffice"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vergi dairesi</FormLabel>
+                  <FormLabel>{t('settings.organizationTab.taxOfficeLabel')}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Kadıköy" {...field} />
+                    <Input className="bg-background" placeholder="Kadıköy" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -281,9 +300,9 @@ export function OrganizationTab(): ReactElement {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Telefon</FormLabel>
+                <FormLabel>{t('settings.organizationTab.phoneLabel')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="+90 212 000 00 00" {...field} />
+                  <Input className="bg-background" placeholder="+90 212 000 00 00" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -295,9 +314,14 @@ export function OrganizationTab(): ReactElement {
             name="address"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Adres</FormLabel>
+                <FormLabel>{t('settings.organizationTab.addressLabel')}</FormLabel>
                 <FormControl>
-                  <Textarea rows={3} placeholder="Açık adres" {...field} />
+                  <Textarea
+                    className="bg-background"
+                    rows={3}
+                    placeholder="Açık adres"
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -309,17 +333,19 @@ export function OrganizationTab(): ReactElement {
             name="city"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Şehir</FormLabel>
+                <FormLabel>{t('settings.organizationTab.cityLabel')}</FormLabel>
                 <FormControl>
-                  <Input placeholder="İstanbul" {...field} />
+                  <Input className="bg-background" placeholder="İstanbul" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          <div className="space-y-3 rounded-lg border p-4">
-            <FormLabel>Logo</FormLabel>
+          <div className="space-y-3 rounded-lg border border-border bg-background p-4">
+            <Label className="text-sm font-medium leading-none">
+              {t('settings.organizationTab.logoLabel')}
+            </Label>
             {logoUrl ? (
               <img
                 src={logoUrl}
@@ -327,27 +353,81 @@ export function OrganizationTab(): ReactElement {
                 className="h-16 w-auto rounded border bg-white object-contain p-1"
               />
             ) : null}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            <input
+              ref={logoFileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="sr-only"
+              disabled={logoUploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  void handleLogoUpload(file);
+                }
+                e.target.value = '';
+              }}
+            />
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={t('settings.organizationTab.logoUploadButton')}
+              className={cn(
+                'flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors',
+                logoDragActive
+                  ? 'border-primary bg-primary/5'
+                  : 'border-muted-foreground/30 bg-muted/20 hover:border-primary/40 hover:bg-muted/30',
+                logoUploading ? 'pointer-events-none opacity-60' : 'cursor-pointer',
+              )}
+              onClick={() => logoFileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  logoFileInputRef.current?.click();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setLogoDragActive(true);
+              }}
+              onDragLeave={() => setLogoDragActive(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setLogoDragActive(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  void handleLogoUpload(file);
+                }
+              }}
+            >
+              <ImagePlus className="h-8 w-8 text-muted-foreground" aria-hidden />
+              <p className="text-sm text-muted-foreground">
+                {t('settings.organizationTab.logoDropHint')}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 disabled={logoUploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    void handleLogoUpload(file);
-                  }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  logoFileInputRef.current?.click();
                 }}
-              />
+              >
+                {logoUploading
+                  ? t('settings.organizationTab.saving')
+                  : t('settings.organizationTab.logoUploadButton')}
+              </Button>
             </div>
             <FormField
               control={form.control}
               name="logoUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground">veya logo URL</FormLabel>
+                  <FormLabel className="text-xs text-muted-foreground">
+                    {t('settings.organizationTab.logoUrlLabel')}
+                  </FormLabel>
                   <FormControl>
-                    <Input placeholder="https://…" {...field} />
+                    <Input className="bg-background" placeholder="https://…" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -355,13 +435,15 @@ export function OrganizationTab(): ReactElement {
             />
           </div>
 
-          <div className="space-y-3 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-3 rounded-lg border border-border bg-background p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <FormLabel>Fatura için ayrı adres</FormLabel>
-                <FormDescription>
-                  Faturalarda farklı bir adres kullanmak istiyorsanız etkinleştirin.
-                </FormDescription>
+                <Label className="text-sm font-medium leading-none">
+                  {t('settings.organizationTab.separateBillingLabel')}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t('settings.organizationTab.separateBillingHint')}
+                </p>
               </div>
               <FormField
                 control={form.control}
@@ -381,9 +463,14 @@ export function OrganizationTab(): ReactElement {
                 name="billingAddress"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fatura adresi</FormLabel>
+                    <FormLabel>{t('settings.organizationTab.billingAddressLabel')}</FormLabel>
                     <FormControl>
-                      <Textarea rows={3} placeholder="Fatura adresi" {...field} />
+                      <Textarea
+                        className="bg-background"
+                        rows={3}
+                        placeholder="Fatura adresi"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -392,12 +479,14 @@ export function OrganizationTab(): ReactElement {
             ) : null}
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-0.5">
-              <FormLabel htmlFor="require-2fa">2FA zorunluluğu</FormLabel>
-              <FormDescription>
-                Tüm kullanıcıların iki faktörlü doğrulamayı etkinleştirmesini zorunlu kılar.
-              </FormDescription>
+              <Label htmlFor="require-2fa" className="text-sm font-medium leading-none">
+                {t('settings.organizationTab.require2faLabel')}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t('settings.organizationTab.require2faHint')}
+              </p>
             </div>
             <FormField
               control={form.control}
@@ -416,11 +505,20 @@ export function OrganizationTab(): ReactElement {
             />
           </div>
 
-          <Button type="submit" disabled={saveMutation.isPending || logoUploading}>
-            Kaydet
-          </Button>
-        </form>
-      </Form>
-    </div>
+            <Button
+              type="submit"
+              disabled={
+                saveMutation.isPending || logoUploading || !form.formState.isValid
+              }
+            >
+              {saveMutation.isPending
+                ? t('settings.organizationTab.saving')
+                : t('settings.organizationTab.save')}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
+    </SettingsPageShell>
   );
 }

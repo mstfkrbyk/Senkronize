@@ -43,8 +43,8 @@ export function ProductFeaturesSections(): ReactElement {
                   <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-white/90 shadow-md ring-1 ring-indigo-100">
                     <Icon className="h-12 w-12 text-primary/70" />
                   </div>
-                  <span className="max-w-[12rem] text-xs uppercase tracking-wide text-primary/80">
-                    Görsel alanı — yakında ürün ekran görüntüsü
+                  <span className="text-xs uppercase tracking-wide text-primary/80">
+                    Panel görseli hazırlanıyor
                   </span>
                 </div>
               </div>

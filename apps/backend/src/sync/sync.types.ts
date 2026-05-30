@@ -49,14 +49,35 @@ export interface SerializedSyncLog {
   startedAt: string;
   completedAt: string | null;
   durationMs: number | null;
+  /** ERP senkron işi ise gerçek ERP türü (ör. BIZIMHESAP) */
+  erpType?: string | null;
+  isErpJob?: boolean;
+  /** UI'da gösterilecek platform/ERP etiketi */
+  displayPlatform?: string;
 }
 
-export function serializeSyncLog(row: SyncLog): SerializedSyncLog {
+export function serializeSyncLog(
+  row: SyncLog,
+  erpConnectionTypes?: ReadonlyMap<string, string>,
+): SerializedSyncLog {
   const completedAt = row.completedAt?.toISOString() ?? null;
   const durationMs =
     row.completedAt !== null
       ? row.completedAt.getTime() - row.startedAt.getTime()
       : null;
+
+  let erpType: string | null = null;
+  let isErpJob = false;
+  if (row.jobType.startsWith('erp:')) {
+    isErpJob = true;
+    const parts = row.jobType.split(':');
+    if (parts.length === 4 && parts[1]) {
+      erpType = parts[1];
+    } else if (parts.length === 3 && parts[1] && erpConnectionTypes) {
+      erpType = erpConnectionTypes.get(parts[1]) ?? null;
+    }
+  }
+
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -69,6 +90,9 @@ export function serializeSyncLog(row: SyncLog): SerializedSyncLog {
     startedAt: row.startedAt.toISOString(),
     completedAt,
     durationMs,
+    erpType,
+    isErpJob,
+    displayPlatform: erpType ?? row.platform,
   };
 }
 

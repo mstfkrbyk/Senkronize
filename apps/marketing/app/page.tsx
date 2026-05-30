@@ -7,6 +7,7 @@ import { ExitIntentNewsletter } from '@/components/ExitIntentNewsletter';
 import { FeaturesSection } from '@/components/FeaturesSection';
 import { HeroSection } from '@/components/HeroSection';
 import { BetaCountdownSection } from '@/components/home/BetaCountdownSection';
+import { HomeProductLineCards } from '@/components/home/HomeProductLineCards';
 import { DemoVideoSection } from '@/components/home/DemoVideoSection';
 import { HomeFaqSection } from '@/components/home/HomeFaqSection';
 import { SocialProofSection } from '@/components/home/SocialProofSection';
@@ -85,6 +86,7 @@ export default function HomePage(): ReactElement {
       <JsonLd data={homeSoftwareLd} />
       <main>
         <HeroSection />
+        <HomeProductLineCards />
         <SocialProofSection />
         <PlatformLogoMarquee />
         <StatsSection />

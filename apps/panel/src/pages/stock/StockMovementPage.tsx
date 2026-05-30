@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -31,6 +32,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePageTitle } from '@/hooks/usePageTitle';
+
+import { StockPageHeader } from './StockPageHeader';
 import { getApiErrorMessage } from '@/lib/api';
 import type { StockMovementDto } from '@/types/stock';
 
@@ -76,6 +79,7 @@ interface MovementsTabProps {
 }
 
 export function StockMovementsTab({ embedded = false }: MovementsTabProps): ReactElement {
+  const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
 
   const warehousesQuery = useWarehouses();
@@ -116,7 +120,10 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
   );
 
   const historyQuery = useStockHistoryOrg(historyFilters);
-  const warehouses = warehousesQuery.data ?? [];
+  const warehouses = useMemo(
+    () => warehousesQuery.data ?? [],
+    [warehousesQuery.data],
+  );
 
   const productNameByBarcode = useMemo(() => {
     const map = new Map<string, string>();
@@ -201,30 +208,23 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
     a.download = `stok-hareketleri-${range.from}-${range.to}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('CSV indirildi');
+    toast.success(t('stock.movements.exportSuccess'));
   };
 
   return (
     <div className={embedded ? 'space-y-4' : 'space-y-6'}>
       {!embedded ? (
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Stok hareket geçmişi
-          </h1>
-          <p className="text-muted-foreground">
-            Giriş, çıkış, transfer, sayım, iade ve sipariş kaynaklı hareketleri
-            filtreleyin.
-          </p>
-        </div>
+        <StockPageHeader
+          title={t('stock.movements.pageTitle')}
+          description={t('stock.movements.pageDesc')}
+        />
       ) : null}
 
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <CardTitle>Hareketler</CardTitle>
-            <CardDescription>
-              Depo, ürün, hareket tipi ve tarih aralığı filtreleri
-            </CardDescription>
+            <CardTitle>{t('stock.movements.cardTitle')}</CardTitle>
+            <CardDescription>{t('stock.movements.cardDesc')}</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -233,13 +233,13 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
             onClick={exportCsv}
             disabled={rows.length === 0}
           >
-            CSV dışa aktar
+            {t('stock.movements.exportCsv')}
           </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-1">
-              <Label>Depo</Label>
+              <Label>{t('stock.warehouse')}</Label>
               <Select
                 value={warehouseId || '__all__'}
                 onValueChange={(v) => {
@@ -250,10 +250,10 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Tüm depolar" />
+                  <SelectValue placeholder={t('stock.status.allWarehouses')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Tüm depolar</SelectItem>
+                  <SelectItem value="__all__">{t('stock.status.allWarehouses')}</SelectItem>
                   {warehouses.map((w) => (
                     <SelectItem key={w.id} value={w.id}>
                       {w.name}
@@ -263,7 +263,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Hareket tipi</Label>
+              <Label>{t('stock.movements.movementType')}</Label>
               <Select
                 value={typeGroup || '__all__'}
                 onValueChange={(v) => {
@@ -272,10 +272,10 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Tümü" />
+                  <SelectValue placeholder={t('common.all')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">Tümü</SelectItem>
+                  <SelectItem value="__all__">{t('common.all')}</SelectItem>
                   {MOVEMENT_FILTER_GROUPS.map((g) => (
                     <SelectItem key={g.value} value={g.value}>
                       {g.label}
@@ -285,7 +285,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
               </Select>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="mv-from">Başlangıç</Label>
+              <Label htmlFor="mv-from">{t('stock.movements.dateFrom')}</Label>
               <Input
                 id="mv-from"
                 type="date"
@@ -297,7 +297,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="mv-to">Bitiş</Label>
+              <Label htmlFor="mv-to">{t('stock.movements.dateTo')}</Label>
               <Input
                 id="mv-to"
                 type="date"
@@ -309,10 +309,10 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="mv-search">Ürün</Label>
+              <Label htmlFor="mv-search">{t('stock.status.product')}</Label>
               <Input
                 id="mv-search"
-                placeholder="Barkod veya isim…"
+                placeholder={t('stock.movements.productPlaceholder')}
                 value={productSearch}
                 onChange={(e) => {
                   setPage(1);
@@ -324,14 +324,14 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
           </div>
 
           {historyQuery.isLoading ? (
-            <p className="text-muted-foreground text-sm">Yükleniyor…</p>
+            <p className="text-muted-foreground text-sm">{t('common.loading')}</p>
           ) : historyQuery.isError ? (
             <p className="text-destructive text-sm">
               {getApiErrorMessage(historyQuery.error)}
             </p>
           ) : rows.length === 0 ? (
             <p className="text-muted-foreground text-sm">
-              Bu filtrelere uygun hareket bulunamadı.
+              {t('stock.movements.empty')}
             </p>
           ) : (
             <>
@@ -339,14 +339,14 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tarih</TableHead>
-                      <TableHead>Ürün</TableHead>
-                      <TableHead>Depo</TableHead>
-                      <TableHead>Tip</TableHead>
-                      <TableHead className="text-right">Miktar</TableHead>
-                      <TableHead>Neden</TableHead>
-                      <TableHead>Referans</TableHead>
-                      <TableHead>Kullanıcı</TableHead>
+                      <TableHead>{t('common.date')}</TableHead>
+                      <TableHead>{t('stock.status.product')}</TableHead>
+                      <TableHead>{t('stock.warehouse')}</TableHead>
+                      <TableHead>{t('stock.movements.colType')}</TableHead>
+                      <TableHead className="text-right">{t('common.quantity')}</TableHead>
+                      <TableHead>{t('stock.movements.colReason')}</TableHead>
+                      <TableHead>{t('stock.movements.colReference')}</TableHead>
+                      <TableHead>{t('stock.movements.colUser')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -392,7 +392,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                           {referenceLabel(r)}
                         </TableCell>
                         <TableCell className="text-muted-foreground text-sm">
-                          Sistem
+                          {t('stock.movements.systemUser')}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -401,12 +401,12 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
               </div>
               <div className="flex items-center justify-between gap-2">
                 <p className="text-muted-foreground text-sm">
-                  Toplam{' '}
-                  {(typeGroup === 'COUNT'
-                    ? rows.length
-                    : historyQuery.data?.total ?? 0
-                  ).toLocaleString('tr-TR')}{' '}
-                  kayıt
+                  {t('stock.movements.totalRecords', {
+                    count: (typeGroup === 'COUNT'
+                      ? rows.length
+                      : historyQuery.data?.total ?? 0
+                    ).toLocaleString('tr-TR'),
+                  })}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -416,7 +416,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    Önceki
+                    {t('common.previous')}
                   </Button>
                   <Button
                     type="button"
@@ -429,7 +429,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
                     }
                     onClick={() => setPage((p) => p + 1)}
                   >
-                    Sonraki
+                    {t('common.next')}
                   </Button>
                 </div>
               </div>
@@ -442,6 +442,7 @@ export function StockMovementsTab({ embedded = false }: MovementsTabProps): Reac
 }
 
 export function StockMovementPage(): ReactElement {
-  usePageTitle('Stok hareket geçmişi');
+  const { t } = useTranslation();
+  usePageTitle(t('nav.stockMovements'));
   return <StockMovementsTab />;
 }

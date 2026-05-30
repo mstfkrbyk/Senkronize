@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -46,7 +47,7 @@ import {
 } from '@/components/ui/table';
 import { TableSkeleton } from '@/components/TableSkeleton';
 import { UpgradePrompt } from '@/components/UpgradePrompt';
-import { getApiErrorMessage } from '@/lib/api';
+import { marketplacePlatformLabel } from '@/lib/platform-labels';
 import { cn } from '@/lib/utils';
 import { useListings } from '@/pages/listings/hooks/useListings';
 import type { OrgPlanTier } from '@/types/auth';
@@ -232,9 +233,12 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                 <TableSkeleton rows={6} cols={matrixPlatforms.length + 2} />
               ) : null}
               {matrixQuery.isError ? (
-                <p className="text-sm text-destructive">
-                  {getApiErrorMessage(matrixQuery.error)}
-                </p>
+                <QueryErrorAlert
+                  error={matrixQuery.error}
+                  onRetry={() => {
+                    void matrixQuery.refetch();
+                  }}
+                />
               ) : null}
               {!matrixQuery.isLoading && (matrixQuery.data?.length ?? 0) === 0 ? (
                 <p className="text-sm text-muted-foreground">
@@ -249,7 +253,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                         <TableHead>{t('pricing.buybox.product')}</TableHead>
                         {matrixPlatforms.map((p) => (
                           <TableHead key={p} className="text-right">
-                            {p}
+                            {marketplacePlatformLabel(p)}
                           </TableHead>
                         ))}
                         <TableHead className="text-right">
@@ -330,7 +334,9 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
                 return (
                   <Card key={row.platform}>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-base">{row.platform}</CardTitle>
+                      <CardTitle className="text-base">
+                        {marketplacePlatformLabel(row.platform)}
+                      </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
                       <div className="flex justify-between">
@@ -379,7 +385,7 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
               <SelectContent>
                 {(gapQuery.data?.platforms ?? []).map((p) => (
                   <SelectItem key={p.platform} value={p.platform}>
-                    {p.platform}
+                    {marketplacePlatformLabel(p.platform)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -455,7 +461,12 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
             <CardContent className="space-y-6">
               {compQuery.isLoading ? <Skeleton className="h-40 w-full" /> : null}
               {compQuery.isError ? (
-                <p className="text-sm text-destructive">{getApiErrorMessage(compQuery.error)}</p>
+                <QueryErrorAlert
+                  error={compQuery.error}
+                  onRetry={() => {
+                    void compQuery.refetch();
+                  }}
+                />
               ) : null}
               {(compQuery.data?.length ?? 0) === 0 && !compQuery.isLoading ? (
                 <p className="text-sm text-muted-foreground">
@@ -464,7 +475,9 @@ export function CompetitorAnalysisTab({ proAccess, plan }: Props): ReactElement 
               ) : null}
               {Array.from(byPlatform.entries()).map(([plat, rows]) => (
                 <div key={plat} className="space-y-2">
-                  <p className="text-sm font-medium text-muted-foreground">{plat}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {marketplacePlatformLabel(plat)}
+                  </p>
                   <Table>
                     <TableHeader>
                       <TableRow>

@@ -2,6 +2,7 @@ import { isAxiosError } from 'axios';
 import { toast } from 'sonner';
 
 import { api, getApiErrorMessage } from '@/lib/api';
+import type { AccountingMode } from '@/types/auth';
 
 export async function testMarketplaceConnection(
   platform: string,
@@ -57,4 +58,10 @@ export async function completeOnboarding(payload: {
   onboardingCompleted: true;
 }): Promise<void> {
   await api.patch('/organizations/me', payload);
+}
+
+export async function patchOrganizationAccountingMode(
+  accountingMode: AccountingMode,
+): Promise<void> {
+  await api.patch('/organizations/me', { accountingMode });
 }

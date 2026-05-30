@@ -32,7 +32,8 @@ export function useDashboardStats(): {
       ]);
       return { summary: summaryRes.data, kpis: kpisRes.data };
     },
-    staleTime: 60_000,
+    staleTime: 300_000,
+    refetchOnWindowFocus: false,
   });
 
   return {

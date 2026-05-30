@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AccountingMode,
   CargoProvider,
   Marketplace,
   OrderStatus,
@@ -16,20 +17,27 @@ import {
 import type { MarketplaceOrder } from '@senkronize/shared';
 import type { Queue } from 'bull';
 
+import { AccountingInvoiceService } from '../accounting/accounting-invoice.service';
 import { PostHogService } from '../analytics/posthog.service';
+import { resolveOrganizationAccountingMode } from '../common/accounting-mode';
 import { CacheService } from '../common/cache/cache.service';
+import { resolveDefaultAutoInvoice } from '../organization/organization.types';
 import { PrismaService } from '../prisma/prisma.service';
 import { MARKETPLACE_ORDER_BATCH_SIZE } from '../queue/queue-worker.config';
 import { STANDARD_QUEUE_JOB_OPTIONS } from '../queue/bull-job.options';
 import { QUEUE_MARKETPLACE_PUSH } from '../queue/queue.constants';
 import type { MarketplacePushJobData } from '../queue/queue.types';
-import { InvoiceService } from '../invoice/invoice.service';
 import { ErpSyncSettingsService } from '../erp/erp-sync-settings.service';
+import { InvoiceService } from '../invoice/invoice.service';
 import { OutboundWebhookService } from '../webhook/outbound-webhook.service';
 import { resolveOrderWebhookEvents } from '../webhook/order-webhook-events.util';
 import { WarehouseService } from '../warehouse/warehouse.service';
 
 import type { OrderQueryDto, OrderSummaryDto, UpdateOrderStatusDto } from './order.dto';
+import {
+  shouldTriggerOrderAutoInvoice,
+  shouldTriggerOrderAutoInvoiceFromPlatformWebhook,
+} from './order-auto-invoice';
 import type { BulkResult, SerializedOrderNote } from './order.types';
 
 export type SerializedOrderItem = Omit<OrderItem, 'unitPrice'> & {
@@ -57,6 +65,7 @@ export class OrderService {
     private readonly warehouseService: WarehouseService,
     private readonly outboundWebhookService: OutboundWebhookService,
     private readonly invoiceService: InvoiceService,
+    private readonly accountingInvoiceService: AccountingInvoiceService,
     private readonly erpSyncSettingsService: ErpSyncSettingsService,
     @InjectQueue(QUEUE_MARKETPLACE_PUSH)
     private readonly marketplacePushQueue: Queue<MarketplacePushJobData>,
@@ -569,28 +578,13 @@ export class OrderService {
         newStatus: dto.status,
         orderId: id,
       });
-      if (
-        dto.status === OrderStatus.DELIVERED &&
-        existing.status !== OrderStatus.DELIVERED &&
-        existing.autoInvoice
-      ) {
-        void this.invoiceService.createFromOrder(organizationId, id).catch((err: unknown) => {
-          this.logger.warn('Otomatik fatura oluşturulamadı', {
-            orderId: id,
-            organizationId,
-            error: err,
-          });
-        });
-        void this.erpSyncSettingsService
-          .enqueueOrderInvoicePush(organizationId, id)
-          .catch((err: unknown) => {
-            this.logger.warn('ERP fatura işi kuyruğa alınamadı', {
-              orderId: id,
-              organizationId,
-              error: err instanceof Error ? err.message : 'Bilinmeyen hata',
-            });
-          });
-      }
+      this.scheduleAutoInvoiceOnFulfillment(
+        organizationId,
+        id,
+        existing.status,
+        dto.status,
+        existing.autoInvoice,
+      );
     }
     await this.cache.invalidateReportsForOrg(organizationId);
     const thumbnails = await this.loadItemThumbnails(
@@ -599,6 +593,63 @@ export class OrderService {
       updated.items,
     );
     return this.serializeOrder(updated, thumbnails);
+  }
+
+  private scheduleAutoInvoiceOnFulfillment(
+    organizationId: string,
+    orderId: string,
+    prevStatus: OrderStatus,
+    newStatus: OrderStatus,
+    autoInvoice: boolean,
+  ): void {
+    if (!shouldTriggerOrderAutoInvoice(autoInvoice, prevStatus, newStatus)) {
+      return;
+    }
+    void this.runAutoInvoiceOnFulfillment(organizationId, orderId).catch(
+      (err: unknown) => {
+        this.logger.warn('Otomatik fatura işlemi başarısız', {
+          orderId,
+          organizationId,
+          error: err instanceof Error ? err.message : 'Bilinmeyen hata',
+        });
+      },
+    );
+  }
+
+  private async runAutoInvoiceOnFulfillment(
+    organizationId: string,
+    orderId: string,
+  ): Promise<void> {
+    const [org, activeErpCount] = await Promise.all([
+      this.prisma.organization.findFirst({
+        where: { id: organizationId },
+        select: { accountingMode: true },
+      }),
+      this.prisma.erpConnection.count({
+        where: { organizationId, deletedAt: null, isActive: true },
+      }),
+    ]);
+    if (!org) {
+      return;
+    }
+
+    const mode = resolveOrganizationAccountingMode(
+      org.accountingMode,
+      activeErpCount,
+    );
+
+    if (mode === AccountingMode.NATIVE) {
+      await this.accountingInvoiceService.createDraftFromOrder(
+        organizationId,
+        orderId,
+      );
+      return;
+    }
+
+    await this.erpSyncSettingsService.enqueueOrderInvoicePush(
+      organizationId,
+      orderId,
+    );
   }
 
   private dispatchOrderWebhooks(
@@ -633,6 +684,12 @@ export class OrderService {
     if (orders.length === 0) {
       return { createdOrders: [] };
     }
+
+    const org = await this.prisma.organization.findFirst({
+      where: { id: organizationId, deletedAt: null },
+      select: { metadata: true },
+    });
+    const defaultAutoInvoice = resolveDefaultAutoInvoice(org?.metadata);
 
     const platformOrderIds = [...new Set(orders.map((o) => o.platformOrderId))];
     const preExistingRows =
@@ -675,8 +732,11 @@ export class OrderService {
               platformOrderId: o.platformOrderId,
               status: mapPlatformStatus(o.status),
               customerName: o.customerName,
+              customerPhone: o.customerPhone ?? null,
+              shippingAddress: o.shippingAddress ?? null,
               totalAmount: o.totalAmount,
               currency: o.currency ?? 'TRY',
+              autoInvoice: defaultAutoInvoice,
               cargoTrackingNumber: o.cargoTrackingNumber ?? null,
               cargoProvider: o.cargoProvider ?? null,
               platformCreatedAt: new Date(o.createdAt),
@@ -694,6 +754,9 @@ export class OrderService {
             },
             update: {
               status: mapPlatformStatus(o.status),
+              customerName: o.customerName,
+              customerPhone: o.customerPhone ?? null,
+              shippingAddress: o.shippingAddress ?? null,
               cargoTrackingNumber: o.cargoTrackingNumber ?? null,
               cargoProvider: o.cargoProvider ?? null,
               syncedAt: new Date(),
@@ -749,6 +812,7 @@ export class OrderService {
     platform: Marketplace,
     platformOrderId: string,
     platformStatus: string,
+    options?: { fromPlatformWebhook?: boolean },
   ): Promise<void> {
     const status = mapPlatformStatus(platformStatus);
     const before = await this.prisma.order.findFirst({
@@ -776,34 +840,35 @@ export class OrderService {
         newStatus: status,
         orderId: before.id,
       });
-      if (
-        status === OrderStatus.DELIVERED &&
-        before.status !== OrderStatus.DELIVERED
-      ) {
-        const order = await this.prisma.order.findFirst({
-          where: { id: before.id, organizationId, deletedAt: null },
-          select: { autoInvoice: true },
-        });
-        if (order?.autoInvoice) {
-          void this.invoiceService
-            .createFromOrder(organizationId, before.id)
-            .catch((err: unknown) => {
-              this.logger.warn('Otomatik fatura oluşturulamadı', {
-                orderId: before.id,
-                organizationId,
-                error: err,
-              });
-            });
-          void this.erpSyncSettingsService
-            .enqueueOrderInvoicePush(organizationId, before.id)
-            .catch((err: unknown) => {
-              this.logger.warn('ERP fatura işi kuyruğa alınamadı', {
-                orderId: before.id,
-                organizationId,
-                error: err instanceof Error ? err.message : 'Bilinmeyen hata',
-              });
-            });
-        }
+      const order = await this.prisma.order.findFirst({
+        where: { id: before.id, organizationId, deletedAt: null },
+        select: { autoInvoice: true },
+      });
+      const autoInvoice = order?.autoInvoice ?? false;
+      const [org, activeErpCount] = await Promise.all([
+        this.prisma.organization.findFirst({
+          where: { id: organizationId },
+          select: { accountingMode: true },
+        }),
+        this.prisma.erpConnection.count({
+          where: { organizationId, deletedAt: null, isActive: true },
+        }),
+      ]);
+      const triggerAutoInvoice = shouldTriggerOrderAutoInvoiceFromPlatformWebhook(
+        org?.accountingMode ?? null,
+        activeErpCount,
+        autoInvoice,
+        before.status,
+        status,
+      );
+      if (triggerAutoInvoice) {
+        this.scheduleAutoInvoiceOnFulfillment(
+          organizationId,
+          before.id,
+          before.status,
+          status,
+          autoInvoice,
+        );
       }
     }
     await this.cache.invalidateReportsForOrg(organizationId);

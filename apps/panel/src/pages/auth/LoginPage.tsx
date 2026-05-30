@@ -10,12 +10,26 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { zodFormResolver } from '@/lib/zod-form-resolver';
 import { useForm } from 'react-hook-form';
+import { AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { getApiErrorMessage, api } from '@/lib/api';
+import {
+  clearRememberedLoginEmail,
+  readRememberedLoginEmail,
+  writeRememberedLoginEmail,
+} from '@/lib/login-remember';
+import {
+  DEMO_LOGIN_ACCOUNTS,
+  getDemoLoginPassword,
+  isDemoMode,
+} from '@/lib/demo-login';
 import { FORM_MESSAGES } from '@/lib/form-messages';
+import { resolveAppHomePath } from '@/lib/app-home';
 import { useAuthStore } from '@/store/auth.store';
+import { useImpersonationStore } from '@/store/impersonation.store';
 import type { LoginResponse, MeResponse, TokenPair } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,9 +48,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Switch } from '@/components/ui/switch';
+import { LoginPageProductLinesHint } from '@/pages/auth/LoginPageProductLinesHint';
 
 const loginSchema = z.object({
   email: z
@@ -146,6 +163,10 @@ export function LoginPage(): ReactElement {
   const [useBackupCode, setUseBackupCode] = useState(false);
   const [totpValue, setTotpValue] = useState('');
   const [backupValue, setBackupValue] = useState('');
+  const [rememberMe, setRememberMe] = useState(
+    () => readRememberedLoginEmail() !== null,
+  );
+  const [formError, setFormError] = useState<string | null>(null);
 
   const lastSubmittedTotp = useRef<string | null>(null);
 
@@ -156,11 +177,15 @@ export function LoginPage(): ReactElement {
 
   const form = useForm<LoginFormValues>({
     resolver: zodFormResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    mode: 'onChange',
+    defaultValues: {
+      email: readRememberedLoginEmail() ?? '',
+      password: '',
+    },
   });
 
   const finishLogin = useCallback(
-    async (tokens: TokenPair): Promise<void> => {
+    async (tokens: TokenPair): Promise<MeResponse> => {
       setTokens(tokens.accessToken, tokens.refreshToken, tokens.sessionId);
       const { data: me } = await api.get<MeResponse>('/auth/me');
       queryClient.setQueryData(['auth', 'me'], me);
@@ -177,24 +202,39 @@ export function LoginPage(): ReactElement {
         type: me.organization.type,
         onboardingCompleted: me.organization.onboardingCompleted,
         plan: me.organization.plan,
+        orgProducts: me.organization.orgProducts,
+        accountingMode: me.organization.accountingMode,
       });
+      if (me.organization.type === 'PARTNER' && !me.isImpersonating) {
+        useImpersonationStore.getState().stopImpersonation();
+      }
+      return me;
     },
     [queryClient, setOrg, setTokens, setUser],
   );
 
-  const navigateAfterLogin = useCallback((): void => {
-    toast.success('Giriş başarılı.');
-    const inviteToken = searchParams.get('inviteToken');
-    if (inviteToken) {
-      navigate(`/invite/${encodeURIComponent(inviteToken)}`, { replace: true });
-      return;
-    }
-    const target =
-      from && from.startsWith('/') && !from.startsWith('/login')
-        ? from
-        : '/dashboard';
-    navigate(target, { replace: true });
-  }, [from, navigate, searchParams]);
+  const navigateAfterLogin = useCallback(
+    (me: MeResponse): void => {
+      toast.success('Giriş başarılı.');
+      const inviteToken = searchParams.get('inviteToken');
+      if (inviteToken) {
+        navigate(`/invite/${encodeURIComponent(inviteToken)}`, { replace: true });
+        return;
+      }
+      const defaultHome = resolveAppHomePath({
+        type: me.organization.type,
+        orgProducts: me.organization.orgProducts,
+        isImpersonating: me.isImpersonating,
+        accountingMode: me.organization.accountingMode,
+      });
+      const target =
+        from && from.startsWith('/') && !from.startsWith('/login')
+          ? from
+          : defaultHome;
+      navigate(target, { replace: true });
+    },
+    [from, navigate, searchParams],
+  );
 
   const loginMutation = useMutation({
     mutationFn: async (values: LoginFormValues): Promise<LoginResponse> => {
@@ -204,23 +244,32 @@ export function LoginPage(): ReactElement {
       });
       return data;
     },
-    onSuccess: async (data) => {
+    onMutate: () => {
+      setFormError(null);
+    },
+    onSuccess: async (data, variables) => {
+      if (rememberMe) {
+        writeRememberedLoginEmail(variables.email);
+      } else {
+        clearRememberedLoginEmail();
+      }
       if ('requiresTwoFactor' in data && data.requiresTwoFactor) {
         setTempToken(data.tempToken);
         setPhase('twoFactor');
         setUseBackupCode(false);
         setTotpValue('');
         setBackupValue('');
+        setFormError(null);
         lastSubmittedTotp.current = null;
         return;
       }
       if (isTokenPair(data)) {
-        await finishLogin(data);
-        navigateAfterLogin();
+        const me = await finishLogin(data);
+        navigateAfterLogin(me);
       }
     },
     onError: (error: unknown) => {
-      toast.error(getApiErrorMessage(error));
+      setFormError(getApiErrorMessage(error));
     },
   });
 
@@ -236,13 +285,16 @@ export function LoginPage(): ReactElement {
       });
       return data;
     },
+    onMutate: () => {
+      setFormError(null);
+    },
     onSuccess: async (tokens) => {
-      await finishLogin(tokens);
-      navigateAfterLogin();
+      const me = await finishLogin(tokens);
+      navigateAfterLogin(me);
     },
     onError: (error: unknown) => {
       lastSubmittedTotp.current = null;
-      toast.error(getApiErrorMessage(error));
+      setFormError(getApiErrorMessage(error));
     },
   });
 
@@ -273,12 +325,19 @@ export function LoginPage(): ReactElement {
         />
       );
     }
-    return <Navigate to="/dashboard" replace />;
+    const org = useAuthStore.getState().currentOrg;
+    const home = resolveAppHomePath({
+      type: org?.type,
+      orgProducts: org?.orgProducts,
+      isImpersonating: false,
+      accountingMode: org?.accountingMode,
+    });
+    return <Navigate to={home} replace />;
   }
 
   if (phase === 'twoFactor') {
     return (
-      <Card className="mx-auto w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
+      <Card className="mx-auto w-full max-w-md">
         <CardHeader>
           <CardTitle>İki adımlı doğrulama</CardTitle>
           <CardDescription>
@@ -287,6 +346,12 @@ export function LoginPage(): ReactElement {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {formError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="size-4" />
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          ) : null}
           <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
             <div className="space-y-0.5">
               <Label htmlFor="backup-toggle" className="text-base">
@@ -343,7 +408,14 @@ export function LoginPage(): ReactElement {
               }
               onClick={() => twoFactorMutation.mutate()}
             >
-              {twoFactorMutation.isPending ? 'Doğrulanıyor…' : 'Giriş yap'}
+              {twoFactorMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                  Doğrulanıyor…
+                </>
+              ) : (
+                'Giriş yap'
+              )}
             </Button>
           ) : (
             <p className="text-center text-xs text-muted-foreground">
@@ -371,6 +443,7 @@ export function LoginPage(): ReactElement {
   }
 
   return (
+    <>
     <Card className="mx-auto w-full max-w-md border-0 shadow-none sm:border sm:shadow-sm">
       <CardHeader>
         <CardTitle>Giriş yap</CardTitle>
@@ -383,6 +456,55 @@ export function LoginPage(): ReactElement {
           onSubmit={form.handleSubmit((values) => loginMutation.mutate(values))}
         >
           <CardContent className="space-y-4">
+            {formError ? (
+              <Alert variant="destructive">
+                <AlertCircle className="size-4" />
+                <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+            ) : null}
+            {isDemoMode() ? (
+              <>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Demo hesapları</p>
+                  <div className="flex flex-col gap-2">
+                    {DEMO_LOGIN_ACCOUNTS.map((account) => (
+                      <Button
+                        key={account.slug}
+                        type="button"
+                        variant="outline"
+                        className="h-auto w-full flex-col items-start gap-0.5 py-3 text-left"
+                        disabled={loginMutation.isPending}
+                        onClick={() => {
+                          const credentials = {
+                            email: account.email,
+                            password: getDemoLoginPassword(account.email),
+                          };
+                          form.setValue('email', credentials.email);
+                          form.setValue('password', credentials.password);
+                          loginMutation.mutate(credentials);
+                        }}
+                      >
+                        <span className="font-medium">{account.label}</span>
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {account.productLineHint}
+                        </span>
+                        <span className="text-[0.65rem] font-normal text-muted-foreground/80">
+                          {account.description}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">veya</span>
+                  </div>
+                </div>
+              </>
+            ) : null}
             <FormField
               control={form.control}
               name="email"
@@ -393,9 +515,14 @@ export function LoginPage(): ReactElement {
                     <Input
                       type="email"
                       autoComplete="email"
+                      autoFocus
                       placeholder="ornek@sirket.com"
                       className="text-base"
                       {...field}
+                      onChange={(e) => {
+                        setFormError(null);
+                        field.onChange(e);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
@@ -407,33 +534,68 @@ export function LoginPage(): ReactElement {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Şifre</FormLabel>
+                  <div className="flex items-center justify-between gap-2">
+                    <FormLabel>Şifre</FormLabel>
+                    <Link
+                      to="/forgot-password"
+                      className="text-sm font-medium text-accent underline-offset-4 hover:underline"
+                    >
+                      Şifremi unuttum?
+                    </Link>
+                  </div>
                   <FormControl>
-                    <Input
-                      type="password"
+                    <PasswordInput
                       autoComplete="current-password"
                       placeholder="••••••••"
                       className="text-base"
                       {...field}
+                      onChange={(e) => {
+                        setFormError(null);
+                        field.onChange(e);
+                      }}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="remember-me"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
+              <Label
+                htmlFor="remember-me"
+                className="cursor-pointer text-sm font-normal leading-none"
+              >
+                Beni hatırla
+              </Label>
+            </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button
               type="submit"
               className="w-full"
-              disabled={loginMutation.isPending}
+              disabled={loginMutation.isPending || !form.formState.isValid}
             >
-              {loginMutation.isPending ? 'Giriş yapılıyor…' : 'Giriş yap'}
+              {loginMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
+                  Giriş yapılıyor…
+                </>
+              ) : (
+                'Giriş yap'
+              )}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
               Hesabınız yok mu?{' '}
               <Link
-                to="/register"
+                to={
+                  searchParams.get('invite')
+                    ? `/register?invite=${encodeURIComponent(searchParams.get('invite')!)}`
+                    : '/register'
+                }
                 className="font-medium text-accent underline-offset-4 hover:underline"
               >
                 Kayıt olun
@@ -443,5 +605,21 @@ export function LoginPage(): ReactElement {
         </form>
       </Form>
     </Card>
+    {isDemoMode() ? (
+      <p className="mx-auto mt-4 max-w-md text-center text-xs text-muted-foreground">
+        Demo şifreleri ve org slug tablosu için kök{' '}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]">
+          .env.example
+        </code>
+        ; veri için{' '}
+        <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.7rem]">
+          SEED_DEMO=true pnpm seed
+        </code>
+        .
+      </p>
+    ) : (
+      <LoginPageProductLinesHint />
+    )}
+    </>
   );
 }

@@ -33,7 +33,13 @@ import {
   type ErpConnectionDto,
 } from '@/hooks/useErpConnections';
 import { getApiErrorMessage } from '@/lib/api';
+import { useIntegrationOpsAccess } from '@/hooks/useIntegrationOpsAccess';
+import { customerConnectionStatusLabel } from '@/lib/integration-ops-access';
 import { getErpBranding } from '@/pages/connections/erp-display';
+import {
+  erpConnectionDisplayName,
+  erpConnectionRoleLabel,
+} from '@/lib/erp-connection-display';
 
 interface Props {
   connection: ErpConnectionDto;
@@ -70,7 +76,7 @@ function ErpStatusBadge({ status }: { status: ErpStatusUi }): ReactElement {
       className: 'border-red-200 bg-red-50 text-red-800',
     },
     inactive: {
-      label: 'Bağlantı Yok',
+      label: 'Pasif',
       className: 'border-slate-200 bg-slate-100 text-slate-700',
     },
   };
@@ -85,6 +91,7 @@ function ErpStatusBadge({ status }: { status: ErpStatusUi }): ReactElement {
 export function ErpConnectionCard({ connection, onEditPress }: Props): ReactElement {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const testMutation = useTestErpConnection();
+  const opsAccess = useIntegrationOpsAccess();
   const toggleMutation = useToggleErpConnection();
   const deleteMutation = useDeleteErpConnection();
 
@@ -141,18 +148,30 @@ export function ErpConnectionCard({ connection, onEditPress }: Props): ReactElem
     });
   };
 
+  const cardAccent =
+    status === 'active'
+      ? 'border-l-4 border-l-emerald-500'
+      : status === 'error'
+        ? 'border-l-4 border-l-red-500'
+        : status === 'warning'
+          ? 'border-l-4 border-l-amber-500'
+          : 'border-l-4 border-l-slate-300';
+
   return (
     <>
-      <Card>
+      <Card className={cardAccent}>
         <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2 text-lg font-semibold">
               <span aria-hidden>{logo}</span>
-              <span>{label}</span>
+              <span>{erpConnectionDisplayName(connection)}</span>
+              <Badge variant="secondary" className="font-normal">
+                {erpConnectionRoleLabel(connection.role)}
+              </Badge>
               <ErpStatusBadge status={status} />
             </div>
             <p className="text-sm text-muted-foreground">
-              {accountFieldLabel}: {connection.accountLabel ?? '—'}
+              {label} · {accountFieldLabel}: {connection.accountLabel ?? '—'}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -171,46 +190,56 @@ export function ErpConnectionCard({ connection, onEditPress }: Props): ReactElem
           </div>
         </CardHeader>
         <CardContent className="pb-2">
-          <p className="text-sm text-muted-foreground">
-            Son senkron: {lastSyncLabel}
+          <p className="text-sm">
+            <span className="text-muted-foreground">Son senkron: </span>
+            <span className="font-medium text-foreground">{lastSyncLabel}</span>
           </p>
-          {connection.lastErrorMessage && status !== 'active' ? (
+          {opsAccess && connection.lastErrorMessage && status !== 'active' ? (
             <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-2 py-1.5 text-xs text-red-800">
               {connection.lastErrorMessage}
             </p>
           ) : null}
-          {connection.syncErrorCount > 0 && !connection.lastErrorMessage ? (
+          {opsAccess &&
+          connection.syncErrorCount > 0 &&
+          !connection.lastErrorMessage ? (
             <p className="mt-1 text-xs text-amber-700">
               Son dönemde {connection.syncErrorCount} senkron hatası
             </p>
           ) : null}
+          {!opsAccess && status !== 'active' && connection.isActive ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {customerConnectionStatusLabel(status)}
+            </p>
+          ) : null}
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2 border-t pt-4">
-          {(status === 'error' || status === 'warning') ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={testMutation.isPending}
-              onClick={() => {
-                handleTest();
-              }}
-            >
-              {testMutation.isPending ? 'Test…' : 'Yeniden Test Et'}
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={testMutation.isPending}
-              onClick={() => {
-                handleTest();
-              }}
-            >
-              {testMutation.isPending ? 'Test…' : 'Test Et'}
-            </Button>
-          )}
+          {opsAccess && connection.erpType !== 'BIZIMHESAP' ? (
+            (status === 'error' || status === 'warning') ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={testMutation.isPending}
+                onClick={() => {
+                  handleTest();
+                }}
+              >
+                {testMutation.isPending ? 'Test…' : 'Yeniden Test Et'}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={testMutation.isPending}
+                onClick={() => {
+                  handleTest();
+                }}
+              >
+                {testMutation.isPending ? 'Test…' : 'Test Et'}
+              </Button>
+            )
+          ) : null}
           <Button size="sm" variant="outline" asChild>
             <Link to={`/connections/erp/${connection.id}`}>
               <Settings className="mr-1.5 h-3.5 w-3.5" />

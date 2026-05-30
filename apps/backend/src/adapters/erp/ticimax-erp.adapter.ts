@@ -6,9 +6,14 @@ import type {
   IErpAdapter,
 } from '@senkronize/shared';
 
+import {
+  formatTicimaxSoapError,
+  normalizeTicimaxCredentials,
+  TicimaxSoapClient,
+} from '../ticimax/ticimax-soap.util';
 import { TicimaxAdapter } from '../ticimax/ticimax.adapter';
 
-/** Ticimax ERP yüzü — pazaryeri adaptöründen ayrı bağlantı testi dönüş tipi */
+/** Ticimax ERP yüzü — SOAP webservis (UrunServis / SiparisServis) */
 @Injectable()
 export class TicimaxErpAdapter implements IErpAdapter {
   readonly erpType = 'TICIMAX';
@@ -16,8 +21,26 @@ export class TicimaxErpAdapter implements IErpAdapter {
   constructor(private readonly ticimax: TicimaxAdapter) {}
 
   async testConnection(credentials: Record<string, string>): Promise<ERPConnectionResult> {
-    const success = await this.ticimax.testConnection(credentials);
-    return { success };
+    const config = normalizeTicimaxCredentials(credentials);
+    if (!config) {
+      return {
+        success: false,
+        message: 'Ticimax: Mağaza URL ve Üye Kodu zorunludur.',
+      };
+    }
+    try {
+      const detail = await new TicimaxSoapClient(config).testConnectionDetailed();
+      return {
+        success: true,
+        version: 'webservis',
+        productCount: detail.productCount,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: formatTicimaxSoapError(error),
+      };
+    }
   }
 
   getProducts(credentials: Record<string, string>): Promise<ErpProduct[]> {

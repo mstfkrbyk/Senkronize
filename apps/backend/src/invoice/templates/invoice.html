@@ -156,7 +156,7 @@
   <div class="brand-bar"></div>
   <div class="header">
     <div class="sender">
-      <div class="logo">Senkronize</div>
+      <div class="logo">{{orgName}}</div>
       <div class="doc-title">Satış Faturası</div>
       <div style="margin-top:12px">{{senderBlock}}</div>
     </div>
@@ -196,10 +196,7 @@
         <td>Ara Toplam</td>
         <td>{{subtotal}}</td>
       </tr>
-      <tr>
-        <td>KDV Toplamı (%{{taxRate}})</td>
-        <td>{{taxAmount}}</td>
-      </tr>
+      {{vatSummaryRows}}
       <tr class="grand">
         <td>Genel Toplam</td>
         <td>{{totalAmount}}</td>

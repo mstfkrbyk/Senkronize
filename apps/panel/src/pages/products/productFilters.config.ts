@@ -6,9 +6,8 @@ import type { ProductStockStatusFilter } from './productStockStatus';
 export const PRODUCT_PAGE_SIZE = 20;
 
 export const PRODUCT_FILTER_DEFAULTS = {
-  page: 1,
   search: '',
-  category: '',
+  categoryId: undefined as string | undefined,
   platform: undefined as string | undefined,
   stockStatus: 'all' as ProductStockStatusFilter,
   minPrice: undefined as number | undefined,
@@ -17,6 +16,14 @@ export const PRODUCT_FILTER_DEFAULTS = {
   isActive: undefined as string | undefined,
   minCostPrice: undefined as number | undefined,
   maxCostPrice: undefined as number | undefined,
+  sortBy: undefined as
+    | 'name'
+    | 'price'
+    | 'stock'
+    | 'createdAt'
+    | 'updatedAt'
+    | undefined,
+  sortOrder: 'desc' as 'asc' | 'desc',
 };
 
 export const PRODUCT_FILTER_CONFIG: FilterConfig[] = [
@@ -27,10 +34,10 @@ export const PRODUCT_FILTER_CONFIG: FilterConfig[] = [
     placeholder: 'Ürün adı, barkod veya SKU',
   },
   {
-    key: 'category',
+    key: 'categoryId',
     label: 'Kategori',
-    type: 'text',
-    placeholder: 'Kategori adı',
+    type: 'select',
+    options: [],
   },
   {
     key: 'platform',

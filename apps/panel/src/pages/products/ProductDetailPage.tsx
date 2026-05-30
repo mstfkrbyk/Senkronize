@@ -13,9 +13,12 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 
+import { PageHeader } from '@/components/PageHeader';
+import { QueryErrorAlert } from '@/components/QueryErrorAlert';
 import { ImageManager } from '@/components/products/ImageManager';
 import { ProductStockHistoryTab } from '@/components/products/ProductStockHistoryTab';
 import { ProductGeneralInfoTab } from '@/components/products/ProductGeneralInfoTab';
+import { ProductMatchKeyCard } from '@/components/products/ProductMatchKeyCard';
 import { ProductListingsTab } from '@/components/products/ProductListingsTab';
 import { ProductPerformanceTab } from '@/components/products/ProductPerformanceTab';
 import { VariantMatrix } from '@/components/products/VariantMatrix';
@@ -39,10 +42,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api, getApiErrorMessage } from '@/lib/api';
+import { useActiveNav } from '@/hooks/useActiveNav';
 import { useBreadcrumbTail } from '@/hooks/useBreadcrumbTail';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { formatNavPageContext } from '@/lib/nav-page-context';
 import { recordRecentView } from '@/lib/recent-views';
 import { CreateVariantsWizard } from '@/pages/products/components/CreateVariantsWizard';
 import { VariantBulkActions } from '@/pages/products/components/VariantBulkActions';
@@ -263,6 +269,8 @@ function AddVariantDialog({
 
 function ProductDetailInner({ productId }: { productId: string }): ReactElement {
   const { t } = useTranslation();
+  const { groupLabel } = useActiveNav();
+  const navContextLine = formatNavPageContext(groupLabel, t('nav.products'));
   const [searchParams] = useSearchParams();
   const defaultTab = searchParams.get('tab') ?? 'general';
   const queryClient = useQueryClient();
@@ -338,52 +346,67 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
 
   if (detailQuery.isLoading) {
     return (
-      <div className="flex items-center gap-2 text-muted-foreground text-sm">
-        <Loader2 className="size-4 animate-spin" />
-        {t('common.loading', { defaultValue: 'Yükleniyor…' })}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-9 w-36" />
+        </div>
+        <Card>
+          <CardContent className="space-y-4 pt-6">
+            <Skeleton className="h-10 w-full max-w-xl" />
+            <Skeleton className="h-96 w-full rounded-lg" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (detailQuery.isError || !detailQuery.data) {
     return (
-      <p className="text-destructive text-sm">
-        {detailQuery.isError ? getApiErrorMessage(detailQuery.error) : 'Veri yok'}
-      </p>
+      <Card>
+        <CardContent className="pt-6">
+          {detailQuery.isError ? (
+            <QueryErrorAlert
+              error={detailQuery.error}
+              onRetry={() => {
+                void detailQuery.refetch();
+              }}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">{t('common.noData')}</p>
+          )}
+        </CardContent>
+      </Card>
     );
   }
 
   const { product, variants, listings } = detailQuery.data;
 
+  const productMeta = `SKU: ${product.sku ?? '—'} · Barkod: ${product.barcode}${product.brand ? ` · ${product.brand}` : ''}${product.category ? ` · ${product.category}` : ''}`;
+
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Button variant="ghost" size="sm" className="mb-2 -ml-2" asChild>
+    <div className="space-y-6">
+      <PageHeader
+        title={product.name}
+        description={productMeta}
+        context={navContextLine}
+        actions={
+          <Button variant="outline" size="sm" asChild>
             <Link to="/products">
               <ArrowLeft className="mr-2 size-4" />
               {t('products.backToCatalog')}
             </Link>
           </Button>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
-            {!product.isActive ? (
-              <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium">
-                {t('products.draft')}
-              </span>
-            ) : null}
-          </div>
-          <p className="text-muted-foreground text-sm">
-            SKU: {product.sku ?? '—'} · Barkod:{' '}
-            <span className="font-mono">{product.barcode}</span>
-            {product.brand ? ` · ${product.brand}` : ''}
-            {product.category ? ` · ${product.category}` : ''}
-          </p>
-        </div>
-      </div>
+        }
+      />
+      {!product.isActive ? (
+        <p className="text-sm text-muted-foreground -mt-4">{t('products.draft')}</p>
+      ) : null}
 
-      <Tabs defaultValue={defaultTab}>
-        <TabsList className="flex h-auto flex-wrap">
+      <Card>
+        <CardContent className="pt-6">
+          <Tabs defaultValue={defaultTab}>
+            <TabsList className="flex h-auto flex-wrap">
           <TabsTrigger value="general">{t('products.tabs.general')}</TabsTrigger>
           <TabsTrigger value="variants">{t('products.tabs.variants')}</TabsTrigger>
           <TabsTrigger value="listings">{t('products.tabs.listings')}</TabsTrigger>
@@ -392,8 +415,9 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
           <TabsTrigger value="stock">{t('products.tabs.stockHistory')}</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="mt-4">
+        <TabsContent value="general" className="mt-4 space-y-4">
           <ProductGeneralInfoTab product={product} onSaved={invalidate} />
+          <ProductMatchKeyCard productId={product.id} value={product.productMatchKey} />
         </TabsContent>
 
         <TabsContent value="variants" className="mt-4">
@@ -515,7 +539,9 @@ function ProductDetailInner({ productId }: { productId: string }): ReactElement 
         <TabsContent value="stock" className="mt-4">
           <ProductStockHistoryTab barcode={product.barcode} />
         </TabsContent>
-      </Tabs>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -524,7 +550,13 @@ export function ProductDetailPage(): ReactElement {
   const { id } = useParams<{ id: string }>();
 
   if (!id) {
-    return <p className="text-muted-foreground text-sm">Ürün bulunamadı.</p>;
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-muted-foreground text-sm">Ürün bulunamadı.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return <ProductDetailInner productId={id} />;

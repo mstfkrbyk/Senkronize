@@ -58,6 +58,12 @@ fn erp_name_line(app: &AppHandle<impl Runtime>) -> String {
         .unwrap_or_else(|| "ERP: bağlı değil".to_string())
 }
 
+fn org_context_line(app: &AppHandle<impl Runtime>) -> Option<String> {
+    app.try_state::<AutoSyncState>()
+        .and_then(|st| st.org_context_line.lock().ok().and_then(|g| g.clone()))
+        .map(|text| format!("Org: {text}"))
+}
+
 fn tray_tooltip(last: Option<chrono::DateTime<chrono::Utc>>, mode: TrayIndicatorMode) -> String {
     let ago = minutes_ago_label(last);
     let suffix = match mode {
@@ -77,7 +83,12 @@ fn icon_for_mode(mode: TrayIndicatorMode) -> tauri::Result<Image<'static>> {
     Image::from_bytes(bytes).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))
 }
 
-fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, erp_line: &str, last_line: &str) -> tauri::Result<Menu<R>> {
+fn build_tray_menu<R: Runtime>(
+    handle: &AppHandle<R>,
+    org_line: Option<&str>,
+    erp_line: &str,
+    last_line: &str,
+) -> tauri::Result<Menu<R>> {
     let erp_item = MenuItem::with_id(handle, "erp_name", erp_line, false, None::<&str>)?;
     let sync_now = MenuItem::with_id(handle, "sync", "Şimdi Sync Et", true, None::<&str>)?;
     let open_app = MenuItem::with_id(handle, "open_app", "Senkronize'yi Aç", true, None::<&str>)?;
@@ -85,6 +96,14 @@ fn build_tray_menu<R: Runtime>(handle: &AppHandle<R>, erp_line: &str, last_line:
     let last = MenuItem::with_id(handle, "last_sync", last_line, false, None::<&str>)?;
     let sep2 = PredefinedMenuItem::separator(handle)?;
     let quit = MenuItem::with_id(handle, "quit", "Çıkış", true, None::<&str>)?;
+
+    if let Some(org) = org_line {
+        let org_item = MenuItem::with_id(handle, "org_context", org, false, None::<&str>)?;
+        return Menu::with_items(
+            handle,
+            &[&org_item, &erp_item, &sync_now, &open_app, &sep1, &last, &sep2, &quit],
+        );
+    }
 
     Menu::with_items(handle, &[&erp_item, &sync_now, &open_app, &sep1, &last, &sep2, &quit])
 }
@@ -98,8 +117,9 @@ pub fn refresh_tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .and_then(|st| st.mode.lock().ok().map(|g| *g))
         .unwrap_or(TrayIndicatorMode::Idle);
     let erp_line = erp_name_line(app);
+    let org_line = org_context_line(app);
     let last_line = format!("Son sync: {}", minutes_ago_label(last));
-    let menu = build_tray_menu(app, &erp_line, &last_line)?;
+    let menu = build_tray_menu(app, org_line.as_deref(), &erp_line, &last_line)?;
     if let Some(tray) = app.tray_by_id(TRAY_ID) {
         tray.set_menu(Some(menu))?;
         let _ = tray.set_tooltip(Some(tray_tooltip(last, mode)));
@@ -193,8 +213,10 @@ pub fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> tauri::Result<()> {
         .try_state::<AutoSyncState>()
         .and_then(|st| st.last_sync.lock().ok().and_then(|g| *g));
     let erp_line = erp_name_line(&handle);
+    let org_line = org_context_line(&handle);
     let menu = build_tray_menu(
         &handle,
+        org_line.as_deref(),
         &erp_line,
         &format!("Son sync: {}", minutes_ago_label(last)),
     )?;

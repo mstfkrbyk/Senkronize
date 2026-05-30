@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import type { FilterConfig } from '@/components/AdvancedFilters';
 import { CARGO_PROVIDER_OPTIONS } from '@/lib/cargo-providers';
 import { ORDER_STATUS_I18N_KEY } from '@/lib/order-i18n';
+import { INVOICE_STATUS_OPTIONS } from '@/pages/invoices/invoice-utils';
 import { MARKETPLACE_OPTIONS } from '@/pages/onboarding/onboarding.options';
 import type { OrderStatus } from '@/types/order';
 
@@ -19,12 +20,17 @@ export const ORDER_FILTER_DEFAULTS = {
   cargoProvider: '',
   minTotal: undefined as number | undefined,
   maxTotal: undefined as number | undefined,
+  invoiceLink: 'all',
+  invoiceStatus: 'all',
 };
 
 const ALL_STATUSES = Object.keys(ORDER_STATUS_I18N_KEY) as OrderStatus[];
 
-export function buildOrderFilterConfig(t: TFunction): FilterConfig[] {
-  return [
+export function buildOrderFilterConfig(
+  t: TFunction,
+  options?: { includeInvoiceFilters?: boolean },
+): FilterConfig[] {
+  const base: FilterConfig[] = [
     {
       key: 'platforms',
       label: t('orders.filters.platform'),
@@ -66,6 +72,33 @@ export function buildOrderFilterConfig(t: TFunction): FilterConfig[] {
       label: t('orders.filters.amountRange'),
       type: 'number_range',
       rangeEndKey: 'maxTotal',
+    },
+  ];
+
+  if (!options?.includeInvoiceFilters) {
+    return base;
+  }
+
+  return [
+    ...base,
+    {
+      key: 'invoiceLink',
+      label: t('orders.filters.invoiceLink'),
+      type: 'select',
+      options: [
+        { value: 'all', label: t('orders.filters.invoiceLinkAll') },
+        { value: 'linked', label: t('orders.filters.invoiceLinkWith') },
+        { value: 'unlinked', label: t('orders.filters.invoiceLinkWithout') },
+      ],
+    },
+    {
+      key: 'invoiceStatus',
+      label: t('orders.filters.invoiceStatus'),
+      type: 'select',
+      options: [
+        { value: 'all', label: t('orders.filters.invoiceStatusAll') },
+        ...INVOICE_STATUS_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      ],
     },
   ];
 }
